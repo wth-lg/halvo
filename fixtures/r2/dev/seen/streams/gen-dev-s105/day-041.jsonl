@@ -1,0 +1,10 @@
+{"v":1,"id":"019c46a6-d9d4-7870-8311-dd792cf1bb05","at":1770711865812000000,"seq":415,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c46a6-d9d4-7cde-9430-b63f3247dd94","at":1770711865812000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c46a7-1910-7ec4-82c4-dc8d9c57edc1","at":1770711882000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46a7-7958-7da9-a0a7-93853982d102","at":1770711906648000000,"seq":418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c46a7-e818-79f5-a6c6-3956645712aa","at":1770711935000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c46a7-ff88-7313-8494-9b71bdeeb132","at":1770711941000000000,"seq":420,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c46a8-1310-7901-8ea5-526c7cd1e11a","at":1770711946000000000,"seq":421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c46a8-870d-715f-8b2c-fb4f851192f9","at":1770711975693000000,"seq":422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c46a8-d660-7a7d-a6f3-27f40e1a1ec9","at":1770711996000000000,"seq":423,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c46a8-faf7-7b6c-8a71-d4d9387b5259","at":1770712005367000000,"seq":424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}

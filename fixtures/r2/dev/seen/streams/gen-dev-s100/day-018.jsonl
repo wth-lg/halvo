@@ -1,0 +1,23 @@
+{"v":1,"id":"019bd04a-7eac-712c-86e2-c2b7ac090e8e","at":1768726101676000000,"seq":329,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd04a-7eac-7b86-aa77-2c7b428edc9f","at":1768726101676000000,"seq":330,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd04a-9760-71d1-b8a8-a0a2ecaa5561","at":1768726108000000000,"seq":331,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd04a-aae8-7aac-9991-a28fb0cd3efa","at":1768726113000000000,"seq":332,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bd04a-beda-73a5-afcd-d0a3e8236e21","at":1768726118106000000,"seq":333,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd04a-beda-7faa-9f5c-87f782017c42","at":1768726118106000000,"seq":334,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd04a-ce10-7f4f-9516-ea516109f976","at":1768726122000000000,"seq":335,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd04b-cadd-7958-bc85-df02307b7fb1","at":1768726186717000000,"seq":336,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd04b-cadd-7605-91f4-b69027c66a14","at":1768726186717000000,"seq":337,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd04b-df80-7807-979f-1de2bc0688f1","at":1768726192000000000,"seq":338,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd04b-ef20-7429-a3aa-d8de4ce24db4","at":1768726196000000000,"seq":339,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bd04b-f308-796e-9bda-8cadf03c8d7f","at":1768726197000000000,"seq":340,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bd04c-1248-721f-a927-53df6f294923","at":1768726205000000000,"seq":341,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd04f-84b8-7de6-a196-af3128455020","at":1768726430904000000,"seq":342,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd04f-84b8-7324-808c-7b9e9cad627e","at":1768726430904000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bd04f-a070-7acc-a8cb-47118d3411e5","at":1768726438000000000,"seq":344,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd04f-cb68-7c50-a4c3-eb466d67e1ca","at":1768726449000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd04f-def0-7cd9-9fe2-1446e4b4216e","at":1768726454000000000,"seq":346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd04f-eaa8-7b26-874a-3b98dc3cd53c","at":1768726457000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd058-24c8-7ce7-8252-08f6c6999ca4","at":1768726996168000000,"seq":348,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bd058-4360-7af9-ab3b-ac8779186757","at":1768727004000000000,"seq":349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd058-62a0-75b2-b903-9545560ab811","at":1768727012000000000,"seq":350,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bd058-6688-7c6b-a287-e0f7ff1d2103","at":1768727013000000000,"seq":351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

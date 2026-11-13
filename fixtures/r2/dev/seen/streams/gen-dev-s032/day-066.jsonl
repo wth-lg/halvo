@@ -1,0 +1,33 @@
+{"v":1,"id":"019cc783-4ac8-7c0e-be86-09886e2a56bd","at":1772873796296000000,"seq":938,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc783-4ac8-74c0-b807-e9fc7ff6ce42","at":1772873796296000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc783-8820-7c22-9e00-ba1b9a78afb0","at":1772873812000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc783-f580-78dd-94bf-548e12782f92","at":1772873840000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc784-08d2-7047-b696-846bbabd134c","at":1772873844946000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc784-4788-714d-b916-df07211bfab5","at":1772873861000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc784-5ef8-7112-bbd6-feecd0b2a267","at":1772873867000000000,"seq":944,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc784-eb98-7857-95ab-46f82727cf2c","at":1772873903000000000,"seq":945,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc784-f7a1-7dc0-a7de-ff2d85c54f1e","at":1772873906081000000,"seq":946,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc785-2e00-78b0-ba39-94c1f06d684a","at":1772873920000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc785-9390-7ef5-a56c-88af17882c08","at":1772873946000000000,"seq":948,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc785-ddc8-7633-94e9-0d335864982a","at":1772873965000000000,"seq":949,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc785-e178-78cd-8f22-e96b37691004","at":1772873965944000000,"seq":950,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc785-f150-7a7c-8346-9ff1f7840561","at":1772873970000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cc785-fd08-7c4e-85a5-e2cd5e553567","at":1772873973000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc786-0ca8-76fa-9653-7a183987852c","at":1772873977000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc795-f7f2-7f56-a319-2e44c2bd4138","at":1772875020274000000,"seq":954,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cc796-1df0-7bfb-9fc7-3e6ddd86cf4c","at":1772875030000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cc796-21d8-7ec1-9fd7-e6c407b07f9c","at":1772875031000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc796-4118-7a9f-92b7-65de5f024eb9","at":1772875039000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc796-5235-7bbd-b94f-03a08dd23fac","at":1772875043381000000,"seq":958,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cc796-8f38-71c7-beaf-961eeee14b7c","at":1772875059000000000,"seq":959,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc796-9320-756c-8326-b5766b0db21a","at":1772875060000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cc796-9c88-72ff-8f71-4c2d8631fa13","at":1772875062408000000,"seq":961,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cc796-a6a8-7ed8-91e0-65d92e238333","at":1772875065000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc796-ae78-733e-8cd0-23f562327e76","at":1772875067000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cc797-42e8-7f25-afe9-4ad100582ebc","at":1772875105000000000,"seq":964,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc797-71c8-7ace-b0e6-d4db6bee58cd","at":1772875117000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc797-730c-7903-aa92-5ca56be0a0f8","at":1772875117324000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cc797-75b0-761d-bebb-dc5aa7ed4719","at":1772875118000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc797-8938-729a-9991-90b59ebf2cd3","at":1772875123000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cc797-8d20-721d-b193-20cb29ee368f","at":1772875124000000000,"seq":969,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc797-a490-7009-91ed-97be3fa3481f","at":1772875130000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

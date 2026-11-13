@@ -1,0 +1,23 @@
+{"v":1,"id":"019d0f6c-6d66-7836-bc4d-7798c994a008","at":1774080257382000000,"seq":1334,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0f6c-6d66-7612-a872-a92527126003","at":1774080257382000000,"seq":1335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6c-7b88-7a0a-a273-a087d848139b","at":1774080261000000000,"seq":1336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6c-8358-7bb7-ac9f-07f57593ffd8","at":1774080263000000000,"seq":1337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6c-96e0-7e4f-92db-56794426f619","at":1774080268000000000,"seq":1338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d0f6c-a703-7f1f-be65-346d62c54a3d","at":1774080272131000000,"seq":1339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6c-ae50-77d4-98c5-793a60740bf7","at":1774080274000000000,"seq":1340,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0f6c-b620-70db-995c-cedc3b2423c4","at":1774080276000000000,"seq":1341,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0f6c-c1d8-7c76-9c66-5efccc26d081","at":1774080279000000000,"seq":1342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6c-e9ce-7269-a0d3-3cc011486450","at":1774080289230000000,"seq":1343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6d-2f38-7af9-8676-94e4958f39e4","at":1774080307000000000,"seq":1344,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0f6d-34c4-7c7f-9273-ead42590e4ce","at":1774080308420000000,"seq":1345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6d-4e78-7ea4-8157-f1314a7f4e04","at":1774080315000000000,"seq":1346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6d-8910-70cd-9920-f8661f1cab2e","at":1774080330000000000,"seq":1347,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0f86-54ad-7dd1-b2b0-ddcb89ebb464","at":1774081954989000000,"seq":1348,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d0f86-58a0-72b3-9d21-b24cc2699490","at":1774081956000000000,"seq":1349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0f86-6070-70f2-b548-ce478d7a8a8e","at":1774081958000000000,"seq":1350,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f86-a6c0-71dc-9dae-1f996a91b623","at":1774081976000000000,"seq":1351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d0f92-2708-74cb-b457-5ae0d7c663e6","at":1774082729736000000,"seq":1352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d0f92-2810-701d-b0fc-6a374c5d6c68","at":1774082730000000000,"seq":1353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f92-37b0-7c00-a283-c8f28d8dd90c","at":1774082734000000000,"seq":1354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0f92-37b0-70f8-9f4c-c79cf7c0ae2e","at":1774082734000000000,"seq":1355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d0f92-7e00-7a24-b9e4-bdedc5532716","at":1774082752000000000,"seq":1356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

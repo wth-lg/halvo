@@ -1,0 +1,24 @@
+{"v":1,"id":"019c1d95-5eb2-7c65-91df-6fe584a5d1d6","at":1770022854322000000,"seq":404,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1d95-5eb2-7f62-82f8-29918c9abcbe","at":1770022854322000000,"seq":405,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c1d95-af78-784d-9c82-65364a2ada50","at":1770022875000000000,"seq":406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d96-3060-7587-9429-8a670a43ec58","at":1770022908000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d96-51f4-707e-ab19-d1cc35d4d07b","at":1770022916596000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c1d96-9208-70df-a963-11cb9e6bf08d","at":1770022933000000000,"seq":409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1d96-99d8-7c55-94e1-47cade6cfeff","at":1770022935000000000,"seq":410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1d96-f798-7b41-ae77-be73fdf1e635","at":1770022959000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c1d97-1a75-71d4-a560-81059363f34f","at":1770022967925000000,"seq":412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1d97-b318-7705-b100-78358a362461","at":1770023007000000000,"seq":413,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1d97-bae8-7506-a1ec-55549cd2ddec","at":1770023009000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c1d97-d217-7e31-a60a-1fe81561f1d7","at":1770023014935000000,"seq":415,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c1d97-fd50-73e0-8c0f-742d18b280dd","at":1770023026000000000,"seq":416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d98-0520-7d08-8a4d-c653fcca88ec","at":1770023028000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d98-1ded-7027-a426-ba5ef95d4631","at":1770023034349000000,"seq":418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c1d98-4788-7ec8-9f31-15758ee1d78d","at":1770023045000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c1d98-5b10-726f-811e-180215a3fabe","at":1770023050000000000,"seq":420,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1d98-8608-735e-83c2-d37b4c1ccf93","at":1770023061000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d98-89f0-74d1-b8fc-85cb1bcb3097","at":1770023062000000000,"seq":422,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1dad-8b3f-7f66-a1af-eb16f3fa3b63","at":1770024438591000000,"seq":423,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1db0-3293-731d-9a3d-6bfa1ca78c7b","at":1770024612499000000,"seq":424,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1db0-3293-742a-953b-cd6aa55d2230","at":1770024612499000000,"seq":425,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1db0-5f80-7d77-815f-17ee6e45fa99","at":1770024624000000000,"seq":426,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c1db0-a5d0-7249-92d0-576718048c1d","at":1770024642000000000,"seq":427,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,17 @@
+{"v":1,"id":"019c321c-ec7f-70db-915e-7103c7ca5082","at":1770367282303000000,"seq":529,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c321c-ec7f-77b6-8b21-72bfd3e70d17","at":1770367282303000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c321d-25e8-7dff-a15d-ca990075c091","at":1770367297000000000,"seq":531,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c321d-50e0-71c0-a515-a6be03db7a4a","at":1770367308000000000,"seq":532,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c321d-54c8-7c0b-88bc-006ad2c52e05","at":1770367309000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322a-5cf1-7682-83ad-262a93543984","at":1770368163057000000,"seq":534,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c322a-5cf1-72a8-ba3d-acd9aed874af","at":1770368163057000000,"seq":535,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c322a-7fe0-71c3-aa11-443e7951a105","at":1770368172000000000,"seq":536,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322b-1068-7643-8b32-6924fa9f49e7","at":1770368209000000000,"seq":537,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322b-23f0-7f29-a1f0-adba2836d11a","at":1770368214000000000,"seq":538,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c322b-27d8-7f7e-be56-12c96458cf4b","at":1770368215000000000,"seq":539,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c3235-63c7-7fc3-a665-3686cc2e4e58","at":1770368885703000000,"seq":540,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3235-63c7-7e76-a5b2-e2c95896c7e8","at":1770368885703000000,"seq":541,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c3235-7c60-706d-b4f3-769da7757ac5","at":1770368892000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3235-f67d-78c8-a4e8-08b4ddd5f46b","at":1770368923261000000,"seq":543,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c3236-0518-7db0-a750-98f03b0f04db","at":1770368927000000000,"seq":544,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3236-2458-76e6-b708-a022150a6e80","at":1770368935000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

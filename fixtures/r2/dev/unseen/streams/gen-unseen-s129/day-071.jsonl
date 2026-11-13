@@ -1,0 +1,35 @@
+{"v":1,"id":"019ce143-0f0d-76d4-a7c7-f736f5cefabd","at":1773305794317000000,"seq":820,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce143-0f0d-7027-86de-0a18b51560f8","at":1773305794317000000,"seq":821,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce143-7b30-74cc-b79e-a61bf8f8bca1","at":1773305822000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce143-8ad0-7540-bb4c-4e623fc7a3f2","at":1773305826000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce143-92a0-70eb-af1d-2a60190df1e5","at":1773305828000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ce14e-3583-7bf0-bc61-fadd6cd5004d","at":1773306525059000000,"seq":825,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce14e-6810-72df-bedc-df28f748635e","at":1773306538000000000,"seq":826,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce14e-9a42-7fac-a096-cde99d0f04db","at":1773306550850000000,"seq":827,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce14e-d188-79c5-801b-5893e19686fb","at":1773306565000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce14e-e8f8-7d97-9b3e-68c2b1fe5108","at":1773306571000000000,"seq":829,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce14e-f898-78e1-97c0-f3cd7972e2b0","at":1773306575000000000,"seq":830,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce14f-0068-7eb9-9b51-f877ca3388b1","at":1773306577000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce14f-06e4-7a12-aa20-4302f9259453","at":1773306578660000000,"seq":832,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce153-c38f-7655-9319-fa7567fb2433","at":1773306889103000000,"seq":833,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce153-cee0-7de9-bc00-e94ca244afc7","at":1773306892000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce153-e268-7ed9-91de-ac4955470e6a","at":1773306897000000000,"seq":835,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce154-28b8-7a22-a353-8d7fe303f9ea","at":1773306915000000000,"seq":836,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce166-99da-7cb7-ac26-756215d4c9e3","at":1773308123610000000,"seq":837,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ce166-a718-7b65-be78-b9d02caeeeff","at":1773308127000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce166-ce28-7835-a90d-59b00ec21b7c","at":1773308137000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce167-1030-7122-97e7-cf73d5d593ae","at":1773308153904000000,"seq":840,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ce167-9178-74b1-b8c7-39d154611618","at":1773308187000000000,"seq":841,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce167-a500-7251-8c8c-4674192e50d3","at":1773308192000000000,"seq":842,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce167-c440-7ade-9ede-f68d81a5e535","at":1773308200000000000,"seq":843,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce167-eb05-74e9-b021-c76bc4b6db47","at":1773308209925000000,"seq":844,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ce168-1648-73f0-aee2-fc661c6c101c","at":1773308221000000000,"seq":845,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce168-2db8-77a9-ba3b-c7179471adda","at":1773308227000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ce168-3d58-7c87-887f-e1d9f627e9c2","at":1773308231000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce168-4528-7b83-9e70-c76203f0c4a5","at":1773308233000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce168-67d8-7f59-b013-e86f2979e630","at":1773308241880000000,"seq":849,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ce168-d1c8-720b-a2ca-bda56d784c40","at":1773308269000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce168-d5b0-7e56-8ee5-e6825be18d94","at":1773308270000000000,"seq":851,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ce168-f108-784e-ba26-bbb7f4850aee","at":1773308277000000000,"seq":852,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce17d-00f4-7a6b-9514-2160d6c9ed79","at":1773309591796000000,"seq":853,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce17d-2100-76a1-bcac-f34bf031a334","at":1773309600000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,17 @@
+{"v":1,"id":"019cb2b8-40f7-7ae8-befc-45c06f9aa0f1","at":1772524945655000000,"seq":902,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2b8-40f7-7bc4-8a8e-0607c436090d","at":1772524945655000000,"seq":903,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b8-8b7f-764d-b307-c03994ac7f8b","at":1772524964735000000,"seq":904,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b8-9070-75a3-8faf-163fd7774a7b","at":1772524966000000000,"seq":905,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2b8-9840-730d-856c-0e1bc22f5a17","at":1772524968000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2b8-c720-7d65-9c6b-8a75175bed2e","at":1772524980000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2b8-dc52-7209-955e-2cb5a86804b6","at":1772524985426000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b9-6f18-7a7d-8dd3-fd142f345bda","at":1772525023000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cb2b9-a9b0-7302-993b-01599d21abe3","at":1772525038000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2b9-dbfd-71b3-a222-6989d7fd20dc","at":1772525050877000000,"seq":911,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ba-6530-7ee7-8302-01a9deb5e05b","at":1772525086000000000,"seq":912,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb2c3-4534-7581-9970-d422e9bc5208","at":1772525667636000000,"seq":913,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb2c3-4534-7038-8cb9-0cb38fcc6b6b","at":1772525667636000000,"seq":914,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb2c3-4a88-71e9-abec-d4b518bd51ef","at":1772525669000000000,"seq":915,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2c3-4e70-7585-a9e9-e58b9b798b41","at":1772525670000000000,"seq":916,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2c3-5640-7661-8f58-b4e7c60d48bf","at":1772525672000000000,"seq":917,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2c3-65e0-7479-a402-a025246a6cdf","at":1772525676000000000,"seq":918,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}

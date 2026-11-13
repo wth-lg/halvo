@@ -1,0 +1,20 @@
+{"v":1,"id":"019c3768-fae2-73a8-b5a5-147d8b4ff10b","at":1770456152802000000,"seq":450,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3768-fae2-7eb2-9068-a1cb10cc829f","at":1770456152802000000,"seq":451,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3782-b5d0-7e6f-8df1-4b99a054dc27","at":1770457839056000000,"seq":452,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3782-b5d0-7486-aa40-54775cb59c5b","at":1770457839056000000,"seq":453,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c3782-c920-758d-9979-0d005d5c1bb7","at":1770457844000000000,"seq":454,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3782-d0f0-7fa4-a49d-5ada459ab2c4","at":1770457846000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3782-d4d8-7102-a586-9eec3b9c5ccf","at":1770457847000000000,"seq":456,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3782-d8c0-700a-a7d6-0d41954b6be2","at":1770457848000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c3782-ec48-7ef4-bf68-36e720e0317c","at":1770457853000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c379c-e5b3-7ade-9dc6-737d4cdcfce8","at":1770459555251000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c37a7-ae78-7e4f-ad0e-08094c22c0b5","at":1770460262008000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c37a8-0c30-7857-8728-ad3b53210ed6","at":1770460286000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c37a8-29ee-735d-8379-cbd3e6c488e8","at":1770460293614000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c37a8-2b70-72fa-852a-c90bc8c283ce","at":1770460294000000000,"seq":463,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c37a8-5e38-721b-89e3-12ed5adee9fa","at":1770460307000000000,"seq":464,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c37a8-7990-7333-8526-b208fa904ad7","at":1770460314000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37a8-ac58-770c-a877-573a1e441045","at":1770460327000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37a8-b845-7f73-9943-020124a105fb","at":1770460330053000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c37a9-4195-77c0-9e41-17225d34a3e4","at":1770460365205000000,"seq":468,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c37a9-b9e0-7d81-be11-e66edd01be04","at":1770460396000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

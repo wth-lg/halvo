@@ -1,0 +1,6 @@
+{"v":1,"id":"019be530-9205-7575-b7c2-a4c01b02d38f","at":1769076724229000000,"seq":376,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be530-9205-7390-a5e9-ecfebd89354b","at":1769076724229000000,"seq":377,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be530-a890-7591-80b5-487e2f02a455","at":1769076730000000000,"seq":378,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019be530-b060-76da-b54e-0ceeab128a51","at":1769076732000000000,"seq":379,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be530-b448-7dc3-8d97-10e4b752638f","at":1769076733000000000,"seq":380,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019be531-0650-72c8-9e79-ffab29a68598","at":1769076754000000000,"seq":381,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}

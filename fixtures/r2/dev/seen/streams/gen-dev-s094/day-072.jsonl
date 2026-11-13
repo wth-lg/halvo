@@ -1,0 +1,25 @@
+{"v":1,"id":"019ce64b-8467-71e4-bdbd-e86bc12bb093","at":1773390234727000000,"seq":1223,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce64b-8467-712d-b35d-b8e7e33b86cd","at":1773390234727000000,"seq":1224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce64c-906f-7e14-b3c0-49446b4b53d3","at":1773390303343000000,"seq":1225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce64c-bdf8-7d44-ac34-e118d471b977","at":1773390315000000000,"seq":1226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce64d-4e80-782b-8142-6a6e11dffde4","at":1773390352000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce64d-6661-768e-9ba2-4a382798c586","at":1773390358113000000,"seq":1228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce64d-7590-786e-a7fa-9a226b143b5e","at":1773390362000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce64d-a088-70b8-9c06-e44de7ff0207","at":1773390373000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce64d-dffd-76db-bc6b-4806b3a73b1e","at":1773390389245000000,"seq":1231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce64d-fa60-7b44-8a9c-2e4ed226473c","at":1773390396000000000,"seq":1232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce64e-2170-74e8-bd78-6d3a63d833a7","at":1773390406000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce661-8967-7f27-a527-a18bee608842","at":1773391677799000000,"seq":1234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce661-d468-7af2-9769-a3a82ee0d790","at":1773391697000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce662-5024-7216-94ed-ca470d732234","at":1773391728676000000,"seq":1236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce662-b6f8-7e47-91c8-078841829944","at":1773391755000000000,"seq":1237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce663-37e0-7163-9606-b44b9ddfe9bf","at":1773391788000000000,"seq":1238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce663-5338-7315-92f4-04d0e40e9675","at":1773391795000000000,"seq":1239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce663-585b-7bfe-b725-5b5bd9453ad8","at":1773391796315000000,"seq":1240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce663-c480-7227-83d3-815f8c05ad27","at":1773391824000000000,"seq":1241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce664-39b0-7525-ac9e-3a63b8ccfa91","at":1773391854000000000,"seq":1242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce664-3c2d-79cf-8b2c-964f83fb204b","at":1773391854637000000,"seq":1243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce664-4568-7fb8-8332-314bf1057943","at":1773391857000000000,"seq":1244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce664-4950-72db-bfb3-ba815c8f0624","at":1773391858000000000,"seq":1245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ce664-5120-7af3-ba51-8601cff48cb3","at":1773391860000000000,"seq":1246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce664-60c0-7e20-9610-f015614ea01a","at":1773391864000000000,"seq":1247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

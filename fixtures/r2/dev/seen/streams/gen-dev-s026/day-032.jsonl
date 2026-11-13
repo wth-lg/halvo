@@ -1,0 +1,20 @@
+{"v":1,"id":"019c18c2-dc5a-7093-bb2b-f73d3f8e49b1","at":1769941949530000000,"seq":330,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c18c2-dc5a-7990-bc1f-a818160dc866","at":1769941949530000000,"seq":331,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c18c3-10f8-71d0-96f2-4afb9dda101b","at":1769941963000000000,"seq":332,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c18c3-1cb0-79cc-8118-36d83c0ab2e6","at":1769941966000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18c3-7688-7eba-96ba-887ec0fd185a","at":1769941989000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18c3-a950-7dbb-85d2-faab14f542f3","at":1769942002000000000,"seq":335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c18cf-8f0f-769a-8bf3-c9b8a893ef0e","at":1769942781711000000,"seq":336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c18d0-622f-7bc9-926e-3b2db36f6739","at":1769942835759000000,"seq":337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c18d0-8a30-7a77-8503-cd797b73ccb8","at":1769942846000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d0-9db8-73fb-aa9b-ba766310b0d8","at":1769942851000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d0-9e2c-7081-8b15-1abbe427aff1","at":1769942851116000000,"seq":340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c18d0-a1a0-7f96-9d5b-19850a291f83","at":1769942852000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d0-b140-7048-8827-9f48e722781c","at":1769942856000000000,"seq":342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c18d1-2966-747d-8d30-8c7944c8d193","at":1769942886758000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c18d1-39f8-75bc-825e-b83f3712bad6","at":1769942891000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d1-5938-7281-854b-0589b0822c50","at":1769942899000000000,"seq":345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c18e3-c461-77b8-abb1-35157dcb48ef","at":1769944106081000000,"seq":346,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c18e3-c461-723e-b63b-e9baa2fda635","at":1769944106081000000,"seq":347,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c18e3-ef08-7920-ac82-4331131a86e0","at":1769944117000000000,"seq":348,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18e3-fac0-742f-b60f-d17ace03adeb","at":1769944120000000000,"seq":349,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

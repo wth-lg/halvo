@@ -1,0 +1,27 @@
+{"v":1,"id":"019c6a7e-5ea9-713a-bd78-0aeb67d001a4","at":1771313192617000000,"seq":495,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6a7e-5ea9-7581-8015-dbb69dbae551","at":1771313192617000000,"seq":496,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c6a7e-7798-7469-84cd-bd6fd2f47232","at":1771313199000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a7e-8350-7d13-9042-aebc232ee653","at":1771313202000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a7f-0b4d-78ca-bf95-613a174bd8a3","at":1771313236813000000,"seq":499,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c6a7f-69c8-7564-9182-2a73391cddb0","at":1771313261000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a7f-c023-7f8f-b435-90b7d95cb2a9","at":1771313283107000000,"seq":501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c6a80-5040-7952-980b-382997d55c86","at":1771313320000000000,"seq":502,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6a80-b41e-7009-a822-3e5713ea5891","at":1771313345566000000,"seq":503,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c6a80-e898-7d7f-97db-9979bc815c13","at":1771313359000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6a80-ec80-779c-ac95-377535d650b1","at":1771313360000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a81-1390-7389-83c3-e5c83e687fd4","at":1771313370000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a81-8072-7ae2-ad22-827de7d0c4cb","at":1771313397874000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c6a81-80f0-74af-ae86-b312dd17c10c","at":1771313398000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a81-dfd4-73fc-9add-4f5894b43f78","at":1771313422292000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c6a81-e680-7b13-a2fc-4224631a71fb","at":1771313424000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a81-ea68-71ec-ba08-6ed5a2008b0a","at":1771313425000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6a82-3c70-79d1-8524-410b81563c99","at":1771313446000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c6a9a-1450-7198-b6b5-9974c51817ea","at":1771315008592000000,"seq":513,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6a9a-1450-7560-96f7-d639f51ae393","at":1771315008592000000,"seq":514,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6a9a-3140-79ce-9ce2-b33765d2554b","at":1771315016000000000,"seq":515,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a9a-48b0-72c2-a7fa-7424a34c6406","at":1771315022000000000,"seq":516,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6a9a-5850-78a4-bf4c-5822db666af8","at":1771315026000000000,"seq":517,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aab-6be5-77b8-9990-72f62b04511b","at":1771316145125000000,"seq":518,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6aab-6be5-7aab-acf5-825148ca8f86","at":1771316145125000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6aab-7b08-71f7-90ec-2b3cb6bc5a65","at":1771316149000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aab-82d8-7fd9-97e8-04ba4e145af3","at":1771316151000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,47 @@
+{"v":1,"id":"019b7903-73a1-7cf8-bde4-d2e61ee03240","at":1767261828001000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7903-73a1-7c9b-9f26-9c42f94aa409","at":1767261828001000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7903-92e0-71b7-b561-f742216bbae7","at":1767261836000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7903-e100-7a11-bfb2-04afa686b722","at":1767261856000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7903-e940-77b1-a26a-b2debc52edf6","at":1767261858112000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7904-0040-71b2-9568-62390aa946c9","at":1767261864000000000,"seq":5,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7904-13c8-7560-97fb-22f8b7e29372","at":1767261869000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b7904-3ec0-78e0-8c0a-1cf4f2534a44","at":1767261880000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7904-4690-7e43-a6f8-b27151f70420","at":1767261882000000000,"seq":8,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7904-4ea1-7d97-82bb-c92fb9b2419e","at":1767261884065000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7904-e6b8-76aa-bf85-1a3f57b85406","at":1767261923000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7904-ee88-76a7-8e31-ee532440ef8b","at":1767261925000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7905-449b-7ca1-ba79-b9563e3591db","at":1767261947035000000,"seq":12,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b790d-b6ce-7213-9b2d-33b4d61d6ecf","at":1767262500558000000,"seq":13,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b790d-b6ce-765d-b0bc-0451f84740b1","at":1767262500558000000,"seq":14,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b790d-c058-7a73-8cad-843b9f2c8101","at":1767262503000000000,"seq":15,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b790d-c828-74de-a784-fdebca3f51e2","at":1767262505000000000,"seq":16,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b790d-e768-7ad9-bc85-62c4e1c11bc0","at":1767262513000000000,"seq":17,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b790d-f320-7d3e-972a-f3911fe51ebd","at":1767262516000000000,"seq":18,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b790e-1e18-7bc8-bc30-8df9f7bb9ba3","at":1767262527000000000,"seq":19,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b7919-edc5-7429-9761-768dd205214f","at":1767263301061000000,"seq":20,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7919-edc5-7f99-9e47-afa8bf0e3fd9","at":1767263301061000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b791a-e3a0-7b30-904c-755b23c3b636","at":1767263364000000000,"seq":22,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b792a-e369-7273-a876-e5f65ddd3859","at":1767264412521000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b792a-fcb8-7fec-948c-0915b9a3ce2f","at":1767264419000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b792b-e43e-7cf1-8843-19cd47ab7d6c","at":1767264478270000000,"seq":25,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b792b-eb00-74e4-a6c7-0662223b0fd6","at":1767264480000000000,"seq":26,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b792c-6be8-7a13-aed8-e42fb6b7e50d","at":1767264513000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792c-6ea9-756b-b58d-78bcfe012f78","at":1767264513705000000,"seq":28,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b792c-73b8-7ebb-825b-bcfdf60fc185","at":1767264515000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792c-a680-7dbc-a7cb-c4ce0107c168","at":1767264528000000000,"seq":30,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b792c-d560-72d2-9a55-dcdce45f57f2","at":1767264540000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b792c-eb3d-7c89-8061-1f62266a8431","at":1767264545597000000,"seq":32,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b792d-3708-7586-bd51-6d6a12425731","at":1767264565000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b792d-4a90-79fe-8045-1521e23dea4f","at":1767264570000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792d-503e-7a5b-bc8f-af84c5a17c5d","at":1767264571454000000,"seq":35,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b792d-8528-783f-af32-71b7b0f3ca2a","at":1767264585000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792d-e6d0-7236-9223-2c8e911b2087","at":1767264610000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792d-e9b3-79b8-aab6-3a98e503be4d","at":1767264610739000000,"seq":38,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b792e-5430-7ede-9be3-af354e86bf78","at":1767264638000000000,"seq":39,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b792e-5fe8-787e-a065-157db03120e6","at":1767264641000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792e-6f88-7cdd-9a64-8a482d1077eb","at":1767264645000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792e-92b0-7de2-90d8-1bbb2aba19e8","at":1767264654000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b792e-9698-7de0-804f-033f8fa154fd","at":1767264655000000000,"seq":43,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7934-5bfc-7a5a-97bc-e6cf46c48754","at":1767265033212000000,"seq":44,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7934-a948-759f-88b8-802db3129ff4","at":1767265053000000000,"seq":45,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7934-d828-78fe-85aa-81ad59d162a4","at":1767265065000000000,"seq":46,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

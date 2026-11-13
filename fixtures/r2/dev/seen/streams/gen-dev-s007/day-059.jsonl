@@ -1,0 +1,59 @@
+{"v":1,"id":"019ca3a0-1efa-73ef-82b5-854efe112994","at":1772271705850000000,"seq":866,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca3a0-1efa-7609-84d5-e8338e876987","at":1772271705850000000,"seq":867,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a0-4e70-7e67-b1a9-b2751769b807","at":1772271718000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ca3a0-82e4-72f9-8f6a-92c05f861c23","at":1772271731428000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a0-94c0-7cef-9058-f09e3fae63a9","at":1772271736000000000,"seq":870,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3a1-0dd8-777b-9aa8-6de74ebbeac2","at":1772271767000000000,"seq":871,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca3a1-3100-7ca4-8b72-4b3b545c6641","at":1772271776000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3a1-5fe0-7ee1-9684-607f80ad235d","at":1772271788000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3a1-6b3f-79dc-8885-740254f6a21e","at":1772271790911000000,"seq":874,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a1-8308-708e-acf8-b915da4919dc","at":1772271797000000000,"seq":875,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca3a1-d510-7bf8-a35f-73ffe1627e8d","at":1772271818000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca3a2-1f48-785b-a061-6536849247a5","at":1772271837000000000,"seq":877,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3b4-c938-7e52-8cab-26d2d9141222","at":1772273060152000000,"seq":878,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca3b4-c938-7b2c-af80-d0fb0b90fd8a","at":1772273060152000000,"seq":879,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca3b4-d458-764a-8cf8-57c1231d86ff","at":1772273063000000000,"seq":880,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3b4-efb0-7970-80a0-1cb3bfb6fce3","at":1772273070000000000,"seq":881,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ca3b4-f780-7d57-ae0c-efeca871d265","at":1772273072000000000,"seq":882,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ca3c6-0bc3-7c1c-ba7a-dfbf943491c3","at":1772274191299000000,"seq":883,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ca3c6-3d60-7683-830f-5e53306e232b","at":1772274204000000000,"seq":884,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3c6-4530-7ed3-b368-eb14f140e221","at":1772274206000000000,"seq":885,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ca3c6-6470-7d41-b011-599321171bcd","at":1772274214000000000,"seq":886,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3c6-7be0-749e-a246-3bf2102e1a3e","at":1772274220000000000,"seq":887,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ca3de-1201-7872-8169-69c3ddf4d4fe","at":1772275765761000000,"seq":888,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca3de-1201-73e7-a774-8f8c96336245","at":1772275765761000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ca3de-6cc8-7aab-ad64-812115df6432","at":1772275789000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ca3de-bcf8-7a07-ad4a-fe23f80a629f","at":1772275809528000000,"seq":891,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca3df-2c30-7f63-a619-173f5fc4bdca","at":1772275838000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3df-4788-7786-bde9-32cc7d903808","at":1772275845000000000,"seq":893,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca3df-a05f-70c8-8247-b354725a3878","at":1772275867743000000,"seq":894,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca3e0-0ec0-7869-b3d4-9a01c31aecbd","at":1772275896000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3e0-58f8-766f-a282-fca8c283f796","at":1772275915000000000,"seq":896,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3e0-6a13-732a-857b-aa5e9cd1b458","at":1772275919379000000,"seq":897,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ca3e0-9b60-7f07-b612-2adc51c42bbc","at":1772275932000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3e0-ce28-7779-8732-494d3df1a81f","at":1772275945000000000,"seq":899,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca3e0-d9e0-7862-981c-57c8e5a6c346","at":1772275948000000000,"seq":900,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca3e0-de58-7400-9647-c6945d9112fe","at":1772275949144000000,"seq":901,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ca3e1-3b88-7412-bae2-c138ee6f16c6","at":1772275973000000000,"seq":902,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ca3e1-5eb0-7396-99bf-5ac07a2485ca","at":1772275982000000000,"seq":903,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca3e1-7ba8-7992-afca-c671f6e3ab29","at":1772275989416000000,"seq":904,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ca3e1-89a8-7a46-81d3-452682fe6924","at":1772275993000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca3e1-ef38-76bb-8dec-295772ffdbd3","at":1772276019000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3e1-faf0-7fa8-8872-8eaca612285f","at":1772276022000000000,"seq":907,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3f5-d05c-7ef6-ad61-016f4a8293ef","at":1772277321820000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ca3f6-6d50-7d40-b49a-1fa43a5f1eb6","at":1772277362000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3f6-c728-7c26-a276-b7366a72afe0","at":1772277385000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ca3f6-cd7f-76a5-aaca-0b264f1b6b94","at":1772277386623000000,"seq":911,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca3f7-76a7-7c6f-b46d-1674098826a8","at":1772277429927000000,"seq":912,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ca3f7-e450-797f-abe8-9ca184932576","at":1772277458000000000,"seq":913,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3f8-1330-7ac8-837b-d4c0df9c6c92","at":1772277470000000000,"seq":914,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3f8-70f0-750a-901d-0bdec81ee817","at":1772277494000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca3f8-7333-7158-83e8-66116a1c8c54","at":1772277494579000000,"seq":916,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ca3f8-ab88-70ef-91fb-ea0cb4d1f7fc","at":1772277509000000000,"seq":917,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca3f8-cac8-771e-af46-d0713880fbff","at":1772277517000000000,"seq":918,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca3f8-ce8c-7d96-92c8-775cbeb7f5d2","at":1772277517964000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ca3f8-ceb0-7529-b5e1-ecb6398efac3","at":1772277518000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3f8-e238-732c-9f7a-b83c1ed654b3","at":1772277523000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca3f8-e620-77cb-9f48-ef940fbefba6","at":1772277524000000000,"seq":922,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca3f9-0560-7cb2-9b62-5cc59435644c","at":1772277532000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ca3f9-1cd0-7f45-925a-15aa3965371c","at":1772277538000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

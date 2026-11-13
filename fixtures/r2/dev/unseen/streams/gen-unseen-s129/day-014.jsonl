@@ -1,0 +1,22 @@
+{"v":1,"id":"019bbbc1-c052-7462-b1f2-0b4cb5662b18","at":1768381595730000000,"seq":149,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbbc1-c052-79e3-90a3-c938c83d4db5","at":1768381595730000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bbbc2-5f28-70ee-84b8-b465e9d0601b","at":1768381636392000000,"seq":151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bbbc2-abc0-76b9-b374-45bbc634f009","at":1768381656000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bbbc2-c718-7e18-9a24-e1ca34d2deab","at":1768381663000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbc3-53b8-7071-8f89-93d24d6f38cf","at":1768381699000000000,"seq":154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbc3-53f5-704a-95cd-cc0c804255c9","at":1768381699061000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bbbc3-6740-7bf8-8cda-a2da132ae969","at":1768381704000000000,"seq":156,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bbbc3-6740-79cc-ab42-2e518e01f5e5","at":1768381704000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bbbc3-7ac8-768f-88ed-131902bb02da","at":1768381709000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbc3-8e50-7814-b14f-108483f78c87","at":1768381714000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bbbc3-c118-7f1d-9122-026b0687d308","at":1768381727000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbc4-1007-7023-ad4c-c0946cd5b187","at":1768381747207000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bbbc4-fd80-70c5-b88d-bdb63537f353","at":1768381808000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bbbc5-07f5-7baf-ac77-61a15159de6b","at":1768381810677000000,"seq":163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bbbc5-2c60-7383-8863-12751f7394af","at":1768381820000000000,"seq":164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bbbc5-91f0-70c6-bffe-e38c55a9a978","at":1768381846000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bbbc5-d6f0-77da-91d5-8e7fba3d42de","at":1768381863664000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bbbc5-e3f8-77a1-af62-ce1dc38f365c","at":1768381867000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bbbc6-0b08-7e8c-bf38-3432f5692c6e","at":1768381877000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbc6-2639-76bb-9d53-a6fbc0ae31f8","at":1768381883961000000,"seq":169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bbbc6-f950-740f-ae39-52f9b5ded9c0","at":1768381938000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

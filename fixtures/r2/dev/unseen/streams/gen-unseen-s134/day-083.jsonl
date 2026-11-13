@@ -1,0 +1,22 @@
+{"v":1,"id":"019d1f2c-a892-726c-aa9b-2645fc0fdb03","at":1774344513682000000,"seq":1181,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1f2c-a892-7e50-a12b-c8e2b082e916","at":1774344513682000000,"seq":1182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1f2c-b970-75ad-a85a-1c39bf0a0a71","at":1774344518000000000,"seq":1183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1f2d-03a8-70a1-87df-49e85cc71623","at":1774344537000000000,"seq":1184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1f47-aa22-7bda-ac06-3bc49bf2446b","at":1774346283554000000,"seq":1185,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d1f48-01d0-7f49-a75d-8661aae6fcad","at":1774346306000000000,"seq":1186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f48-1940-7615-a6c1-517b4a506b19","at":1774346312000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f48-54eb-7f1f-932a-2209244dda42","at":1774346327275000000,"seq":1188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1f48-d4c0-77b9-9687-5d559ffc9fee","at":1774346360000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d1f49-1c7c-70d7-afc7-0d68a3a15c89","at":1774346378364000000,"seq":1190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d1f49-bb38-7342-b3b7-062ba8699c47","at":1774346419000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d1f49-da78-7bf9-b1f5-36b2262f46f0","at":1774346427000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f49-de60-7a2b-be5b-31ddc133b166","at":1774346428000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f49-fe83-7adf-a484-b610e7d721bb","at":1774346436227000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d1f4a-0570-7862-8fbe-b26811067f00","at":1774346438000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d1f4a-0d40-7019-8ca7-2817d6ab1f94","at":1774346440000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f4a-1ce0-789d-b6c1-85736f4e34cb","at":1774346444000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1f4a-20c8-761b-8bca-71e1f120cb2c","at":1774346445000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f4a-2898-79dc-a898-4c784ac2a925","at":1774346447000000000,"seq":1199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1f4a-4b98-7330-85f9-15e9743323f8","at":1774346455960000000,"seq":1200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d1f4a-5b60-73ae-9375-0e94ec09011c","at":1774346460000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d1f4b-1ac8-75bc-9330-bf9b0238eb4d","at":1774346509000000000,"seq":1202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

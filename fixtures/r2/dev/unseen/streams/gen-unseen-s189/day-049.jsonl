@@ -1,0 +1,11 @@
+{"v":1,"id":"019c6ffd-f78f-7e04-a152-55199ae3220f","at":1771405440911000000,"seq":692,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ffd-f78f-7ae2-a905-5330d3fde697","at":1771405440911000000,"seq":693,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c6ffe-03a0-7da4-9055-e762174b03d8","at":1771405444000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ffe-0788-7130-8bd9-29d23e7e8c91","at":1771405445000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ffe-1ef8-752f-ad9d-b3e2ea900fd2","at":1771405451000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c6ffe-304b-7e91-b7d5-a4977ef4f6e4","at":1771405455435000000,"seq":697,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c6ffe-9040-71b7-a53c-c265707738db","at":1771405480000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c6ffe-b368-7b8f-a699-4e08fdb780a3","at":1771405489000000000,"seq":699,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ffe-c23b-76c8-ab7e-6f3aa2be681c","at":1771405492795000000,"seq":700,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c6ffe-da78-7722-b405-c29bc75a68bf","at":1771405499000000000,"seq":701,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6ffe-ee00-78d7-ae6c-38bdbc73fb95","at":1771405504000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019cf0ac-e4d0-7ed4-90f2-1da5bd36199a","at":1773564388560000000,"seq":879,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf0ac-e4d0-7608-a24e-cb570167e2b0","at":1773564388560000000,"seq":880,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ac-e688-7284-a9b3-d9d40b6eb514","at":1773564389000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ad-1950-7e9c-8746-dbf78f9a81bf","at":1773564402000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cf0ad-2508-780b-9b31-fe6aaf90e432","at":1773564405000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ad-d7ab-7915-ab47-4b4e4c7d16dc","at":1773564450731000000,"seq":884,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ae-1f08-7b8f-b78a-55de010aa3c9","at":1773564469000000000,"seq":885,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cf0ae-6170-7620-9df7-8867a90a86e5","at":1773564486000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ae-8907-71d9-b504-723e51a39dfb","at":1773564496135000000,"seq":887,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ae-a3d8-7241-9349-09063dac3c4a","at":1773564503000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ae-aba8-718c-a1d8-161aa3bdb77a","at":1773564505000000000,"seq":889,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ae-f9c8-7320-8087-1e0a7d6eed89","at":1773564525000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cf0ae-fe5a-75f5-8f5e-11ea4c06aefb","at":1773564526170000000,"seq":891,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cf0af-0580-73e3-8e0b-970ee05c1259","at":1773564528000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf0af-ad78-7ff1-ac7b-91fdf105b670","at":1773564571000000000,"seq":893,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf0af-ef34-73ba-a359-4a99b9941548","at":1773564587828000000,"seq":894,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cf0b0-0750-7d40-ac05-2b6d2b4b9877","at":1773564594000000000,"seq":895,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf0b0-45d0-767c-935a-7bb152e9689e","at":1773564610000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b0-ab60-7b23-972a-918255011230","at":1773564636000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b0-b9d1-7598-9406-f3a62b347dde","at":1773564639697000000,"seq":898,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cf0b0-f598-7876-99e2-8da88228bcf1","at":1773564655000000000,"seq":899,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf0b1-14d8-7ae2-971d-9166ee3dcf7a","at":1773564663000000000,"seq":900,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

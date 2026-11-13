@@ -1,0 +1,18 @@
+{"v":1,"id":"019c1816-ba57-7984-8130-6a7387b61016","at":1769930668631000000,"seq":493,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1816-ba57-7446-b903-a10b24258a48","at":1769930668631000000,"seq":494,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1816-e6c0-77f4-b7a2-6d7bedd07cda","at":1769930680000000000,"seq":495,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c1830-25f8-79de-ae17-a03f94275ed3","at":1769932334584000000,"seq":496,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1830-25f8-7fab-b355-419aba22b08e","at":1769932334584000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1830-3f08-703a-b25a-bbd04bf390ae","at":1769932341000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1830-42f0-78bc-8c1d-12e73fcc4166","at":1769932342000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c1830-4ea8-74d2-9237-a4287cabd55c","at":1769932345000000000,"seq":500,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1830-5a60-7254-9f43-909177e237c8","at":1769932348000000000,"seq":501,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1830-6a00-78af-bb2b-ce3ed5922ba1","at":1769932352000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1843-ef90-7e7d-87f3-fc946bd3f40f","at":1769933631376000000,"seq":503,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1843-ef90-7e3d-87c8-8fc55d38e6ad","at":1769933631376000000,"seq":504,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c185a-b2b1-70cf-900a-e89f56ab7939","at":1769935123121000000,"seq":505,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c185a-b2b1-7915-ad71-0a56df5d2dc7","at":1769935123121000000,"seq":506,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c185a-ecd0-7124-ba83-7f78f9cfbc80","at":1769935138000000000,"seq":507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c185b-17c8-72cf-9db9-12ad487c43a5","at":1769935149000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185b-24e4-7c53-9d17-c72f91f807b0","at":1769935152356000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c185b-b020-7814-b62e-416899d331a5","at":1769935188000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

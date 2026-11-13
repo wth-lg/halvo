@@ -1,0 +1,11 @@
+{"v":1,"id":"019c2d4a-6194-79ee-853f-3159a534b1f9","at":1770286375316000000,"seq":600,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d4a-6194-7bcb-8acf-9c1475e18fce","at":1770286375316000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2d4a-7f98-7145-b757-e320754c2b58","at":1770286383000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d4a-8380-778b-be04-88433dee2f39","at":1770286384000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d4f-d39a-7d13-85fe-056334042ca8","at":1770286732186000000,"seq":604,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2d4f-d39a-700f-b317-dabfcd08d769","at":1770286732186000000,"seq":605,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2d50-28d0-7a53-9684-0c731a1d290f","at":1770286754000000000,"seq":606,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d50-4810-748b-84b9-f85ee700a911","at":1770286762000000000,"seq":607,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c2d5c-d429-7b27-8a60-6ad2b63e462a","at":1770287584297000000,"seq":608,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c2d5d-34a8-711c-9dee-0804eea1bb3e","at":1770287609000000000,"seq":609,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c2d5d-3c78-7838-800b-336b6f43706b","at":1770287611000000000,"seq":610,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

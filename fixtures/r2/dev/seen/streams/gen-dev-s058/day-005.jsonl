@@ -1,0 +1,11 @@
+{"v":1,"id":"019b8dad-be23-7c2b-b413-11b629ce6058","at":1767608532515000000,"seq":33,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8dad-be23-7f9f-a7bf-32e7f49a0e65","at":1767608532515000000,"seq":34,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b8dad-c008-7861-bcc8-b6cbd41a0202","at":1767608533000000000,"seq":35,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8dae-a298-7d3a-a67a-9463dbe8b13c","at":1767608591000000000,"seq":36,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8dc9-0e33-718b-aac1-d78c4279f1a1","at":1767610322483000000,"seq":37,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019b8dc9-2f78-711e-b346-b467764e9a8c","at":1767610331000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc9-c000-71d7-9b9e-5a700e77221e","at":1767610368000000000,"seq":39,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc9-f932-759c-9185-efebcca60854","at":1767610382642000000,"seq":40,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019b8dc9-fa98-7503-a836-d287d134000b","at":1767610383000000000,"seq":41,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8dca-0650-754c-a057-c66457367823","at":1767610386000000000,"seq":42,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8dca-0e20-71b9-963d-1a16a00558fd","at":1767610388000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

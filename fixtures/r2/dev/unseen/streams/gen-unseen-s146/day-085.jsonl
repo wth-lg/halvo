@@ -1,0 +1,11 @@
+{"v":1,"id":"019d2922-4f4a-7a3d-a68d-3dac1965239f","at":1774511607626000000,"seq":1318,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2922-4f4a-763e-b747-fbc9e0adcd95","at":1774511607626000000,"seq":1319,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d2922-9328-7d32-a5ea-a3e6466f9785","at":1774511625000000000,"seq":1320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2922-9710-7a78-990f-76959da8d4f2","at":1774511626000000000,"seq":1321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d2922-c21d-7d45-bc86-03ff71ee7250","at":1774511637021000000,"seq":1322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d2922-dd60-7d1f-8ff9-5436c62fd972","at":1774511644000000000,"seq":1323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2936-87f7-749a-ac3e-2e94ee04e6ad","at":1774512932855000000,"seq":1324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d2937-0588-7aca-90d6-01f04d103103","at":1774512965000000000,"seq":1325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2937-0970-75f8-af3d-393e56250662","at":1774512966000000000,"seq":1326,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2937-1910-7530-a125-1fefa9fe7930","at":1774512970000000000,"seq":1327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2937-2c98-7765-bef1-41600046c40c","at":1774512975000000000,"seq":1328,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

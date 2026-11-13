@@ -1,0 +1,13 @@
+{"v":1,"id":"019b9d42-6ff2-776c-9f14-c360086e2039","at":1767869935602000000,"seq":52,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9d42-6ff2-719d-89c1-d4ab9dc9219e","at":1767869935602000000,"seq":53,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b9d42-f268-72a2-bae3-0dd55a247008","at":1767869969000000000,"seq":54,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b9d43-3a4c-7977-8502-912c963bafa0","at":1767869987404000000,"seq":55,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b9d58-4217-7d08-95ef-8889cb157583","at":1767871365655000000,"seq":56,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b9d58-62b0-70f0-ab53-874b7b552eda","at":1767871374000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d58-7250-7f70-8085-c4692635a139","at":1767871378000000000,"seq":58,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d58-aab6-7c65-93cc-66022111fb7b","at":1767871392438000000,"seq":59,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9d58-aab6-7508-8d1d-10d0ee4f9310","at":1767871392438000000,"seq":60,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9d58-eb80-763d-93f2-823f8b2591c7","at":1767871409024000000,"seq":61,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9d58-eb80-76cb-8619-735072feda66","at":1767871409024000000,"seq":62,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b9d59-2218-7941-85aa-a6eb9bc61bdb","at":1767871423000000000,"seq":63,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d59-4928-7f65-98d8-5591080fbb4b","at":1767871433000000000,"seq":64,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

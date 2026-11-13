@@ -1,0 +1,55 @@
+{"v":1,"id":"019ce0f2-6bd7-73f5-8522-3e993e205b01","at":1773300509655000000,"seq":906,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce0f2-6bd7-7d8c-b9b7-ee912db723f7","at":1773300509655000000,"seq":907,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce0f2-9c10-7d7a-965c-033defc61000","at":1773300522000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce0f3-20e0-70b3-ae91-61c14c0eaa4e","at":1773300556000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce0f3-4eb7-772e-addf-697eaba5c4d6","at":1773300567735000000,"seq":910,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce0f3-4fc0-75f9-aeb0-4e0d5f7de43b","at":1773300568000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce0f3-8670-736e-a221-c9d91afcb922","at":1773300582000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce0f3-99f8-7198-b363-02ca9cc65783","at":1773300587000000000,"seq":913,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce0f3-b701-7e8f-ae22-093d1cbc232e","at":1773300594433000000,"seq":914,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce0f4-3638-753e-aafb-428e29ae0bb2","at":1773300627000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ce0f4-4da8-7248-84fa-80f6a747e99d","at":1773300633000000000,"seq":916,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce0f4-9466-77da-b1bb-1d8c38879401","at":1773300651110000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce0f4-caa8-75ec-ae03-3c489d16ecd0","at":1773300665000000000,"seq":918,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce0f4-f1b8-7cfa-9912-62135939ceb0","at":1773300675000000000,"seq":919,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce0fe-4f93-718e-9396-2b83f98f725b","at":1773301288851000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ce0fe-d110-7bd7-8868-194ad4d37558","at":1773301322000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce0fe-f820-7456-a96f-78cdba0f7ce5","at":1773301332000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce0fe-f820-7562-a7c0-6c535559527f","at":1773301332000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ce0ff-0d71-78e9-8f17-d6c18e2c1bde","at":1773301337457000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ce0ff-1378-7f9a-8869-4058d4dacbac","at":1773301339000000000,"seq":925,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce0ff-ea50-764c-8dcb-11347dd6946a","at":1773301394000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce0ff-f608-720d-8153-836f1f58535a","at":1773301397000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce100-01c0-7de1-983f-d6353d51f9ac","at":1773301400000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce100-0901-7db4-a4e5-aeb1c6186838","at":1773301401857000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ce100-2100-7a04-a1f6-4706ac1e3963","at":1773301408000000000,"seq":930,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce100-30a0-7643-a258-167c23d33813","at":1773301412000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce100-57b0-7619-b4f7-2e703aed13ed","at":1773301422000000000,"seq":932,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce100-8703-7c34-bee6-1b28e680d2fe","at":1773301434115000000,"seq":933,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ce100-e068-765e-a1e8-cc4751076232","at":1773301457000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce10b-b2df-733e-8140-ac10104e8359","at":1773302166239000000,"seq":935,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce10b-b2df-797c-a899-3de5ee828b0b","at":1773302166239000000,"seq":936,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce10b-c190-7a54-9d21-9b9873102794","at":1773302170000000000,"seq":937,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce111-6889-7f39-8b34-10af5b4414ff","at":1773302540425000000,"seq":938,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce111-6889-73d0-9c01-352bd631d42f","at":1773302540425000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce111-fb50-7660-904d-6a14af73fb71","at":1773302578000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce111-ff38-717b-a23b-fb2c687acdac","at":1773302579000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ce112-0af0-7139-b7fb-dddd296af894","at":1773302582000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce112-125e-72d9-8972-3ac9e530f710","at":1773302583902000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce112-1e78-7533-a88c-e275a3013b2e","at":1773302587000000000,"seq":944,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce112-2648-79ec-b184-453342248443","at":1773302589000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce112-8aff-7d3b-9353-70ee92fa0e82","at":1773302614783000000,"seq":946,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce112-bab8-7d93-9a36-ab3db39a86f8","at":1773302627000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ce112-f168-758f-a58a-fce2afe3106e","at":1773302641000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce113-2430-75f0-b7a2-72006b4bb62f","at":1773302654000000000,"seq":949,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce113-4b40-7032-a280-e41bd528e257","at":1773302664000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce113-7776-73aa-b8e1-2b60d5630dbf","at":1773302675318000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce113-9960-7604-b59c-b0ff0aca0a30","at":1773302684000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce114-06c0-7453-b59c-7c642e04d4e9","at":1773302712000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce114-2600-70f1-aee6-059ee06ef832","at":1773302720000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce114-6c50-7a40-a101-9a719a744101","at":1773302738000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce116-43b4-7473-b221-1f8b38ae06ac","at":1773302858676000000,"seq":956,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce116-5498-7430-9118-ed3703034931","at":1773302863000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ce116-5c68-786c-a15d-03a5687acd06","at":1773302865000000000,"seq":958,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce116-9318-7226-9240-db0a5985ce72","at":1773302879000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce116-9ae8-7033-933b-d2bc0143a35b","at":1773302881000000000,"seq":960,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,0 +1,6 @@
+{"v":1,"id":"019c562e-0d56-7578-bc23-0006bf9c90b5","at":1770972384598000000,"seq":573,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c562e-0d56-78b8-a3b7-461b8d76cf90","at":1770972384598000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c562e-1e88-7ee9-b3ed-cafaae319709","at":1770972389000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562e-68c0-7917-a55b-59261ff9d4b4","at":1770972408000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562e-bfac-7c63-82b3-7b76b317d167","at":1770972430252000000,"seq":577,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c562e-e1d8-7d8d-8cf0-468e3dc2ef72","at":1770972439000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

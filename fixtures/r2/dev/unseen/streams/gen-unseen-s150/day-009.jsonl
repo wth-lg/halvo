@@ -1,0 +1,15 @@
+{"v":1,"id":"019ba19c-088a-7117-8488-ebcc93617a9f","at":1767942916234000000,"seq":81,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba19c-088a-757b-a248-df5cff387832","at":1767942916234000000,"seq":82,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba19c-1358-72a7-99c1-f1fd14f5afca","at":1767942919000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba19c-1b28-728b-953a-8d9bacbeb24e","at":1767942921000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ba19c-6178-73d5-9573-9702fddd0667","at":1767942939000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba19c-aa74-7c00-881c-73b88e1b3fc7","at":1767942957684000000,"seq":86,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba19c-f9d0-70e8-804e-778fd15235ce","at":1767942978000000000,"seq":87,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba19d-7ab8-73ed-95e7-a7d08082032b","at":1767943011000000000,"seq":88,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba19d-92e0-7244-9f21-64deaa352fcb","at":1767943017184000000,"seq":89,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba19d-d878-78ba-9697-d3ee5bcc96b4","at":1767943035000000000,"seq":90,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba19d-dc60-7c5c-9a1f-1139cbc79c0f","at":1767943036000000000,"seq":91,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba19d-e5e4-739f-a4ff-658f677abe76","at":1767943038436000000,"seq":92,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba19d-f3d0-70c3-8c33-b99d85f6e83b","at":1767943042000000000,"seq":93,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba19e-1ec8-7018-9014-6cb53b583c17","at":1767943053000000000,"seq":94,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba19e-3638-700e-ba06-0cb02bca6178","at":1767943059000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

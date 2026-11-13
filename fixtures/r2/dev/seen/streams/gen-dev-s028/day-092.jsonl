@@ -1,0 +1,12 @@
+{"v":1,"id":"019d4d75-f1fe-7287-a595-9199c8d94a79","at":1775121068542000000,"seq":1341,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4d75-f1fe-718f-b2e1-78d5e87c150d","at":1775121068542000000,"seq":1342,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4d75-f7b0-7ecc-ba26-6beb23ea77de","at":1775121070000000000,"seq":1343,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d4d76-6128-7d4d-8823-566662c0455b","at":1775121097000000000,"seq":1344,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d7e-17d5-7227-901d-adda96ba5853","at":1775121602517000000,"seq":1345,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d7e-17d5-71b9-8a1e-a8729a31e75f","at":1775121602517000000,"seq":1346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4d7e-2d40-7fcd-a43a-af388089c8ab","at":1775121608000000000,"seq":1347,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4d7e-3128-7026-89bc-defff9272f54","at":1775121609000000000,"seq":1348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4d7e-7f48-7c27-9057-70c3d460ec4b","at":1775121629000000000,"seq":1349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d4d7e-96b8-7e23-b682-554333487629","at":1775121635000000000,"seq":1350,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d96-f9cf-7ad1-b5aa-68a024daaeab","at":1775123233231000000,"seq":1351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4d97-27c8-752e-94b0-1208a77c9982","at":1775123245000000000,"seq":1352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

@@ -1,0 +1,36 @@
+{"v":1,"id":"019c5baa-e492-752d-8113-debbae59a976","at":1771064452242000000,"seq":579,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5baa-e492-793a-a183-f4b996b0740d","at":1771064452242000000,"seq":580,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5baa-e788-7762-9cea-d79032a573d8","at":1771064453000000000,"seq":581,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5baa-fb10-7747-a305-355e4ee339a0","at":1771064458000000000,"seq":582,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c5bab-1668-76a5-8b21-f697f37d0bdf","at":1771064465000000000,"seq":583,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bab-dee3-79a8-8489-6f2307fa17d2","at":1771064516323000000,"seq":584,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5bab-dee3-7ba9-b4d7-44719277b651","at":1771064516323000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c5bab-e188-7081-83bd-1b8aead4efcb","at":1771064517000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bab-e188-75dc-9d1f-74dc12236398","at":1771064517000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c5bac-2b0d-7f4b-a3b5-69079ee7a463","at":1771064535821000000,"seq":588,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5bac-2b0d-7057-a57c-83c542bf6b47","at":1771064535821000000,"seq":589,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5bac-56b8-7e89-95bb-5601735599bb","at":1771064547000000000,"seq":590,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bac-6270-7940-a17f-4976fe0ba6a3","at":1771064550000000000,"seq":591,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bac-7dc8-7e53-b3f9-af0589e1e7f8","at":1771064557000000000,"seq":592,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c5bac-8d68-7e50-ab3f-818d66c97a4e","at":1771064561000000000,"seq":593,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c5bbd-3748-7341-bc77-ee0eebbbe94c","at":1771065653064000000,"seq":594,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5bbd-3748-7c00-af30-62c5d01ab674","at":1771065653064000000,"seq":595,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c5bbd-4e78-78d0-8324-ddc2c6b0ac29","at":1771065659000000000,"seq":596,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5bbd-4e78-7c00-a97a-d83b5c9fb9d7","at":1771065659000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c5bbd-6db8-7800-9299-04bc0a88b6bc","at":1771065667000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd1-8a5a-7aa6-ac15-bbdf43674be6","at":1771066985050000000,"seq":599,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c5bd1-f3e9-77e8-b0eb-c3f5ebff0384","at":1771067012073000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c5bd2-2a50-7626-9604-0144183d591e","at":1771067026000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd2-4d78-7ded-9886-704c8c5d2431","at":1771067035000000000,"seq":602,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5bd2-6100-7096-9338-bc404557a26f","at":1771067040000000000,"seq":603,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5bd2-6437-7b66-b889-e3a303c3861d","at":1771067040823000000,"seq":604,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c5bd2-97b0-73f4-9434-97a5405ca712","at":1771067054000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c5bd2-c2a8-7cf5-9692-be6ce4cf1059","at":1771067065000000000,"seq":606,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bd2-e5d0-787d-9083-ec8fc8e1c577","at":1771067074000000000,"seq":607,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bd2-ff82-7c32-947f-4698ab3c1d71","at":1771067080578000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c5bd3-10c8-78c5-a272-53e20386ff06","at":1771067085000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd3-14b0-78cc-a484-c57845666b5b","at":1771067086000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd3-44ad-7dbf-8bd7-55fc8d6cef4e","at":1771067098285000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c5bd3-4b60-7903-8132-65d2cd29d35e","at":1771067100000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5bd3-85f8-7591-8054-f76ffc2d0eb5","at":1771067115000000000,"seq":613,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5bd4-0ac8-766e-aebc-9ba107b87532","at":1771067149000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,73 @@
+{"v":1,"id":"019c4b8c-46e4-79aa-8607-53ea05a08561","at":1770794010340000000,"seq":561,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4b8c-46e4-745c-a08f-4cff73cc467f","at":1770794010340000000,"seq":562,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4b8c-9b80-775c-bb1a-a607bb2a2b51","at":1770794032000000000,"seq":563,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b8c-9f68-7aac-adcc-a8eb7062a946","at":1770794033000000000,"seq":564,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c4b8c-af08-7718-8ea1-aed2d55c389c","at":1770794037000000000,"seq":565,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c4b9e-b6d5-7e09-a07f-227f16827284","at":1770795218645000000,"seq":566,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4b9e-b6d5-7d56-b892-64ba6d675e69","at":1770795218645000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c4b9e-c3f0-7b4b-9ac6-754971aaef11","at":1770795222000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b9f-5478-7dd7-adff-2c0610b72e5c","at":1770795259000000000,"seq":569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b9f-b935-7b63-9fa6-5bfe5c316b8c","at":1770795284789000000,"seq":570,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c4b9f-f888-7636-a22f-a9d4fe976500","at":1770795301000000000,"seq":571,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4ba0-051e-763b-be43-14442e1882f8","at":1770795304222000000,"seq":572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c4ba0-2b50-7364-b95f-627c84eb33f4","at":1770795314000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c4ba0-69d0-702e-bc31-5c6113817267","at":1770795330000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4ba0-a080-7f49-81ed-9631287e4580","at":1770795344000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4ba0-df00-7e05-a7ab-69ea7cd436e2","at":1770795360000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4ba0-f656-7c3a-9e5e-b2f59e0d3cc2","at":1770795365974000000,"seq":577,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c4ba1-5048-7ba9-9f3a-943946210387","at":1770795389000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bad-4b35-7f3b-b2fa-310771ac540e","at":1770796174133000000,"seq":579,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c4bad-4e98-7fb8-90d4-86f9c1b4b459","at":1770796175000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bad-6608-7a3d-9a2b-4e4cfdb4e9fa","at":1770796181000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4bad-75a8-7f6e-9869-64a13405f3e4","at":1770796185000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bad-be45-7544-bf70-2e08e642d2d6","at":1770796203589000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4bad-bfe0-7628-9706-0b1b2156d37a","at":1770796204000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c4bad-d750-737d-bcf0-0f556c309e54","at":1770796210000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bad-db38-7c32-a271-370db5f7e118","at":1770796211000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4bad-df20-7544-9c21-003a2b65a386","at":1770796212000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4bad-ffca-760e-924c-c02797271425","at":1770796220362000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c4bae-0630-7b88-9d14-eb5ffaaff69b","at":1770796222000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bae-44b0-7cae-b07c-a7e9f435ea31","at":1770796238000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bae-d896-745d-885e-9214cead2d68","at":1770796275862000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c4bae-dd08-7844-8e39-4189db3acb67","at":1770796277000000000,"seq":592,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4baf-1b88-77f6-9460-73836661bceb","at":1770796293000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c4baf-2f10-7d2c-aa3b-f3ede255e207","at":1770796298000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4baf-327e-7f15-b756-54441502536a","at":1770796298878000000,"seq":595,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c4baf-3eb0-72f3-b05d-bdeffdfaa69b","at":1770796302000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4baf-7178-72e5-a217-6c981169ceeb","at":1770796315000000000,"seq":597,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4baf-a828-7f99-b9a6-5173a79df03e","at":1770796329000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4baf-cf38-7968-8136-58ae51335e73","at":1770796339000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4bc4-574a-7f1f-9faa-4a753ac7b523","at":1770797684554000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c4bc4-8fb8-71a4-a20a-7ff7cb638b65","at":1770797699000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc4-f160-7bcb-bfd1-9a7daa6a5e78","at":1770797724000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4bc5-2481-7fce-be24-1e67617db70d","at":1770797737089000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c4bc5-4f20-7997-a5ce-affcc50c4f92","at":1770797748000000000,"seq":604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4bc5-5ec0-731d-8e9a-5f616bdc22d2","at":1770797752000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc5-a510-7df1-bee5-c34d5d6b3a7e","at":1770797770000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c4bc5-c3b2-7981-aa53-cc346624560b","at":1770797777842000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c4bc6-3d68-7d47-8ac5-f13b897841a6","at":1770797809000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc6-6090-7682-9107-be98dbfd438d","at":1770797818000000000,"seq":609,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4bc6-7030-747e-9f0c-2ffab3f3c3c3","at":1770797822000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc6-89e6-76f6-bd64-bce966cf4b46","at":1770797828582000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c4bc6-9358-758d-9716-779450172693","at":1770797831000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc6-aeb0-7646-a5a3-aa2625279c85","at":1770797838000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c4bc6-e948-7a17-9005-fe7928cd4656","at":1770797853000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4bc7-00b8-7225-8082-7c5c2c5cd6bb","at":1770797859000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc7-04a0-7df4-bbae-f4ed259c1515","at":1770797860000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4bd3-a497-7bf1-90ec-a899a76f9e18","at":1770798687383000000,"seq":617,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd3-e719-74c0-9d50-a5707881e78b","at":1770798704409000000,"seq":618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd4-c810-71d3-9e3b-37de49e908f7","at":1770798762000000000,"seq":619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4bd4-f505-7e74-be90-474ee5e49717","at":1770798773509000000,"seq":620,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd5-3d40-7b50-adc8-0f8638a1b2ba","at":1770798792000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4bd5-50c8-7c6e-bd38-5b2e6ecdf074","at":1770798797000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd5-6a13-7506-bff6-70b5515f95cf","at":1770798803475000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd5-8f48-7450-9868-0dcc0b1d4ad5","at":1770798813000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c4bd5-9330-7183-a15a-44cd0c77d91d","at":1770798814000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd5-e538-7b43-97ad-e073c2e317da","at":1770798835000000000,"seq":626,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4bd6-1800-7882-a004-5532e45d2f89","at":1770798848000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4bd6-38d1-7cac-8274-74b2f1cb97f7","at":1770798856401000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd6-5e50-78ea-8ff5-31e45ea1dd2f","at":1770798866000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd6-a4a0-79e3-b72e-e2382c0f0b19","at":1770798884000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd6-c3e0-7861-826d-65654bab43ae","at":1770798892000000000,"seq":631,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4bd6-e708-72d5-9000-623ca33ab283","at":1770798901000000000,"seq":632,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4bd6-eaf0-7ad2-bda8-902d14b0db6b","at":1770798902000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

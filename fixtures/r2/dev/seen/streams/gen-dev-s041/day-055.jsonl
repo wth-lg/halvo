@@ -1,0 +1,44 @@
+{"v":1,"id":"019c8ee7-7efc-71c7-91c9-99e04f994d8f","at":1771924061948000000,"seq":916,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8ee7-7efc-7f80-9359-80c97ab0c96b","at":1771924061948000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee7-7f30-74f8-9d15-802f511bfc9b","at":1771924062000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee8-2447-77d8-b472-51ef1e3c62fa","at":1771924104263000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee8-4280-731c-b55b-8ba096e4a921","at":1771924112000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c8ee8-5608-7e91-af90-689eebb84f5c","at":1771924117000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8ee8-7d18-7b2e-be6d-b06fcb80c381","at":1771924127000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee8-8100-7c40-9e47-55538e25450b","at":1771924128000000000,"seq":923,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8ee8-8ff0-78f5-99a1-cc98b8b366ac","at":1771924131824000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee9-33d9-7ccd-a453-edf41b7d829d","at":1771924173785000000,"seq":925,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee9-8fdb-72a2-aadb-2c29b8474e21","at":1771924197339000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee9-9a40-794f-944f-b2facf5b941b","at":1771924200000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8ee9-c920-73ca-99c0-d89868b240e5","at":1771924212000000000,"seq":928,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8ee9-e090-7903-9474-3751c8d1b33b","at":1771924218000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c8ee9-e166-7e68-95f5-27561ef30fe0","at":1771924218214000000,"seq":930,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c8eea-07a0-733a-9a38-57f57c7fd48c","at":1771924228000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c8eea-7e67-7253-a2d2-987b3f6db534","at":1771924258407000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8eea-9058-792c-a6e3-82ac9095e2f0","at":1771924263000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eea-a7c8-7795-ac1e-e5e9f850b751","at":1771924269000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef6-4bbe-70c0-aa0a-cd6d455924e2","at":1771925031870000000,"seq":935,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8ef6-4bbe-7677-98e5-fa45d20247a7","at":1771925031870000000,"seq":936,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8ef6-dcc8-72d8-871b-307607008187","at":1771925069000000000,"seq":937,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c8ef6-e880-794d-a6cf-0ecae9c08b73","at":1771925072000000000,"seq":938,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f12-18f6-717e-884d-64f66f2166d6","at":1771926853878000000,"seq":939,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c8f12-38b0-725c-99ab-0007ed7ed15c","at":1771926862000000000,"seq":940,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f12-3c98-713f-9967-aa3a00933614","at":1771926863000000000,"seq":941,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c8f12-5408-70a5-be8f-f93b2007db5c","at":1771926869000000000,"seq":942,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f27-af54-7de3-a7e4-2d83cd5519ab","at":1771928268628000000,"seq":943,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8f27-af54-7faf-8320-30fb03b54aee","at":1771928268628000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c8f28-4d08-71db-8be2-2ab8d9d5026f","at":1771928309000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f28-5ca8-7ada-9a61-61f38f225d72","at":1771928313000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f28-a2d5-70db-912b-3e7bb1f4cafd","at":1771928330965000000,"seq":947,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c8f28-d9a8-7b8d-b195-ac2e0f63b648","at":1771928345000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8f29-4320-7537-8d5c-94f5346c0289","at":1771928372000000000,"seq":949,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f29-56a8-702e-a2fb-b073d0f00a0f","at":1771928377000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8f29-9f97-72e3-a720-bb398cee4561","at":1771928395671000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c8f29-b468-76cd-b191-5cd5df5923a0","at":1771928401000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c8f29-cbd8-717f-bea6-657d8fcf5b3d","at":1771928407000000000,"seq":953,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8f29-df60-7222-b9cd-89be5dcc0e47","at":1771928412000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f29-ef00-7bbd-8032-6bcba655ba69","at":1771928416000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8f2a-950a-7058-87cd-06a7126055fe","at":1771928458506000000,"seq":956,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c8f2a-c5d8-737c-a3b4-fca7d5117206","at":1771928471000000000,"seq":957,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8f2b-0070-789c-bbac-2e1b05a4b6af","at":1771928486000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c8f2b-1bc8-7546-bb26-b12921e94948","at":1771928493000000000,"seq":959,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

@@ -1,0 +1,20 @@
+{"v":1,"id":"019d1f63-3faa-7cf0-97be-e2b058060f49","at":1774348091306000000,"seq":1079,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1f63-3faa-7df8-ae5b-8f56f94c2bb8","at":1774348091306000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1f70-94d9-7dff-b30c-fc04807cf9d8","at":1774348965081000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d1f70-cb38-738b-9dcd-4e64c32f9abb","at":1774348979000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f71-1958-7c94-a1cb-4b94859f7c6f","at":1774348999000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f71-4746-74b6-bea2-a4494ad3b81c","at":1774349010758000000,"seq":1084,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d1f71-57d8-76ca-a992-34f2e36b4627","at":1774349015000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f71-86b8-7b21-ad62-dbefed7485f5","at":1774349027000000000,"seq":1086,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f71-8d30-77da-94a0-9087a38f7916","at":1774349028656000000,"seq":1087,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d1f71-bd68-73f2-aa2c-8d980ac0db07","at":1774349041000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f71-fbe8-780c-9eb2-666a08b08eaa","at":1774349057000000000,"seq":1089,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d1f72-1f10-7cbb-8bde-69c990c38773","at":1774349066000000000,"seq":1090,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1f72-4620-7941-8aee-d23607f0bb09","at":1774349076000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f72-5581-7139-b0a1-b7ae40e6777f","at":1774349079937000000,"seq":1092,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d1f72-9c10-7890-a131-a185193289d1","at":1774349098000000000,"seq":1093,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1f72-a3e0-7b9d-9fd8-3c8a6239987a","at":1774349100000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f72-abb0-760b-b905-31c5b50be78d","at":1774349102000000000,"seq":1095,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d1f80-598a-7c04-aca2-943622301be0","at":1774349998474000000,"seq":1096,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1f80-7308-7bf1-9df0-d8fa70b98b8d","at":1774350005000000000,"seq":1097,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1f80-b188-7943-a0c7-796320195017","at":1774350021000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

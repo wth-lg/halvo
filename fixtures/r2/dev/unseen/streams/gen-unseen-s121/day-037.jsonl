@@ -1,0 +1,13 @@
+{"v":1,"id":"019c328a-f05a-7da1-8981-ff606be025cc","at":1770374492250000000,"seq":409,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c328a-f05a-7e06-aa87-8df6dfff1846","at":1770374492250000000,"seq":410,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c328b-4168-7cff-9e93-65f218f72808","at":1770374513000000000,"seq":411,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c329c-bc54-739d-8c7a-a4e0494af8a1","at":1770375658580000000,"seq":412,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c329c-bc54-7090-9835-a0db008cfdc9","at":1770375658580000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c329c-bdf8-7bbc-87c0-5e1aceaf8eeb","at":1770375659000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c329c-d950-74aa-89c1-f3734c2c8b54","at":1770375666000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c329c-f0c0-7273-a7e6-57acf0e3ab9b","at":1770375672000000000,"seq":416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c32b1-2188-791b-a0a5-e4e9c0876bf2","at":1770376995208000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c32b1-24a0-7ce3-905f-a4567d38d9ad","at":1770376996000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c32b1-4bb0-77e4-a427-83e667af091b","at":1770377006000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b1-8e18-7d8f-ba9c-0630ae53947e","at":1770377023000000000,"seq":420,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c32b1-c8b0-7f83-a6fb-b95b1f8bdca0","at":1770377038000000000,"seq":421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

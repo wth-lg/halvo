@@ -1,0 +1,11 @@
+{"v":1,"id":"019c4692-09b5-7b04-9cf2-86f28158ad4a","at":1770710501813000000,"seq":476,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4692-09b5-7f8e-9225-99507b803927","at":1770710501813000000,"seq":477,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4692-6448-7a56-98c0-742e7df8142a","at":1770710525000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4692-8f07-75f2-a179-21b5d255401f","at":1770710535943000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4693-0858-7698-8455-a6231b037a0d","at":1770710567000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4693-4358-7308-9e39-a4e9b2bdd6c4","at":1770710582104000000,"seq":481,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4693-6de8-70de-a27c-2cf79d120967","at":1770710593000000000,"seq":482,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4693-9110-786f-af9b-e2341038cb1e","at":1770710602000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4693-f655-79c3-84b4-24d7953c5fc8","at":1770710627925000000,"seq":484,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4694-6400-7f1b-90d9-47ea3df87484","at":1770710656000000000,"seq":485,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4694-c5a8-7982-a2f4-b38f3400f3fc","at":1770710681000000000,"seq":486,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

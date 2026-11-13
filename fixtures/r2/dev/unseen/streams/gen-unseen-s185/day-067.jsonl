@@ -1,0 +1,19 @@
+{"v":1,"id":"019ccc8a-e475-7bb7-bf9e-180d5cff9d70","at":1772958180469000000,"seq":928,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccc8a-e475-7294-9341-8b9959b3728a","at":1772958180469000000,"seq":929,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccc8b-1950-7b1a-a2d0-c059b7729cfb","at":1772958194000000000,"seq":930,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019ccc8b-34a8-79e8-8e1d-a7a399197d33","at":1772958201000000000,"seq":931,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ccc8e-09bd-73ac-b678-e3ab05838fb8","at":1772958386621000000,"seq":932,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccc8e-09bd-7b5e-9791-414d9c22a0a9","at":1772958386621000000,"seq":933,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ccc8e-4518-720a-9032-fe76872037e8","at":1772958401816000000,"seq":934,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ccc8e-8068-7878-a355-102f266a7533","at":1772958417000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc8e-8450-7316-bd42-452d087883f1","at":1772958418000000000,"seq":936,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ccc8e-93f0-7a83-9559-64959127b718","at":1772958422000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ccc8e-b718-710e-90b9-1840efc26f1c","at":1772958431000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc8e-fd68-778d-99cf-262bd5621290","at":1772958449000000000,"seq":939,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ccc8f-1952-716c-a035-101bd95d523d","at":1772958456146000000,"seq":940,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ccc8f-7c1a-7097-8b77-740d06d973f9","at":1772958481434000000,"seq":941,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ccc8f-95c0-78c0-97a7-d7d2699a121d","at":1772958488000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc8f-e3e0-7a75-82e6-c188c8f9cf2c","at":1772958508000000000,"seq":943,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ccc90-7d2d-7a3d-affe-6637b271540f","at":1772958547245000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ccc90-8bd8-7890-8859-924f27010560","at":1772958551000000000,"seq":945,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccc90-ca58-7ae0-a23c-6c13a9a5412d","at":1772958567000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

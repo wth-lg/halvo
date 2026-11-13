@@ -1,0 +1,10 @@
+{"v":1,"id":"019cebcb-c3d0-75d4-a028-3e5d360de5f8","at":1773482525648000000,"seq":1037,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cebcb-c3d0-7db6-a540-25d553ae2cdb","at":1773482525648000000,"seq":1038,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cebcb-f028-7849-a54f-56bfe74d8a43","at":1773482537000000000,"seq":1039,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebcc-4618-75eb-a0c8-929896d307d2","at":1773482559000000000,"seq":1040,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cebcc-55b8-76ae-a350-7a731c86c602","at":1773482563000000000,"seq":1041,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cebe7-e5f4-754c-9d16-b17f5151e80c","at":1773484369396000000,"seq":1042,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cebe7-e5f4-794c-87ff-3a1e56d95599","at":1773484369396000000,"seq":1043,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cebe8-5998-7e20-adb4-247f8dabba12","at":1773484399000000000,"seq":1044,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cebe8-7108-7f5a-a05a-fa536c05970d","at":1773484405000000000,"seq":1045,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cebe8-a547-7e94-b260-0a7fc006854b","at":1773484418375000000,"seq":1046,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}

@@ -1,0 +1,55 @@
+{"v":1,"id":"019c6aad-f537-7ab0-b7ca-325104db02c1","at":1771316311351000000,"seq":636,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6aad-f537-7ae1-ab0d-2b34820794ab","at":1771316311351000000,"seq":637,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6aae-0378-7ae1-8e9a-8044956dcd7a","at":1771316315000000000,"seq":638,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aae-49c8-7127-b893-fae5d2e43598","at":1771316333000000000,"seq":639,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c6ac6-6fa1-7cb9-b860-1e94f32c04f1","at":1771317915553000000,"seq":640,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ac6-6fa1-7072-95ac-91d11c222fcb","at":1771317915553000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6ac6-7d18-7634-982c-4f3839d80615","at":1771317919000000000,"seq":642,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6ac6-9488-7efb-9976-1332247bf775","at":1771317925000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac6-9488-75ed-bcad-ef9951ebad97","at":1771317925000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c6adb-c6d4-7051-b174-1ee6563e739d","at":1771319314132000000,"seq":645,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c6adc-0ca0-7831-84f0-eee2062d9f31","at":1771319332000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6adc-907a-7345-b524-0b95042d6073","at":1771319365754000000,"seq":647,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c6adc-eb48-7c77-8ab9-88b92c200e57","at":1771319389000000000,"seq":648,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6add-0a88-7af0-aaa2-4affd685d042","at":1771319397000000000,"seq":649,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c6add-1a28-76fb-b178-3ed98a9fb73d","at":1771319401000000000,"seq":650,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6add-8b47-7c38-b5c0-20575557c687","at":1771319429959000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c6add-ae98-7041-aa81-30b57177bcc6","at":1771319439000000000,"seq":652,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6add-c220-7417-bffb-ca8315cf4ec9","at":1771319444000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c6add-e548-723c-a455-13c63904cffc","at":1771319453000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6add-e8b4-7452-aa1c-b43ad831f705","at":1771319453876000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c6ade-1bf8-7d73-a7f2-e4f4b28b1821","at":1771319467000000000,"seq":656,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6ade-1fe0-796a-b0dc-b1cc6cc2d6d9","at":1771319468000000000,"seq":657,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6ade-2b98-7485-8544-c9f54b6328bb","at":1771319471000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ade-6098-71c3-86de-10b2da02649a","at":1771319484568000000,"seq":659,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c6ade-79b8-7de7-95bf-69f26000410f","at":1771319491000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ade-9128-7152-9820-13efbb61c673","at":1771319497000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ade-d390-74f7-9125-ea1e37c94306","at":1771319514000000000,"seq":662,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6ade-d778-7bce-a036-d48e3e129873","at":1771319515000000000,"seq":663,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6ae0-e412-7943-857f-71b6b347df8b","at":1771319649298000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae1-1998-7e4c-841e-bb5620fbbbc4","at":1771319663000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae1-3cc0-77b4-9004-53859ec67c42","at":1771319672000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae1-45a4-7fea-a5c7-b9fa665a078d","at":1771319674276000000,"seq":667,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae1-7758-7d13-8128-b914177db956","at":1771319687000000000,"seq":668,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ae1-bda8-7eee-a3be-860135833e72","at":1771319705000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6ae1-d418-7b5d-8e44-cdd5dc8eed30","at":1771319710744000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae2-07e0-731b-89e2-db142e53449d","at":1771319724000000000,"seq":671,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ae2-1859-78dc-a71c-0e26930bd078","at":1771319728217000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae2-36c0-7ecb-ab49-f0569caf4ded","at":1771319736000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae2-4660-78cd-a239-a48dece00fa9","at":1771319740000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae2-6655-78d1-99e2-0cbe648d3d1e","at":1771319748181000000,"seq":675,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae2-7928-7971-8f7b-30496bb3b04f","at":1771319753000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae2-9868-7468-a82e-e209a7fdb7a4","at":1771319761000000000,"seq":677,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6ae2-abf0-73b3-b62b-8b05cc046655","at":1771319766000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae2-b571-7f7a-9ecf-5e0fa43627b9","at":1771319768433000000,"seq":679,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae2-cb30-79e2-8066-1aa23ce5ebed","at":1771319774000000000,"seq":680,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afc-cc67-7614-8d3b-c4b9835d588f","at":1771321478247000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c6afc-eab0-7345-ab26-599adac5016c","at":1771321486000000000,"seq":682,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afc-f668-7245-9cf4-330a42769e8b","at":1771321489000000000,"seq":683,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c6afd-1990-79c6-a46d-e44f67243b5c","at":1771321498000000000,"seq":684,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afd-3ef8-76c2-9895-a69ce8a39873","at":1771321507576000000,"seq":685,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c6afd-9e60-7556-a3d4-6c1829220b33","at":1771321532000000000,"seq":686,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c6afe-3a17-7e6a-8052-5e86cd0209aa","at":1771321571863000000,"seq":687,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c6afe-5210-7bf6-987c-c8864c0e6da2","at":1771321578000000000,"seq":688,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afe-5dc8-7773-83c7-1048c8eb51ef","at":1771321581000000000,"seq":689,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afe-cb28-7e33-a720-5cbd342e8871","at":1771321609000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

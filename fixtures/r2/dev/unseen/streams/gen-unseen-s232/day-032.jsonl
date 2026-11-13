@@ -1,0 +1,41 @@
+{"v":1,"id":"019c1838-a9ca-7e81-b547-5d8788e77518","at":1769932892618000000,"seq":607,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1838-a9ca-7c82-b456-286fe151797d","at":1769932892618000000,"seq":608,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1839-2460-72d8-8160-2e4f035b4123","at":1769932924000000000,"seq":609,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1839-a548-7d23-a315-0de227aafc6e","at":1769932957000000000,"seq":610,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c184d-984b-7a60-93cc-3b2fbdbbf1bc","at":1769934264395000000,"seq":611,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c184d-984b-7d92-8094-4fbd9ff408d1","at":1769934264395000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c184d-b218-7d0a-a8f3-fa6cd2087b47","at":1769934271000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c184e-0038-795d-9615-bbcaca1b1669","at":1769934291000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c184e-1f78-7a3c-b13b-2c9f0023bb47","at":1769934299000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c184e-4048-7d15-b2b3-a3ed496189ed","at":1769934307400000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c184e-69b0-794e-89b6-270975ba8e68","at":1769934318000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c184e-fa90-7ede-ad26-e90d5f1065e4","at":1769934355088000000,"seq":618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c184f-09d8-79ce-925b-45338fa3e4c7","at":1769934359000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c184f-0dc0-733c-b27f-4d52864f93d2","at":1769934360000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c184f-34d0-7220-8182-982adba4bef9","at":1769934370000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c184f-4c25-7c2d-a5cd-9d3f5ac89c44","at":1769934375973000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c184f-4c40-75fd-a651-378e3e44741f","at":1769934376000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c184f-5fc8-705c-8a5c-581e9f140c3b","at":1769934381000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c184f-6f68-7ca1-9ec3-7f24fb0b64a8","at":1769934385000000000,"seq":625,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c184f-8ac0-75a6-9863-89c120fd439f","at":1769934392000000000,"seq":626,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1861-d88b-72b7-9d02-37d9c837a74a","at":1769935591563000000,"seq":627,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1861-d88b-7577-98cf-f5b926090240","at":1769935591563000000,"seq":628,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1861-e210-73ee-82ca-362e443a3978","at":1769935594000000000,"seq":629,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c1861-f598-7e8c-980e-0a7c426384b8","at":1769935599000000000,"seq":630,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c1874-f8c5-7930-9e81-b243865b7eab","at":1769936844997000000,"seq":631,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1874-f8c5-7479-bec0-0ec227df1bfa","at":1769936844997000000,"seq":632,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c1875-3b30-7750-b7ae-7bfc1c2747ea","at":1769936862000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1875-3f18-7e2f-bc6b-31ba0c3e5c07","at":1769936863000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c1875-bb45-7a59-941c-6373c3004b88","at":1769936894789000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c1875-c3e8-71c9-9ed3-ab53b51b619e","at":1769936897000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1875-fa98-7755-b518-3bab5656a7ca","at":1769936911000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1876-0ded-7039-8294-7e89efd68327","at":1769936915949000000,"seq":638,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c1876-7f68-7f13-964b-b27029869f94","at":1769936945000000000,"seq":639,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1876-8b20-75db-83ca-3db2df6f566f","at":1769936948000000000,"seq":640,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1876-8c13-7eeb-acc3-8a0924ac0b10","at":1769936948243000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c1876-8f08-733d-aa94-e2ce31e1a065","at":1769936949000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c1876-c1d0-7834-b67b-2b8afe47e745","at":1769936962000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c188f-8b90-7415-b909-a63c15466e97","at":1769938586512000000,"seq":644,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c188f-8d78-7278-a85a-ab65f57f36b0","at":1769938587000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c188f-bc58-7207-91f9-ecba89e4595e","at":1769938599000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c188f-c040-7b32-8b08-3c9894235241","at":1769938600000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,18 @@
+{"v":1,"id":"019cf594-3618-7d97-8118-1061765fd86a","at":1773646657048000000,"seq":941,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf594-3618-7aca-9828-f9d4326fe361","at":1773646657048000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cf594-7080-7f2b-a329-43d4094f2331","at":1773646672000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cf594-7f7e-7f63-b4b1-c4b4d6fd0386","at":1773646675838000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cf595-5ec8-7d5f-815f-500bdf3d63e5","at":1773646733000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf595-6698-77b3-8849-1f24f48eb40f","at":1773646735000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf595-6a71-7914-b29d-1576a97801dd","at":1773646735985000000,"seq":947,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cf596-0561-7d0c-a033-1a3f0590c807","at":1773646775649000000,"seq":948,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cf596-2218-7d1d-b132-1fcad4bfb053","at":1773646783000000000,"seq":949,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf596-4540-7072-89be-56e475ff9505","at":1773646792000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf596-58c8-70f1-9f7e-d6b19aeb3cf5","at":1773646797000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf596-6868-7562-947a-794851a2f152","at":1773646801000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cf596-a6e8-774d-891f-a77b02c4c4c0","at":1773646817000000000,"seq":953,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf59a-9f0e-79f2-ac88-c82ab19cd71c","at":1773647077134000000,"seq":954,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf59a-cd68-729e-8d56-41297f1283b9","at":1773647089000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf59b-0030-7eb5-9850-5dc47bf0a8df","at":1773647102000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf59b-2740-721f-94db-7b7757d5ced2","at":1773647112000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf59b-36e0-7cb5-88a9-fe63a1763a4d","at":1773647116000000000,"seq":958,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

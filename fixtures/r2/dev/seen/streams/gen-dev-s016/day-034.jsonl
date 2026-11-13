@@ -1,0 +1,25 @@
+{"v":1,"id":"019c22ed-9720-7f25-ab57-97ce88f54b95","at":1770112522016000000,"seq":620,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22ed-9720-74c8-84cb-049234973d13","at":1770112522016000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c22ed-a2c8-73f6-a092-45612293ba94","at":1770112525000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ed-d590-704e-ba85-35c40bcb69b0","at":1770112538000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c22ee-0088-7cb0-a5a7-bde808b3d60c","at":1770112549000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ee-15f2-7217-8f31-c029b81b3419","at":1770112554482000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c22ee-d5a9-7d45-b783-67eed1fb065d","at":1770112603561000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c22ef-15e0-7394-8547-07ec7cc77eb2","at":1770112620000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ef-5c30-79e4-a8da-52ec57964593","at":1770112638000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c22ef-9c4f-7844-be98-90d498497f43","at":1770112654415000000,"seq":629,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c22ef-c5a8-70ca-a2d8-901ed5845111","at":1770112665000000000,"seq":630,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c22ef-dd18-7035-9a1e-4e09fd16ff7b","at":1770112671000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22f6-3823-7c7a-80d7-bb8da54e78a5","at":1770113087523000000,"seq":632,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c22f6-7498-7fc6-b305-aa214cd26478","at":1770113103000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22f6-b318-7c96-8e49-a61fbbed2d36","at":1770113119000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22fa-ef98-762d-8225-c7966a600180","at":1770113396632000000,"seq":635,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c22fa-ef98-7644-bee9-734b626efdce","at":1770113396632000000,"seq":636,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c22fb-0c60-73fe-b193-6475878d1094","at":1770113404000000000,"seq":637,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c230e-bb68-792e-a4de-9316fa3d30c5","at":1770114693992000000,"seq":638,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c230e-bb68-7974-aa0e-8ecb317076e6","at":1770114693992000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c230e-cef8-7c55-82d7-ec9493de52fa","at":1770114699000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c230f-3c58-738f-bb79-d424bf6eea97","at":1770114727000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c230f-cbac-7846-960e-2626a41361d4","at":1770114763692000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c2310-1ee8-7947-adc5-58f0b2f9084b","at":1770114785000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c2310-9800-73ec-a83a-3ad751aa6e8a","at":1770114816000000000,"seq":644,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

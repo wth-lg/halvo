@@ -1,0 +1,12 @@
+{"v":1,"id":"019cb33a-49af-79ee-a413-64f3f6ad1fba","at":1772533467567000000,"seq":1032,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb33a-49af-7f74-9011-8e41a8286200","at":1772533467567000000,"seq":1033,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cb33a-4b60-7f9b-ba47-cfa43c78763b","at":1772533468000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cb33a-5ee8-7609-96c8-e0216bc1393b","at":1772533473000000000,"seq":1035,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb33a-7658-7281-8d6c-9ae99a9a35d7","at":1772533479000000000,"seq":1036,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33a-a538-7c3a-a7ff-dee698a50707","at":1772533491000000000,"seq":1037,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb344-9426-7b77-9000-2f9458c611e5","at":1772534141990000000,"seq":1038,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb344-9426-7ab6-b68b-7719af1f71bd","at":1772534141990000000,"seq":1039,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb344-bb40-7c51-b322-a2d08ab098a9","at":1772534152000000000,"seq":1040,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cb345-20d0-7528-a038-6804dc67b5d0","at":1772534178000000000,"seq":1041,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cb345-2f9b-7470-b4e3-dd986d137453","at":1772534181787000000,"seq":1042,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cb346-0b30-76bc-abe7-e93f69ed7db2","at":1772534238000000000,"seq":1043,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}

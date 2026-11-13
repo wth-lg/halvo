@@ -1,0 +1,25 @@
+{"v":1,"id":"019c8466-5928-752b-9e58-bf7f189d4864","at":1771747825960000000,"seq":557,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8466-5928-706e-8946-094af99ac95b","at":1771747825960000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c8466-5d38-7d04-8142-dbe67eec20a8","at":1771747827000000000,"seq":559,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c8467-0530-7a4e-adcb-47fcf04c599d","at":1771747870000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8467-0566-75a9-a443-5377ee6ed604","at":1771747870054000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for July - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c8467-5f08-7830-8fb5-531ecfb943cb","at":1771747893000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c8467-8a2d-72e6-8d90-2ee1342bc7c8","at":1771747904045000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c8467-b8e0-76ed-8d3c-a951afc2bb36","at":1771747916000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8467-fb48-7d26-94e5-72a720285ff2","at":1771747933000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c8468-16a0-74ce-806b-fe4452e48b27","at":1771747940000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8468-7fd1-7d99-a338-6da43ab20a02","at":1771747966929000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c8468-b6c8-715c-88a3-c5832668fe02","at":1771747981000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c847f-dce2-73d4-93bd-db4daf7a3104","at":1771749498082000000,"seq":569,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c847f-dce2-7d5a-81c2-2de42ecac3ad","at":1771749498082000000,"seq":570,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c847f-e848-75f1-959f-269cbc7cd850","at":1771749501000000000,"seq":571,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8480-0788-78d3-bb40-263cb0ee10f7","at":1771749509000000000,"seq":572,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c8480-af80-7e95-b3f6-e60ed93ebb5b","at":1771749552000000000,"seq":573,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8480-b750-72d9-bd89-eace59503940","at":1771749554000000000,"seq":574,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c8482-612a-7700-a625-3010c2594426","at":1771749663018000000,"seq":575,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8482-612a-7d5e-9368-639b3e5e030b","at":1771749663018000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8497-a61f-74ac-85b0-c3154cd37cda","at":1771751056927000000,"seq":577,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8497-c1c0-7ab5-aede-bf65d9902e97","at":1771751064000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8498-0b9f-728e-9710-79392d4d5388","at":1771751082911000000,"seq":579,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8498-17b0-7ced-8b6a-93f322def802","at":1771751086000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8498-94b0-71eb-9e08-01d052519e07","at":1771751118000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

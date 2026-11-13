@@ -1,0 +1,50 @@
+{"v":1,"id":"019d3da7-8ebd-729e-9d18-3bfb9bd84d2d","at":1774855884477000000,"seq":1106,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3da7-8ebd-77aa-b764-d7f0e0598c2b","at":1774855884477000000,"seq":1107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3da8-38c0-7926-9e70-6fbeabb8d78c","at":1774855928000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d3da8-6b88-7bdd-8c93-92180f02f71d","at":1774855941000000000,"seq":1109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3da8-7358-7337-a4cc-8af00fe331b2","at":1774855943000000000,"seq":1110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3daa-424a-7ca9-aec2-2d75a03de1d4","at":1774856061514000000,"seq":1111,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019d3daa-4e6b-7da4-b2c3-e4e88de3a226","at":1774856064619000000,"seq":1112,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3daa-4e6b-74c4-8401-1c4878221d58","at":1774856064619000000,"seq":1113,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3daa-53d0-70f0-9963-f3348db2a221","at":1774856066000000000,"seq":1114,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3daa-f7e0-78cc-85d5-b03ef0f295ad","at":1774856108000000000,"seq":1115,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3dab-5988-76a9-a55c-36fa9a95f365","at":1774856133000000000,"seq":1116,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3dab-5ac3-79b5-bdc0-aa176e27205c","at":1774856133315000000,"seq":1117,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3dab-9420-716a-9113-31a1cbb8250b","at":1774856148000000000,"seq":1118,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d3dab-b748-7995-b653-ad3bf47dfcc2","at":1774856157000000000,"seq":1119,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dab-d534-7dcb-90ec-009522a0f049","at":1774856164660000000,"seq":1120,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3dac-43e8-771f-b484-6ed6bc1600f5","at":1774856193000000000,"seq":1121,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d3dac-5f40-7999-853e-c761e8dbe62b","at":1774856200000000000,"seq":1122,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dac-75c8-7533-af75-2f9ca6ef87ee","at":1774856205768000000,"seq":1123,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3dac-9dc0-7da3-b568-2cf35638697b","at":1774856216000000000,"seq":1124,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3dac-c4d0-77bc-8416-fe282fb52143","at":1774856226000000000,"seq":1125,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dac-d470-744a-b4e1-d95984857e5f","at":1774856230000000000,"seq":1126,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dac-e410-74fe-9312-c23fbec20b6d","at":1774856234000000000,"seq":1127,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d3dad-298a-7c74-b10f-a85e39accdd5","at":1774856251786000000,"seq":1128,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3dad-3230-74bf-91fc-ffb946219453","at":1774856254000000000,"seq":1129,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3dad-ce70-7ec7-87df-112e759c1177","at":1774856294000000000,"seq":1130,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dae-0908-723a-b372-e765cbe3d352","at":1774856309000000000,"seq":1131,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d3dae-14c0-7ee0-892a-ba01e26b5db1","at":1774856312000000000,"seq":1132,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dae-3082-71eb-9e8d-6e456e1e9842","at":1774856319106000000,"seq":1133,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3dae-3400-71e5-8e46-088a57ef7b4c","at":1774856320000000000,"seq":1134,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dae-a160-7a34-925b-ab4a2248a285","at":1774856348000000000,"seq":1135,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d3dae-cc58-70e4-9387-9018507fbb56","at":1774856359000000000,"seq":1136,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3daf-0ad8-7fa9-ae42-a6518da1807d","at":1774856375000000000,"seq":1137,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d3daf-1939-7254-ab21-452ff1329a3d","at":1774856378681000000,"seq":1138,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3daf-1a78-7c65-bdb4-2bf64da98347","at":1774856379000000000,"seq":1139,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3daf-1a78-76c3-b9b9-d113ea7705a9","at":1774856379000000000,"seq":1140,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d3daf-1e60-7ea8-90c3-488a40e703dc","at":1774856380000000000,"seq":1141,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3daf-51b9-7d99-94a0-78f00b640464","at":1774856393145000000,"seq":1142,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3daf-9f48-766d-9a26-bb95f697d317","at":1774856413000000000,"seq":1143,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3daf-aee8-7432-9258-6ef15c7ded01","at":1774856417000000000,"seq":1144,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d3daf-b2d0-7aa1-aff0-4030e43548d9","at":1774856418000000000,"seq":1145,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3daf-da7d-7bc4-8832-c4ae64f798d4","at":1774856428157000000,"seq":1146,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3db0-4740-740c-902d-a2fabdcca63e","at":1774856456000000000,"seq":1147,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d3db0-4f10-7cd0-9acc-48b1808a4a53","at":1774856458000000000,"seq":1148,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3db0-5eb0-7e48-ba39-9303b6601d91","at":1774856462000000000,"seq":1149,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d3db0-8a43-7f87-81db-eb8ef2d8f987","at":1774856473155000000,"seq":1150,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3db0-9d30-7d3c-a451-d73be951ff43","at":1774856478000000000,"seq":1151,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3db0-a118-7d9a-a72b-2f7788b18647","at":1774856479000000000,"seq":1152,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3db0-e380-7e59-aca6-39b5b4a01758","at":1774856496000000000,"seq":1153,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3db1-29d0-7ab0-b198-f169ad30932d","at":1774856514000000000,"seq":1154,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d3db1-5d5a-70d7-8bb5-fac9ef3c5f7c","at":1774856527194000000,"seq":1155,"kind":"run_mark","app":null,"p":{"edge":"end"}}

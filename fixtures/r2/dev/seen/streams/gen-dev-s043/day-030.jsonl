@@ -1,0 +1,40 @@
+{"v":1,"id":"019c0e54-f461-792f-93dd-3c852e8d2c1a","at":1769766974561000000,"seq":582,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e54-f461-7fe1-a7aa-57aa67f0fdc4","at":1769766974561000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c0e54-f618-7b32-8cba-c0e7996fce3d","at":1769766975000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e55-46c4-76f4-b0e2-f193947dac0c","at":1769766995652000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0e55-57c0-7264-9ebc-c7094796dad1","at":1769767000000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0e55-7ed0-72ac-ab59-7dd97318dc00","at":1769767010000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e55-a9c8-729f-bc96-df37d8b44bf5","at":1769767021000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e55-c156-789e-80f4-0187f6b3f196","at":1769767027030000000,"seq":589,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c0e56-22e0-75c3-845d-d94c336ce42b","at":1769767052000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e56-3e38-7b35-8753-50875f35f918","at":1769767059000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c0e56-6832-7b56-a1f5-bdcf74ed8296","at":1769767069746000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c0e56-cad8-78fa-ba46-4e977b2e93ac","at":1769767095000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c0e56-f52d-768b-9a03-39a8860c42b8","at":1769767105837000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c0e57-8658-7dd8-ab69-f14c0dfb4287","at":1769767143000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c0e6c-1991-77eb-ae84-5c655dd733d8","at":1769768491409000000,"seq":596,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e6c-1991-7c7b-982b-3360265dc507","at":1769768491409000000,"seq":597,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e6c-3350-7e02-86c4-e37b32e79809","at":1769768498000000000,"seq":598,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c0e6c-3b20-7c52-941b-73b4dd02d256","at":1769768500000000000,"seq":599,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c0e6c-5e48-7217-8c09-74f209027852","at":1769768509000000000,"seq":600,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c0e7c-6204-78c4-8ec0-fdd9f72d6235","at":1769769558532000000,"seq":601,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e7c-6204-7044-b6ec-dbb2e2a83767","at":1769769558532000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0e7c-7378-7679-8537-8677ae715b08","at":1769769563000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c0e7c-f848-7954-8406-e8c65db000b5","at":1769769597000000000,"seq":604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e80-d447-70ff-bc81-c2c2a8c8c3aa","at":1769769849927000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0e80-f7b8-7c64-b836-920f3edffec7","at":1769769859000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c0e81-1ec8-7526-8e4b-d5bb3f982b9f","at":1769769869000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e81-3f00-79ab-bcb7-135880a1b938","at":1769769877248000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0e81-6ce8-71b7-a152-eb1f6ea673dc","at":1769769889000000000,"seq":609,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e81-8458-7620-9fa6-59d3cbf8e762","at":1769769895000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e81-9fb0-7893-b4ce-7b66485c90b3","at":1769769902000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e81-bb08-7813-b0f3-5308aaf60a56","at":1769769909000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e81-e9e8-75f0-802f-cdc293ae7536","at":1769769921000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c0e82-0161-7dda-b471-445e0bb3d788","at":1769769927009000000,"seq":614,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0e82-0d10-7d39-8886-fb180766e13c","at":1769769930000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e82-2098-72fe-82a7-6e7a5b02e99a","at":1769769935000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e82-2868-7916-a6da-4e91b0a6c6cb","at":1769769937000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c0e82-4b90-7d7f-84be-ffe60230b4d8","at":1769769946000000000,"seq":618,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e82-9649-7109-bbf1-fec85fc67042","at":1769769965129000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0e82-a180-7bdd-b8ac-7ec73410f55c","at":1769769968000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e83-5918-7876-940e-8ac902302dda","at":1769770015000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

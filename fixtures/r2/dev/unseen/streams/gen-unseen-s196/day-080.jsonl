@@ -1,0 +1,32 @@
+{"v":1,"id":"019d0f89-b940-7f2e-b182-bf252c65cb96","at":1774082177344000000,"seq":938,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0f89-b940-7b0c-8e0f-a0d248b20239","at":1774082177344000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d0f89-e6c8-759f-8acc-234855b38121","at":1774082189000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d0f8a-1883-720b-af4e-a39d8b62eceb","at":1774082201731000000,"seq":941,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement May - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d0f8a-34e8-742b-8c02-ecca3541d9c2","at":1774082209000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f8a-5bf8-7efb-a40d-2fac160ab434","at":1774082219000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d0f8a-63c8-7c51-a8f1-e085729f3810","at":1774082221000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f8a-6f80-757c-91f0-70e0708bb500","at":1774082224000000000,"seq":945,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0f8a-86f0-720f-81ee-5d120d8f9d2f","at":1774082230000000000,"seq":946,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0f8a-9d20-7a7e-bcd3-840cfe4b8ee0","at":1774082235680000000,"seq":947,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d0f8a-c570-7ef7-8b21-bfa7056bcc94","at":1774082246000000000,"seq":948,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d0f8b-994f-7fa0-ad56-530f04d996e3","at":1774082300239000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d0f8b-a800-7f4e-8e92-1f8bc451fb98","at":1774082304000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0f8b-a800-79d3-be9d-d83c13516941","at":1774082304000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d0f8c-68ac-77ff-99f6-0d57f1a73068","at":1774082353324000000,"seq":952,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d0f8c-7320-762c-bf93-4667cf3c3e02","at":1774082356000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0f8c-7ed8-7300-8cc5-cddd12d0164d","at":1774082359000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f8c-adb8-7ce5-9737-987238625603","at":1774082371000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0f8c-d8b0-792e-ab7e-86a151b94780","at":1774082382000000000,"seq":956,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0f97-52fe-75b1-8673-9a3fa7cb60bf","at":1774083068670000000,"seq":957,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0f97-5448-7cbd-be92-a24999eaf615","at":1774083069000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d0f97-5c18-7ed8-9415-e12db39c4255","at":1774083071000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f97-7388-7d40-b6f8-978c5c89ff76","at":1774083077000000000,"seq":960,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0f97-7f40-7adb-a969-af54b3b3ab04","at":1774083080000000000,"seq":961,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0fa6-4994-7af5-b7ae-2a4237312250","at":1774084049300000000,"seq":962,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0fa6-4994-7da1-9f87-b30cf2aae87b","at":1774084049300000000,"seq":963,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0fa6-5038-78a9-875c-dbb4a575b31f","at":1774084051000000000,"seq":964,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d0fa6-e0c0-785f-a1d4-afe4f5ec45e0","at":1774084088000000000,"seq":965,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fa7-3adb-70fd-93c3-d3057952e336","at":1774084111067000000,"seq":966,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d0fa7-e678-7eb0-ba30-19deb157b134","at":1774084155000000000,"seq":967,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d0fa7-f230-7fa5-a26b-f16075ec0e32","at":1774084158000000000,"seq":968,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fa8-28e0-7e26-ae5d-97808febef6f","at":1774084172000000000,"seq":969,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

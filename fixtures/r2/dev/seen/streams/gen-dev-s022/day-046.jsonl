@@ -1,0 +1,39 @@
+{"v":1,"id":"019c60d5-2af6-7a9f-b982-9100b7dc9f4d","at":1771151108854000000,"seq":715,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60d5-2af6-7cab-8d87-889ecee55eb2","at":1771151108854000000,"seq":716,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c60d5-5e50-7673-8c50-4e093cc64084","at":1771151122000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60d5-75f7-7331-964a-b7e1e6418c8b","at":1771151128055000000,"seq":718,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c60d5-d380-7757-80fc-0698adc56bb6","at":1771151152000000000,"seq":719,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c60d5-db50-78ed-837f-de326391d83a","at":1771151154000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60d6-2d58-7f46-a0e8-1eda3113f80b","at":1771151175000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60d6-3cf8-777b-8976-c78061e6e2f4","at":1771151179000000000,"seq":722,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60d6-5101-742c-8e80-64ae6d8e7922","at":1771151184129000000,"seq":723,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c60d6-7f60-793e-8ef6-eff98f60cacb","at":1771151196000000000,"seq":724,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60d6-8730-7a5e-9ef3-43d14337ca16","at":1771151198000000000,"seq":725,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60d6-9ab8-7294-b86b-0d25ecd1265d","at":1771151203000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60d6-9f1a-70b0-b02d-f633c340a500","at":1771151204122000000,"seq":727,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c60d7-2b40-7a67-80ab-ac9bc3215ffa","at":1771151240000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60d7-7960-7b22-bb00-9a747e214e76","at":1771151260000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60e6-07bf-76ad-a851-36251f3d979f","at":1771152213951000000,"seq":730,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60e6-61c8-7af3-9ce5-881cd99afcc4","at":1771152237000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60e6-f8e5-7bac-a40a-cdb28caf1387","at":1771152275685000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c60e7-1d48-799c-87bd-1b348f068d1f","at":1771152285000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c60e7-5bc8-7c3d-99b3-5a8cb96d93c4","at":1771152301000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60e7-9660-7219-8746-a3fc3040f877","at":1771152316000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60e7-e267-7f26-a88c-c520e22dc284","at":1771152335463000000,"seq":736,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60e7-f808-710a-8b0f-4721257dba33","at":1771152341000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60e8-1748-705d-b5dd-34e6832a6df0","at":1771152349000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c60e8-2ad0-7bc5-b7d9-75ca10f513cb","at":1771152354000000000,"seq":739,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c60e8-32a0-70a2-902d-909cb7138feb","at":1771152356000000000,"seq":740,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c60e8-36b8-7140-bb0b-9e2a57eca3b0","at":1771152357048000000,"seq":741,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60e9-033e-7ceb-916c-dfa2f93eb2e1","at":1771152409406000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60e9-20e8-73f1-a7f4-d3ccfb96701b","at":1771152417000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c60e9-4fc8-7204-947e-b9a2d3fc4bb4","at":1771152429000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c60e9-5f68-7285-9e38-955340ac150d","at":1771152433000000000,"seq":745,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c60e9-bc56-7b2d-b788-639c5b436455","at":1771152456790000000,"seq":746,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60ea-0760-7de9-84a7-0329e8bb921c","at":1771152476000000000,"seq":747,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c60ea-1700-79bb-ada3-200e44725de2","at":1771152480000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ea-8d82-780a-9f4b-4dea37d15e20","at":1771152510338000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60ea-d668-7d01-beca-dda8d5019840","at":1771152529000000000,"seq":750,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60ea-f5a8-7beb-8299-c366fe07700e","at":1771152537000000000,"seq":751,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c60f6-4b73-71f0-9a4f-b6d24ae79da1","at":1771153279859000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c60f6-e458-7cb8-9c67-eb51db9897d3","at":1771153319000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

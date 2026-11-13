@@ -1,0 +1,19 @@
+{"v":1,"id":"019cf57c-4efa-7d4c-b5d9-bcbbf4344c39","at":1773645090554000000,"seq":1114,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf57c-4efa-76d9-87b1-4f371ce8aeac","at":1773645090554000000,"seq":1115,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf57c-5888-7f48-90dc-406223fe44f2","at":1773645093000000000,"seq":1116,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf57c-6828-71f8-8172-bf34bb3b2560","at":1773645097000000000,"seq":1117,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cf57c-9af0-72b0-9def-5140b76d8827","at":1773645110000000000,"seq":1118,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf583-8792-7b43-ab79-8a6f97cb0161","at":1773645563794000000,"seq":1119,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf583-8792-7d7e-972c-d3d1ac8993b4","at":1773645563794000000,"seq":1120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cf583-9800-7a7f-875c-c2621507957c","at":1773645568000000000,"seq":1121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf583-a7a0-7f6d-8ee8-a46abe5150fa","at":1773645572000000000,"seq":1122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf583-c6e0-7278-9c07-5640ed72f467","at":1773645580000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf583-ea08-7128-88e9-9976cece1817","at":1773645589000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf598-0feb-7c83-8776-243dc3fb7ebd","at":1773646909419000000,"seq":1125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cf598-87ff-706f-ab06-3d7d5a9fe7e5","at":1773646940159000000,"seq":1126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cf598-b640-7f1b-8631-1acc3c258914","at":1773646952000000000,"seq":1127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf598-ecf0-7295-b572-0a66aa0c6b2a","at":1773646966000000000,"seq":1128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf599-4d71-76ad-ac9e-7c112d1cc4da","at":1773646990705000000,"seq":1129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cf599-5a50-793c-a441-af8ed2213fdc","at":1773646994000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf599-7990-775a-971f-07f30551bc14","at":1773647002000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf599-7d78-76ca-a11a-c8383c9c8d46","at":1773647003000000000,"seq":1132,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

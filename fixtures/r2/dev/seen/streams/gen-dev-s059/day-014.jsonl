@@ -1,0 +1,30 @@
+{"v":1,"id":"019bbbc8-9bcc-751b-9125-4d9eff4a380d","at":1768382045132000000,"seq":149,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbbc8-9bcc-7f03-ba57-de4a0ca0e781","at":1768382045132000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bbbc9-2fb8-74d6-8047-35f8d282323a","at":1768382083000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbc9-5e98-7050-aa64-e7efe71015b6","at":1768382095000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbc9-9ab1-7223-b37b-f0a1ac03b98e","at":1768382110385000000,"seq":153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bbbc9-a4e8-7bac-ac35-a1ccbe8c1f51","at":1768382113000000000,"seq":154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bbbc9-df80-74dd-8827-aea74463f343","at":1768382128000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbd0-18b7-7f46-b124-864a8d1296f4","at":1768382535863000000,"seq":156,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bbbd0-18b7-7159-b36e-7518a175a494","at":1768382535863000000,"seq":157,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bbbd0-7ae8-7e9b-a26e-95cf144ce56e","at":1768382561000000000,"seq":158,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbd0-e848-7623-b510-c8ab5ac0a2fa","at":1768382589000000000,"seq":159,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bbbd0-ec30-7093-bafa-389c1b4fd6cc","at":1768382590000000000,"seq":160,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bbbeb-bcac-70ce-97f6-7b03550a8c62","at":1768384347308000000,"seq":161,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbbeb-bcac-72e9-b13d-1ee62292d2d1","at":1768384347308000000,"seq":162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bbbeb-f228-7eac-b6d8-d124cd250183","at":1768384361000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bbbec-38e7-7456-8d4b-c15a753d4159","at":1768384379111000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bbbec-7310-764e-9613-963bab57e71a","at":1768384394000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bbbed-3510-7a19-92eb-b0c17f388671","at":1768384443664000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bbbed-75f9-7d3b-91ce-100afcd5e5a9","at":1768384460281000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bbbed-b360-7e80-8a8f-4075275e4c48","at":1768384476000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbed-b748-7a7c-884e-b43be32dd454","at":1768384477000000000,"seq":169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bbbed-de58-7d29-8df9-e2394600ed2e","at":1768384487000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bbbee-0950-7693-aba6-6b8942aa49c4","at":1768384498000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bbbee-5f40-7941-a6a9-b237dbcdd0bc","at":1768384520000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbf6-2f92-7ed3-ba1b-cf257869f900","at":1768385032082000000,"seq":173,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bbbf6-2f92-7787-adbe-54e839d9cd71","at":1768385032082000000,"seq":174,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bbbf6-3710-7056-9014-e1604c48b6f9","at":1768385034000000000,"seq":175,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bbbf6-3af8-7efe-9e24-18bade389469","at":1768385035000000000,"seq":176,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbf6-8530-7e97-8d21-1467b5a82847","at":1768385054000000000,"seq":177,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bbbf6-e6d8-7500-b25c-64a75e4aedc8","at":1768385079000000000,"seq":178,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}

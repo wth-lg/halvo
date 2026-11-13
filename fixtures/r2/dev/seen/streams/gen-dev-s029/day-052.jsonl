@@ -1,0 +1,23 @@
+{"v":1,"id":"019c7f8b-904f-794a-82d3-45cf725d6f4e","at":1771666378831000000,"seq":717,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f8b-904f-79a8-b59a-2541383bec8e","at":1771666378831000000,"seq":718,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c7f8b-94e0-7bfd-8a21-ae66f3ce6546","at":1771666380000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7f8b-9cb0-7579-8034-47d0cab78547","at":1771666382000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f8b-ac50-7bc6-a75c-e207971d75e1","at":1771666386000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f8b-cf03-7117-aa15-16fdcc731dcf","at":1771666394883000000,"seq":722,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c7f8b-cf78-7322-9ad0-94476288baf9","at":1771666395000000000,"seq":723,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f8b-d748-7e44-a4d4-cae5626f953b","at":1771666397000000000,"seq":724,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f8c-ceab-7889-a3d8-4a3a223fab31","at":1771666460331000000,"seq":725,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c7f8d-2738-7cb4-bf68-52315e99ca33","at":1771666483000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7f8d-84f8-7cdd-bb82-339d0d72066a","at":1771666507000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f8d-88e0-7a66-8a61-73b37caa097c","at":1771666508000000000,"seq":728,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f8d-8c6c-7dc4-99a4-e5d9421ca114","at":1771666508908000000,"seq":729,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c7f8d-b3d8-732d-a752-dd71683ae41b","at":1771666519000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f8e-38a8-7702-81f5-2b021895b6ac","at":1771666553000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7f9d-97f0-7b4d-988e-760ccd60deb0","at":1771667560432000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7f9d-9a28-7d82-addc-a605d8773b7e","at":1771667561000000000,"seq":733,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7f9d-adb0-7941-b32e-0942645f2c62","at":1771667566000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f9d-ec30-7944-bf1e-3bb6ddeaf933","at":1771667582000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7faa-ba00-705d-b97f-721bbb421723","at":1771668421120000000,"seq":736,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7faa-c928-771d-97b5-1749460cdc5e","at":1771668425000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7faa-f420-7304-a9e5-ffe37086d020","at":1771668436000000000,"seq":738,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7faa-ffd8-7045-a7b1-9c79a6e4abf7","at":1771668439000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019ba6fc-ff59-7bf7-9f78-fba516f5f496","at":1768033156953000000,"seq":128,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba6fc-ff59-78fe-891d-e44b1b5b261c","at":1768033156953000000,"seq":129,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba6fd-0f28-7a87-b918-ff7fabab00e9","at":1768033161000000000,"seq":130,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ba6fd-1ec8-7157-a138-638f3473024a","at":1768033165000000000,"seq":131,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba6fd-bc35-75f6-9d92-0975653b69ac","at":1768033205301000000,"seq":132,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba6fd-bc35-7c25-a108-02a6150c908f","at":1768033205301000000,"seq":133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba6fe-5b30-7ef2-b0e3-6d2f9eb406bb","at":1768033246000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6fe-8240-7996-a90f-c3c1c1b67d28","at":1768033256000000000,"seq":135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6fe-94ae-71f1-822e-660055e10dcb","at":1768033260718000000,"seq":136,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba6fe-fb58-73be-a548-5c42abbe8f16","at":1768033287000000000,"seq":137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6ff-0328-792d-a2a7-1f2678eeb835","at":1768033289000000000,"seq":138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba6ff-4590-73b4-b18d-38a7de0da447","at":1768033306000000000,"seq":139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ba6ff-9196-7695-b2f8-3aaa8a2d7b5d","at":1768033325462000000,"seq":140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba6ff-d618-77d5-804c-f67df3e00e54","at":1768033343000000000,"seq":141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba6ff-f558-721e-9221-89b6e18bb07c","at":1768033351000000000,"seq":142,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba700-22e2-747d-bfc6-4cc33ec26109","at":1768033362658000000,"seq":143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba700-b4c0-78d9-ad15-ed58aa8a98d0","at":1768033400000000000,"seq":144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba700-cc30-72bd-888f-0c8c9ccd8149","at":1768033406000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ba700-d52f-734a-a438-6071be9520f2","at":1768033408303000000,"seq":146,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba700-d52f-70b6-a1f0-f0015639978a","at":1768033408303000000,"seq":147,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba701-02e0-7e08-a0b0-0d401c1dde69","at":1768033420000000000,"seq":148,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}

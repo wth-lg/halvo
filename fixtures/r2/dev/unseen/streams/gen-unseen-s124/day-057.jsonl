@@ -1,0 +1,6 @@
+{"v":1,"id":"019c990a-6985-7119-9c6e-47b151a94165","at":1772094122373000000,"seq":743,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c990a-6985-7f79-ae9e-e1843fc988ed","at":1772094122373000000,"seq":744,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c990a-be00-768a-ab32-d67a967351ec","at":1772094144000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c990b-1fa8-7251-ab0c-00fd8da56bbf","at":1772094169000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c990b-3b00-7de4-97e0-801ec384e335","at":1772094176000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c990b-3f99-76e8-a45a-24e2e315759f","at":1772094177177000000,"seq":748,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}

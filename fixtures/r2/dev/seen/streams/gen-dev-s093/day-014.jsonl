@@ -1,0 +1,20 @@
+{"v":1,"id":"019bbc22-a8c4-7008-bb76-97f1856361fd","at":1768387946692000000,"seq":164,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbc22-a8c4-702c-8fbf-3fa6e0705c5e","at":1768387946692000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bbc22-d108-7ee6-b3b2-3f06e4da08cd","at":1768387957000000000,"seq":166,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bbc31-199a-7a7c-b7ee-1fd65dcbaf77","at":1768388893082000000,"seq":167,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bbc31-199a-721f-bdf4-7493ad832a6a","at":1768388893082000000,"seq":168,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bbc31-7ed8-76af-b739-dd8a23077f21","at":1768388919000000000,"seq":169,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bbc31-ccf8-7baa-acca-67e3704c1f92","at":1768388939000000000,"seq":170,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc4b-0c49-7fad-b406-0f61db746779","at":1768390593609000000,"seq":171,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbc4b-0c49-7639-ab0a-6edb93fcaca4","at":1768390593609000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bbc4b-3cb0-7bb4-a415-3b42fc0247a3","at":1768390606000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc4b-5fd8-7010-b76f-75c08bd4d9af","at":1768390615000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc4b-6b90-762e-9abb-63c5f3331d3f","at":1768390618000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bbc4b-72f6-7a12-a5e3-cd5d41e13582","at":1768390619894000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bbc4b-8ad0-77fa-a22e-2533fd705f6e","at":1768390626000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bbc4b-f830-79e9-ad04-40659485859a","at":1768390654000000000,"seq":178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bbc5e-8902-7b91-a564-c65be9ff10dc","at":1768391870722000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bbc5e-b128-7ae6-9013-beee5f87a4da","at":1768391881000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc5e-c898-7945-a37a-dfbf664d8f28","at":1768391887000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bbc5f-95ac-73e9-bd8c-44a8125b3e70","at":1768391939500000000,"seq":182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bbc5f-c680-72ab-8e5a-b3a4655c9172","at":1768391952000000000,"seq":183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

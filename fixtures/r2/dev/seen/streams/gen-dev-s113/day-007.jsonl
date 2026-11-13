@@ -1,0 +1,38 @@
+{"v":1,"id":"019b978e-a159-7279-82ad-de120ceb76a7","at":1767774265689000000,"seq":128,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b978e-a159-7b58-9a53-d534426354d5","at":1767774265689000000,"seq":129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b978e-c1d0-7069-9f2a-318556b6dbb9","at":1767774274000000000,"seq":130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b978e-cd88-7edf-8cd2-4ce03831a2b1","at":1767774277000000000,"seq":131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b978e-d170-7899-a4cb-3c34b06c145b","at":1767774278000000000,"seq":132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9795-bbc7-797c-8682-2f1cd5eea486","at":1767774731207000000,"seq":133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b9795-da38-70aa-9b4e-81eccfea55e6","at":1767774739000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9796-2148-7b5e-9777-2ecb9c21a3e8","at":1767774757192000000,"seq":135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b9796-3fc8-79dd-87b5-762a4711de37","at":1767774765000000000,"seq":136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b9796-c98f-70b5-aa60-df37f70148bc","at":1767774800271000000,"seq":137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b9796-f760-70f2-a7af-a82f56da01c1","at":1767774812000000000,"seq":138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9797-0318-7ae1-a748-d74016ad3c38","at":1767774815000000000,"seq":139,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9797-0700-798b-8fef-806564e93c4b","at":1767774816000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9797-7c30-7961-b2c4-160d2cbd27f2","at":1767774846000000000,"seq":141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9797-b8ee-7df6-8802-90d63b609582","at":1767774861550000000,"seq":142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b9798-04e8-7ad7-97b5-12d3efaccec2","at":1767774881000000000,"seq":143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9798-0cb8-7375-9820-a7212fc1d8c1","at":1767774883000000000,"seq":144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9798-2040-72c1-9d75-d774f66a63fa","at":1767774888000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9798-2428-7547-8b25-24cb1862aa4d","at":1767774889000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97a7-ed87-7404-acdb-fa0138c30f21","at":1767775923591000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b97a8-02a8-786e-a584-0f67aa75e94d","at":1767775929000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b97a8-4796-7d12-834c-94cffd9d7ab2","at":1767775946646000000,"seq":149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b97a8-b270-7161-92e7-53d02fa7d43e","at":1767775974000000000,"seq":150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b97a8-c28d-7172-8d00-ccc1d4dc1643","at":1767775978125000000,"seq":151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b97a9-7db4-7a25-995d-6b5fb4ee040e","at":1767776026036000000,"seq":152,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b97a9-7db4-727d-b8fe-20fd07ab1fef","at":1767776026036000000,"seq":153,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b97a9-8948-797f-ab73-0e564ea33473","at":1767776029000000000,"seq":154,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97a9-a888-7ca0-94cf-44d4d412cba7","at":1767776037000000000,"seq":155,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b97a9-c3e0-7eab-9fb2-b31e0931f67c","at":1767776044000000000,"seq":156,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b97a9-c7c8-781c-8ba9-9a2a945a1d53","at":1767776045000000000,"seq":157,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97aa-16ac-7cd5-abfc-9f1882d3afc0","at":1767776065196000000,"seq":158,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97aa-16ac-7c11-acdc-06a6d01e9a27","at":1767776065196000000,"seq":159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b97aa-2588-7587-bbcb-2514e7b5f1b2","at":1767776069000000000,"seq":160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b97aa-48b0-7e22-8851-34461c37fe86","at":1767776078000000000,"seq":161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b97aa-5080-7b0d-b0ef-b612e114661d","at":1767776080000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97aa-5080-7a46-a6fc-89f884263e17","at":1767776080000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b97b6-f574-7e60-aaf5-1468d9fda398","at":1767776908660000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b97b7-b630-7096-a44f-5af74f9dce61","at":1767776958000000000,"seq":165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

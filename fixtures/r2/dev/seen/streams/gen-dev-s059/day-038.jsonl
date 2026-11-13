@@ -1,0 +1,30 @@
+{"v":1,"id":"019c371b-f189-7e16-9597-b32842e8dbe2","at":1770451104137000000,"seq":605,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c371b-f189-7ab2-9cc2-3164e90ae7ac","at":1770451104137000000,"seq":606,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c371c-0870-7eb5-84b4-1fff88f1f139","at":1770451110000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c371c-7ef8-75f5-8e1f-f94032da1de2","at":1770451140344000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c371c-9510-7c5f-8c7b-e72871bdedad","at":1770451146000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c371c-9510-7e27-b900-0143f93e88b0","at":1770451146000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c371c-a4b0-714f-95bd-65091262ea9b","at":1770451150000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c371c-bfa0-7d3a-9065-4e9de794f652","at":1770451156896000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c371c-c008-788b-9b73-d09d79e0f953","at":1770451157000000000,"seq":613,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c371d-1210-7484-945a-d634b29a3595","at":1770451178000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c371d-33dc-7fdd-a85f-4a920da680da","at":1770451186652000000,"seq":615,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c371d-4ca8-7ab0-81ff-4f8f3ca2f823","at":1770451193000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c371d-e8e8-7a49-8098-d07f3fa41c21","at":1770451233000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c372a-7c1f-7c70-bfdd-419ad859fd92","at":1770452057119000000,"seq":618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c372a-8378-7685-9487-920340457cbf","at":1770452059000000000,"seq":619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c372a-8b48-7c7e-bb2d-13c220ea5b33","at":1770452061000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c372a-ae70-72cd-9805-3a457d53040f","at":1770452070000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3733-6129-7022-adc0-f83b31a36214","at":1770452640041000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c3733-a750-7f0c-8a3f-e89bd478366e","at":1770452658000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c3733-ca35-7bfa-95b2-5ce10ccbf876","at":1770452666933000000,"seq":624,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c3733-e5d0-7c36-84ed-c821ceb04525","at":1770452674000000000,"seq":625,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3734-1c80-7b3c-bc7e-be0181e9a48b","at":1770452688000000000,"seq":626,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3734-3bc0-7dbe-9aaa-9679b0370f15","at":1770452696000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3734-407c-76ef-b3d1-5be749d8f7bb","at":1770452697212000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c3734-66b8-7b41-bd75-b9c589b73f95","at":1770452707000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c3734-f740-70e3-9004-97f9017d4597","at":1770452744000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3735-4178-7b70-826a-ee71cab9bb53","at":1770452763000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3735-4288-767f-9990-5594f99146ee","at":1770452763272000000,"seq":632,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c3735-7c10-7e64-be3d-1fa134404634","at":1770452778000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3735-be78-7a1d-be3b-4ea71910beca","at":1770452795000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

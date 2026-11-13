@@ -1,0 +1,29 @@
+{"v":1,"id":"019c03a1-f905-7755-aaee-74f770d278c4","at":1769587472645000000,"seq":369,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03a1-f905-7647-836d-92c723ca9074","at":1769587472645000000,"seq":370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c03a2-2560-711e-9ca4-74c8156daa25","at":1769587484000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03a2-7768-70cc-9e96-745701dc3196","at":1769587505000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03a2-8af0-762b-ad5e-f818d22d9eca","at":1769587510000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c03a2-d568-7d38-8ad7-0db263e2199d","at":1769587529064000000,"seq":374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c03a2-ec98-77f3-b4f8-5424310d2feb","at":1769587535000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03a3-0bd8-7151-bf38-d62e735e5de2","at":1769587543000000000,"seq":376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c03a3-1f60-7f71-ba89-7709a7de9f23","at":1769587548000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c03a3-2b18-78ce-af0a-28bdc667f92d","at":1769587551000000000,"seq":378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c03a3-364f-7c6b-ba86-65725784fff3","at":1769587553871000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c03a3-4e40-7392-ade2-36f6e8c3a573","at":1769587560000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03b7-1a4b-79eb-a6d5-e472bab6985a","at":1769588857419000000,"seq":381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c03b7-75e5-770d-a300-540694cc8936","at":1769588880869000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c03b7-91c0-7cb8-bc5d-e218daa7499b","at":1769588888000000000,"seq":383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c03b7-a548-7267-96c1-f169fc9b9f9a","at":1769588893000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03b7-b743-7258-a165-1dba656c2450","at":1769588897603000000,"seq":385,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c03b8-06f0-73a1-af11-1c8cfbbdee21","at":1769588918000000000,"seq":386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03b8-a330-7410-9b73-c21e6b7a94cc","at":1769588958000000000,"seq":387,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c03b8-aa31-71f8-b016-f236b9ecc157","at":1769588959793000000,"seq":388,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c03b8-ca40-7761-aee9-d35991218cf9","at":1769588968000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03b8-f150-784c-902c-f5f0b19f0dc2","at":1769588978000000000,"seq":390,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03b9-04d8-73c0-815b-d6daad237f28","at":1769588983000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c03b9-0ca8-7f93-9ccb-9378b2daf4a5","at":1769588985000000000,"seq":392,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c03bb-1ec0-761d-b304-d2d419439c62","at":1769589120704000000,"seq":393,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c03bb-1ec0-77f3-9967-002b0f02f8c6","at":1769589120704000000,"seq":394,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c03bb-27b8-7578-8a2e-dab5a10c5c0e","at":1769589123000000000,"seq":395,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03bb-4ae0-77ad-828a-2ef9b30328d9","at":1769589132000000000,"seq":396,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c03bb-8d48-745a-9f07-5b028d96b8ea","at":1769589149000000000,"seq":397,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

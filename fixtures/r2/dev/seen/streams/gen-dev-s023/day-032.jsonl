@@ -1,0 +1,21 @@
+{"v":1,"id":"019c1850-491a-7442-8afb-46b771424464","at":1769934440730000000,"seq":368,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1850-491a-7f51-876d-b236cc1ef3d5","at":1769934440730000000,"seq":369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1850-4a28-7021-9995-bb550f9a77b0","at":1769934441000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1850-9c30-7fff-8032-0f70acd22aee","at":1769934462000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1850-a018-7ebf-a237-cf8ad2037759","at":1769934463000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c1850-d0c5-7597-ac90-58fa14ac5282","at":1769934475461000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1851-9a09-79b5-88d2-9ca3658a730f","at":1769934526985000000,"seq":374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1852-0390-7f2c-95f6-81ba1a8b203c","at":1769934554000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1852-2e88-7390-96ff-8632c758a716","at":1769934565000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1852-826b-7340-9046-e6f0aee0ded9","at":1769934586475000000,"seq":377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1852-8c48-750f-a81c-5165463ed7fb","at":1769934589000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1852-c997-747e-b9b7-1a4bc3365a6e","at":1769934604695000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1852-e238-70cb-a477-2427179498cd","at":1769934611000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1853-1118-7e26-b49d-b065367eec51","at":1769934623000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1853-4f98-70f0-ae9d-d416baf1dcf6","at":1769934639000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1859-17f7-7053-98be-b30d3de3d37f","at":1769935017975000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1859-8d40-77c1-b75f-532e32598c57","at":1769935048000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c1859-9128-72d4-bb09-d9abf81a2220","at":1769935049000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1865-e2a5-78c4-a663-44cd931907de","at":1769935856293000000,"seq":386,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1865-f508-7952-b5e6-77a7a77a2af9","at":1769935861000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1865-fcd8-7e48-b5ef-cafdf7748811","at":1769935863000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

@@ -1,0 +1,30 @@
+{"v":1,"id":"019c609a-f06a-79c0-982d-95239bc16863","at":1771147292778000000,"seq":733,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c609a-f06a-7b2d-a16b-52aa60109374","at":1771147292778000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c609b-04d0-72af-8d37-ff904c6dd1be","at":1771147298000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c609b-4350-7f17-88f4-5f083d8e77ea","at":1771147314000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c609b-7230-788d-90de-0e30decfed49","at":1771147326000000000,"seq":737,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c60a8-6fb9-70d6-9d92-8c4818baaf4c","at":1771148177337000000,"seq":738,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c60a8-7a20-7253-bd92-713201295054","at":1771148180000000000,"seq":739,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60ab-a71a-76b9-a7ba-85a9f15e3ca3","at":1771148388122000000,"seq":740,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c60ab-e908-741a-87c5-fb1fcc61339a","at":1771148405000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c60ac-2022-73c4-8be2-5f0620d97aba","at":1771148419106000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c60ac-2f58-7e2f-b72e-f68b8a89db8e","at":1771148423000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c60ac-42e0-70ed-8bc4-4c6820e85bdd","at":1771148428000000000,"seq":744,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60ac-46c8-7d96-9c1a-6d41e2460dbd","at":1771148429000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ac-5e38-79ee-9492-0b882a88d497","at":1771148435000000000,"seq":746,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60ac-6608-79cc-831f-759a595404db","at":1771148437000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ac-7d60-759f-ace1-881a0ca13546","at":1771148442976000000,"seq":748,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c60ac-8160-7ebd-9099-37c3ef880145","at":1771148444000000000,"seq":749,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c60ac-8548-7111-84d8-f09b31593c32","at":1771148445000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ac-94e8-77cd-bea1-bdbabfd5b2ef","at":1771148449000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c60ac-cf67-72c7-8a29-7ffaa3588ce6","at":1771148463975000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c60ac-f690-782b-81b1-6c36457a26cc","at":1771148474000000000,"seq":753,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60ac-fa78-7a49-b784-4826edeb56a9","at":1771148475000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ad-0630-74b2-b2a7-cc0eb9dd264d","at":1771148478000000000,"seq":755,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c60ad-11e8-7a8d-80d5-bda84e36fe66","at":1771148481000000000,"seq":756,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c60b6-8175-79ff-b5a7-6afb9eb95ec6","at":1771149099381000000,"seq":757,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c60b6-87c8-7c89-98a1-4b1bfc7cbcb0","at":1771149101000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60b6-8f98-717b-adee-2af35c844703","at":1771149103000000000,"seq":759,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60b6-a320-724b-aed8-6fd1b7f95dd4","at":1771149108000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60b6-aaf0-7278-96af-80baa882b7d3","at":1771149110000000000,"seq":761,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c60b6-ba90-7061-95c1-1acf53726a8c","at":1771149114000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

@@ -1,0 +1,3 @@
+{"v":1,"id":"019bd557-2961-70cf-a6d0-e45f97502bb9","at":1768810817889000000,"seq":198,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd557-2961-744b-8b2c-2cccf52cf667","at":1768810817889000000,"seq":199,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd557-9730-7d75-be62-78db91f9c4ab","at":1768810846000000000,"seq":200,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

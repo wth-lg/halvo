@@ -1,0 +1,34 @@
+{"v":1,"id":"019bb6e6-04cf-7d3f-b5af-e7a7545d5520","at":1768300086479000000,"seq":140,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb6e6-04cf-7639-9ed0-20af12b1c3aa","at":1768300086479000000,"seq":141,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb6e6-2618-79e5-afde-6b717adb4adf","at":1768300095000000000,"seq":142,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6e6-4170-7a99-87e9-33e536879a4c","at":1768300102000000000,"seq":143,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6e6-5110-71d1-9ca2-7752e3991f81","at":1768300106000000000,"seq":144,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bb6ea-e979-7cc2-8b98-0150751c71d5","at":1768300407161000000,"seq":145,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb6ea-e979-7f9e-b49d-7b84dfdad26a","at":1768300407161000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb6eb-2b40-79b9-b705-e375a76cec8d","at":1768300424000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6eb-36f8-7a97-880a-4d8c1b200b50","at":1768300427000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6eb-9c88-75e1-91b9-b63503d2fef9","at":1768300453000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bb6ed-5297-755c-8aa8-05a9eb06a183","at":1768300565143000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bb6ed-7918-71a4-b3d2-49074b936a49","at":1768300575000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6ed-9088-780d-bce8-0221ba916d11","at":1768300581000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6ed-b798-749d-a667-ec5a51fd63c2","at":1768300591000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bb6ed-e494-7c02-a53e-3b17c6707068","at":1768300602516000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb6ed-e678-7efa-abcb-cd9318b5ed34","at":1768300603000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6ee-3c68-7815-82f3-b4290c41707f","at":1768300625000000000,"seq":156,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb6ee-5f90-7ce7-84c9-3bc14f1316fb","at":1768300634000000000,"seq":157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb6ee-86a0-7320-bc0e-0d6de568012e","at":1768300644000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6ee-8ba1-7fd0-afa2-71b10e073681","at":1768300645281000000,"seq":159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bb6ee-a5e0-70b1-ae52-19575ebb3415","at":1768300652000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bb6ee-ffb8-7959-9363-ad6bf288ec2c","at":1768300675000000000,"seq":161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb6ef-3e38-7707-940b-c2d2c6e21bb1","at":1768300691000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb702-a816-7f4f-addc-a92e49bccecc","at":1768301963286000000,"seq":163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bb703-5f37-7175-acad-3d86b6c51b2c","at":1768302010167000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bb703-79e8-71c0-adcd-20b672e6be52","at":1768302017000000000,"seq":165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb703-8d70-7801-a146-df953e6c3ecc","at":1768302022000000000,"seq":166,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb704-4120-7d6d-a9a7-47d62d5c4e4a","at":1768302068000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb704-5880-7ab2-9e81-63ce9f4db599","at":1768302073984000000,"seq":168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bb704-5c78-7b4b-817a-49536434cee5","at":1768302075000000000,"seq":169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb704-9af8-7c8f-ac6f-c3bfd33a83ed","at":1768302091000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bb704-d435-75b8-9afc-c047fbef7e9b","at":1768302105653000000,"seq":171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bb705-0c40-7f9a-aa90-9bd4029739da","at":1768302120000000000,"seq":172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb705-8558-7dda-80e1-1874c46747e2","at":1768302151000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

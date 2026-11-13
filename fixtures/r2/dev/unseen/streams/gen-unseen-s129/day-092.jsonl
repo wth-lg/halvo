@@ -1,0 +1,10 @@
+{"v":1,"id":"019d4d92-4f67-73eb-9427-9931a247a39c","at":1775122927463000000,"seq":1205,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d92-4f67-7672-aae3-bbb430ba68d7","at":1775122927463000000,"seq":1206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d4d92-5180-7a81-a704-ae97e4e65b2a","at":1775122928000000000,"seq":1207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d4d9f-d8ab-7802-8d02-d5c1d07df549","at":1775123814571000000,"seq":1208,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4d9f-d8ab-7f80-bf06-80df743dfdbd","at":1775123814571000000,"seq":1209,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4d9f-da58-71c1-b32c-7fa312213219","at":1775123815000000000,"seq":1210,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4da0-66f8-7a8b-9eb6-f8dadea0a2b3","at":1775123851000000000,"seq":1211,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d4da0-7b33-7f3b-9428-6976c5709d32","at":1775123856179000000,"seq":1212,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4da0-ff50-756b-99a4-6ba68a4de9ac","at":1775123890000000000,"seq":1213,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4da1-2660-7801-9aa6-6a5fdc77b6c9","at":1775123900000000000,"seq":1214,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

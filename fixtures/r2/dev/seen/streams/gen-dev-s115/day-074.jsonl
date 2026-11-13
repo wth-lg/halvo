@@ -1,0 +1,14 @@
+{"v":1,"id":"019cf0af-1625-72fe-b936-510250bb8717","at":1773564532261000000,"seq":1047,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf0af-1625-7834-bfbb-d4a4aafe02f5","at":1773564532261000000,"seq":1048,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cf0af-e040-77a2-8b2a-bfe1ba59d828","at":1773564584000000000,"seq":1049,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b0-2397-7dee-af6d-19b9e1a96c96","at":1773564601239000000,"seq":1050,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cf0b0-b234-71e0-b1e9-a993b27c6b30","at":1773564637748000000,"seq":1051,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cf0b0-bee8-7a59-a23c-af9233b4c086","at":1773564641000000000,"seq":1052,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b0-c2d0-7e16-b53e-93d31efe3cff","at":1773564642000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b0-de28-7104-aa5c-76aa13b852da","at":1773564649000000000,"seq":1054,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf0b1-0a9c-759f-a16f-f2fedb4fc765","at":1773564660380000000,"seq":1055,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cf0b1-1ca8-7934-be13-e9c57aedf699","at":1773564665000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b1-47a0-7e88-acd8-1b0136617eca","at":1773564676000000000,"seq":1057,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf0b1-5740-7304-825a-6626fbd3992f","at":1773564680000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cf0b1-5b28-79ba-ac51-c0a0006b89c7","at":1773564681000000000,"seq":1059,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf0b1-8620-7f20-be69-8c8cd1e4dee9","at":1773564692000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

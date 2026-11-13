@@ -1,0 +1,30 @@
+{"v":1,"id":"019ce6a3-bc9b-7a65-943c-aff869ea7f09","at":1773396016283000000,"seq":1011,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6a3-bc9b-7c7f-b7e1-9bbe13e5a37a","at":1773396016283000000,"seq":1012,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a4-0116-705f-8b01-0ff6fd5844e3","at":1773396033814000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a4-05b8-779b-be28-24f95844c38e","at":1773396035000000000,"seq":1014,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6a4-05b8-714c-8ef5-926173550479","at":1773396035000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ce6a4-30b0-7aff-9d2b-4c897bf7af8e","at":1773396046000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6a4-9640-797f-b20f-b36007e8973d","at":1773396072000000000,"seq":1017,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce6a5-096e-7221-8560-f1339038df56","at":1773396101486000000,"seq":1018,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a5-0b70-78ef-b707-30ea6e7e4234","at":1773396102000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6a5-0f58-7db7-9181-0d12e094a6d4","at":1773396103000000000,"seq":1020,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6a5-1340-78e1-9d49-6d2f81314a4c","at":1773396104000000000,"seq":1021,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6a5-6160-79a0-a582-36411d54aecb","at":1773396124000000000,"seq":1022,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ce6a5-9428-7aa6-9170-1ce871146dbe","at":1773396137000000000,"seq":1023,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce6aa-9317-7af3-8285-4ec4daf6c519","at":1773396464407000000,"seq":1024,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce6aa-d000-7070-b3a2-37a2517f0fc3","at":1773396480000000000,"seq":1025,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6ab-06b0-7727-a70a-cea20fa14285","at":1773396494000000000,"seq":1026,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce6ab-8798-7784-afbc-7e87efb8396b","at":1773396527000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6ab-8f68-778c-8a90-e65bba2c08fc","at":1773396529000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ce6b3-8fa6-7697-8e44-3069cb0e4a43","at":1773397053350000000,"seq":1029,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b3-9230-7053-a8c9-d952db07deb8","at":1773397054000000000,"seq":1030,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6b3-a1d0-7a5d-b6c8-8bae2a3239a3","at":1773397058000000000,"seq":1031,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce6b3-b170-729c-bdcc-488f12bd502b","at":1773397062000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6b3-b558-75ef-893a-d501d6da1d95","at":1773397063000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ce6b3-bd28-7b37-805f-b50771cc69c3","at":1773397065000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6c0-017b-7d10-82c1-813b5aa237ed","at":1773397868923000000,"seq":1035,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019ce6c0-76f8-7281-9e84-c339945bb922","at":1773397899000000000,"seq":1036,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6c1-12a2-71d4-bdbe-0ac26988eb8d","at":1773397938850000000,"seq":1037,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019ce6c1-ceb8-77ec-ab3c-1a7c2b422526","at":1773397987000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ce6c1-d2a0-742c-8b26-f337834b5eb8","at":1773397988000000000,"seq":1039,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce6c1-f1e0-76e0-a952-5a0e8d1cbde3","at":1773397996000000000,"seq":1040,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

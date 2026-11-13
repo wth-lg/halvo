@@ -1,0 +1,26 @@
+{"v":1,"id":"019c8a11-3c05-7371-980c-41176ab7706f","at":1771842911237000000,"seq":855,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8a11-3c05-748a-a06b-d6bdd38105e8","at":1771842911237000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8a12-1e8e-7fcf-a949-d825e014d0da","at":1771842969230000000,"seq":857,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8a12-40d0-75b2-8152-7917fd51c59f","at":1771842978000000000,"seq":858,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8a12-6010-7613-b6a8-a86f3c63f18c","at":1771842986000000000,"seq":859,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8a12-6010-7c18-96e8-70ab0c4dd53a","at":1771842986000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c8a12-8b08-7b05-b7ad-3270fd12ff20","at":1771842997000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a12-a2a6-7ebb-8efe-8780b5790ced","at":1771843003046000000,"seq":862,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8a13-141c-7945-8898-dcc64ddc7e76","at":1771843032092000000,"seq":863,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8a13-1b90-73ca-9ac0-d5d7eec3aab6","at":1771843034000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8a13-3300-73d1-803d-b87289a61e60","at":1771843040000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c8a14-2148-7a4d-a413-30f127957690","at":1771843101000000000,"seq":866,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8a14-236d-7431-a668-ea2102a58592","at":1771843101549000000,"seq":867,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8a14-8ac0-716b-8b56-cf9693c2e7f1","at":1771843128000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a14-9290-7059-b82d-74cdaf6f7492","at":1771843130000000000,"seq":869,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a14-c9bd-7e18-bb07-3de234a12e6a","at":1771843144125000000,"seq":870,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8a15-1378-75bf-9088-c74399369cf7","at":1771843163000000000,"seq":871,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8a15-9df9-70c1-8e08-2ae1b38c7d45","at":1771843198457000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8a15-afb8-739e-b8e8-a59b8631a301","at":1771843203000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a15-bb70-7657-b2e1-5ffad8b586ab","at":1771843206000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c8a15-f9f0-750b-9068-34228fa3b6fe","at":1771843222000000000,"seq":875,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8a16-0d78-73c6-949b-747b782e03f3","at":1771843227000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a16-19de-78ba-9408-eea45bdfd221","at":1771843230174000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8a16-8e60-75fc-8155-b4ef94107cc0","at":1771843260000000000,"seq":878,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a17-0390-70b9-9973-24a81da97989","at":1771843290000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c8a17-0f48-7547-bb0f-8d0c8c990462","at":1771843293000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

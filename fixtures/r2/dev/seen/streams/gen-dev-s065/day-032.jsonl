@@ -1,0 +1,30 @@
+{"v":1,"id":"019c18c5-3bdb-7871-9999-0e7c1258ee89","at":1769942105051000000,"seq":473,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c18c5-3bdb-71b9-a4ee-a96ecddf4aa7","at":1769942105051000000,"seq":474,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c18c5-3f90-7a77-bbd4-7b8306622587","at":1769942106000000000,"seq":475,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18c5-89c8-79fa-8b15-dd32ae0fd776","at":1769942125000000000,"seq":476,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d2-b756-791f-934b-8940e46129fd","at":1769942988630000000,"seq":477,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c18d2-b756-72ef-ab3c-78766917995d","at":1769942988630000000,"seq":478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c18d2-b8c8-7651-bc2e-ce61e996ee10","at":1769942989000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c18d2-eb90-7ca6-913a-1e6235fea4cd","at":1769943002000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d3-14ea-7196-941f-9c32b38f860e","at":1769943012586000000,"seq":481,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c18d3-4180-73f5-9926-9d81d263aec0","at":1769943024000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c18d3-8000-77b1-9169-9ac1a27067d2","at":1769943040000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c18d3-83e8-74b9-b48c-f3d522cb046b","at":1769943041000000000,"seq":484,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c18d4-0d48-7295-9b7e-7dcc6085a07b","at":1769943076168000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c18d4-4738-747d-a502-121946c0b712","at":1769943091000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d4-4b20-7808-9dc7-7bcf2d22def6","at":1769943092000000000,"seq":487,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c18d4-52f0-73b0-b6ae-5f8da3f35140","at":1769943094000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d4-723b-7f06-b3b1-f753187d2aac","at":1769943102011000000,"seq":489,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c18d4-9558-7987-9663-5fe79646b040","at":1769943111000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c18d5-0399-758e-8c13-461279060f7e","at":1769943139225000000,"seq":491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c18d5-c9f0-702e-9b32-6b881671da4f","at":1769943190000000000,"seq":492,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c18d5-e160-741f-adf8-eec75131e024","at":1769943196000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c18d5-fcae-70ff-97b9-635f92e1eefd","at":1769943202990000000,"seq":494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c18d6-23c8-7bac-a18a-33ad57bfefa2","at":1769943213000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d6-8188-73b9-a9d6-a62e50529d39","at":1769943237000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d6-9120-710a-97d5-986df8c80b34","at":1769943240992000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c18d6-eb00-7b92-92d6-b433f1dd7e2c","at":1769943264000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c18d7-2598-714f-b450-044f82fb807c","at":1769943279000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d7-25c1-75a5-8701-01e8d2e625cf","at":1769943279041000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c18d7-2980-7b56-b08d-24f303fb56c7","at":1769943280000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d7-a680-71d5-9965-ca1ffe6754b1","at":1769943312000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

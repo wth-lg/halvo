@@ -1,0 +1,23 @@
+{"v":1,"id":"019cccb7-1836-73d2-937f-4dcd70572213","at":1772961077302000000,"seq":1025,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cccb7-1836-777e-b5b2-eacd2a77e9ae","at":1772961077302000000,"seq":1026,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cccb7-70e0-71eb-ba09-d01bf48323e5","at":1772961100000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccb7-da87-75c7-9777-f49c2dd53d93","at":1772961127047000000,"seq":1028,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cccb8-3430-7730-81b5-92630bdc3369","at":1772961150000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccb8-8e08-7928-bf9e-4ba69fd8e8da","at":1772961173000000000,"seq":1030,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cccb8-95d8-70a5-9a9e-784813d4e51c","at":1772961175000000000,"seq":1031,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cccb8-ad48-7c10-8c89-75e53090f6d5","at":1772961181000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccb8-bb83-7930-849e-9a4a5f329db8","at":1772961184643000000,"seq":1033,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cccb8-fb68-73cf-9385-4158b9bbf046","at":1772961201000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cccb9-68c8-73e1-b1f7-3af526eac552","at":1772961229000000000,"seq":1035,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cccca-d072-718e-80a1-c20c99a479a8","at":1772962369650000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cccca-f4f8-7f2c-9c2f-4460fd586a20","at":1772962379000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cccca-fcc8-77a1-ba97-3bbd324c85d2","at":1772962381000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccccb-1438-7a6d-8d56-c8cdaa8d02c2","at":1772962387000000000,"seq":1039,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ccccb-2ba8-72ef-9b54-51fd50bcf339","at":1772962393000000000,"seq":1040,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cccd9-60d0-7834-9609-e24ccb92487b","at":1772963324112000000,"seq":1041,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cccd9-a2c8-720e-8c09-e5e2d3d6118d","at":1772963341000000000,"seq":1042,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccce9-960a-75f6-abf3-4db3f100e3a2","at":1772964386314000000,"seq":1043,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ccce9-98b8-7cdf-b7f7-4468535db1b2","at":1772964387000000000,"seq":1044,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cccea-4498-7879-8cc1-a1987191aec2","at":1772964431000000000,"seq":1045,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccea-4880-73fc-8173-eef9bbc1e614","at":1772964432000000000,"seq":1046,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cccea-5438-7842-9b04-882918ff4a95","at":1772964435000000000,"seq":1047,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

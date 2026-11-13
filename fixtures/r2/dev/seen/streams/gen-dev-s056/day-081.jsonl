@@ -1,0 +1,23 @@
+{"v":1,"id":"019d14a8-0c70-76ef-b301-c21bad6dc081","at":1774168050800000000,"seq":755,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14a8-0c70-7f52-ac05-6cd4151526a1","at":1774168050800000000,"seq":756,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d14a8-0d38-74db-b805-68687dbd5c9f","at":1774168051000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14b9-81c1-7144-a4c1-28200e96eab3","at":1774169194945000000,"seq":758,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d14b9-81c1-72dc-9958-07ab41b82648","at":1774169194945000000,"seq":759,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d14b9-c460-7c8f-80c4-c1cebe02beac","at":1774169212000000000,"seq":760,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14c5-2f70-717e-9eee-f2fb1c6085ff","at":1774169960304000000,"seq":761,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14c5-2f70-7c34-acfe-32534d657657","at":1774169960304000000,"seq":762,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d14c6-366a-74ec-9689-6085f478cd39","at":1774170027626000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d14c6-4780-7de1-943a-6b49e0aaa370","at":1774170032000000000,"seq":764,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d14c6-9988-77ce-a0d6-1954da9ba44b","at":1774170053000000000,"seq":765,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d14cf-04d9-7807-b235-f3a2ae13035a","at":1774170604761000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d14cf-4060-7b3f-994d-44979fc5a0c1","at":1774170620000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14e7-7354-7c97-8601-447f4ed9ee19","at":1774172205908000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d14e7-9ac0-7eb6-b458-826a8732d537","at":1774172216000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d14e8-33f5-7686-b04a-e70eea649d4d","at":1774172255221000000,"seq":770,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d14e8-4a88-7b98-a161-34eab6e9e68a","at":1774172261000000000,"seq":771,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d14e8-5640-7289-a4ed-851d1371abea","at":1774172264000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14e8-7198-7019-ac1b-cf6a4e0edb91","at":1774172271000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14e8-757b-7397-9835-0718c85f3f17","at":1774172271995000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d14e8-8520-7b3c-8a3a-993bf58a2d4a","at":1774172276000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d14e8-bfb8-7433-8690-42bee20d381f","at":1774172291000000000,"seq":776,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d14e8-ee98-7038-b78c-30a9da291a8b","at":1774172303000000000,"seq":777,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,23 @@
+{"v":1,"id":"019c2821-8410-7b47-9e3f-b8dd46d8d1ec","at":1770199811088000000,"seq":408,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2821-8410-7f4a-a442-e6b0f1839645","at":1770199811088000000,"seq":409,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2821-ba68-7d15-a1d2-f4977f13acbf","at":1770199825000000000,"seq":410,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2822-23e0-76a0-802e-4fa1f4e13375","at":1770199852000000000,"seq":411,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c2822-3f38-73da-95cb-9b609e9856df","at":1770199859000000000,"seq":412,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2822-5d9d-71ba-b438-5f3e8e90bc21","at":1770199866781000000,"seq":413,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c2822-81a0-7ec1-99a8-1ef38a392eb6","at":1770199876000000000,"seq":414,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c2822-9cf8-7554-a9c2-33ff92d6a693","at":1770199883000000000,"seq":415,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2822-ac98-7228-a6c9-0c00312831c7","at":1770199887000000000,"seq":416,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c2832-080e-71ab-9b4c-cb641206a63c","at":1770200893454000000,"seq":417,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2832-080e-72a8-b4b0-6b57dcb8935f","at":1770200893454000000,"seq":418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2832-8730-7ea2-a203-883d501b2318","at":1770200926000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c2832-93b5-7862-803b-9937f7b5123e","at":1770200929205000000,"seq":420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2832-9ab8-794e-8b37-ff84a0e893b7","at":1770200931000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2832-a670-769c-be41-38dc000d017d","at":1770200934000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c2835-00fc-7a96-b35a-3a7b960c8a47","at":1770201088252000000,"seq":423,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c284e-1087-776e-bbc4-81b4946d16a8","at":1770202730631000000,"seq":424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c284e-6018-7e1b-8780-f94bef28fc97","at":1770202751000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c284e-8ef8-7137-b15b-2a66ae65e529","at":1770202763000000000,"seq":426,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2850-bbde-78ed-97f4-8f5ca2b56ea0","at":1770202905566000000,"seq":427,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2850-dcd0-7a64-8736-a625766514f4","at":1770202914000000000,"seq":428,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2851-5200-778e-9322-d61333530d9f","at":1770202944000000000,"seq":429,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2851-59d0-7a9b-8e3e-9dcdb351c099","at":1770202946000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

@@ -1,0 +1,11 @@
+{"v":1,"id":"019c3796-2661-7df8-a39d-749a18b63221","at":1770459113057000000,"seq":561,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3796-2661-740b-98fb-4029fb7dfb04","at":1770459113057000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3796-b6b0-78a0-b1ca-6d9a99097b17","at":1770459150000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ad-d9cd-7d58-a1cf-3c6a99e7290f","at":1770460666317000000,"seq":564,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c37ae-c370-7323-b2b9-1b1c941bb34e","at":1770460726128000000,"seq":565,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c37bc-4b26-704f-aa41-08868ff8ff32","at":1770461612838000000,"seq":566,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c37bc-4b26-7b3a-8365-df91c4253a5a","at":1770461612838000000,"seq":567,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c37bc-5398-713f-99ab-5e455a0b9a96","at":1770461615000000000,"seq":568,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37bc-5b68-722a-a46d-4534e39c4033","at":1770461617000000000,"seq":569,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c37bc-f7a8-7d5b-aed9-057f41369f0a","at":1770461657000000000,"seq":570,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37bd-0b30-7cc1-ac36-34c2fd2d1575","at":1770461662000000000,"seq":571,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

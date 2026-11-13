@@ -1,0 +1,15 @@
+{"v":1,"id":"019b8d4c-5d1a-7069-ba9c-75435f45e16d","at":1767602150682000000,"seq":173,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d4c-5d1a-7c59-bfa9-260c45904675","at":1767602150682000000,"seq":174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b8d4c-ec91-7705-8e13-2a439986a09d","at":1767602187409000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b8d4d-0268-7a96-8562-3af29eb6b752","at":1767602193000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b8d4d-19d8-7a38-8f3f-d7899cfaf933","at":1767602199000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8d4d-73b0-73ed-9fe1-00cb67d87806","at":1767602222000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d4d-984d-7e7c-b175-700c599f3d38","at":1767602231373000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8d4e-2f30-748a-ba23-28700139fcd7","at":1767602270000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d4e-91ad-7c9c-9fff-a4ad759b231e","at":1767602295213000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b8d4e-a460-7b58-baef-8ceeddb67663","at":1767602300000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b8d53-ba24-7826-be76-0aec68a1f243","at":1767602633252000000,"seq":183,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8d53-ba24-77d3-906d-b35b78ac80db","at":1767602633252000000,"seq":184,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8d53-dc50-76b6-a8f9-f0988590f61a","at":1767602642000000000,"seq":185,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b8d53-ff78-7d44-a526-cf20584679ca","at":1767602651000000000,"seq":186,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b8d54-3240-7179-a42d-3e018719d650","at":1767602664000000000,"seq":187,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}

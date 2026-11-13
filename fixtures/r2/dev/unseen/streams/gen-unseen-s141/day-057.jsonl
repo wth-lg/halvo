@@ -1,0 +1,15 @@
+{"v":1,"id":"019c995f-7254-740c-8bf7-7c0be9643d38","at":1772099695188000000,"seq":812,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c995f-7254-7809-ada0-f7a32f5935af","at":1772099695188000000,"seq":813,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c995f-b018-735e-aa4b-3041c3caa0c0","at":1772099711000000000,"seq":814,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c9960-09f0-75fd-a6fe-8e225da690b6","at":1772099734000000000,"seq":815,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9960-4319-7958-89b6-8b8a9e253e1d","at":1772099748633000000,"seq":816,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c9960-5810-7da2-be77-91f758547ca0","at":1772099754000000000,"seq":817,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c9960-7f20-7bd4-9df7-5636bbe0c060","at":1772099764000000000,"seq":818,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9960-a248-75df-acb1-210d06be6fc3","at":1772099773000000000,"seq":819,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c9960-d8f8-7c22-b433-0f2bdcd71400","at":1772099787000000000,"seq":820,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9960-e9e7-7fd7-aa89-ba4e09ee2f9b","at":1772099791335000000,"seq":821,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c9961-5210-7f4b-8306-c169f41efb5f","at":1772099818000000000,"seq":822,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9961-5dc8-7fef-94f2-9564ca44505d","at":1772099821000000000,"seq":823,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c9961-b7a0-7918-9984-733e8b884d69","at":1772099844000000000,"seq":824,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c9961-bf70-7328-b8ac-ce884464726b","at":1772099846000000000,"seq":825,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c9961-ea68-7636-94d9-9f41ad459d56","at":1772099857000000000,"seq":826,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

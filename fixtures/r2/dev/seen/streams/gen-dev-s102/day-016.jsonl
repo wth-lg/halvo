@@ -1,0 +1,30 @@
+{"v":1,"id":"019bc618-555d-7b6d-bf32-ff933b942801","at":1768555042141000000,"seq":153,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc618-555d-77ca-ab28-0c1033b657af","at":1768555042141000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc618-f4f8-747d-910f-6f839b275f41","at":1768555083000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc619-3f30-7c35-ac8f-e99c7bdb18e9","at":1768555102000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc619-61a6-7df8-b819-d0aa3a7464ae","at":1768555110822000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bc619-75e0-7397-b834-6bb78a08190d","at":1768555116000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bc619-9520-7db2-b321-ce35f8655b90","at":1768555124000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc619-a8a8-7fe4-9e04-93ec770a59e3","at":1768555129000000000,"seq":160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc619-cb75-73c0-a1ef-c7e59fc9f40d","at":1768555137909000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc61a-1dd8-7be6-8586-b511611e89c2","at":1768555159000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bc61a-3548-7b94-b089-fa97a0bc898b","at":1768555165000000000,"seq":163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc61a-48d0-7f65-82dd-dabd6351613c","at":1768555170000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc61a-77b0-779d-932f-6e8413807268","at":1768555182000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc61a-8f9a-7d61-a9e6-d05a6c2c8a90","at":1768555188122000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc61a-9ad8-7941-9b97-80bdc1611785","at":1768555191000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc61a-b248-79d9-b784-b3feee80c018","at":1768555197000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bc61a-dd40-76a7-97b6-3559893289a3","at":1768555208000000000,"seq":169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc61b-9cb1-7337-a944-419c204a56a6","at":1768555257009000000,"seq":170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc61b-b030-7a55-98a8-ca0854594dfd","at":1768555262000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc61c-19a8-7f02-a5f7-9b426d085cc7","at":1768555289000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc61c-342e-74b3-9139-29ba41972883","at":1768555295790000000,"seq":173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc61c-44a0-7e0b-9bdd-380b84419040","at":1768555300000000000,"seq":174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc61c-4888-7c55-8944-1a5cad88f16d","at":1768555301000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bc61c-6f98-7a54-95cc-2da6fcfed15c","at":1768555311000000000,"seq":176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc61c-77ea-7101-8ed5-eb19bf28cf2e","at":1768555313130000000,"seq":177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc61c-d910-7f7a-9132-daa3004ed5d2","at":1768555338000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bc61c-e0e0-7e4c-ae04-afe832fa8874","at":1768555340000000000,"seq":179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc62a-b7eb-77c4-bfde-03151c0740d5","at":1768556247019000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc62b-34d8-7260-9872-0280b4599b41","at":1768556279000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc62b-9680-7fb1-8430-23d267d8df58","at":1768556304000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

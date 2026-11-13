@@ -1,0 +1,10 @@
+{"v":1,"id":"019c3c4d-b1f3-7281-89ad-77337032e363","at":1770538250739000000,"seq":657,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c4d-b1f3-7d5f-823f-0b3a2afa9373","at":1770538250739000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c3c4d-f560-7888-a0e1-a82da966fce1","at":1770538268000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c3c4e-be8d-7f0c-babb-8b41b4812683","at":1770538319501000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c3c4e-d7f0-74e0-9550-af37592a9139","at":1770538326000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c3c4e-dfc0-77ea-950c-1369e9ca78e1","at":1770538328000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c4f-3157-7559-a4c7-898b6273e653","at":1770538348887000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c3c4f-4168-7780-8b01-ab1b359bcc28","at":1770538353000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c4f-83d0-776f-ace1-312bcee726c9","at":1770538370000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3c4f-9370-7587-8ea5-4455e3ecf09c","at":1770538374000000000,"seq":666,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,0 +1,23 @@
+{"v":1,"id":"019c849c-061c-7638-ac90-07be4c650b8d","at":1771751343644000000,"seq":691,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c849c-061c-7dda-a7bc-fbb0ddab86db","at":1771751343644000000,"seq":692,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c849c-74e0-7f36-91cc-c7a3a7fa38bf","at":1771751372000000000,"seq":693,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c849c-9038-72bd-a996-e501ff53495c","at":1771751379000000000,"seq":694,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c849c-f5c8-7251-b8da-6c2ccd188a33","at":1771751405000000000,"seq":695,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c84ac-de2e-7fb4-ae71-903cd102c769","at":1771752447534000000,"seq":696,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84ac-de2e-7931-a3c0-227f6134ff9e","at":1771752447534000000,"seq":697,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c84ac-f388-7a61-a7a5-5864d04ba5d8","at":1771752453000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84ad-8fc8-73dd-ac32-2eb9fd94108d","at":1771752493000000000,"seq":699,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84ad-c6ba-77d4-b599-7367086c12ce","at":1771752507066000000,"seq":700,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c84ae-1880-7b13-a547-6d0189c07fdb","at":1771752528000000000,"seq":701,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c84ae-326a-7a1b-b1cf-5ce36b1c1c6c","at":1771752534634000000,"seq":702,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c84ae-85e0-7516-9d45-b9e99de21daa","at":1771752556000000000,"seq":703,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c84ae-d7e8-785f-9929-6f2d48a5f14e","at":1771752577000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84ae-e0e6-7d59-8459-52c44c7587d7","at":1771752579302000000,"seq":705,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c84ae-e788-7be5-8e6b-8430cf92ab0e","at":1771752581000000000,"seq":706,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c84ae-fef8-7aef-92d3-a163d326ea28","at":1771752587000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84af-5d7b-7436-88e1-f3651851d36f","at":1771752611195000000,"seq":708,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c84af-f8f8-7b09-8002-dbe49e321ffb","at":1771752651000000000,"seq":709,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84b0-0898-76da-9b5d-be4236ca65a6","at":1771752655000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c84b0-1d33-7a58-82f0-6ac426990115","at":1771752660275000000,"seq":711,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c84b0-4ee8-77e9-bca8-48e4461613d1","at":1771752673000000000,"seq":712,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c84b0-bc48-70de-aab5-7fe96a4a39ed","at":1771752701000000000,"seq":713,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

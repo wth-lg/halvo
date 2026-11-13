@@ -1,0 +1,41 @@
+{"v":1,"id":"019ba6e0-5e8d-77a7-a717-eb30a1ca49a8","at":1768031280781000000,"seq":133,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba6e0-5e8d-7627-87b7-0490f4edded5","at":1768031280781000000,"seq":134,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e1-4db0-7a42-99b7-15fffe292302","at":1768031342000000000,"seq":135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ba6e1-6827-7ab9-916d-11f4ec474ec5","at":1768031348775000000,"seq":136,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e1-6908-70a0-b4b1-40a26ce979b2","at":1768031349000000000,"seq":137,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba6e1-97e8-75c0-8a09-7f302aef85b3","at":1768031361000000000,"seq":138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e1-a788-7f31-ac14-da5e600b4505","at":1768031365000000000,"seq":139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e1-ab70-74ca-8005-6391765fde8a","at":1768031366000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ba6e1-cc24-7cd2-a86e-0af9b670acd7","at":1768031374372000000,"seq":141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e1-d668-792b-9054-f836e28dfe6a","at":1768031377000000000,"seq":142,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba6e1-f5a8-7555-a8b9-579fe9aa606b","at":1768031385000000000,"seq":143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e2-0160-7f0c-a3d0-92ca4fe6c192","at":1768031388000000000,"seq":144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e2-0548-76b2-a2ea-65eb5a206013","at":1768031389000000000,"seq":145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba6e2-14e8-7d6d-abcd-4adf597551e0","at":1768031393000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba6e2-199e-7a5a-87e5-fb4a9efaf324","at":1768031394206000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e2-1cb8-79f9-9c1b-9e32cbbb419d","at":1768031395000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e2-43c8-7026-8252-48e4149789fe","at":1768031405000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e2-8cff-7576-9a6a-077da7e9ed97","at":1768031423743000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e2-91e8-765d-974b-7dd6c18087c9","at":1768031425000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ba6e2-c9b9-7a63-ab03-88ad51044c1f","at":1768031439289000000,"seq":152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e2-ff48-749f-9e06-9dd4beacff8a","at":1768031453000000000,"seq":153,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba6e3-0ee8-7d51-8b55-fcd41a7edb75","at":1768031457000000000,"seq":154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e3-7478-7bc9-97fd-0dc1a9d76088","at":1768031483000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e3-b6e0-7879-b4ba-b45df58ef3d5","at":1768031500000000000,"seq":156,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba6e9-790b-7801-afbc-3fa8f12b634f","at":1768031877387000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e9-7f58-7897-8644-6e0e0cdc302b","at":1768031879000000000,"seq":158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba6e9-ae38-7cd0-b795-6cbc8d25cf5b","at":1768031891000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e9-b220-7845-b216-67044b213839","at":1768031892000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e9-cd78-7e0e-b1fe-b09029d5d61a","at":1768031899000000000,"seq":161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba6f2-0f79-7514-ac65-68dc464abcf1","at":1768032440185000000,"seq":162,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba6f2-0f79-7a9f-a526-f5d61e06cf41","at":1768032440185000000,"seq":163,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba6f2-12a8-7b68-935c-89e0fefe7257","at":1768032441000000000,"seq":164,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6f2-4188-7b04-b76f-34fe9e53cad7","at":1768032453000000000,"seq":165,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ba6f2-8fa8-7035-b79f-e193f9f91067","at":1768032473000000000,"seq":166,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019ba6f2-a330-780d-9204-8c1e3b1443f7","at":1768032478000000000,"seq":167,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6fe-e83e-7e42-9890-04453d3850d2","at":1768033282110000000,"seq":168,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba6fe-e83e-7477-a359-b46f8e992eee","at":1768033282110000000,"seq":169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba6fe-f770-75d3-a6f3-ba86c7978c8a","at":1768033286000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6ff-9b80-74c4-8eb7-494be4d5426e","at":1768033328000000000,"seq":171,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba6ff-af08-7ecf-845f-5921930690e3","at":1768033333000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ba6ff-bac0-7214-934d-5a6086b45d7e","at":1768033336000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

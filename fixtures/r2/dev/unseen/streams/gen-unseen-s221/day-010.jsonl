@@ -1,0 +1,24 @@
+{"v":1,"id":"019ba74b-3055-7cd4-aea2-f185aae057e2","at":1768038281301000000,"seq":159,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba74b-3055-7458-a4b4-c3d67fc005c4","at":1768038281301000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba74b-5638-7424-804b-2bdd46d03abe","at":1768038291000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba74b-7d48-7270-b5fa-113267dc0e27","at":1768038301000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ba74b-9a94-765a-8377-59dc98b2b4d6","at":1768038308500000000,"seq":163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba74b-bbc8-70a7-b214-8545efec8d8c","at":1768038317000000000,"seq":164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba74b-e6c0-7b14-8d69-2b2b36600c44","at":1768038328000000000,"seq":165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba74c-1d70-720b-829c-7971dd035ecc","at":1768038342000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba74c-30f8-776d-82b0-66d6d72fcf4e","at":1768038347000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba74c-3ea2-7bf6-8f5b-9796456c9d8a","at":1768038350498000000,"seq":168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba74c-8300-7503-b59a-0e2d90f13d3a","at":1768038368000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba74c-cc63-73bc-9ac9-b708b107e0ee","at":1768038386787000000,"seq":170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba74d-3a98-7a8e-8d87-e6498f221cf2","at":1768038415000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba74d-72e3-74c6-b188-be1c78f1c1c0","at":1768038429411000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba74d-b798-7989-bde7-da84915ddd2d","at":1768038447000000000,"seq":173,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba74e-05b8-7b78-a15a-8c23854f09a1","at":1768038467000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ba74e-5f90-7588-b7f4-e2b3d782234b","at":1768038490000000000,"seq":175,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba74e-6760-7ae0-8f0b-af63ca156c70","at":1768038492000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba74e-742d-7b04-b9f4-8e35109a00e5","at":1768038495277000000,"seq":177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba74e-bd50-76f7-9944-18445af38e3a","at":1768038514000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ba74e-c138-7e61-9c56-2bdf9aced62e","at":1768038515000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba74f-0b70-7a84-9324-4ddc5d7e1806","at":1768038534000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba74f-1b10-786c-966c-10ddc7e5ee88","at":1768038538000000000,"seq":181,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba74f-5d78-7c95-a9b5-f2fa5de5ba97","at":1768038555000000000,"seq":182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

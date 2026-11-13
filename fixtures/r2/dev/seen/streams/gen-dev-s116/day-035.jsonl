@@ -1,0 +1,32 @@
+{"v":1,"id":"019c27b2-56d1-7eda-a94f-ca0761c4bf59","at":1770192525009000000,"seq":435,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c27b2-56d1-7d0f-921e-c0a91d45abbb","at":1770192525009000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c27b2-85a8-72d7-a42c-2d2969068f2f","at":1770192537000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27b2-b488-754e-91aa-ac7919349cbc","at":1770192549000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c27b2-d57e-790b-a138-1091a87a3b94","at":1770192557438000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c27b3-21e8-76a6-999b-9ad2f94577da","at":1770192577000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27b3-21e8-7231-857b-a1331498cad2","at":1770192577000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c27bc-16cb-7ab1-807a-bae14d37b00e","at":1770193163979000000,"seq":442,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c27bc-16cb-7d57-bea9-7700acd4f4b1","at":1770193163979000000,"seq":443,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c27bc-3620-7973-acb8-e3fb3f940955","at":1770193172000000000,"seq":444,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27bc-d668-7189-ab76-9e34febcede7","at":1770193213032000000,"seq":445,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c27bc-d668-75f9-800c-39448841314d","at":1770193213032000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c27bd-0140-749d-b371-94f5e4df63e2","at":1770193224000000000,"seq":447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c27bd-2c38-72ff-9e22-3c8fe38e53d4","at":1770193235000000000,"seq":448,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c27bd-45c8-7c48-a387-5ff40a3a489f","at":1770193241544000000,"seq":449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c27bd-4f60-7bdf-a8a4-ea99071a6443","at":1770193244000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c27bd-66d0-7ce5-8b62-2fc6140eb211","at":1770193250000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c27bd-95b0-7341-8fe0-7eab4cb696c5","at":1770193262000000000,"seq":452,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c27be-3da8-7937-9603-ebadef9444ef","at":1770193305000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27be-457a-7a2b-bf72-e58d6a96a46d","at":1770193307002000000,"seq":454,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c27be-457a-7cbb-9f2f-2447943bb3fe","at":1770193307002000000,"seq":455,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c27be-5ce8-78f0-b1e0-a024ddda2f43","at":1770193313000000000,"seq":456,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c27be-60d0-78b0-b197-fe0a1f0102f7","at":1770193314000000000,"seq":457,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c27be-8fb0-724e-ae30-6061607f5871","at":1770193326000000000,"seq":458,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27d8-121d-790a-83e1-18a0b7a42dc5","at":1770194997789000000,"seq":459,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c27d8-121d-7baa-9a7c-6e7c3d8dd1ac","at":1770194997789000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c27d8-9ba8-7f55-9ce8-4234d3147a9c","at":1770195033000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27d8-b318-71df-90f9-5bacf5b82b05","at":1770195039000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27e9-52c3-73ac-87f0-58a6a88061d6","at":1770196128451000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c27e9-7fe0-740d-b04c-f1e78e219ae7","at":1770196140000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27e9-87b0-768b-9724-711d66f959e4","at":1770196142000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27e9-dda0-7bf4-91ba-81fa7a43e4c7","at":1770196164000000000,"seq":466,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

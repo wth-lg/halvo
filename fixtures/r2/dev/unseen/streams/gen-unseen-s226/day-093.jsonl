@@ -1,0 +1,20 @@
+{"v":1,"id":"019d523a-ec11-7cc1-9491-fe248f6379c7","at":1775201086481000000,"seq":1370,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d523a-ec11-7e92-a4ee-6873c2532e63","at":1775201086481000000,"seq":1371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d523b-24c8-79e3-a6f1-7f3f675e5019","at":1775201101000000000,"seq":1372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d523b-b550-7459-b4f8-47951635aba8","at":1775201138000000000,"seq":1373,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d5250-a4b1-7a39-9bb3-5ef745d2f483","at":1775202510001000000,"seq":1374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d5268-eee9-79e7-9773-41d2e2b94621","at":1775204101865000000,"seq":1375,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d5269-0eb0-7f5b-adcb-265e78e5d307","at":1775204110000000000,"seq":1376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d5269-1680-7061-801e-461e9b07e7f4","at":1775204112000000000,"seq":1377,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d5276-ea43-70da-997a-bc7065b3489d","at":1775205018179000000,"seq":1378,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d5277-5ad8-7aec-a52e-4e093a8e385e","at":1775205047000000000,"seq":1379,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d5277-9d40-7c67-9f8c-0fa950e710bc","at":1775205064000000000,"seq":1380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5277-f71c-71b4-86b5-8e3568244636","at":1775205087004000000,"seq":1381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d5278-1270-7135-9b88-36817653c42a","at":1775205094000000000,"seq":1382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d5278-4150-7f05-8cf0-6f2619b6fd66","at":1775205106000000000,"seq":1383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5278-4538-7fb6-a5f9-430959965739","at":1775205107000000000,"seq":1384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5278-54d8-72e7-9f93-dbc362357f1c","at":1775205111000000000,"seq":1385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d5278-ce70-7502-9fcc-1ca632b6ec34","at":1775205142128000000,"seq":1386,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d5278-e560-74b1-b0d8-a6d3b4ffe854","at":1775205148000000000,"seq":1387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5278-f500-79a2-8d32-9799bdaf42a9","at":1775205152000000000,"seq":1388,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d5279-3f38-767c-b255-02698e74b988","at":1775205171000000000,"seq":1389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

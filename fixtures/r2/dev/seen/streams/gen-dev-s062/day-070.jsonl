@@ -1,0 +1,22 @@
+{"v":1,"id":"019cdbd9-ba68-798f-ad19-476368cb5d0a","at":1773215005288000000,"seq":941,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdbd9-ba68-771a-a294-9191ec7d845d","at":1773215005288000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cdbd9-e440-701d-a64c-6ee0fbdf22f8","at":1773215016000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbda-1ed8-7b23-954d-0a251fef643f","at":1773215031000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbda-bf9e-7403-806a-b074a04c0970","at":1773215072158000000,"seq":945,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdbda-bf9e-7012-9dc7-f0dfa951c9d3","at":1773215072158000000,"seq":946,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdbdb-0550-7041-aa91-7ed7d7a54cc9","at":1773215090000000000,"seq":947,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbdb-3818-7f90-9d1f-82ceef9f8095","at":1773215103000000000,"seq":948,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbdb-6ae0-7265-acc3-a962d493e210","at":1773215116000000000,"seq":949,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cdbdb-7e68-7c8a-a2f9-5475c0853535","at":1773215121000000000,"seq":950,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdbdb-9bcd-7549-8c55-8ec7f800b65e","at":1773215128525000000,"seq":951,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdbdb-9bcd-7693-9cd7-a2e68c63f422","at":1773215128525000000,"seq":952,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cdbdb-b900-7613-87b7-ed92b6fa7f6f","at":1773215136000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbdc-2e30-7423-a54b-a657a3354dd3","at":1773215166000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdbdc-3dd0-719d-af02-28197b8b63ea","at":1773215170000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdbdc-4c32-798f-a17e-ac86afb060bc","at":1773215173682000000,"seq":956,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cdbdc-8bf0-785c-bfc8-24804ba1051b","at":1773215190000000000,"seq":957,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdbdd-08f0-7b55-95f3-7425ea4d6723","at":1773215222000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbdd-29f3-77cd-ba18-b60b01f87f8b","at":1773215230451000000,"seq":959,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cdbdd-5af8-7549-afb2-246cbad894cf","at":1773215243000000000,"seq":960,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdbdd-8208-78d5-be60-a25b2c13be81","at":1773215253000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbdd-a918-7d35-b91c-f8cea42d4022","at":1773215263000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

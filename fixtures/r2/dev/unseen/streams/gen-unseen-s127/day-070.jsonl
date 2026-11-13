@@ -1,0 +1,28 @@
+{"v":1,"id":"019cdbff-e60d-79c4-8cf4-3119768af027","at":1773217506829000000,"seq":862,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdbff-e60d-764a-b1cc-cd52d39fb511","at":1773217506829000000,"seq":863,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cdc00-4090-7460-881c-4a2e9ec972fb","at":1773217530000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdc00-5418-75ac-9d1c-278791c80d6e","at":1773217535000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cdc1c-19ab-7406-a35e-cb9c430da95b","at":1773219355051000000,"seq":866,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc1c-19ab-7fbf-9719-220bac50bd71","at":1773219355051000000,"seq":867,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc1c-3ca0-7524-b444-d6b7a26aa60a","at":1773219364000000000,"seq":868,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cdc1c-4858-7c88-97ce-a812abd54b2d","at":1773219367000000000,"seq":869,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cdc1c-fc08-76a0-bf5e-6f1748090fc9","at":1773219413000000000,"seq":870,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cdc29-8736-77b8-9e9b-ecb5c38b9e1f","at":1773220235062000000,"seq":871,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc29-8736-76e1-8c14-594bb68cc48c","at":1773220235062000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cdc29-b9c0-7144-b69e-8657b0247774","at":1773220248000000000,"seq":873,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc29-b9c0-755b-9c85-f23e2d51e3d8","at":1773220248000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cdc29-c578-7776-bc6c-bbb7dee8a54f","at":1773220251000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc29-d130-7df0-9fbe-58e18e8da12e","at":1773220254000000000,"seq":876,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdc3e-2582-79c0-89e0-ebe0f6533d4b","at":1773221586306000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cdc3e-9bd6-76ee-801e-a86db51788cf","at":1773221616598000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cdc3e-a920-7fb4-a56e-a8136bc8a854","at":1773221620000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cdc3e-b0f0-7346-97ad-1e2296de3b78","at":1773221622000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc3e-d800-7a70-9b8c-6d83002053de","at":1773221632000000000,"seq":881,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc3f-0ac8-7a15-81b9-309b90fdca3a","at":1773221645000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc3f-9380-7eca-85fc-bb7e8e5a0f3a","at":1773221680000000000,"seq":883,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdc3f-9e44-75bb-b920-7ae092165c77","at":1773221682756000000,"seq":884,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cdc40-4b18-7028-bb4a-e0b4c6255915","at":1773221727000000000,"seq":885,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdc40-7864-7b79-82dc-2a4d1c1f58e5","at":1773221738596000000,"seq":886,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cdc40-81c8-732d-b2e4-1065059493da","at":1773221741000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc40-9550-7890-93a7-8223b82b7e7d","at":1773221746000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc40-a4f0-7ad4-9249-7aa9c1621559","at":1773221750000000000,"seq":889,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

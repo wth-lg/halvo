@@ -1,0 +1,32 @@
+{"v":1,"id":"019be02c-3a16-7f80-8eaa-1ce46dcec255","at":1768992553494000000,"seq":247,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be02c-3a16-70b0-80bf-968e5432a3bc","at":1768992553494000000,"seq":248,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be02c-47c8-7e7b-bc04-de60274d804d","at":1768992557000000000,"seq":249,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019be02c-8e18-76e5-bb4b-4e93cf2007f8","at":1768992575000000000,"seq":250,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be034-dd00-7f68-b7c8-0f0b142f52d9","at":1768993119488000000,"seq":251,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be034-dd00-74d0-beb6-3170d154b577","at":1768993119488000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be034-e2e8-7c03-947b-37fa0d72698c","at":1768993121000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019be034-e6d0-7bb5-b923-fc8c9726462a","at":1768993122000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be035-09f8-7c12-971a-6d06857d0384","at":1768993131000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be035-2700-7067-b9a5-a87678af7071","at":1768993138432000000,"seq":256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be035-63d0-7d96-85aa-2a3e328e95eb","at":1768993154000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019be035-8ae0-7894-a2ba-cfc5658b2fce","at":1768993164000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be035-c578-7040-ad83-ec052663bb72","at":1768993179000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be036-0ad4-7a90-9b8b-e1ce0bf6635d","at":1768993196756000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be036-0bc8-7afb-8a02-f9cbe682933f","at":1768993197000000000,"seq":261,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be036-8cb0-7685-938a-1d0428ba463a","at":1768993230000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be036-abf0-7da5-92ac-2a849860174c","at":1768993238000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be037-0cdb-7865-addd-27ca3429e19f","at":1768993262811000000,"seq":264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be037-4060-7fca-9596-58da6f2da951","at":1768993276000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be037-57d0-7735-918b-e27b52d932c8","at":1768993282000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019be038-175c-7944-a3ef-2d08b60d9dab","at":1768993331036000000,"seq":267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be038-22f0-79da-ab4c-7b649f58a401","at":1768993334000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be038-aba8-7a91-9e34-1d216a0b0c1d","at":1768993369000000000,"seq":269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be038-ee10-78c0-9b30-9137cdaed97f","at":1768993386000000000,"seq":270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be039-0968-7841-a83f-8ac971f78774","at":1768993393000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019be039-2156-7937-b7f8-5767451019b8","at":1768993399126000000,"seq":272,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be039-24c0-7bc9-ad92-b8b04434af21","at":1768993400000000000,"seq":273,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be039-47e8-7a5e-bb0b-de0b59df6c15","at":1768993409000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be039-6ef8-72aa-b944-ffc744f7ce06","at":1768993419000000000,"seq":275,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be039-a5a8-73db-b3e5-fb7d4d1ec550","at":1768993433000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019be039-b930-787b-9a34-db04c8dbd2b4","at":1768993438000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be04d-3c67-7bb9-ab65-830990f260bb","at":1768994716775000000,"seq":278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}

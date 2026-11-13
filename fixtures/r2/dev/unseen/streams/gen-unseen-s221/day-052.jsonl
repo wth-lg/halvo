@@ -1,0 +1,42 @@
+{"v":1,"id":"019c7f0f-d915-775c-879f-7e3931757297","at":1771658270997000000,"seq":737,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f0f-d915-7b01-96c1-cdc2bc100e16","at":1771658270997000000,"seq":738,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7f0f-e8b8-72d4-887f-8718c80cdc5f","at":1771658275000000000,"seq":739,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f27-fb75-7761-bef6-3cbff9a78adb","at":1771659852661000000,"seq":740,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f28-0498-7a0e-8504-ffda8579784b","at":1771659855000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f28-0880-7045-a873-c675a0069c79","at":1771659856000000000,"seq":742,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f28-71f8-730c-8b5a-b008b0a48c25","at":1771659883000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7f28-a889-7cf4-8277-786a930b06d1","at":1771659896969000000,"seq":744,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f28-b848-7b48-8108-7b6bc3277711","at":1771659901000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c7f28-e340-7d11-9cae-32246a48b4ba","at":1771659912000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f29-0a50-73b7-b112-70da445105fa","at":1771659922000000000,"seq":747,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7f29-25a8-798f-990b-2a53021ac76d","at":1771659929000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f29-8226-7556-b169-bd5e7b39b7bc","at":1771659952678000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f29-a2a8-77fa-b2ad-565da8944218","at":1771659961000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f29-c5d0-7128-9924-2c1f3a0344e4","at":1771659970000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f2a-1a97-7e42-951d-1aeb5abe89c5","at":1771659991703000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f2a-46b8-7158-a72d-324aebd7df19","at":1771660003000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f2a-90f0-7fba-ac08-d83ca7c4d37a","at":1771660022000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f2a-bbe8-71e4-be9d-25e46cb73dea","at":1771660033000000000,"seq":755,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7f2a-f53d-70a9-913d-17b3a0232ee4","at":1771660047677000000,"seq":756,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f2b-6ba8-7e28-baee-98c1f4ac58fb","at":1771660077992000000,"seq":757,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f2b-8ed8-7ab0-9f2d-945ba64730a4","at":1771660087000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f2b-a260-7f98-be54-80affcae33d8","at":1771660092000000000,"seq":759,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7f2b-d528-720b-8d17-8d295059dd40","at":1771660105000000000,"seq":760,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f2b-e0e0-7374-87be-6957c3838ff5","at":1771660108000000000,"seq":761,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f42-f94b-7930-a9a4-b79dc1f0ee70","at":1771661621579000000,"seq":762,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7f42-f94b-7218-a8af-0a945a3ba7c9","at":1771661621579000000,"seq":763,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7f43-2200-747a-8ac5-2d6452ff826f","at":1771661632000000000,"seq":764,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f43-50e0-7962-9e03-7acacefa60dc","at":1771661644000000000,"seq":765,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f43-6080-785c-acf3-a7e31d9b492c","at":1771661648000000000,"seq":766,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c7f43-94e8-7e7b-9513-799c4393dc0a","at":1771661661416000000,"seq":767,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f43-94e8-79cf-9540-6b56e83e43f0","at":1771661661416000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7f43-d1c8-7aac-9471-be2a8f685a68","at":1771661677000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c7f43-d998-7b10-969b-3caa0823a249","at":1771661679000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f44-1c00-7460-8106-d76500d084d7","at":1771661696000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f44-3370-7b49-b05b-26ad565a8da0","at":1771661702000000000,"seq":772,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f44-464f-7156-8169-912df44e4457","at":1771661706831000000,"seq":773,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7f44-464f-7d62-b5eb-22e2e2c17a7e","at":1771661706831000000,"seq":774,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7f44-5a80-7517-9aff-1de2e9cb7dea","at":1771661712000000000,"seq":775,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f44-9130-74df-8279-3891264b9222","at":1771661726000000000,"seq":776,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c7f44-f2d8-7c76-8ccc-2b42fcd56276","at":1771661751000000000,"seq":777,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f44-fe90-7df4-b716-f684930931f6","at":1771661754000000000,"seq":778,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

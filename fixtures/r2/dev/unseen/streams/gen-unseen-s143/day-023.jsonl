@@ -1,0 +1,36 @@
+{"v":1,"id":"019bea14-621e-7265-a431-f59237f0ba41","at":1769158763038000000,"seq":251,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea14-621e-7a7b-823e-5b295fe1f680","at":1769158763038000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bea15-7090-71bf-8360-f32c0c087f26","at":1769158832272000000,"seq":253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bea15-86f0-75e5-9fdb-6a5677c01603","at":1769158838000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bea15-8ad8-7324-baad-045fd38b8ab6","at":1769158839000000000,"seq":255,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bea15-ec80-7862-9d32-07ede622e161","at":1769158864000000000,"seq":256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bea16-0008-757b-a649-1128d78f556a","at":1769158869000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea16-169f-7adf-942e-76547c78d3d9","at":1769158874783000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bea16-36b8-7b33-8005-45760e4880bd","at":1769158883000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea16-6d68-726a-a1b8-a28b23019ced","at":1769158897000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea16-a030-7164-b1d3-2ed2d0104f93","at":1769158910000000000,"seq":261,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea16-c855-72cb-a321-0efff6d4caf8","at":1769158920277000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bea16-cb28-751e-a00e-32b35191358b","at":1769158921000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea16-cf10-7e14-b1e4-36ac311f230a","at":1769158922000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea17-1948-71f0-8ed2-ee3ba8e0c826","at":1769158941000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bea30-0428-7012-a858-13286f52d321","at":1769160573992000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bea30-0430-7542-aad2-71e5cf8380f1","at":1769160574000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea30-7190-7aaf-9d45-dad6a7e3c767","at":1769160602000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bea30-9c88-7f42-8a14-bfee247017b7","at":1769160613000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea30-bbc8-7200-947d-74bedaf63db1","at":1769160621000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bea41-bad5-7134-bd45-869b37c2a2be","at":1769161734869000000,"seq":271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bea41-e650-72a6-8830-c5c1e1e260a9","at":1769161746000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bea41-fdc0-7b85-9899-597e367709da","at":1769161752000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea42-28b8-7f2c-81cb-7f50ef8a819d","at":1769161763000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea42-2cd9-76cb-836e-28a03d57d3c6","at":1769161764057000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bea42-9a00-72b9-8213-cef8e938ef39","at":1769161792000000000,"seq":276,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bea43-0378-7433-abba-a33d0b2b0c20","at":1769161819000000000,"seq":277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bea43-2f0b-7063-9b55-11828b99d81e","at":1769161830155000000,"seq":278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bea43-5198-7d23-9fba-d2bf70003b0a","at":1769161839000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea5a-18e1-7972-817f-3a3d7aba1a63","at":1769163331809000000,"seq":280,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bea5a-18e1-75c1-9422-91950bc8e378","at":1769163331809000000,"seq":281,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bea5a-3cc8-7cc6-9fda-ca455546c265","at":1769163341000000000,"seq":282,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea65-3c90-7ae7-b432-b9ee332fb6c1","at":1769164061840000000,"seq":283,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea65-3c90-7fba-8c15-fae2338d7d68","at":1769164061840000000,"seq":284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bea65-a2c0-705d-b13e-f6807a2201e7","at":1769164088000000000,"seq":285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea65-b648-7de1-95c1-d37bded2b4ec","at":1769164093000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

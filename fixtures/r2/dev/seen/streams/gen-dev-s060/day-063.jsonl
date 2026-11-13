@@ -1,0 +1,13 @@
+{"v":1,"id":"019cb7b2-26c2-7149-a3b4-1b9b5281de41","at":1772608431810000000,"seq":707,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb7b2-26c2-7273-bcb8-a1af8e937368","at":1772608431810000000,"seq":708,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cb7b2-90f8-7368-b506-fecd4bb04745","at":1772608459000000000,"seq":709,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7b2-e6e8-7547-b246-a4b88272d6b6","at":1772608481000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7b2-f358-7cb2-8dfd-7a8f02309545","at":1772608484184000000,"seq":711,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cb7b2-fe58-7a71-89f6-e52636b4b7fd","at":1772608487000000000,"seq":712,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb7b3-40c0-7cf7-8ee0-7b837ab3f4f6","at":1772608504000000000,"seq":713,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cb7b3-5060-7bc1-9794-3b16d4874aa3","at":1772608508000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7b3-5830-7d5e-961b-b7dfd2348d42","at":1772608510000000000,"seq":715,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb7c6-1f21-7789-82e6-2560c8fd5b07","at":1772609740577000000,"seq":716,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb7c6-5390-7a9f-b604-5a364d941979","at":1772609754000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb7c6-f7a0-735a-aaac-3704e871ab95","at":1772609796000000000,"seq":718,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb7c7-1ac8-7bdb-8d64-74b794263565","at":1772609805000000000,"seq":719,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,29 @@
+{"v":1,"id":"019cae1f-8306-765f-86b7-2ba6bdfe89e2","at":1772447826694000000,"seq":853,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae1f-8306-747f-9c0b-e6dad49cb1ef","at":1772447826694000000,"seq":854,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cae20-2848-7ac6-8645-422f644ab9c2","at":1772447869000000000,"seq":855,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cae20-7691-74cb-a389-594e23072d00","at":1772447889041000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cae20-89f0-74cc-a3a4-dbdee958146e","at":1772447894000000000,"seq":857,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cae20-d040-73c2-92af-15b32d015495","at":1772447912000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cae21-0a29-79c9-a450-40fbcd3a1ba2","at":1772447926825000000,"seq":859,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cae21-12a8-772a-a72d-01c146b88aea","at":1772447929000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae21-2248-72f6-954f-99eb196c2ad4","at":1772447933000000000,"seq":861,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cae21-3da0-76ae-8564-a5ab259adbae","at":1772447940000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cae21-4188-7c3a-bb91-850c84a16d05","at":1772447941000000000,"seq":863,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cae21-4ed6-7468-9bff-60122cd76ebb","at":1772447944406000000,"seq":864,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cae21-5128-79ae-b018-0020ffa81f5f","at":1772447945000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae21-8008-73c7-8b8b-5bb154e177e2","at":1772447957000000000,"seq":866,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae21-8bc0-7ddf-9268-db63eb1349d6","at":1772447960000000000,"seq":867,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cae3c-c068-7648-bcc7-004bd70c9b85","at":1772449742952000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cae3c-dbf0-7f94-8f75-3b235c43fa39","at":1772449750000000000,"seq":869,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae3c-e7a8-798c-b825-787e965a1de6","at":1772449753000000000,"seq":870,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cae3d-0300-7c11-9b3c-f5b293ae92ce","at":1772449760000000000,"seq":871,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cae55-7063-7a35-a613-f9f4a413cee1","at":1772451360867000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cae55-7ca0-76ff-84ac-9e2e1d342be6","at":1772451364000000000,"seq":873,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cae55-8088-71a2-a0de-da15d61f4ade","at":1772451365000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cae55-9be0-7596-8286-7d57e14f90ba","at":1772451372000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae55-ab80-7877-a236-6358f35a1581","at":1772451376000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cae55-af68-7ae7-a1fb-d59b62c02039","at":1772451377000000000,"seq":877,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae69-161e-71ce-bb44-95ebe40acc15","at":1772452648478000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cae69-6a30-7308-a1ba-160465f951c1","at":1772452670000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cae69-9cf8-747d-bac8-0577b9331cdc","at":1772452683000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae69-fab8-7e22-b7b8-0cd598591470","at":1772452707000000000,"seq":881,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

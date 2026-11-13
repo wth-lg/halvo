@@ -1,0 +1,16 @@
+{"v":1,"id":"019c1842-5e0d-72fc-a44c-549c0f15d850","at":1769933528589000000,"seq":550,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1842-5e0d-7d98-b2b7-7d8e94087332","at":1769933528589000000,"seq":551,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1842-86b8-7d28-bc1a-aaf68b7bc26d","at":1769933539000000000,"seq":552,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c1842-a5f8-7c3b-8282-900987af9361","at":1769933547000000000,"seq":553,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1842-b980-7478-8b09-1b2a294b47b7","at":1769933552000000000,"seq":554,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c184a-c111-73d4-bc0c-c7273968b525","at":1769934078225000000,"seq":555,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c184a-c111-7515-92d4-3725c961e605","at":1769934078225000000,"seq":556,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c184b-4500-76e9-bcd8-5962adb91489","at":1769934112000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c184b-6828-762a-8c6c-a96d3c138b23","at":1769934121000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c184b-7960-76f0-8a83-b02226483b77","at":1769934125408000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c184c-2f60-7eb8-9bd6-cb1cde6dc5a4","at":1769934172000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c184c-317a-7d40-8232-9216dd4ae9a5","at":1769934172538000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 3 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c184c-ac60-7d9a-b265-f8c0f9512b6a","at":1769934204000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c184d-002c-73fb-9327-a6fa783f32c4","at":1769934225452000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c184d-0638-7538-b055-b41f4701f2ee","at":1769934227000000000,"seq":564,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c184d-44b8-7f34-8114-39b5a1996c3c","at":1769934243000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

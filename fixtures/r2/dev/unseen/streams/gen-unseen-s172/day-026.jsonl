@@ -1,0 +1,13 @@
+{"v":1,"id":"019bf9d8-00e3-742c-8f6b-e9bbe4dbd914","at":1769423241443000000,"seq":272,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf9d8-00e3-7400-8cc2-92c7a406c7c3","at":1769423241443000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf9d8-0310-76d8-b066-58b98d91f30b","at":1769423242000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9d8-4795-7131-9381-242c9f8d1b86","at":1769423259541000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf9d8-5ce8-799e-b7d8-892eba6d61b9","at":1769423265000000000,"seq":276,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf9d8-9b68-7020-9889-e44f2eecc692","at":1769423281000000000,"seq":277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf9d9-34ef-7918-9ec7-8c5e8717d1e8","at":1769423320303000000,"seq":278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf9d9-56e8-70a7-880d-d2e564c7f375","at":1769423329000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf9d9-62a0-7f4c-89ed-049327b34d5f","at":1769423332000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9d9-6a70-753a-8bf5-5184b3b43cba","at":1769423334000000000,"seq":281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9d9-7980-7adb-867c-300754175655","at":1769423337856000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf9d9-acd8-7e92-8d78-c59b0244f551","at":1769423351000000000,"seq":283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf9da-77f8-787e-ad24-863fa94eb8c7","at":1769423403000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019cb2f0-1d4e-7726-9ee0-ff58b7e8521f","at":1772528606542000000,"seq":963,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2f0-1d4e-776b-a584-2e345be4ec1f","at":1772528606542000000,"seq":964,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f0-9aae-7ac3-94be-07334fb67ab0","at":1772528638638000000,"seq":965,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f0-cee0-7411-a55c-43f927d5d405","at":1772528652000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cb2f0-e268-7a84-9f91-731921545a9f","at":1772528657000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2f1-0515-7fb1-968e-dc0800a4f0c3","at":1772528665877000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f1-53b0-7cce-be71-abd6a9bf12d7","at":1772528686000000000,"seq":969,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb2f1-5b80-7100-b05e-39b3e3de4c55","at":1772528688000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb2f1-72f0-796f-8283-9f9f2a62c1da","at":1772528694000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2f1-d498-746d-b3ed-082b44d87577","at":1772528719000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2f1-db46-7712-8ebc-ce04de28797c","at":1772528720710000000,"seq":973,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f2-0f30-7a75-8662-3eac7ef7c45c","at":1772528734000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2f2-22b8-72ae-9353-596308885424","at":1772528739000000000,"seq":975,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2f2-6520-7d49-af67-2e9078b1ff67","at":1772528756000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2fd-43ea-7873-8a68-d27f9583fe16","at":1772529468394000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb308-862e-7406-bc6e-3f497bdf5f5f","at":1772530206254000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb308-e6d8-7c65-b22c-cdfd4ffb1d6e","at":1772530231000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb31e-60cf-7043-8aab-44a4b9040cb9","at":1772531638479000000,"seq":980,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb31e-60cf-7be8-9f6a-4e64fdb4d339","at":1772531638479000000,"seq":981,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb31e-6aa8-7b49-80e5-0c3fc94bea80","at":1772531641000000000,"seq":982,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb31e-8218-76b6-bb84-7c1d05b05c27","at":1772531647000000000,"seq":983,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cb31e-8600-7b6d-934d-700602938d18","at":1772531648000000000,"seq":984,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

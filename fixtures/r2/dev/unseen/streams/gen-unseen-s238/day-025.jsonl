@@ -1,0 +1,11 @@
+{"v":1,"id":"019bf46f-521e-7bb7-b0a2-094f7ef12b9d","at":1769332494878000000,"seq":321,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf46f-521e-7306-af9a-852a078405f2","at":1769332494878000000,"seq":322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bf46f-79a8-7fdb-b16d-3bbe0eeb43c9","at":1769332505000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46f-9118-7b44-b5ae-af17f70cbf61","at":1769332511000000000,"seq":324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46f-df38-7567-8674-7766e23b0fc4","at":1769332531000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bf470-5839-7286-8bee-94b155aebd11","at":1769332561977000000,"seq":326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bf470-6bd8-7288-8fc6-aa5ea6ed3d29","at":1769332567000000000,"seq":327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bf470-6fc0-7989-8d0b-d908273f2417","at":1769332568000000000,"seq":328,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf470-7790-7a93-86fb-5403e8e83d71","at":1769332570000000000,"seq":329,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf470-9127-77af-9b32-70eb8b480ec7","at":1769332576551000000,"seq":330,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bf470-a670-7658-aa37-9944f5727074","at":1769332582000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

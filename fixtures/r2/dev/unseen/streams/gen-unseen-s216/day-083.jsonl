@@ -1,0 +1,22 @@
+{"v":1,"id":"019d1eb6-6b9b-735f-a861-f50ab4d2568f","at":1774336764827000000,"seq":1062,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1eb6-6b9b-7758-a449-cfe314b7b18b","at":1774336764827000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed1-5f50-7756-a7ee-fbd42e88f6d2","at":1774338531152000000,"seq":1064,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed1-6e58-72d1-8218-6935ba7ee8f2","at":1774338535000000000,"seq":1065,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ed1-c830-757e-bfc1-2dee03e24089","at":1774338558000000000,"seq":1066,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1ed1-ef40-71bc-8ca8-19c25ab49e9b","at":1774338568000000000,"seq":1067,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1ed7-438d-7a30-a868-5a24d80473ed","at":1774338917261000000,"seq":1068,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed7-8108-787d-b7a2-62aeb7343d41","at":1774338933000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ed7-cb40-7802-a1bd-ee62b9524ec6","at":1774338952000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ed7-df90-7d7b-8086-f795ad1f6a19","at":1774338957200000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed7-ea80-71c1-9479-51c505a0b8c4","at":1774338960000000000,"seq":1072,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1ed7-ee68-789f-b1a5-d2c8923da54e","at":1774338961000000000,"seq":1073,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1ed7-ee68-72a9-bb1a-04d2dbbac0e6","at":1774338961000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d1ed8-211c-7157-9496-1ccdc99f9187","at":1774338973980000000,"seq":1075,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed8-82d8-7d22-8540-8347368dd9c4","at":1774338999000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ed8-9660-7942-97a2-2432758e0428","at":1774339004000000000,"seq":1077,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1ed8-f038-7104-b400-3ef5a4518d40","at":1774339027000000000,"seq":1078,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1ed9-1766-7c18-8117-31fe07b33bd5","at":1774339037030000000,"seq":1079,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed9-3e58-79ce-9e6f-1cd0a187fade","at":1774339047000000000,"seq":1080,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1ed9-6568-7962-b725-d6b061e37ff5","at":1774339057000000000,"seq":1081,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ed9-9448-72a4-8751-1f6c905168bc","at":1774339069000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d1ed9-a3e8-76f9-a388-e29074144c47","at":1774339073000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

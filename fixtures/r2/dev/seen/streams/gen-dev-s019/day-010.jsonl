@@ -1,0 +1,22 @@
+{"v":1,"id":"019ba78b-68d2-71f0-88c0-25b7322609e2","at":1768042490066000000,"seq":112,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba78b-68d2-7d52-a377-b78aaf2b566a","at":1768042490066000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba78b-8000-7f93-9cc9-a84669f19ad6","at":1768042496000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ba78b-83e8-7cb6-b771-88906af2b9e5","at":1768042497000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba78b-8fa0-70bf-8293-4152206f2496","at":1768042500000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba78b-9f40-7078-8ab4-aa19e5e81368","at":1768042504000000000,"seq":117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba78b-e590-7669-a5eb-3952b46a6896","at":1768042522000000000,"seq":118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba797-b563-74d8-be5e-370279fddd0b","at":1768043296099000000,"seq":119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba797-f768-789a-8c26-9a7f333cec1c","at":1768043313000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ba7a5-630e-7c4e-8296-cc3528423984","at":1768044192526000000,"seq":121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ba7a5-68d0-7a09-90c5-eff61cbe2a7c","at":1768044194000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba7a5-9f80-777b-80c3-5cb3363c3013","at":1768044208000000000,"seq":123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba7a5-da18-7cf5-9f35-1c6f147f9f84","at":1768044223000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba7a5-dd4a-7e79-b586-246d70bcb810","at":1768044223818000000,"seq":125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ba7a6-d5dd-7dbc-8f61-0323bf79d234","at":1768044287453000000,"seq":126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ba7a7-64a0-7621-8d9d-4a738541974e","at":1768044324000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba7a7-9380-7f5c-a75c-929de05be936","at":1768044336000000000,"seq":128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba7a7-b7a9-7ec8-8281-7a628a5093d8","at":1768044345257000000,"seq":129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ba7a7-f140-7a6f-ab76-f7ea32d04eb8","at":1768044360000000000,"seq":130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba7a8-00e0-7359-a33b-e3ba2a3cac49","at":1768044364000000000,"seq":131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ba7a8-3b78-7044-8c32-1331ddfd9961","at":1768044379000000000,"seq":132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba7a8-b878-7a96-a3d9-a0fb70e4ca0b","at":1768044411000000000,"seq":133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

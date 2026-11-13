@@ -1,0 +1,18 @@
+{"v":1,"id":"019ca349-b8a9-7725-8399-328084e268c4","at":1772266043561000000,"seq":788,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca349-b8a9-7856-bab6-a2297e324f20","at":1772266043561000000,"seq":789,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca34a-4ae8-7dd5-82c3-5cd524ba8311","at":1772266081000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca34a-6487-72c7-97bd-ff9fb36644cc","at":1772266087559000000,"seq":791,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca34a-ac90-7b55-9750-8a41a883691d","at":1772266106000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca34a-c400-75a6-a01f-078dde9accc5","at":1772266112000000000,"seq":793,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca34a-d3a0-7ce4-ae86-ef0ca4df5cc8","at":1772266116000000000,"seq":794,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca34b-6d49-7f5c-847b-501b87c5303e","at":1772266155337000000,"seq":795,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca34b-7f80-7589-bee8-67108392d1f4","at":1772266160000000000,"seq":796,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca34b-a690-7227-ac95-9b4170d58d45","at":1772266170000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ca34b-aa78-7c05-8695-cc2ee5a38969","at":1772266171000000000,"seq":798,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca364-effe-7727-9040-3629ff301d25","at":1772267827198000000,"seq":799,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca364-effe-78b7-bd4f-e2bc71a4bffe","at":1772267827198000000,"seq":800,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca365-2200-7e13-84d9-30a643695dba","at":1772267840000000000,"seq":801,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ca365-7d02-77f8-a652-152667cbd849","at":1772267863298000000,"seq":802,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ca365-9b18-7c2e-af1a-c47108172180","at":1772267871000000000,"seq":803,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca365-a6d0-7006-b5c4-73b4c9f897cd","at":1772267874000000000,"seq":804,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ca365-f108-76e3-8268-d0f6c4396f26","at":1772267893000000000,"seq":805,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

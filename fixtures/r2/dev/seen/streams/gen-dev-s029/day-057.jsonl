@@ -1,0 +1,20 @@
+{"v":1,"id":"019c9919-e479-7a36-8cfb-62e5731d4437","at":1772095136889000000,"seq":792,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9919-e479-7355-987f-2ec79122bcfd","at":1772095136889000000,"seq":793,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c991a-13c8-718f-adae-d33ae1056b5f","at":1772095149000000000,"seq":794,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c991a-7188-79d0-b6f6-3cfdb1e68fac","at":1772095173000000000,"seq":795,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c991a-9fc9-7242-9b3b-2eabc045ce86","at":1772095184841000000,"seq":796,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c991b-3b8c-7893-baf4-4f8d0d5a9273","at":1772095224716000000,"seq":797,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c991b-5be8-7af6-9c60-238822bc8a06","at":1772095233000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c991b-5fd0-7b28-ab00-0ad71cc603c3","at":1772095234000000000,"seq":799,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c991b-9ac5-7fb6-a643-8109efdd5a08","at":1772095249093000000,"seq":800,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c991b-b1d8-7aaa-883f-c7936fde9e03","at":1772095255000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c991b-c178-7169-86aa-0dd9cb2e35fd","at":1772095259000000000,"seq":802,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c991b-d118-7b45-b4ab-e66099568535","at":1772095263000000000,"seq":803,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c991b-dcd0-708c-bd52-9e26156cdef7","at":1772095266000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c991b-e4fe-7f60-a8ea-eb0e84b8083f","at":1772095268094000000,"seq":805,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c991c-59d0-7d64-8d93-97ffea82ad8c","at":1772095298000000000,"seq":806,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c991c-6d58-7e75-be1f-7ef2bc607121","at":1772095303000000000,"seq":807,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c991c-ea2e-764f-8c2d-f8fc2af8f311","at":1772095334958000000,"seq":808,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c991d-1550-745a-a5bc-ca52d0e8803b","at":1772095346000000000,"seq":809,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c991d-58de-7991-97d7-4d72fe06d982","at":1772095363294000000,"seq":810,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c991d-a5d8-7d19-bc97-4c4f208a3807","at":1772095383000000000,"seq":811,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

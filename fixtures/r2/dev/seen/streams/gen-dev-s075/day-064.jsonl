@@ -1,0 +1,41 @@
+{"v":1,"id":"019cbd06-f039-7df9-a2f6-02d6780cb0f0","at":1772697874489000000,"seq":948,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd06-f039-73d7-99ed-f62013642683","at":1772697874489000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cbd07-7af0-711d-93e9-41a7f4a82632","at":1772697910000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cbd07-9e18-7ed3-85c2-b70d81a85770","at":1772697919000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd07-a5e8-7d57-aa1f-6bc7b74dbde0","at":1772697921000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd07-af3c-7a7a-92a4-529885ab928f","at":1772697923388000000,"seq":953,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cbd07-c528-759c-81a5-e0f61be2e064","at":1772697929000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd07-d4c8-7c99-b322-48ad1e0315e4","at":1772697933000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd08-1348-7760-990f-51a406803980","at":1772697949000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cbd08-2c74-7362-9e1a-c3a0d1bf1cfd","at":1772697955444000000,"seq":957,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cbd08-80a8-77a8-a324-713ea1c73b9e","at":1772697977000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd08-8490-7c79-8fbe-881cb229c0ac","at":1772697978000000000,"seq":959,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd08-8c60-7427-af00-b74911fc5ca8","at":1772697980000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cbd08-9430-736c-81b0-5fedc1c7dee8","at":1772697982000000000,"seq":961,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cbd1e-5099-78da-b420-859762d4b51f","at":1772699406489000000,"seq":962,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cbd25-64c8-78d2-ad96-b50039c9c708","at":1772699870408000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cbd26-1f64-7cb1-8eb0-b4fb2f307c36","at":1772699918180000000,"seq":964,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cbd26-2a68-7f44-ae58-4c3fd246d408","at":1772699921000000000,"seq":965,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd26-3620-7371-beb2-b1583708bb0e","at":1772699924000000000,"seq":966,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd26-49a8-7dd1-888c-d875144d81e5","at":1772699929000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd26-5178-7bc9-b664-0d39dc673e28","at":1772699931000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd26-715e-78c9-8283-6a23162ad4de","at":1772699939166000000,"seq":969,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cbd26-93e0-7b14-b280-e2bc4adf2e85","at":1772699948000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cbd26-97c8-7f53-88f6-f34955816af4","at":1772699949000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cbd27-14c8-7a32-ac76-5f0b1f09fcec","at":1772699981000000000,"seq":972,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd27-27d0-763d-8c4d-b65a0dc3a971","at":1772699985872000000,"seq":973,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cbd27-2c38-7f30-a3c2-913e6199d931","at":1772699987000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd27-5730-76ba-bd9b-2dfce4031bc4","at":1772699998000000000,"seq":975,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd27-dfe8-7d6a-a5c1-73c5d8049216","at":1772700033000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cbd28-1698-7e28-a47d-963c8b8a178d","at":1772700047000000000,"seq":977,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cbd28-2250-7bc3-8c42-434788c42208","at":1772700050000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2e-4030-7f6e-896c-928655b7bab7","at":1772700450864000000,"seq":979,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cbd2e-8708-7f77-94bc-30a87a975945","at":1772700469000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cbd2e-d140-79b4-b360-c4aacbfd5d6c","at":1772700488000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2e-f850-7c9d-b87f-927964d4604a","at":1772700498000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3a-2503-7fca-9984-ed8190bb6ace","at":1772701230339000000,"seq":983,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd3a-2503-780f-bdcf-e5514a087c69","at":1772701230339000000,"seq":984,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd3a-2f68-7c87-a522-b15e8133df61","at":1772701233000000000,"seq":985,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3a-3f08-78f7-8313-1e97eef7b765","at":1772701237000000000,"seq":986,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cbd3a-9110-7b7b-8df2-8aae21127c3c","at":1772701258000000000,"seq":987,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3a-a498-7579-b784-e70e1d7ecf3d","at":1772701263000000000,"seq":988,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

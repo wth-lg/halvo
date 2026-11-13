@@ -1,0 +1,17 @@
+{"v":1,"id":"019c6ac6-5115-723c-a600-83155ff7ccc5","at":1771317907733000000,"seq":567,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ac6-5115-754b-8a66-e0d955cd0c9e","at":1771317907733000000,"seq":568,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c6ac6-9c58-756e-a3d1-fa8d0dc493ea","at":1771317927000000000,"seq":569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac6-a040-7a8c-be89-95c05f82e1d5","at":1771317928000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac7-0271-71a1-ae11-fd44741b5cb5","at":1771317953137000000,"seq":571,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c6ac7-1188-73ed-bf74-560dc47a140f","at":1771317957000000000,"seq":572,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6ac7-1570-7189-8f34-46138b4c94d0","at":1771317958000000000,"seq":573,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6ac7-28f8-72ff-9d1f-91356f7075f8","at":1771317963000000000,"seq":574,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6ac7-5008-7f3a-a97d-e793a3f2f520","at":1771317973000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac7-50b7-7498-8ae8-aafa2875f82e","at":1771317973175000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c6ac7-6b60-78e5-b451-0d9f084b8dfd","at":1771317980000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac7-7330-7780-a09e-f7ff8c7c98de","at":1771317982000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c6ac7-9270-778f-b6e0-02bbe04abbde","at":1771317990000000000,"seq":579,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6ac7-a9c4-70b3-8f8a-0de01169fd1a","at":1771317995972000000,"seq":580,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c6ac7-d0f0-75dd-85f9-b1783ce41db9","at":1771318006000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c6ac7-d4d8-7317-99da-69930a7191e2","at":1771318007000000000,"seq":582,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ac7-e860-795d-a61f-e2320079e4eb","at":1771318012000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

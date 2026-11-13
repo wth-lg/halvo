@@ -1,0 +1,37 @@
+{"v":1,"id":"019b976c-282f-718c-8d9f-120f883e0a34","at":1767772006447000000,"seq":5,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b976c-282f-71ad-9d81-2b999cd9e0f9","at":1767772006447000000,"seq":6,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b976c-5550-7b63-99fd-35b735de870e","at":1767772018000000000,"seq":7,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b976c-7490-7cbe-b93e-219ae6e40b7b","at":1767772026000000000,"seq":8,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9775-dbf7-752d-8da1-1db10435d025","at":1767772642295000000,"seq":9,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9775-dbf7-73a4-b3fa-2de2ba8dc4f7","at":1767772642295000000,"seq":10,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9775-fa10-7735-b7b3-80aba17a4494","at":1767772650000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9777-4b62-7e37-8c5e-c4a28d537d8d","at":1767772736354000000,"seq":12,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9777-4b62-7728-af07-c7d2a8406ef3","at":1767772736354000000,"seq":13,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9777-55b8-78a9-9a5f-41fa9ea10b15","at":1767772739000000000,"seq":14,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9777-5d88-7508-b436-bd1e219ba1fd","at":1767772741000000000,"seq":15,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9777-c700-7098-b129-0117c055f216","at":1767772768000000000,"seq":16,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b978e-0085-77d4-afe4-cfe1e3ad6ad5","at":1767774224517000000,"seq":17,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b978e-0085-7ecf-812f-533973ff00c3","at":1767774224517000000,"seq":18,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b978e-d965-76fd-b84e-2aa8cd1dc50f","at":1767774280037000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b978f-65e0-72c7-8546-359f8dab43bd","at":1767774316000000000,"seq":20,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b978f-a848-71fc-ac7c-570a4449e37b","at":1767774333000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b978f-b02a-7bfc-9ced-ff7973429cdc","at":1767774335018000000,"seq":22,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b978f-d728-773a-aa34-824d855630c0","at":1767774345000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9790-004a-7402-af0b-c4b2c5741c05","at":1767774355530000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b9790-4c58-75ca-ad1b-2947cd6bddde","at":1767774375000000000,"seq":25,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9790-7f20-787b-858e-36d584d8caf3","at":1767774388000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9790-9e60-7b63-bafc-8c7a7a0502fc","at":1767774396000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9790-b9b8-7536-a119-4b82edc4adf6","at":1767774403000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9792-759e-7dcc-8bbb-41d4f8542a36","at":1767774516638000000,"seq":29,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9792-b588-7f09-b656-3e69ea3f9e4c","at":1767774533000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b9792-c910-7aa2-83af-1b2cf3ce6815","at":1767774538000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9792-e468-7a21-bf50-19cb6f8137b6","at":1767774545000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9793-60bb-7be4-865e-409f641458bf","at":1767774576827000000,"seq":33,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9793-6168-74ec-b40e-db4948c98123","at":1767774577000000000,"seq":34,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9793-74f0-7fc9-9496-4164fe18f73a","at":1767774582000000000,"seq":35,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9793-abfb-78c3-99d8-7cf1bc58050f","at":1767774596091000000,"seq":36,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9793-f1f0-7668-a8bd-1f11b5c6236f","at":1767774614000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b9794-4010-7589-8713-e26888aacebd","at":1767774634000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9794-5764-7328-a347-a00d390463c2","at":1767774639972000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9794-d868-74bf-afdc-0ed2e54167c3","at":1767774673000000000,"seq":40,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9795-1300-761f-a0a6-40c0187d2b03","at":1767774688000000000,"seq":41,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

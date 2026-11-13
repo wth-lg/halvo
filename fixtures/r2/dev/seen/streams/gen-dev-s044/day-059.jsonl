@@ -1,0 +1,17 @@
+{"v":1,"id":"019ca395-f7de-79d9-a624-50268745436f","at":1772271040478000000,"seq":748,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca395-f7de-7abb-a4b8-714b4ed1f459","at":1772271040478000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ca395-fdd0-7286-9d47-f606c02930a0","at":1772271042000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca396-6360-792e-a8a3-55c5e859bb38","at":1772271068000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca396-7f3f-781e-9aab-8f6f194eebf8","at":1772271075135000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ca397-8e87-7202-8913-abc5e25296a2","at":1772271144583000000,"seq":753,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ca397-d290-77cb-af54-d7b10e47b83b","at":1772271162000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca397-f5b8-7f3e-8e3e-bc37437a1f43","at":1772271171000000000,"seq":755,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ca398-2498-7ddc-ade0-446115c3a424","at":1772271183000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca398-4ba8-7689-8a97-75daec1b564b","at":1772271193000000000,"seq":757,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca398-56df-7d1c-abc4-ea31d70b662e","at":1772271195871000000,"seq":758,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ca398-6ae8-79b1-92f7-ed193be560a1","at":1772271201000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ca398-6ed0-7a09-8a07-6b1a9a391d81","at":1772271202000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca398-8258-7e9c-b797-2d30edd4ec69","at":1772271207000000000,"seq":761,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca399-1e98-7abc-b791-74c74e089d87","at":1772271247000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3a7-6b79-7070-9b63-753b17af81d2","at":1772272184185000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a7-7a60-7330-83d5-734322856e7b","at":1772272188000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

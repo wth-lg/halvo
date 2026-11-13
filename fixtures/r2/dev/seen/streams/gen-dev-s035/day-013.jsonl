@@ -1,0 +1,22 @@
+{"v":1,"id":"019bb69f-25bf-7536-a68b-6a3dd78f1f8a","at":1768295441855000000,"seq":160,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb69f-25bf-7765-993b-e6ab4f9b4c08","at":1768295441855000000,"seq":161,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb69f-41a8-7abf-94fa-8940e20b5ac5","at":1768295449000000000,"seq":162,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb69f-64d0-7712-b35e-602a914c4cab","at":1768295458000000000,"seq":163,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb69f-6af8-7f39-873c-670eebfa33ed","at":1768295459576000000,"seq":164,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb69f-6af8-7e9c-a6ba-77232fa1cb24","at":1768295459576000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bb69f-af08-73ea-922d-424ad5737663","at":1768295477000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a0-09af-781e-a5d0-4ce12fc284f9","at":1768295500207000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bb6a0-0cc8-797d-afa1-4fd37a46b0b0","at":1768295501000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a0-4378-7725-810f-d0cd3e123c0d","at":1768295515000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bb6a0-5ed0-7359-9573-5292dcd0394a","at":1768295522000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a0-a3e0-749e-a3b0-f72f31940b42","at":1768295539680000000,"seq":171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bb6a1-2dd8-7e68-95c5-b4627e600cee","at":1768295575000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a1-4250-7ccc-b9a0-6b648c28f7e1","at":1768295580240000000,"seq":173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bb6a1-83c8-7c2b-9fde-dabd6db3ec98","at":1768295597000000000,"seq":174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb6a1-a965-7d79-9d00-309563918365","at":1768295606629000000,"seq":175,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb6a1-a965-7003-86d4-6b9a57b918f3","at":1768295606629000000,"seq":176,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb6a1-e958-7d70-af9e-63a696fe5f47","at":1768295623000000000,"seq":177,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bb6b3-81ac-70c4-9ab4-49ae86e0a351","at":1768296776108000000,"seq":178,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb6b3-81ac-7351-b04a-46d445b26c91","at":1768296776108000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bb6b3-94c8-7795-ad2c-ee54be9e3c2e","at":1768296781000000000,"seq":180,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb6b3-f288-72c6-b57d-66db6e41393b","at":1768296805000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

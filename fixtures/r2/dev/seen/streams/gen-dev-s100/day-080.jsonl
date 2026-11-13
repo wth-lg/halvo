@@ -1,0 +1,18 @@
+{"v":1,"id":"019d0f5f-9871-7ee7-bce0-26db2a7004df","at":1774079416433000000,"seq":1183,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0f5f-9871-7eff-8049-9aa46e2c0d86","at":1774079416433000000,"seq":1184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d0f5f-a278-7424-a884-caa8e3b7279a","at":1774079419000000000,"seq":1185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f5f-c1b8-7e71-b0d2-22ff549d12d5","at":1774079427000000000,"seq":1186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f5f-d21c-7a6b-ac18-d059802d6ac2","at":1774079431196000000,"seq":1187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d0f60-8508-71d9-bca5-4fa2c9f345f3","at":1774079477000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f60-dc0a-762d-a62b-43ac7b9eb378","at":1774079499274000000,"seq":1189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d0f60-e6b0-72de-aa43-87573e957ce2","at":1774079502000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f61-1d60-73e8-b24a-1ed061617cf7","at":1774079516000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f61-2f77-71fc-8f1d-7e689da0f894","at":1774079520631000000,"seq":1192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d0f61-5410-7648-973f-3f2fc87a78ba","at":1774079530000000000,"seq":1193,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0f61-8ea8-711a-aac4-5754f5f0ba61","at":1774079545000000000,"seq":1194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d0f63-1290-7db7-9e40-50c10564bd15","at":1774079644304000000,"seq":1195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0f7d-dc23-773d-8bac-058d01439f3b","at":1774081399843000000,"seq":1196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0f7d-e490-7d05-9fe5-85662f9860f0","at":1774081402000000000,"seq":1197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f7e-1758-7ed5-aada-61cce01806c7","at":1774081415000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d0f7e-4e08-763d-a418-831b213aa3e0","at":1774081429000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f7e-84b8-7411-b330-276769f64304","at":1774081443000000000,"seq":1200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

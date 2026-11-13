@@ -1,0 +1,21 @@
+{"v":1,"id":"019c4c4a-3961-7759-84d0-f0ef44762488","at":1770806458721000000,"seq":558,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c4a-3961-7a09-a079-9eae385802ef","at":1770806458721000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c4c4a-78f8-703a-8a76-73681f027a39","at":1770806475000000000,"seq":560,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c4a-9c20-7f80-b430-c828a61ee835","at":1770806484000000000,"seq":561,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4c5f-9151-7205-ab0c-7004649eab52","at":1770807857489000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c4c72-280c-743a-8244-fad4f10ccde1","at":1770809075724000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c4c72-b9a8-7308-b4d4-e8d8de14efa5","at":1770809113000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c72-c178-77c6-9323-84cbca3e8f3b","at":1770809115000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c88-75ca-7440-a821-6b9cd3e33b68","at":1770810537418000000,"seq":566,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c4c88-be60-73b3-a952-bd77f04105da","at":1770810556000000000,"seq":567,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c88-d1e8-711d-bee4-5214120e95d0","at":1770810561000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c88-d90e-7103-8f38-d92f147402a5","at":1770810562830000000,"seq":569,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c4c88-ed40-7f0e-90fb-b0803b94d40d","at":1770810568000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c88-f128-7c86-8a2b-8a9f05b69a80","at":1770810569000000000,"seq":571,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c89-04b0-789c-a900-728722ea375c","at":1770810574000000000,"seq":572,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4c89-cd59-753f-8d8e-ead4e36a5841","at":1770810625369000000,"seq":573,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c4c89-d3b8-7224-846f-ff769719f040","at":1770810627000000000,"seq":574,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c89-e358-774c-95c2-d54f9ebe5353","at":1770810631000000000,"seq":575,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4c89-e358-78c5-a33b-a7d7261c0e80","at":1770810631000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c4c89-eb28-7f14-8583-6a88feeb4cd6","at":1770810633000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c8a-1620-702f-8b30-c1dbee259320","at":1770810644000000000,"seq":578,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

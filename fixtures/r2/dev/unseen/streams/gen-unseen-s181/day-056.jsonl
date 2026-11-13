@@ -1,0 +1,14 @@
+{"v":1,"id":"019c945f-a4a4-7c0e-87ab-02a173e60e05","at":1772015821988000000,"seq":575,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c945f-a4a4-76a5-aa5d-953925432e13","at":1772015821988000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c9460-2d68-77c2-b433-55fe6aaee3b8","at":1772015857000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9460-967e-78d3-af4f-811d82778de5","at":1772015883902000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c9460-c9a8-78fa-8ccc-df6d4485d99b","at":1772015897000000000,"seq":579,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9460-f888-73be-bc65-544aa1578b9a","at":1772015909000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9461-00f0-7375-86d2-cf1a279aa4b3","at":1772015911152000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c9461-8910-7aca-8dea-3dd1f8bf31b3","at":1772015946000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c9479-fc57-7fe2-8e15-c964f756b002","at":1772017548375000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c947a-6458-754c-86a4-f2544187dcb6","at":1772017575000000000,"seq":584,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c947a-d1b8-76fa-bf40-5d202ec4d340","at":1772017603000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9486-6aca-7f93-bc30-bb66220b32d5","at":1772018363082000000,"seq":586,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c9486-89b8-7214-89ec-406e8f596729","at":1772018371000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9486-9958-7c12-8165-151d143c8fde","at":1772018375000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

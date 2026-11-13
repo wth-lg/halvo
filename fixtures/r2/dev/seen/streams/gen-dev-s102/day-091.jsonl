@@ -1,0 +1,28 @@
+{"v":1,"id":"019d4813-f644-7eb5-b97c-3ef267dc4bc3","at":1775030761028000000,"seq":1262,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4813-f644-7259-a1ff-5554b901e978","at":1775030761028000000,"seq":1263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d4814-dca0-73bf-bd8c-793acde3c7dc","at":1775030820000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d4814-fb96-71d3-bba0-26f8829190a8","at":1775030827926000000,"seq":1265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d4815-6558-75b0-adf2-5f37f43b67bd","at":1775030855000000000,"seq":1266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4815-6d28-7312-af93-2cc76628671d","at":1775030857000000000,"seq":1267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4815-d005-722c-a75d-4804490a7578","at":1775030882309000000,"seq":1268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d4815-d6a0-73d4-9bb1-ecd5109381a8","at":1775030884000000000,"seq":1269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4816-0198-71e5-8e0a-95b903ea0c18","at":1775030895000000000,"seq":1270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4816-47e8-7752-bedf-d6c83285f6a0","at":1775030913000000000,"seq":1271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4816-bc7d-7ae2-8650-de44382fe230","at":1775030942845000000,"seq":1272,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d4816-efe0-7869-b1db-a7381e5eec34","at":1775030956000000000,"seq":1273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4817-6128-7e92-88fe-226fd482aa21","at":1775030985000000000,"seq":1274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d482c-3217-7aa9-9db5-a310813b8db3","at":1775032349207000000,"seq":1275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d482c-b230-7b70-94ea-ccf2312c34d6","at":1775032382000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d482c-c1d0-7bfb-bce7-504e3961453b","at":1775032386000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d482c-e110-7558-8343-24e9e54bcf90","at":1775032394000000000,"seq":1278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d482d-17c0-7099-9d57-ea9da05a0d44","at":1775032408000000000,"seq":1279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4846-20d5-78d4-9a34-1169017b79c2","at":1775034048725000000,"seq":1280,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4846-20d5-7a4e-8d6a-ec03c69a067a","at":1775034048725000000,"seq":1281,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4846-3570-7211-a395-eb127d105ce1","at":1775034054000000000,"seq":1282,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4846-77d8-7101-b67d-0b90fb9a309f","at":1775034071000000000,"seq":1283,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4846-9330-7f6d-aa2a-5ec1618e75a7","at":1775034078000000000,"seq":1284,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d484c-cd0b-715e-8eb4-2f723f51cacf","at":1775034486027000000,"seq":1285,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d484c-cd0b-77cc-863b-7f1cd6eb83c9","at":1775034486027000000,"seq":1286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d484d-7100-72a7-bac7-b77a4d2ad948","at":1775034528000000000,"seq":1287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d484d-78d0-715f-93fe-eb3ac3d75b87","at":1775034530000000000,"seq":1288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d484d-bf20-744d-a2f6-428151528154","at":1775034548000000000,"seq":1289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

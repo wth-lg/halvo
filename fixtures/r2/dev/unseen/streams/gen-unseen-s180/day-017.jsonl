@@ -1,0 +1,14 @@
+{"v":1,"id":"019bcb52-b3ba-7e81-87c9-8448a6203dd1","at":1768642753466000000,"seq":239,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb52-b3ba-7b80-affd-76c83a0001ec","at":1768642753466000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bcb53-32d0-7af5-a5b0-3dfc031d3310","at":1768642786000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bcb53-643d-7f7d-a1f0-632b12f08942","at":1768642798653000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bcb53-6980-7f77-85d7-44892e0927c5","at":1768642800000000000,"seq":243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb53-7d08-7a81-b66c-ffca5a93e644","at":1768642805000000000,"seq":244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb59-d55c-7d03-9619-386812a77738","at":1768643220828000000,"seq":245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bcb59-e990-781e-b04b-780243eec002","at":1768643226000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bcb5a-5308-7f3c-a24e-502c4d3eef9c","at":1768643253000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb5a-9188-7fa4-9bfe-5b35fc1d2e56","at":1768643269000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb5e-e4c0-7fd5-95c8-b353815fc7ee","at":1768643552448000000,"seq":249,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb5e-e4c0-7033-b5ef-b5cb4defc608","at":1768643552448000000,"seq":250,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb5e-eeb8-73d5-a469-ad866e026873","at":1768643555000000000,"seq":251,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bcb5f-4890-76e0-af1b-32ac66d41e93","at":1768643578000000000,"seq":252,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

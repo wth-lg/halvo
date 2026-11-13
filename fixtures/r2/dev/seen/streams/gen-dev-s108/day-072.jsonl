@@ -1,0 +1,11 @@
+{"v":1,"id":"019ce642-6bf0-7815-9f8d-48094398ac48","at":1773389638640000000,"seq":1265,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce642-6bf0-7fc3-b1ad-32e6975b6891","at":1773389638640000000,"seq":1266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ce642-e670-7fcb-a5ea-4e2f5a45fcca","at":1773389670000000000,"seq":1267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce642-ea58-741d-a5e7-d453c3824140","at":1773389671000000000,"seq":1268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ce643-1d20-74d5-9f08-6edf80e747c3","at":1773389684000000000,"seq":1269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce643-6a53-7688-adaf-850ae42e4e2b","at":1773389703763000000,"seq":1270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ce643-ce68-762f-aadf-02e986662d02","at":1773389729384000000,"seq":1271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce644-51b8-71b4-9435-72abcec2713e","at":1773389763000000000,"seq":1272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ce644-9f76-7b86-84e1-9399f2ae4d29","at":1773389782902000000,"seq":1273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ce644-ab90-73dd-823e-08484184520f","at":1773389786000000000,"seq":1274,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce644-da70-7654-901f-8c8da0402b37","at":1773389798000000000,"seq":1275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

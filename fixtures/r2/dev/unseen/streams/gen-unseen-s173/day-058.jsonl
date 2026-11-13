@@ -1,0 +1,54 @@
+{"v":1,"id":"019c9e30-2c3a-79cf-87ef-584de3468d1d","at":1772180483130000000,"seq":844,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e30-2c3a-78bb-bdea-d42172be6363","at":1772180483130000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c9e30-6268-7460-a818-ca9357a94d74","at":1772180497000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e30-6650-7660-8eef-7f4d6df38275","at":1772180498000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c9e39-6280-7433-97ee-100dafccea3b","at":1772181086848000000,"seq":848,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9e39-8a28-78fa-ab38-75ec48b6f624","at":1772181097000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e39-8a28-79b0-9910-ea2d6de2aa47","at":1772181097000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c9e39-9d99-71cd-bded-7ae11f5ac9b2","at":1772181101977000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9e39-b520-731e-92d8-7045adeb0dc8","at":1772181108000000000,"seq":852,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e39-b908-7eea-961f-3b0579f5a1bb","at":1772181109000000000,"seq":853,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9e39-c8a8-7865-bbf0-9eafdfae1907","at":1772181113000000000,"seq":854,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e3a-2280-7148-889f-1a8efa06a27d","at":1772181136000000000,"seq":855,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e3a-3f7b-7847-af11-d7be42479a3d","at":1772181143419000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9e3a-41c0-7c0b-a76e-1611b6861161","at":1772181144000000000,"seq":857,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e3a-8810-74f5-8a68-1889202cada6","at":1772181162000000000,"seq":858,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e3a-8fe0-7662-ba48-d39f96ef92c7","at":1772181164000000000,"seq":859,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c9e3a-a226-7d89-9566-b2f574d13780","at":1772181168678000000,"seq":860,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9e3a-a226-7926-bd0a-08150db66f44","at":1772181168678000000,"seq":861,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9e3a-a368-752c-995b-fdbc1ccb90ae","at":1772181169000000000,"seq":862,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c9e3a-d630-79fc-9049-02d9e2c54776","at":1772181182000000000,"seq":863,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e3a-f570-7bd6-b613-5eb1a617dd7b","at":1772181190000000000,"seq":864,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c9e3a-ff83-744c-867a-d729cd273e86","at":1772181192579000000,"seq":865,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e3a-ff83-7b82-b844-7111e7cc10eb","at":1772181192579000000,"seq":866,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9e3b-10c8-719a-b363-2a7b408d2f57","at":1772181197000000000,"seq":867,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e3b-7658-7f88-b48f-4e5557dbfb25","at":1772181223000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e3b-8dc8-74a9-a417-5dcdeafa0249","at":1772181229000000000,"seq":869,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e41-e7d0-7fce-a059-dfff79191e3e","at":1772181645264000000,"seq":870,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c9e42-0608-7990-9a9f-3c3ce29820a8","at":1772181653000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e42-4c58-778b-803e-f127659085ca","at":1772181671000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c9e42-5b22-7361-929d-0c0637b40b64","at":1772181674786000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9e42-c188-7ef6-81b0-3a5acdd5fef4","at":1772181701000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c9e42-dce0-7726-b8b2-e463a86e1860","at":1772181708000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e43-20d9-7146-a185-92bdeed76832","at":1772181725401000000,"seq":876,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9e43-3aa0-74ce-9a87-310183e28b12","at":1772181732000000000,"seq":877,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e43-6598-7c21-963e-4bf2f131a965","at":1772181743000000000,"seq":878,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c9e43-ab8e-73ef-9aa2-f91f5fb55979","at":1772181760910000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9e43-d6e0-7cbe-ba4e-008da3e43041","at":1772181772000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e43-ee50-7746-9188-4b74d606ada8","at":1772181778000000000,"seq":881,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e44-3c70-74d3-aaaf-8b60684fde25","at":1772181798000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c9e44-7708-7851-a54a-baeb9dcee073","at":1772181813000000000,"seq":883,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9e44-7c4f-7853-a7f9-0aad0c533b7d","at":1772181814351000000,"seq":884,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9e44-86a8-792c-9478-e593b61d1b02","at":1772181817000000000,"seq":885,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c9e44-d0e0-7251-b35b-6b2c0fe7be18","at":1772181836000000000,"seq":886,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e44-f020-721b-a421-828cee28f111","at":1772181844000000000,"seq":887,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9e45-0447-7fc6-978e-a6957c6305db","at":1772181849159000000,"seq":888,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c9e45-7108-7be4-9f30-7a6742949935","at":1772181877000000000,"seq":889,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e45-d2b0-7bb8-af6f-667f6d868561","at":1772181902000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c9e45-e498-74ff-b625-aaf7337c52f7","at":1772181906584000000,"seq":891,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c9e45-ee08-7bdf-9152-eb1bace2d85c","at":1772181909000000000,"seq":892,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9e46-24b8-75ac-a7ff-f2ee5de1bd5d","at":1772181923000000000,"seq":893,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e46-5b68-7777-b909-61966bdae155","at":1772181937000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e46-64f4-7f11-921e-ab252e7f2907","at":1772181939444000000,"seq":895,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c9e47-16e8-7978-a6bf-862608c1b167","at":1772181985000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c9e47-2e58-7ff8-995f-285bcf796055","at":1772181991000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

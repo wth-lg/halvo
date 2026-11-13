@@ -1,0 +1,13 @@
+{"v":1,"id":"019bb648-fe76-78a3-abbb-2372e47c54d9","at":1768289795702000000,"seq":159,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb648-fe76-7672-b7f4-18729fb25448","at":1768289795702000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bb649-62d9-7348-bf56-4dffb0956ccb","at":1768289821401000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bb649-7ca0-7595-b28b-0a88b62fef35","at":1768289828000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb649-8470-77bd-ae43-6a1a08074730","at":1768289830000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb649-b4ae-7f5f-ae03-0155ef05c58c","at":1768289842350000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bb64a-1110-76cc-96b5-554dc9184392","at":1768289866000000000,"seq":165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb64a-4f90-7765-a532-e70b6bbde84e","at":1768289882000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb64a-5e00-7867-abb4-70c919461401","at":1768289885696000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bb64a-72b8-7e2d-9493-4196e533df1f","at":1768289891000000000,"seq":168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb64a-a580-7be9-973e-236e64196f35","at":1768289904000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb64a-ad50-7e4d-a466-cc35f3113c01","at":1768289906000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb64a-b138-71ad-86f3-f0a42e12d31c","at":1768289907000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

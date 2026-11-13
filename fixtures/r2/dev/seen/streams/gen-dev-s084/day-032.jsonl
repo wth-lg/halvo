@@ -1,0 +1,26 @@
+{"v":1,"id":"019c18a5-b58c-78dc-90eb-5bf1e2ecc424","at":1769940039052000000,"seq":475,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c18a5-b58c-7b82-88cc-7cdb7ff4a61b","at":1769940039052000000,"seq":476,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c18a5-e050-73da-8583-8667e69cb62b","at":1769940050000000000,"seq":477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c18a5-e820-7c41-84d1-b2d2d33af862","at":1769940052000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a6-3e10-7c1e-a8a2-931b087ae49d","at":1769940074000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a6-60ae-76a4-8be2-40f0fe23c70e","at":1769940082862000000,"seq":480,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c18a6-74c0-7301-9084-7b3ad5b9b881","at":1769940088000000000,"seq":481,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c18a6-9fb8-7f46-a924-35c401c46776","at":1769940099000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a6-b340-7b03-9c7b-6e667ba3d71c","at":1769940104000000000,"seq":483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a6-bb10-75a9-aed5-55b68d73fafc","at":1769940106000000000,"seq":484,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c18a6-c702-7bc7-aaca-3f2c82482c01","at":1769940109058000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c18a6-cab0-77d9-8f28-083d785a640b","at":1769940110000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c18a7-34d2-7ab9-87b6-b20381748f82","at":1769940137170000000,"seq":487,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c18a7-6ad8-75e7-8772-f042b1959c32","at":1769940151000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a8-0b00-739d-94d5-a101cac1485c","at":1769940192000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18aa-9f56-7cca-9c59-94ee9206d94e","at":1769940361046000000,"seq":490,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c18aa-ca20-7cf8-92c7-3df035448fba","at":1769940372000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18ab-1840-7516-b054-43e5f1f3b84e","at":1769940392000000000,"seq":492,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c18ab-52d8-7305-bef3-6c9a8a488849","at":1769940407000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c18bc-95a2-7685-9a6d-fb8407d79e40","at":1769941538210000000,"seq":494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c18bc-9ca0-78d5-94f5-63dc81aa4734","at":1769941540000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18bd-0de8-79a8-87c1-5534110f579d","at":1769941569000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18bd-11d0-762d-98a8-f5d1d680b2e4","at":1769941570000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c18bd-185d-7006-afa8-d4c097066564","at":1769941571677000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c18bd-19a0-7939-b99c-4eedfe33eecb","at":1769941572000000000,"seq":499,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c18bd-2170-7c2a-bbbe-825c518b5522","at":1769941574000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,16 @@
+{"v":1,"id":"019c41b8-bc6c-77bf-8d0c-7df22cd84830","at":1770629151852000000,"seq":575,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41b8-bc6c-788d-9e99-5e11ae319f9b","at":1770629151852000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c41b9-0f08-7e27-b0b5-41c640c03e8c","at":1770629173000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41b9-64f8-72cd-a27c-40f469a76492","at":1770629195000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41b9-a378-704a-beb4-9a6e7144b2d7","at":1770629211000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c41b9-bb13-7639-9245-7590edf22a94","at":1770629217043000000,"seq":580,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c41b9-e5e0-70b5-95d8-ed227a0474d4","at":1770629228000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ba-10d8-7564-822e-bb1c52438340","at":1770629239000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ba-3016-7b40-8a57-3257a2ebc094","at":1770629246998000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c41ba-5728-7e17-9312-0a6e1d764cd1","at":1770629257000000000,"seq":584,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c41ba-6e98-74fe-b421-29222e9dc8ac","at":1770629263000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ba-8dd8-71ce-8616-f04b287d6eef","at":1770629271000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c41ba-a160-7395-9c1c-3e01c1737eef","at":1770629276000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41bb-30cb-71bc-94df-ade56caa02bb","at":1770629312715000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c41bb-3da0-7c3b-865c-6f751f38f4cc","at":1770629316000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41bc-04d8-7276-a88b-c5b5fd6a2ee1","at":1770629367000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

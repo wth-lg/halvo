@@ -1,0 +1,26 @@
+{"v":1,"id":"019c2d29-ae5d-79ab-a83d-c45e6d543897","at":1770284232285000000,"seq":460,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2d29-ae5d-7375-bcec-5dd77fb6796e","at":1770284232285000000,"seq":461,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2d29-d450-7ea3-a2af-7eb626419169","at":1770284242000000000,"seq":462,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c2d2a-3210-79ee-8b2d-c99c773955b2","at":1770284266000000000,"seq":463,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c2d2a-6154-71e3-adc4-b0a5cac77185","at":1770284278100000000,"seq":464,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c2d2a-68c0-7872-b4d0-f3f4c04d85dd","at":1770284280000000000,"seq":465,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d2a-6ca8-7d84-9af7-388fa9662295","at":1770284281000000000,"seq":466,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d2a-b2f8-7d2e-ab22-655d4578d767","at":1770284299000000000,"seq":467,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c2d2d-dd88-796b-a316-7c5cdc9ad8bc","at":1770284506504000000,"seq":468,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d2d-dd88-775c-8e0c-b65efeb95bb7","at":1770284506504000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c2d2d-ef18-7962-bd52-a6697216659d","at":1770284511000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d2e-1628-7a84-9469-7ebaea0bf32b","at":1770284521000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d2e-aa98-7321-a446-18f6cb673b29","at":1770284559000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c2d2e-bc18-710a-9e6c-6a1369e18f27","at":1770284563480000000,"seq":473,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c2d2e-be20-7cef-9967-6e7888741de5","at":1770284564000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c2d2f-23b0-7e96-b398-eece8d45461a","at":1770284590000000000,"seq":475,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d2f-71d0-73f1-9496-c945db952cc7","at":1770284610000000000,"seq":476,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d2f-9663-705d-9a78-e41980e6ba0b","at":1770284619363000000,"seq":477,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c2d2f-a880-7d6f-bcb0-9e27a318054d","at":1770284624000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d37-dd5c-7f5d-9c3a-de88c387fe98","at":1770285161820000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c2d37-edb0-745f-b222-1d320a82972b","at":1770285166000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d38-0520-7af8-9f09-765b7b5d9e2e","at":1770285172000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d3b-15c7-7ef3-8fb4-84286a927716","at":1770285372871000000,"seq":482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c2d3b-58b0-710f-933f-1675848fa4cc","at":1770285390000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d3b-83a8-7748-9cce-7cdaf7914d6c","at":1770285401000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d3b-8790-7d7d-b383-9d444c25136a","at":1770285402000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

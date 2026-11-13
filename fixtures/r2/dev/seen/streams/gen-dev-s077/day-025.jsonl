@@ -1,0 +1,39 @@
+{"v":1,"id":"019bf415-0616-7f07-a426-c96a2df0d601","at":1769326577174000000,"seq":481,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf415-0616-7eb9-bde6-db09cce33a18","at":1769326577174000000,"seq":482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf415-1508-77cc-8a6a-32155db7e35a","at":1769326581000000000,"seq":483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf415-1508-71ca-849d-6d2ea0334d57","at":1769326581000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bf415-9036-7f47-9f4a-23dbdcfc4ec5","at":1769326612534000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf415-9208-7400-88a8-f0ef64ae3abc","at":1769326613000000000,"seq":486,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf415-ad60-7252-96d7-80bcbb03fb08","at":1769326620000000000,"seq":487,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf415-c0e8-732c-850d-e4ad2b56afd2","at":1769326625000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf415-c0e8-7d6d-9832-12f1f75e207e","at":1769326625000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bf415-d088-79c7-9d09-fded52f7f3e6","at":1769326629000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf418-b7b3-7f6a-acee-e7de7d34d45f","at":1769326819251000000,"seq":491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf419-4358-74d3-ab01-08668cdda843","at":1769326855000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf419-52f8-7f45-9693-8b0ca5a22cf6","at":1769326859000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf419-a500-7583-860f-00f184437d2f","at":1769326880000000000,"seq":494,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf42d-bb52-77ab-a960-c548525c0608","at":1769328196434000000,"seq":495,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf42d-dcc8-7f34-982a-67d55ae87b65","at":1769328205000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf42d-ec68-7417-a8b6-3b5ede98f390","at":1769328209000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bf42d-f820-7a91-bffe-35b8bf7a8b1f","at":1769328212000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf42e-0ea7-7f58-bc21-ead5bd19f912","at":1769328217767000000,"seq":499,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf42e-1b48-76db-b814-437f8c84e8ae","at":1769328221000000000,"seq":500,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf42e-3a88-71e0-bb09-0d7c2fa8ef28","at":1769328229000000000,"seq":501,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf42e-51f8-76ad-a2d9-5c394dec00bd","at":1769328235000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf42e-51f8-7b26-876e-1344ab94c9a8","at":1769328235000000000,"seq":503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf42e-9e5f-72e0-818d-89be24674733","at":1769328254559000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf42e-d2e0-7c56-8fe5-cf0803b2f8bc","at":1769328268000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf42e-f608-772b-9f61-9d26dc09e838","at":1769328277000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bf42f-4240-7cee-8b83-4df2e4909fdd","at":1769328296512000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf42f-4428-7bcd-933e-765e77d51d83","at":1769328297000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf42f-76f0-7aba-8a4d-66ab8becb3a8","at":1769328310000000000,"seq":509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf42f-8a78-77e1-abb4-f36a56efd932","at":1769328315000000000,"seq":510,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf42f-f5de-7488-906d-bdd2fa0c69e3","at":1769328342494000000,"seq":511,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf430-0f48-70af-a5c0-95a49b6b5e27","at":1769328349000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf43e-bf4b-707d-a919-68201bedf771","at":1769329311563000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf43e-c100-7696-8807-d9709af7a10b","at":1769329312000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf43e-d870-7e9e-825b-f1667208a4fa","at":1769329318000000000,"seq":515,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf43e-f7b0-7f02-9dd2-6509beba49fe","at":1769329326000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf43e-ff80-7272-a970-9c8137130c53","at":1769329328000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bf447-1eb7-7898-bcd6-9a9ffc8124ae","at":1769329860279000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf447-2d40-73bf-8b3e-5f9afac0365f","at":1769329864000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

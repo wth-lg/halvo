@@ -1,0 +1,20 @@
+{"v":1,"id":"019cdc50-284a-7dd2-9707-680c31c83ac4","at":1773222766666000000,"seq":763,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc50-284a-76a8-b3e7-e69d030d2bb7","at":1773222766666000000,"seq":764,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cdc50-9ec8-7dbb-b13b-bea60678fcea","at":1773222797000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc50-a116-743c-bf45-7fc8d0bd8121","at":1773222797590000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cdc50-c1f0-72d8-b22e-98e5db89eda0","at":1773222806000000000,"seq":767,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdc50-db76-7237-b482-ec469e4be604","at":1773222812534000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cdc50-f0d0-7a94-9727-4c9828ca0e25","at":1773222818000000000,"seq":769,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc51-1fb0-7c1f-ad4e-290f9dda4c42","at":1773222830000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdc51-223a-773f-a600-9e717fe63559","at":1773222830650000000,"seq":771,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cdc51-8928-7ea4-8459-3dfa6d1d6220","at":1773222857000000000,"seq":772,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc51-dc9e-773d-ab6a-54c125bce087","at":1773222878366000000,"seq":773,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cdc51-ead0-71bf-a532-e20cba44cf92","at":1773222882000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc52-0240-7704-889f-c3aa80c18c2d","at":1773222888000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc5c-feeb-7090-aeaf-6e0ba96e9dd2","at":1773223608043000000,"seq":776,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc5c-feeb-7c46-85cb-e40648e7f237","at":1773223608043000000,"seq":777,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc5d-0690-7084-93ca-66afd2fc358a","at":1773223610000000000,"seq":778,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc5d-21e8-7850-9100-c3a36858c488","at":1773223617000000000,"seq":779,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc5d-25d0-7dfa-a5e5-4ef7f585e051","at":1773223618000000000,"seq":780,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cdc5d-4128-7784-a6e8-229dab7fc26a","at":1773223625000000000,"seq":781,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc5d-48f8-7a13-b9ee-b9118e96ae96","at":1773223627000000000,"seq":782,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}

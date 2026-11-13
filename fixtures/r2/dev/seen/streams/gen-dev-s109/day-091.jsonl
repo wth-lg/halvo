@@ -1,0 +1,12 @@
+{"v":1,"id":"019d47f3-028b-7722-9f3e-2284b963c689","at":1775028601483000000,"seq":1506,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d47f3-028b-7ccd-84db-8cef071ecf84","at":1775028601483000000,"seq":1507,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d47f3-7da8-79b8-b97f-b25ddbafd073","at":1775028633000000000,"seq":1508,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47f3-8190-7b33-9d7f-e826e758741b","at":1775028634000000000,"seq":1509,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d47f3-a0d0-799f-8eb8-51e9f361d9a1","at":1775028642000000000,"seq":1510,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47f3-bab4-7de2-a118-0a3b021f9874","at":1775028648628000000,"seq":1511,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d47f3-bab4-79a3-b55a-f8c983e38651","at":1775028648628000000,"seq":1512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d47f3-bc28-7bd0-9612-7a3e3cc5d0a9","at":1775028649000000000,"seq":1513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d47f4-00df-7cc0-8488-70ccb4a364f6","at":1775028666591000000,"seq":1514,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d47f4-00df-7616-b4b3-75aa2f295123","at":1775028666591000000,"seq":1515,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d47f4-1dd0-7f8f-a7be-dec0bc544a5b","at":1775028674000000000,"seq":1516,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47f4-9eb8-780d-8d44-4d01c14deb73","at":1775028707000000000,"seq":1517,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

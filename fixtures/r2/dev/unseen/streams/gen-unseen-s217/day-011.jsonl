@@ -1,0 +1,29 @@
+{"v":1,"id":"019bacb1-e0bf-7aa5-8dc1-92095451e8da","at":1768128897215000000,"seq":121,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bacb1-e0bf-7b33-a353-d49d919616d2","at":1768128897215000000,"seq":122,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bacb2-4960-7ffd-b828-0b35dea7183c","at":1768128924000000000,"seq":123,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bacb2-be90-7931-a144-574a67eb8011","at":1768128954000000000,"seq":124,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bacb2-e736-78a7-a047-9deff097644c","at":1768128964406000000,"seq":125,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bacb3-3b90-7b54-acd3-7de198ceb137","at":1768128986000000000,"seq":126,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bacb3-3f78-7167-b1ee-6c040a8e6d24","at":1768128987000000000,"seq":127,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bacb3-7628-72ad-84b7-b5d9a858bf59","at":1768129001000000000,"seq":128,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bacb6-500e-73eb-a68a-a10ef37c8418","at":1768129187854000000,"seq":129,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bacb6-500e-713b-8652-ff2af466f3e9","at":1768129187854000000,"seq":130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bacb6-7b98-7987-81bf-3589a32a9920","at":1768129199000000000,"seq":131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bacb6-e8f8-706d-9516-6c35b4b9c1ba","at":1768129227000000000,"seq":132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bacb7-42d0-781d-83dc-0d4c9f908b9e","at":1768129250000000000,"seq":133,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bacc3-251c-7e21-ac49-8c5ec099e9c5","at":1768130028828000000,"seq":134,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bacc3-5c78-7d6e-b955-abe19dc523db","at":1768130043000000000,"seq":135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bacc3-73e8-7f82-87c8-35c1868191de","at":1768130049000000000,"seq":136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bacc3-9d4d-7d83-845a-e6cd7b792e05","at":1768130059597000000,"seq":137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bacc3-d590-7134-88f9-256e5cd2bf01","at":1768130074000000000,"seq":138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bacc4-0c40-7a9c-af42-f331d63b81aa","at":1768130088000000000,"seq":139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bacc4-5290-7ff8-8629-519bd7e82bff","at":1768130106000000000,"seq":140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bacc4-6a00-7cc1-9453-a98dec3e0f5c","at":1768130112000000000,"seq":141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bacc4-6dcc-7e5a-801b-018bca91b3e6","at":1768130112972000000,"seq":142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bacc4-8170-7091-a5e7-b76b2b71bb86","at":1768130118000000000,"seq":143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bacc5-0a28-7f2b-aaad-6888408af1a1","at":1768130153000000000,"seq":144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bacc5-2580-7c50-a822-c6a96af2bc08","at":1768130160000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bacdb-2f13-7d43-95cc-3d3603f416ad","at":1768131604243000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bacec-656e-79a6-96b1-ee3b7bd5da10","at":1768132732270000000,"seq":147,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bacec-656e-701a-befe-4a5bdf3d05ff","at":1768132732270000000,"seq":148,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bacec-ed18-77c1-893d-316e2e38a979","at":1768132767000000000,"seq":149,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

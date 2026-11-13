@@ -1,0 +1,22 @@
+{"v":1,"id":"019c042e-be7d-79a9-be21-c0326a490f9f","at":1769596698237000000,"seq":457,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c042e-be7d-793d-bc84-036f8c0d70bc","at":1769596698237000000,"seq":458,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c042f-4260-706b-a0d3-d7d678b372af","at":1769596732000000000,"seq":459,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c042f-7cf8-7d73-aae4-e1b843f8b3af","at":1769596747000000000,"seq":460,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c0439-3421-7f36-b72d-496c5f4925e7","at":1769597383713000000,"seq":461,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0439-3421-714d-94e1-1780c8b3cff0","at":1769597383713000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c0439-7153-7774-beb1-64d6293bcab9","at":1769597399379000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c0439-dd38-775c-86cf-e3d116adc865","at":1769597427000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0439-ecd8-7296-92f4-e96e56a46f4a","at":1769597431000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043a-422e-7c7f-997a-9ee5a349cf73","at":1769597452846000000,"seq":466,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c043a-5e20-743b-b866-5e22e75dd231","at":1769597460000000000,"seq":467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c043a-7d60-736e-905f-eba25d1d3d00","at":1769597468000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043a-d62d-7dfc-9bde-d494c7990e32","at":1769597490733000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c043a-d738-7adb-b7f5-3c6296d5cc94","at":1769597491000000000,"seq":470,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c043b-0230-7331-a2ec-4912c7296fdf","at":1769597502000000000,"seq":471,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c043b-6ba8-7435-8c3b-1a562409dc42","at":1769597529000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043b-a640-72e2-8a83-676249513c89","at":1769597544000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043b-ad1a-7062-81cb-f03da32b7831","at":1769597545754000000,"seq":474,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c043b-bdb0-73d8-8790-a85234d9fdc7","at":1769597550000000000,"seq":475,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0451-f6fb-7606-a885-fa41903b3dcb","at":1769599006459000000,"seq":476,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c0452-9940-7bdc-a6da-428edf385283","at":1769599048000000000,"seq":477,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0452-a110-7a30-b26f-876cdb4628ac","at":1769599050000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

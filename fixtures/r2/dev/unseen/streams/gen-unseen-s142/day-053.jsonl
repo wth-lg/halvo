@@ -1,0 +1,12 @@
+{"v":1,"id":"019c84cc-7e3a-7225-839a-3031afd6557b","at":1771754520122000000,"seq":711,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84cc-7e3a-7477-b029-0cd03c1cbd3a","at":1771754520122000000,"seq":712,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c84cc-81a8-7d66-9d7f-c858d400eb9b","at":1771754521000000000,"seq":713,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c84cc-9148-76f3-ab4b-c82890c68403","at":1771754525000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84cc-bc40-787a-af8d-87d7eb7420e4","at":1771754536000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84cc-d59d-713c-909c-6b13baf95180","at":1771754542493000000,"seq":716,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c84cd-5498-748b-aedc-1bc2a9408664","at":1771754575000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84cd-c509-7772-9807-530f18850e56","at":1771754603785000000,"seq":718,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c84ce-17e8-7303-b257-099e3e3382a2","at":1771754625000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84ce-8d18-7d00-a4aa-c291ba42a798","at":1771754655000000000,"seq":720,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c84ce-9309-78be-8764-6dcead3680e0","at":1771754656521000000,"seq":721,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c84ce-e6f0-74f6-a1a7-830d50c2bb3f","at":1771754678000000000,"seq":722,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

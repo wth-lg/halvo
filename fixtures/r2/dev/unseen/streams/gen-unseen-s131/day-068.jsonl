@@ -1,0 +1,21 @@
+{"v":1,"id":"019cd185-01e5-775a-9734-03e719acf07c","at":1773041680869000000,"seq":890,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd185-01e5-7b49-a3aa-c324ddc793d4","at":1773041680869000000,"seq":891,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cd185-19d8-7eab-82d1-e6ac2d9305b8","at":1773041687000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cd185-fdc2-7243-91c4-13b3bf12215b","at":1773041745346000000,"seq":893,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cd186-17c0-7df1-a0bb-ac67ee94fc9f","at":1773041752000000000,"seq":894,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd186-2378-73a4-b88e-015c5a6f3e27","at":1773041755000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cd186-3700-7de9-8ab3-065b6bbca304","at":1773041760000000000,"seq":896,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd186-3ed0-73cd-b8d1-6ec6d51a4570","at":1773041762000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd186-5193-7930-bde9-4885f14bb0c4","at":1773041766803000000,"seq":898,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cd186-6db0-73fd-9702-a6611814bf97","at":1773041774000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd186-9c90-7e4b-b53b-ca30181e26cd","at":1773041786000000000,"seq":900,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd186-a460-71be-aa79-57eec92e855a","at":1773041788000000000,"seq":901,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd186-a848-7e55-a2f3-0dd3a169b7a2","at":1773041789000000000,"seq":902,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd186-b57d-7f7a-a427-323039fcdb77","at":1773041792381000000,"seq":903,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cd186-bbd0-79df-8353-2a115856ff92","at":1773041794000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cd187-2d18-7018-8427-af483d375008","at":1773041823000000000,"seq":905,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd187-7b38-7bfc-882d-c6f9cee18099","at":1773041843000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd187-9a78-7f20-9c9f-33bd4d2d0adc","at":1773041851000000000,"seq":907,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd198-adfa-7b8e-9d40-2dd090821e11","at":1773042970106000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cd198-b178-7a9e-873c-9347b9c7c558","at":1773042971000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd198-c8e8-712e-851b-de0fa88ba1b3","at":1773042977000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

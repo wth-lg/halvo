@@ -1,0 +1,48 @@
+{"v":1,"id":"019d3406-f33d-76ad-8346-de08e246ca2b","at":1774694363965000000,"seq":1272,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3406-f33d-725f-8e49-147c7f0c1ecb","at":1774694363965000000,"seq":1273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d3407-2a10-7c36-a519-92c929f0942a","at":1774694378000000000,"seq":1274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d3407-3972-7243-af4e-9eda3bc238d4","at":1774694381938000000,"seq":1275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d3407-aee0-7dca-870d-2ae60f6d55c0","at":1774694412000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d3407-d9d8-7ac1-aa7d-75e8d9606751","at":1774694423000000000,"seq":1277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3408-2be0-79d9-a5b8-0ccfed8a8b5a","at":1774694444000000000,"seq":1278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3408-36bd-7709-b667-67c02477066c","at":1774694446781000000,"seq":1279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d3409-02b8-7b78-8e99-7bd7b5735f1d","at":1774694499000000000,"seq":1280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3409-29c8-7d5b-a477-ab88b965d400","at":1774694509000000000,"seq":1281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3409-3f25-74d7-a018-4d7756f924eb","at":1774694514469000000,"seq":1282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d3409-a152-70c8-b594-5a3d2bcb28f8","at":1774694539602000000,"seq":1283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d3409-ba50-7d5c-bde6-147d3648d3ca","at":1774694546000000000,"seq":1284,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3409-be38-713a-9b1a-423e5e9f4a43","at":1774694547000000000,"seq":1285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d340a-255d-796b-aff5-c7fbdd6ef034","at":1774694573405000000,"seq":1286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d340a-db60-71d4-8d08-25adc24f6948","at":1774694620000000000,"seq":1287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d340a-ff34-7f46-b136-5d758f10d898","at":1774694629172000000,"seq":1288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d340b-2d68-7cef-b407-d180548e4aa5","at":1774694641000000000,"seq":1289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d340b-2d68-7c78-9eed-e32496f2658a","at":1774694641000000000,"seq":1290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d340b-3920-7e8d-937c-911c9f1424ec","at":1774694644000000000,"seq":1291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d340b-694a-7cab-998b-f35e1e438f5a","at":1774694656330000000,"seq":1292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d340b-6fd0-7914-a171-0017e96987a9","at":1774694658000000000,"seq":1293,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d340b-d178-7a98-a2ab-226c8bfa568a","at":1774694683000000000,"seq":1294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d340b-d948-7d5c-a5ab-edee1844acaa","at":1774694685000000000,"seq":1295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d340c-13e0-79c2-a374-d56da7b4f54b","at":1774694700000000000,"seq":1296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d341a-cc81-71ad-a009-dd2bae3e74cc","at":1774695664769000000,"seq":1297,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d341a-cc81-7279-b0fe-c1c2fd539c03","at":1774695664769000000,"seq":1298,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d341b-2f10-79aa-8407-5f492a664e7e","at":1774695690000000000,"seq":1299,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d341b-36e0-7dac-b1b9-903305e372a0","at":1774695692000000000,"seq":1300,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d3420-da04-7f3a-8dae-daa423c43357","at":1774696061444000000,"seq":1301,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3420-da04-7944-b518-835ae9090c5f","at":1774696061444000000,"seq":1302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d3421-0ef8-7177-b205-ef4db24f6de1","at":1774696075000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3421-af23-7d30-a5cc-0c58005eeaaf","at":1774696116003000000,"seq":1304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d3422-0128-736f-a641-7bb124e5de4a","at":1774696137000000000,"seq":1305,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3422-3bc0-7b31-9d9a-0c64564c927b","at":1774696152000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d3422-a593-7954-967e-c1cb7f1c6f6c","at":1774696179091000000,"seq":1307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d3422-d030-75d6-ad4a-729e459432ee","at":1774696190000000000,"seq":1308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3422-f740-74ab-98d8-2514c9cd5ff6","at":1774696200000000000,"seq":1309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3423-7440-7691-b3d3-a7c287b518a7","at":1774696232000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d3423-9768-72cc-8734-da0b8df5eb4b","at":1774696241000000000,"seq":1311,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3423-b68d-7f79-a277-8c39102a71b4","at":1774696248973000000,"seq":1312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d3424-27f0-770f-a902-eb88aff763fb","at":1774696278000000000,"seq":1313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3424-52e8-7732-a8d4-fb8ce0a6ec00","at":1774696289000000000,"seq":1314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3424-58dc-73bb-9a56-8f64d89cf422","at":1774696290524000000,"seq":1315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d3424-c818-7fa9-9053-288391729f18","at":1774696319000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3424-ef28-7a75-bf21-fd14b041f039","at":1774696329000000000,"seq":1317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3424-fae0-7a36-a0d5-7119e7355e42","at":1774696332000000000,"seq":1318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3425-29c0-7a73-9c92-3a06e19e45c1","at":1774696344000000000,"seq":1319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019bb134-b623-7008-b64c-1e4c3ccbe9e4","at":1768204580387000000,"seq":112,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb134-b623-7390-83a8-9c12ea4348b8","at":1768204580387000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb135-2db8-7144-a9bf-6ee1f9bea8bc","at":1768204611000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb135-3a18-7603-b55c-87eedbd4b9c8","at":1768204614168000000,"seq":115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb135-4140-71be-9e96-07bea80171ba","at":1768204616000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb135-6468-7440-acf1-a13309e59040","at":1768204625000000000,"seq":117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb135-9730-76b9-8e38-a170a227f301","at":1768204638000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bb135-b670-7f8a-8059-b64ae9f4b43f","at":1768204646000000000,"seq":119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb135-ed20-7840-9f67-4511d462ffa6","at":1768204660000000000,"seq":120,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb135-fc43-79f4-9927-d7e2cb6c98c9","at":1768204663875000000,"seq":121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb136-46f8-75b1-be50-dd73a371cc56","at":1768204683000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bb136-4ec8-70b4-80b9-0ff2dd2bbca3","at":1768204685000000000,"seq":123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb136-aaae-7177-871c-33e58509853d","at":1768204708526000000,"seq":124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb136-ac88-7961-8b30-a3b81173a013","at":1768204709000000000,"seq":125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb136-c010-7d71-a69a-c7518ae057a7","at":1768204714000000000,"seq":126,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb137-0660-7ffc-948f-746bd265d6dd","at":1768204732000000000,"seq":127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb137-0a48-7a01-bdf3-19db4adf381f","at":1768204733000000000,"seq":128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb14d-e447-704b-aa12-c601d90a7f65","at":1768206230599000000,"seq":129,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb14d-e447-7897-b585-3786cf48a237","at":1768206230599000000,"seq":130,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb14e-1c88-7961-b43c-885ec8a6be68","at":1768206245000000000,"seq":131,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb14e-9d70-773e-b2b5-ff4add2464f7","at":1768206278000000000,"seq":132,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bb14e-d808-7b01-a7a5-18976f3a9088","at":1768206293000000000,"seq":133,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

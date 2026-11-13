@@ -1,0 +1,12 @@
+{"v":1,"id":"019b7dea-f241-797a-abcd-63867ae4055f","at":1767344108097000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7dea-f241-7375-9756-b796022a44e5","at":1767344108097000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b7deb-2b86-733e-a00e-d9816b523a17","at":1767344122758000000,"seq":2,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b7deb-47d0-7e65-b407-d7a8a069881d","at":1767344130000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7deb-99d8-785b-9249-fcc36416ff70","at":1767344151000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7deb-dcb0-72dd-b0b5-ef69f3a61ac8","at":1767344168112000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b7dec-2e48-719c-bb17-a30f79580a95","at":1767344189000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e03-2d34-741f-8a14-fdc3f7e98bd7","at":1767345696052000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e03-34d0-7efb-bb18-8c555cb05b9b","at":1767345698000000000,"seq":8,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e03-6f68-74cf-ac5b-55e0bf0bb3b0","at":1767345713000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e03-7738-7a5e-b46a-3b8419e47464","at":1767345715000000000,"seq":10,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e03-82f0-7986-ad42-83594727d124","at":1767345718000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

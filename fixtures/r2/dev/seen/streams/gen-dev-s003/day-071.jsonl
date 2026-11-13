@@ -1,0 +1,30 @@
+{"v":1,"id":"019ce16c-ccbd-7256-8023-4871708d1724","at":1773308529853000000,"seq":1025,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce16c-ccbd-79f0-b96f-7d2351685857","at":1773308529853000000,"seq":1026,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ce16c-cd50-73b5-bccc-c65eade0d128","at":1773308530000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ce16d-3e98-7670-b5d2-2d05921615f9","at":1773308559000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16d-51da-7c9f-b412-1d371e391c28","at":1773308563930000000,"seq":1029,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ce16d-9c58-7a86-9015-aac96410da8e","at":1773308583000000000,"seq":1030,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ce16d-cf20-7db7-bcb1-a2aa87c3c859","at":1773308596000000000,"seq":1031,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce16d-d42c-7475-909b-09921c134614","at":1773308597292000000,"seq":1032,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ce16e-4838-7618-9805-3eeeb02442ae","at":1773308627000000000,"seq":1033,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce16e-53f0-7883-8bfa-87b190fe6113","at":1773308630000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16e-5bc0-7988-a0a9-8dd44064cb51","at":1773308632000000000,"seq":1035,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce16e-60fb-7366-adfe-4d95cef02692","at":1773308633339000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ce16e-b980-7623-8797-a212826e8480","at":1773308656000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16e-e090-7374-b93c-d7c564232eb0","at":1773308666000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16f-03b8-7f0c-bc1d-d82eeceb00d2","at":1773308675000000000,"seq":1039,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ce176-121b-7efc-b1bb-768896b9b80d","at":1773309137435000000,"seq":1040,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce176-3f48-7797-b76d-1953cdd98e90","at":1773309149000000000,"seq":1041,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce176-52d0-7ba5-98ff-a348a6eea6a7","at":1773309154000000000,"seq":1042,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ce184-3cab-7670-8c1b-eedb43a9e823","at":1773310065835000000,"seq":1043,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce184-a2e0-7e24-976c-0e56b6baeef2","at":1773310092000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ce185-3506-7bc5-bb09-5c1f1d476453","at":1773310129414000000,"seq":1045,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce185-e330-77da-b577-6bddc640535f","at":1773310174000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce185-e718-797f-854e-4838d1f8ef91","at":1773310175000000000,"seq":1047,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce185-e807-74ff-b932-f85866b9783f","at":1773310175239000000,"seq":1048,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce186-6800-7549-9e6c-167d653faecf","at":1773310208000000000,"seq":1049,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce186-6fd0-72fd-9c5a-46a3322ba04f","at":1773310210000000000,"seq":1050,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce186-7f70-7011-ad49-efccb817284d","at":1773310214000000000,"seq":1051,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ce186-915c-7e64-9253-88c40457a28c","at":1773310218588000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce187-0c10-7efa-8b9a-e70c9d7176d1","at":1773310250000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce187-0ff8-7710-b987-2835da334e26","at":1773310251000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}

@@ -1,0 +1,24 @@
+{"v":1,"id":"019bf95a-2d83-7621-b6b8-0d55e4552173","at":1769414995331000000,"seq":331,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf95a-2d83-7e58-81dc-0917d7215005","at":1769414995331000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bf95a-3fc0-7eaf-8257-a4c03181ca77","at":1769415000000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf95a-6ab8-70e0-8e7d-7018330703a8","at":1769415011000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf960-e74d-769a-b5ad-be810537fd8f","at":1769415436109000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf961-5147-716b-aa23-91ec286c92b2","at":1769415463239000000,"seq":336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf961-5c10-7f9d-b981-f2599add6e7f","at":1769415466000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bf962-1f60-7ff5-bed0-7a6f575ecb5e","at":1769415516000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf962-3f62-75b1-bf46-60c9dd0637b5","at":1769415524194000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf962-ee68-7bfb-9773-ed7091d480ca","at":1769415569000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf963-1578-71db-803b-680f79f7e346","at":1769415579000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf963-1588-728c-a7ff-1d52718be94e","at":1769415579016000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf963-6780-768b-a491-d5a9d83789bf","at":1769415600000000000,"seq":343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf963-ffd8-750c-b569-2e016fdcdbeb","at":1769415639000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf96b-d8a9-74ff-ab78-c893c51dad1a","at":1769416153257000000,"seq":345,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf96b-d8a9-7320-85a4-5fa4092dca0c","at":1769416153257000000,"seq":346,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf96b-ef18-751e-9545-bd876123092f","at":1769416159000000000,"seq":347,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf96c-02a0-73e7-8ccc-29b9d15db965","at":1769416164000000000,"seq":348,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bf96c-0688-791f-b975-1f43fadac3a6","at":1769416165000000000,"seq":349,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf97c-8a4d-7927-8875-ffd2ec100916","at":1769417247309000000,"seq":350,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf97c-8a4d-7530-bf85-9f37a63f3c3f","at":1769417247309000000,"seq":351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bf97d-19a0-7cc6-b2ef-e0d2fd245e8c","at":1769417284000000000,"seq":352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf97d-2170-765d-9c64-0d3403a4ffc0","at":1769417286000000000,"seq":353,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf97d-38e0-7f91-ab81-f65f307d9f9e","at":1769417292000000000,"seq":354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

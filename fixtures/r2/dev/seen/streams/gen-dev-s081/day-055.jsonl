@@ -1,0 +1,32 @@
+{"v":1,"id":"019c8f15-3e11-7e56-8094-339ee42ff0ac","at":1771927059985000000,"seq":867,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8f15-3e11-79cc-a993-5c5c684d4f97","at":1771927059985000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c8f15-f9a0-7324-b2d5-83da78f15c53","at":1771927108000000000,"seq":869,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c8f16-2cfe-7eca-b614-15680b2e97d4","at":1771927121150000000,"seq":870,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c8f16-5f30-7b04-9771-0c4bd7bbdf0d","at":1771927134000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f16-5f30-7d67-8f00-6208ba92f68a","at":1771927134000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c8f16-e018-71fd-9b6b-8315b5efb474","at":1771927167000000000,"seq":873,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8f16-e400-7c7b-a312-b1228ed7abf6","at":1771927168000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f17-0728-7fd3-8496-7ed9088be14c","at":1771927177000000000,"seq":875,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8f17-2cd9-7c93-ad96-94c960a7df2e","at":1771927186649000000,"seq":876,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c8f17-64e8-70dd-a23d-974e56806c27","at":1771927201000000000,"seq":877,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f17-6cb8-718c-9668-65300affbea4","at":1771927203000000000,"seq":878,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c8f17-e210-78db-8403-844d45d78545","at":1771927233040000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c8f17-e9b8-798e-a326-31492e0f2e99","at":1771927235000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8f18-0510-76ba-8e62-e9576f5026bd","at":1771927242000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f18-4f48-72af-a080-807db9b81ff1","at":1771927261000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c8f18-5ee8-7ff0-afea-417f0dbc0709","at":1771927265000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f18-6767-79d8-a0c6-ca13282bfbcf","at":1771927267175000000,"seq":884,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c8f18-7270-7efe-a9a7-dd242d90dfd8","at":1771927270000000000,"seq":885,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f19-2620-799d-b09e-8f54e7d787cb","at":1771927316000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c8f19-39a8-7801-9326-ac9999487427","at":1771927321000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f24-ade9-7629-b686-218e96fcb44c","at":1771928071657000000,"seq":888,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c8f24-c2c8-7ccb-a027-cd15dbbf6fd6","at":1771928077000000000,"seq":889,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c8f24-ca98-7bbb-899a-08a7351654f9","at":1771928079000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f24-ce80-700f-b40a-32ffddefc7dd","at":1771928080000000000,"seq":891,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8f24-d268-79e5-b9c4-223a85df8931","at":1771928081000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f25-0918-75e4-a0e9-b4dff53a312b","at":1771928095000000000,"seq":893,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8f27-1ac1-75f7-829c-5b3c263ec39b","at":1771928230593000000,"seq":894,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c8f27-2040-78c2-86fb-dc170020f8c1","at":1771928232000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f27-62a8-7433-b632-293098c4d2e4","at":1771928249000000000,"seq":896,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8f27-9570-7a67-988f-9a2d15c3980d","at":1771928262000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f27-ef48-7214-a12b-410a3fc8dde7","at":1771928285000000000,"seq":898,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

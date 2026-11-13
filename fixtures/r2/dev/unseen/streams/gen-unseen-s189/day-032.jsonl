@@ -1,0 +1,11 @@
+{"v":1,"id":"019c1857-9094-7480-8305-0c0b4514c234","at":1769934917780000000,"seq":519,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1857-9094-7f93-85be-bbe607420b38","at":1769934917780000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c1858-34b8-7a7e-bc5a-f6b7bc1c068e","at":1769934959800000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c1858-b924-79b2-b11c-321899f519a8","at":1769934993700000000,"seq":522,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c1858-c608-7169-8d48-106480b2d4e5","at":1769934997000000000,"seq":523,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1858-f8d0-7e9f-a4cf-c9bc79b144e2","at":1769935010000000000,"seq":524,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1859-9142-7848-ab4a-429600062324","at":1769935049026000000,"seq":525,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c1859-d390-7dcc-94a0-eaf6a92c4c03","at":1769935066000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1859-df48-74e1-9f89-a51557bf2f99","at":1769935069000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c1859-e330-762b-a417-9a18e67831e4","at":1769935070000000000,"seq":528,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c185a-19e0-72a8-8c1d-c575a2724af4","at":1769935084000000000,"seq":529,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

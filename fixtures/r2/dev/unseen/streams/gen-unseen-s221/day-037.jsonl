@@ -1,0 +1,12 @@
+{"v":1,"id":"019c31f7-3adc-7948-beec-9674272b4f03","at":1770364811996000000,"seq":618,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c31f7-3adc-7713-a48d-05350bbf0f8b","at":1770364811996000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c31f7-5250-7fe5-a45e-f5e3059be4fb","at":1770364818000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c31f7-6da8-7837-a1e7-774e95d47a99","at":1770364825000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c3212-187d-7737-a4b9-f1daa11b4f05","at":1770366572669000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3212-6018-7855-8d88-eee6e8dbec24","at":1770366591000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3212-7b70-7457-aeb6-a054fd017317","at":1770366598000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3229-107a-7d4d-84da-24b4c2966144","at":1770368077946000000,"seq":625,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3229-107a-7ccf-9451-25dbe4874485","at":1770368077946000000,"seq":626,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3229-1880-7adf-8f14-f5273221df7d","at":1770368080000000000,"seq":627,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3229-37c0-70e4-a4f1-33114abf9e5a","at":1770368088000000000,"seq":628,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3229-3ba8-7373-a579-b3871172b6fb","at":1770368089000000000,"seq":629,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

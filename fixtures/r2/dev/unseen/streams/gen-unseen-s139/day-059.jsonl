@@ -1,0 +1,8 @@
+{"v":1,"id":"019ca387-703f-7ae2-b485-eb4b44939130","at":1772270088255000000,"seq":788,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca387-703f-7603-87ba-4acc7630b694","at":1772270088255000000,"seq":789,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca387-86b0-7a0d-92d3-99f0705d86cb","at":1772270094000000000,"seq":790,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca387-e858-729e-895d-e5df9c503ab6","at":1772270119000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca39f-056d-7bc9-8586-972ade468851","at":1772271633773000000,"seq":792,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ca39f-8b20-72f8-a11d-cdfb37af488d","at":1772271668000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ca39f-f214-7bfa-b67b-b55758527ef6","at":1772271694356000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a0-7d50-7b0e-8e17-4f2e1a2da607","at":1772271730000000000,"seq":795,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

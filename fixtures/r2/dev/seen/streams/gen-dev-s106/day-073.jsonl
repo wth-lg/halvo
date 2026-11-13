@@ -1,0 +1,44 @@
+{"v":1,"id":"019cebaf-90ff-758e-b199-7e5baf6b33a6","at":1773480677631000000,"seq":1072,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cebaf-90ff-781d-8c07-f86973a83f1e","at":1773480677631000000,"seq":1073,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cebaf-b598-7228-adfd-45ab002b60f6","at":1773480687000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebaf-cd08-79aa-9076-c5c4263a6a61","at":1773480693000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cebb0-3bcd-7a3d-b6eb-f96b971eac8c","at":1773480721357000000,"seq":1076,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cebb0-55c0-7d70-bb92-960683c88b76","at":1773480728000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb0-fdb8-787f-a31e-15e4f7746b92","at":1773480771000000000,"seq":1078,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebb5-d19c-7a71-a272-866a710acfd9","at":1773481087388000000,"seq":1079,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebb6-2220-7370-b44a-9e6bf12dcdaa","at":1773481108000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb6-4f28-78de-8cf7-6046f74af402","at":1773481119528000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebb6-a308-7e70-9553-93a851a9eda1","at":1773481141000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb6-aec0-7ada-aeab-c3e89a5768be","at":1773481144000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cebb7-43a9-71ac-ad1d-b56a71533371","at":1773481182121000000,"seq":1084,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebb7-5e88-7a96-beb4-86870eb8cda2","at":1773481189000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb7-8d68-7f9f-933f-315f7c120b15","at":1773481201000000000,"seq":1086,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb7-975c-77d4-ac7a-be5a11b2e35a","at":1773481203548000000,"seq":1087,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebb7-fac8-79a3-9183-e9000ece035f","at":1773481229000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb8-8ab4-793c-affd-990fe471d118","at":1773481265844000000,"seq":1089,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebb8-b648-7c9a-8724-a7a8f0e95cb7","at":1773481277000000000,"seq":1090,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebb8-f8b0-7214-8e73-cf10d7f6ab2d","at":1773481294000000000,"seq":1091,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cebd3-fcc6-740e-9653-0d1232bc5d6f","at":1773483064518000000,"seq":1092,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cebd3-fcc6-7a57-8196-a1f7db11db4d","at":1773483064518000000,"seq":1093,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cebe2-d754-7995-931f-1b1319cb8282","at":1773484037972000000,"seq":1094,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cebe2-d754-782a-ba58-16fe3fedf1e8","at":1773484037972000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cebe2-fa98-7ce6-bd44-ebfaa84c02c4","at":1773484047000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cebe3-b7de-7bcb-bc8b-8289371ebd3e","at":1773484095454000000,"seq":1097,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cebe3-e8e0-7abe-8514-3f8cb3cd7021","at":1773484108000000000,"seq":1098,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cebe3-ecc8-78bd-a5b3-654851f3fbd5","at":1773484109000000000,"seq":1099,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cebe4-1f90-7704-bdd9-21cd778ac38f","at":1773484122000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebe4-7338-7a94-8c39-f1f8837ed06d","at":1773484143416000000,"seq":1101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cebe4-d340-7159-845d-925fa0a47583","at":1773484168000000000,"seq":1102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cebe4-db10-7dd5-9aa4-e55ef997d4bc","at":1773484170000000000,"seq":1103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebe5-09f0-7e01-92fc-9c4b4c19e920","at":1773484182000000000,"seq":1104,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cebe5-2d18-738c-8ea6-387b04fdb82c","at":1773484191000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebe5-6374-7e88-afef-e5dd14f9a973","at":1773484204916000000,"seq":1106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cebe5-6f80-72db-b76d-8132b058791a","at":1773484208000000000,"seq":1107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebe5-7f20-7214-b5de-a3b9a19a8561","at":1773484212000000000,"seq":1108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebe6-2330-757f-91a7-3fbf6f2dcaf5","at":1773484254000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebfc-2575-731c-9b3e-79942476a60f","at":1773485696373000000,"seq":1110,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cebfc-2575-7022-8d49-df90e60c9ed4","at":1773485696373000000,"seq":1111,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cebfc-2fb8-790f-936a-92f3b64f3d48","at":1773485699000000000,"seq":1112,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cec07-04ca-788e-b7a5-fe7fa23315af","at":1773486408906000000,"seq":1113,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cec07-10e0-788d-9e28-56e8dd402526","at":1773486412000000000,"seq":1114,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cec07-18b0-7e0f-88c0-f7553cbbdb5b","at":1773486414000000000,"seq":1115,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

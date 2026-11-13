@@ -1,0 +1,8 @@
+{"v":1,"id":"019beefe-740c-71d2-b597-5731783744ff","at":1769241211916000000,"seq":296,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019beefe-740c-70c8-a884-d689d08fb28f","at":1769241211916000000,"seq":297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019beefe-ddd8-78ed-8d2d-cf03e5dcc36f","at":1769241239000000000,"seq":298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019beefe-f930-7b8f-bf6d-4301e3edce01","at":1769241246000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beeff-0be3-75ab-85f9-ba7f0e5126aa","at":1769241250787000000,"seq":300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019beeff-1488-7106-af25-b7b7ab3fdc0e","at":1769241253000000000,"seq":301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019beeff-5308-7111-9054-97bb50fc7b7b","at":1769241269000000000,"seq":302,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019beeff-9570-71ce-8ffe-a226dffb2167","at":1769241286000000000,"seq":303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

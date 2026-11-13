@@ -1,0 +1,24 @@
+{"v":1,"id":"019d2970-a8f7-7d35-b987-3129edfff47c","at":1774516742391000000,"seq":1298,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2970-a8f7-7d51-aef7-2a125bdd4b6a","at":1774516742391000000,"seq":1299,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2971-953e-7dbd-8ac4-070d8b213a15","at":1774516802878000000,"seq":1300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2971-b110-7835-a99e-2771ec5d5ad7","at":1774516810000000000,"seq":1301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d2972-0cec-7dd8-bb1f-a18bb61b7bc2","at":1774516833516000000,"seq":1302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2972-2a28-75e5-9c23-76c4cbabc98d","at":1774516841000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d2972-39c8-790b-a4f0-1e0f9f6dee57","at":1774516845000000000,"seq":1304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2972-4198-7c4e-8dd2-b75e34ba4861","at":1774516847000000000,"seq":1305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2972-4968-7beb-ba36-b6b12e19a7f8","at":1774516849000000000,"seq":1306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2972-4bd9-7479-87d6-38f8ee28bfc5","at":1774516849625000000,"seq":1307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2972-8fb8-7463-806c-c301cfeaa9df","at":1774516867000000000,"seq":1308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d297f-03a8-771f-b323-8ea6006921ee","at":1774517683112000000,"seq":1309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d297f-12d8-77e1-9924-82d8ee431244","at":1774517687000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d297f-2278-756c-b768-75e5bd581fd6","at":1774517691000000000,"seq":1311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d297f-39e8-78d8-b68a-2ca7ee4dc013","at":1774517697000000000,"seq":1312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d297f-4988-7a5f-b610-d595be2e5424","at":1774517701000000000,"seq":1313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d2981-a46f-784e-87ae-3f1ebb596403","at":1774517855343000000,"seq":1314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2981-aed0-7148-aaa6-0cb46ef3ad61","at":1774517858000000000,"seq":1315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2982-33a0-7e73-af3b-f778e869cf7b","at":1774517892000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2994-cf89-7938-a437-d2f4c127a1e2","at":1774519111561000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2994-d528-7af8-aba9-b806a240b975","at":1774519113000000000,"seq":1318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d2995-13a8-71ed-ab6f-03672a15766c","at":1774519129000000000,"seq":1319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2995-2730-7618-af3a-6f31c268f5a0","at":1774519134000000000,"seq":1320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2995-3ab8-7624-887e-aa3f2c764abd","at":1774519139000000000,"seq":1321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

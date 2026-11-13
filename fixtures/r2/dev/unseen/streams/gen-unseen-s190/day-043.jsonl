@@ -1,0 +1,14 @@
+{"v":1,"id":"019c513e-77a9-7db0-9b10-160f55a4f9de","at":1770889574313000000,"seq":693,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c513e-77a9-7998-a410-e54768e425c6","at":1770889574313000000,"seq":694,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c513f-2679-7f13-9488-f3ddfaad1340","at":1770889619065000000,"seq":695,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c513f-8fb0-7349-8654-5f146fdcda2d","at":1770889646000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5140-1098-70ef-9d4c-fed1cb947a29","at":1770889679000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5152-cfca-78a3-b6c7-fe8997df3fd4","at":1770890907594000000,"seq":698,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5152-cfca-7507-b6c6-25324aaa2b57","at":1770890907594000000,"seq":699,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5152-d548-7ccd-ae0d-a55ac410dfaf","at":1770890909000000000,"seq":700,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c5153-0810-78f4-b7be-1f145a4ae1c8","at":1770890922000000000,"seq":701,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c5153-8128-7d76-9efb-bf430674d5be","at":1770890953000000000,"seq":702,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5153-b7d8-7636-ab66-f73557fe04ad","at":1770890967000000000,"seq":703,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5153-c390-7aa1-a772-0e5f518df642","at":1770890970000000000,"seq":704,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c5153-e114-73d3-8e08-48040890f8a1","at":1770890977556000000,"seq":705,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5154-8ac8-7886-8c5b-c3b51e83a68f","at":1770891021000000000,"seq":706,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

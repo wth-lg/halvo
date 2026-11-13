@@ -1,0 +1,32 @@
+{"v":1,"id":"019c7f0f-4cb0-7525-aadc-dc3cf0e9e965","at":1771658235056000000,"seq":611,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f0f-4cb0-7ebd-9f36-fbc743139a19","at":1771658235056000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7f0f-d918-7d2d-b87e-4f0c7e3908b1","at":1771658271000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c7f10-1540-7c69-8c42-4f1d08993f3f","at":1771658286400000000,"seq":614,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7f10-1540-734c-b168-df1d706e6112","at":1771658286400000000,"seq":615,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7f10-4e48-7329-97eb-026667006dd3","at":1771658301000000000,"seq":616,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f10-7558-7065-a88b-a0cd6763a6e2","at":1771658311000000000,"seq":617,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c7f10-8b46-70cf-902b-a28bcafc60c5","at":1771658316614000000,"seq":618,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c7f10-9880-77f4-abb0-82d229206b7d","at":1771658320000000000,"seq":619,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c7f10-cf30-7d74-b2a9-af4ab0b4020b","at":1771658334000000000,"seq":620,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c7f10-f258-798e-addd-fdd583725e40","at":1771658343000000000,"seq":621,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f11-8aac-7c98-8c14-84cd901eba53","at":1771658381996000000,"seq":622,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f11-8aac-754b-a17c-40ff70538c63","at":1771658381996000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7f11-a608-79d8-8b3b-241dd10a6d62","at":1771658389000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7f11-ffe0-7e67-bc83-241ad7b2de1d","at":1771658412000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f15-4df6-735f-a02b-1a04fca106ab","at":1771658628598000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c7f15-f780-7e25-8046-3bb5cf75f89d","at":1771658672000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f16-0338-7c56-869b-e1d107f255ba","at":1771658675000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c7f16-5952-7cd9-8846-c38e56a1d015","at":1771658697042000000,"seq":629,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview this week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c7f16-8808-7530-a64f-8ed110fd702c","at":1771658709000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f16-ab30-7d15-b0ce-77cfa2174211","at":1771658718000000000,"seq":631,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f16-fc80-7042-98a1-25e99017393c","at":1771658738816000000,"seq":632,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c7f17-3000-770d-8349-48e7c8822b1b","at":1771658752000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7f17-4388-78cc-b56a-f2eb92ae3cf4","at":1771658757000000000,"seq":634,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7f17-5328-7367-aed8-f1d79b21f6cb","at":1771658761000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f17-5af8-7ee4-af7d-13071a1a7a36","at":1771658763000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f17-5ec3-7332-ab35-33294d862a0e","at":1771658763971000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c7f17-8208-7951-b991-4a948506475e","at":1771658773000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f17-85f0-7b2f-ae6f-6f353e0f10ac","at":1771658774000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f17-a918-71e3-ac5c-aef091cbcbb6","at":1771658783000000000,"seq":640,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f17-a918-70f0-b52e-00a7872ce3ed","at":1771658783000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c7f17-f738-7991-80d4-7a32cb433831","at":1771658803000000000,"seq":642,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

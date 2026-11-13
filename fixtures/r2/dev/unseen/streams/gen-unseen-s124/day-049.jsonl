@@ -1,0 +1,13 @@
+{"v":1,"id":"019c7014-f596-7289-9849-e82dc3e62ff4","at":1771406947734000000,"seq":691,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7014-f596-7022-a0fe-bd29d9dde8dc","at":1771406947734000000,"seq":692,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7015-d0ec-72da-a0fd-ee5270b89341","at":1771407003884000000,"seq":693,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7015-d0ec-7078-a8c1-83faf19d4d82","at":1771407003884000000,"seq":694,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c7016-2750-76ba-851c-5e2ecd45f3a2","at":1771407026000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c7016-75a7-7804-a5ab-1d6368c467ea","at":1771407046055000000,"seq":696,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c7016-94b0-75b0-b332-137d2d2db63e","at":1771407054000000000,"seq":697,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7016-b7d8-76a5-a58f-ccefcb0d0de2","at":1771407063000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7016-d330-7e4c-94ff-fd207a262684","at":1771407070000000000,"seq":699,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7016-de70-7a56-be39-e112526417f2","at":1771407072880000000,"seq":700,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7016-de70-7695-bd12-d314bccd2c5a","at":1771407072880000000,"seq":701,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7016-e6b8-74ba-b2fb-572be727a46a","at":1771407075000000000,"seq":702,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c7017-7b28-72d5-9847-7015df7df730","at":1771407113000000000,"seq":703,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

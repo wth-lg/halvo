@@ -1,0 +1,25 @@
+{"v":1,"id":"019d1edb-53ac-77c9-8fb0-0b4a61229259","at":1774339183532000000,"seq":1117,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1edb-53ac-7103-b207-992da7eba4a0","at":1774339183532000000,"seq":1118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1edb-5968-7269-8340-7ce55181a0bb","at":1774339185000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1edb-5d50-79d4-9dde-c908bd5c81b8","at":1774339186000000000,"seq":1120,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1edb-8460-79e9-aa38-2eb726202de4","at":1774339196000000000,"seq":1121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1edb-8848-7068-bf05-d43bbfbf38b4","at":1774339197000000000,"seq":1122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1edb-a788-7ff2-bf85-54ceac0a6651","at":1774339205000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d1ee4-5f17-79b9-9063-7ff66dd91f92","at":1774339776279000000,"seq":1124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d1ee5-671a-7de3-a37d-92d436798c4f","at":1774339843866000000,"seq":1125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d1ee5-82f8-7130-9ae7-36c4961948af","at":1774339851000000000,"seq":1126,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1ee5-f828-742b-8f80-048fd12a8257","at":1774339881000000000,"seq":1127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1eee-265b-7731-809d-9ab08aba0a1b","at":1774340417115000000,"seq":1128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1eee-6c38-7573-b997-a41af9612c02","at":1774340435000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eee-9f00-7fb1-bda1-5a8a385ec29c","at":1774340448000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eee-ed20-7b3b-8cda-9773d25862fc","at":1774340468000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d1efd-a552-7803-b5ce-615b7365716f","at":1774341432658000000,"seq":1132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d1efe-0c63-7fb1-b136-4d14978049da","at":1774341459043000000,"seq":1133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d1efe-8d20-7923-9b96-63603c1057aa","at":1774341492000000000,"seq":1134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1efe-f772-7092-9f53-f6c2370811c9","at":1774341519218000000,"seq":1135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d1eff-3130-7d62-a32f-a697f8761c85","at":1774341534000000000,"seq":1136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d1eff-44b8-78f6-bd26-25929ad9942c","at":1774341539000000000,"seq":1137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eff-4ee2-7d98-adce-05bee439f36e","at":1774341541602000000,"seq":1138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d1eff-6010-7121-9e0f-6a4eaf33489c","at":1774341546000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eff-dd10-72a6-a9aa-4124f4444b10","at":1774341578000000000,"seq":1140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1eff-f480-7a32-bb8f-e8e5c3649057","at":1774341584000000000,"seq":1141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

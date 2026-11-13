@@ -1,0 +1,20 @@
+{"v":1,"id":"019c5b9e-9058-7804-9644-8e5cd6825f80","at":1771063644248000000,"seq":693,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b9e-9058-74b9-b587-3ff1d5da3615","at":1771063644248000000,"seq":694,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c5b9f-3370-798d-9c0f-2219ac42aebb","at":1771063686000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b9f-4cc3-7dad-a91b-9e522345de9e","at":1771063692483000000,"seq":696,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c5b9f-75d8-7be7-b3ce-3a565396500e","at":1771063703000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b9f-db68-7186-b9f6-41dca6714c66","at":1771063729000000000,"seq":698,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5b9f-e720-7e17-ba6b-de2237beb53e","at":1771063732000000000,"seq":699,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5b9f-e720-74f7-9003-70972e0541d9","at":1771063732000000000,"seq":700,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c5ba0-450e-7ca8-9b76-524b67f467fc","at":1771063756046000000,"seq":701,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba0-7b90-78d1-9767-095d8b1c86f3","at":1771063770000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c5ba0-aa70-7c68-8b55-3c679c6a13c6","at":1771063782000000000,"seq":703,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba0-b628-705d-9574-b87549f40133","at":1771063785000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba0-e8f0-7be2-ab2c-44f5c2d5e9ed","at":1771063798000000000,"seq":705,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5ba1-3ee0-70d5-a7ca-19b2efc96100","at":1771063820000000000,"seq":706,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5ba1-4f26-784b-9330-9ee0c5c4dda0","at":1771063824166000000,"seq":707,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba1-5e20-74f4-a3aa-3c12d15351de","at":1771063828000000000,"seq":708,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5ba1-d738-777b-a0c3-5cf70c75d8d7","at":1771063859000000000,"seq":709,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba1-e6d8-7ff8-a1d8-204f167c22b2","at":1771063863000000000,"seq":710,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5ba2-0230-7159-8c8d-5eafc39ca299","at":1771063870000000000,"seq":711,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba2-0230-7185-8c74-7a6f3a52246c","at":1771063870000000000,"seq":712,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

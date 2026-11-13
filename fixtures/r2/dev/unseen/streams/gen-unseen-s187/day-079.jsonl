@@ -1,0 +1,26 @@
+{"v":1,"id":"019d0aae-517a-7eb3-9cf6-b09dce9b118e","at":1774000689530000000,"seq":1495,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0aae-517a-750d-a757-8133aea4faec","at":1774000689530000000,"seq":1496,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d0aae-a558-7f59-a668-9f6e9120aa26","at":1774000711000000000,"seq":1497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aae-ad28-77a6-8e6e-19900d65a611","at":1774000713000000000,"seq":1498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aae-d09c-7935-8f4b-b006ead8edad","at":1774000722076000000,"seq":1499,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d0aaf-2a28-7f4a-92a4-3333add35208","at":1774000745000000000,"seq":1500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d0aaf-6d15-76c3-9649-520029273a5f","at":1774000762133000000,"seq":1501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d0aaf-8fb8-70c3-9f23-b1e56e39351c","at":1774000771000000000,"seq":1502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aaf-f548-79e6-add8-468851a08244","at":1774000797000000000,"seq":1503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab0-2dc1-7b48-871e-41603a715a21","at":1774000811457000000,"seq":1504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab0-2fe0-77c6-a68d-30c0a34fdd46","at":1774000812000000000,"seq":1505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0ab0-62a8-7751-9c04-eeea58bb337c","at":1774000825000000000,"seq":1506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d0ab0-7248-7615-aeb1-ab2928375080","at":1774000829000000000,"seq":1507,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0ab0-7e00-7949-adca-d0da2602c5ae","at":1774000832000000000,"seq":1508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ac0-bed8-79c7-a2b1-43d899fe7789","at":1774001897176000000,"seq":1509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d0ac1-0860-74f4-8695-5db470f74067","at":1774001916000000000,"seq":1510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ac1-2b88-78bc-a9b4-ec8aac9e85e4","at":1774001925000000000,"seq":1511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0ac1-4eb0-7684-a55a-573f519ecc28","at":1774001934000000000,"seq":1512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d0ac5-e50f-7f3a-83c3-b8a7b5faf9cc","at":1774002234639000000,"seq":1513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d0ac6-05b8-707f-a195-8ff2b00843b7","at":1774002243000000000,"seq":1514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0ac6-30b0-7d18-9150-5a4856df4fe9","at":1774002254000000000,"seq":1515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ac6-6378-7427-8102-dfbfd0b21ccc","at":1774002267000000000,"seq":1516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ac6-6760-7707-811e-38359a5d5823","at":1774002268000000000,"seq":1517,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0acf-82a4-79f7-8a18-0e8c4cff5151","at":1774002864804000000,"seq":1518,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0acf-82a4-71f6-862d-09729dfc0ce6","at":1774002864804000000,"seq":1519,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0acf-8b38-75e0-82a7-9d11a465fde9","at":1774002867000000000,"seq":1520,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}

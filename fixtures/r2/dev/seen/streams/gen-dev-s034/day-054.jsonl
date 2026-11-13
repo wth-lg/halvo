@@ -1,0 +1,23 @@
+{"v":1,"id":"019c894e-d102-75d3-9661-aa2930e2b184","at":1771830169858000000,"seq":797,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c894e-d102-72f3-b0ea-d13ee0203dbb","at":1771830169858000000,"seq":798,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c894e-d960-7484-b4f3-d0cc7c29e278","at":1771830172000000000,"seq":799,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c894f-0c28-79ea-806f-fdb025330b11","at":1771830185000000000,"seq":800,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c894f-4e90-71ff-a615-30daa0e52ab9","at":1771830202000000000,"seq":801,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c8967-e13e-7866-8324-0d284aca5caa","at":1771831812414000000,"seq":802,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8967-e13e-7564-860e-ac35e6f43e4e","at":1771831812414000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8968-06b0-7dfa-8a9e-3124810d019f","at":1771831822000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c8968-0e80-7925-a01d-b372d4b33e75","at":1771831824000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8968-1268-7976-bc52-41ce7b1ae548","at":1771831825000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8968-5c31-73b3-9f30-4938087fe10a","at":1771831843889000000,"seq":807,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8968-7410-7c22-a366-1e1ba1bcee94","at":1771831850000000000,"seq":808,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8968-7fc8-7449-bbe9-0bb7b462f23a","at":1771831853000000000,"seq":809,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c8968-9f08-73f0-a917-0ad506dd3017","at":1771831861000000000,"seq":810,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8968-a2f0-77e3-baec-fdc89a19b665","at":1771831862000000000,"seq":811,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8968-e71c-72e7-bb52-e7b0ac3cdd5d","at":1771831879452000000,"seq":812,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8969-0880-7221-8bc4-aa4c3bdd5543","at":1771831888000000000,"seq":813,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8969-2ba8-7e92-b974-8bcf943b00a9","at":1771831897000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c8969-4700-704e-b18f-29a660b9fb50","at":1771831904000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8969-6d6b-7294-9322-c0f79245334d","at":1771831913835000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8969-9520-75d9-b1d2-cb8225a85f49","at":1771831924000000000,"seq":817,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8969-a0d8-7d0a-b722-337f4e2ed61f","at":1771831927000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8969-db70-76c6-8663-4b6e1e6424f1","at":1771831942000000000,"seq":819,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

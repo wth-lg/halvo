@@ -1,0 +1,11 @@
+{"v":1,"id":"019cf07c-cd87-7c39-a0d3-21cdea8fa017","at":1773561236871000000,"seq":1101,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf07c-cd87-7bed-8156-6f21ecb9f5cb","at":1773561236871000000,"seq":1102,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf07c-ce08-7cd2-ae60-8a2a20a8d7a1","at":1773561237000000000,"seq":1103,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cf07d-3b68-709f-abcf-b5debf260113","at":1773561265000000000,"seq":1104,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf081-57f0-7f77-b1cc-882cae9c503a","at":1773561534448000000,"seq":1105,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cf081-7570-78ce-b62d-e807c2d86c4c","at":1773561542000000000,"seq":1106,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf08e-4661-704a-927d-2c58eaeac30c","at":1773562381921000000,"seq":1107,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf08e-4661-725e-a299-155805b4b974","at":1773562381921000000,"seq":1108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf08e-b028-79fa-8eb3-c4ba9f921186","at":1773562409000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf08e-b410-713a-84c7-bcc0a77bb702","at":1773562410000000000,"seq":1110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf08e-bbe0-7e27-b43c-b6939e3554d6","at":1773562412000000000,"seq":1111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

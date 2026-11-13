@@ -1,0 +1,36 @@
+{"v":1,"id":"019d392d-5460-7fc9-a4a3-34348bfb2366","at":1774780765280000000,"seq":1098,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d392d-5460-7eeb-9577-bde68cd50faf","at":1774780765280000000,"seq":1099,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d392d-bcc0-744e-881b-2d142e5daaf4","at":1774780792000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d392d-dfe8-729a-b8bb-777c7c6f0136","at":1774780801000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d392d-ef88-7348-813d-93f4c1b7010f","at":1774780805000000000,"seq":1102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d392e-1698-786b-b497-2cf3eff43c33","at":1774780815000000000,"seq":1103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3948-3aa6-7f34-a140-3dcf8bd3da8f","at":1774782528166000000,"seq":1104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d3948-5170-7917-96e3-dc10d6ca2ac2","at":1774782534000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d3948-a578-79e5-be4c-b1b99cc5efaf","at":1774782555512000000,"seq":1106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d3949-14c0-79fb-ba76-4fe506f0303b","at":1774782584000000000,"seq":1107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3949-18a8-79b7-b7ce-3b227602259c","at":1774782585000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d3949-3fb8-7ba5-b532-37bb4aba6067","at":1774782595000000000,"seq":1109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3949-66c8-7a4e-aced-a0baa94345ae","at":1774782605000000000,"seq":1110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3949-712d-7ed4-bd0c-2e45246cb3c7","at":1774782607661000000,"seq":1111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d3949-b4e8-7d4f-b0e1-49ba86694ba4","at":1774782625000000000,"seq":1112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3949-b4e8-77bb-982a-99987fa406cf","at":1774782625000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d394a-5128-7a7d-ba94-72ef24797a9e","at":1774782665000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d394a-5510-77cc-b5b5-c1177be00c14","at":1774782666000000000,"seq":1115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d394a-643c-72e7-8537-2d69b32731ea","at":1774782669884000000,"seq":1116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d394a-7838-7844-9bcf-6a480113fc3e","at":1774782675000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d394a-9778-779c-83cd-c0746c60d3fc","at":1774782683000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d394a-a330-7159-818f-25c2e6c4f717","at":1774782686000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d394a-aee8-7fbd-963f-e9db850a6c89","at":1774782689000000000,"seq":1120,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d394f-c380-72c2-b0b8-b21d7edd63c9","at":1774783021952000000,"seq":1121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d394f-cb80-7b9c-8a64-67e3b0ed4b9c","at":1774783024000000000,"seq":1122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3950-15b8-79e5-a183-bc2e587391d1","at":1774783043000000000,"seq":1123,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d395d-a7c7-73d4-a365-04d953b36917","at":1774783932359000000,"seq":1124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d395e-05aa-750b-8a01-2d65a69bf19d","at":1774783956394000000,"seq":1125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d395e-5a10-7e38-bd5c-258a17e0aa87","at":1774783978000000000,"seq":1126,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d395e-7568-7351-91e8-7e6c3f6ad45c","at":1774783985000000000,"seq":1127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d395e-7950-7add-a01f-e888ee935e53","at":1774783986000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d395e-9c78-72f7-a0b7-1c0784e20644","at":1774783995000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d395e-b907-7e89-87aa-45440cc32aeb","at":1774784002311000000,"seq":1130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d395e-daf8-7ec2-b98d-97a694335a79","at":1774784011000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d395f-5fc8-7752-ab28-d2cdc2df36c3","at":1774784045000000000,"seq":1132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d395f-6771-7a70-801d-9879269811d7","at":1774784046961000000,"seq":1133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}

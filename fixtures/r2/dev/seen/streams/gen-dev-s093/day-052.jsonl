@@ -1,0 +1,34 @@
+{"v":1,"id":"019c7f15-96e4-7bc8-94bd-acff1f4d923a","at":1771658647268000000,"seq":702,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f15-96e4-73f7-9c6d-01a5a1530582","at":1771658647268000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7f15-ad48-7dbb-82ea-0659978f1d7b","at":1771658653000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f15-bce8-72e1-9d05-283c68162d4e","at":1771658657000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f15-efb0-73de-b67c-b1aa276a45bc","at":1771658670000000000,"seq":706,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f16-12d8-7d47-83b8-0f747de7e289","at":1771658679000000000,"seq":707,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7f16-39e8-7c06-a327-dc8d3d910810","at":1771658689000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c7f27-656c-765a-a100-35c5cfb6b075","at":1771659814252000000,"seq":709,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c7f28-1050-7b62-806a-0f94dff546b2","at":1771659858000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f28-23d8-79db-a611-a587bb2493ff","at":1771659863000000000,"seq":711,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f28-2a9b-77cf-9950-7e34621838f3","at":1771659864731000000,"seq":712,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c7f28-8198-7efb-9722-31c39c91feab","at":1771659887000000000,"seq":713,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f28-8d50-7678-9738-96248cfed2e7","at":1771659890000000000,"seq":714,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7f28-9cf0-7cdd-8361-5443deeba23a","at":1771659894000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f28-f226-79b5-b3b3-b3a42408857e","at":1771659915814000000,"seq":716,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c7f29-6040-724a-a9e2-4008f3fd021e","at":1771659944000000000,"seq":717,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f29-73c8-72c3-aa41-f3eed38ab79f","at":1771659949000000000,"seq":718,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f29-89db-76e5-8024-d3f9716436aa","at":1771659954651000000,"seq":719,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c7f29-8b38-7474-b0fb-70c32f45a877","at":1771659955000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f29-a690-79c1-8c9e-03d409ac7109","at":1771659962000000000,"seq":721,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7f29-c5d0-700e-8a1a-a3e5b440d331","at":1771659970000000000,"seq":722,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f29-cda0-78ec-adbe-215cd8319632","at":1771659972000000000,"seq":723,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f3c-f63e-7637-82af-3ac7781ae6d9","at":1771661227582000000,"seq":724,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c7f3d-1338-717b-9ca9-69ad0ca0cf28","at":1771661235000000000,"seq":725,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f3d-26c0-7f92-a1a1-bede7eb8c5aa","at":1771661240000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c7f3d-a3c0-7028-b0db-08137cd659db","at":1771661272000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f3d-c994-7cc4-aeb9-1e78f0c0db78","at":1771661281684000000,"seq":728,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c7f3e-4000-77ac-8cea-33a4ef039fbe","at":1771661312000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c7f3e-72c8-7054-a7ef-561292bd5bc9","at":1771661325000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f3e-801e-72cb-a323-671d1d7fe446","at":1771661328414000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c7f3f-1976-7132-97d2-b932d715a4d0","at":1771661367670000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c7f3f-2e48-76cb-a04b-f4bcd7e0d467","at":1771661373000000000,"seq":733,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f3f-41d0-7094-84b5-2abc3ef9ff6f","at":1771661378000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f3f-64f8-7bf1-a5fd-c1b859b126e3","at":1771661387000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

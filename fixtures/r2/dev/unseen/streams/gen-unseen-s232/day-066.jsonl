@@ -1,0 +1,21 @@
+{"v":1,"id":"019cc72b-978b-76b5-965e-3c08c39bed6b","at":1772868048779000000,"seq":993,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc72b-978b-7dd8-951f-fe07f3520b1f","at":1772868048779000000,"seq":994,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cc72b-fdf8-7d59-8f4e-36010a98f4af","at":1772868075000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cc72c-0d98-71c2-aed5-4b567b3e0893","at":1772868079000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc72c-1950-7beb-b691-d2ef179fe7d5","at":1772868082000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc72c-331e-71ee-869c-d9475a37dc62","at":1772868088606000000,"seq":998,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cc72c-7af8-766e-af17-9edb6d56c3f1","at":1772868107000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cc72c-d9c5-7f4b-8528-fedda4376a0f","at":1772868131269000000,"seq":1000,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cc72c-dca0-7236-bd4e-8843d4d7d0c3","at":1772868132000000000,"seq":1001,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc72d-0f68-7f92-b27b-8722e10fcb57","at":1772868145000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc72d-1b20-71e7-93a9-7dfcf07a0dac","at":1772868148000000000,"seq":1003,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc72d-4618-7835-a943-222c83f2dbed","at":1772868159000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cc72d-4de8-7e0d-9fd2-c69e6c479eab","at":1772868161000000000,"seq":1005,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc72d-61b4-7a71-b541-f5df90c249ec","at":1772868166068000000,"seq":1006,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cc72d-78e0-78b2-9366-b7adf2f6b0ec","at":1772868172000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc72d-80b0-7d65-9200-4f97de048222","at":1772868174000000000,"seq":1008,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc72d-a7c0-70a2-8f0a-0f6c234a6452","at":1772868184000000000,"seq":1009,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc72d-bb48-71b8-9893-46c54804b8bd","at":1772868189000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc741-0f4b-79bf-aba8-0724e095bc47","at":1772869455691000000,"seq":1011,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cc741-8d80-7bbe-b602-6b885082a45b","at":1772869488000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc741-9550-7bea-97f2-02c08e03fe77","at":1772869490000000000,"seq":1013,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

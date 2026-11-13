@@ -1,0 +1,21 @@
+{"v":1,"id":"019bc11f-2a6c-7ceb-bec1-a8afdf23cacb","at":1768471603820000000,"seq":194,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc11f-2a6c-7ab7-ab22-7418c2bff452","at":1768471603820000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bc11f-2f08-7b22-8ee6-257abd05dc76","at":1768471605000000000,"seq":196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc11f-2f08-7164-b5c5-d930efe15bac","at":1768471605000000000,"seq":197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bc11f-4290-7ae1-b4ed-55d0cf10f5d5","at":1768471610000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc11f-5de8-7be8-a2f4-7144c99b66bd","at":1768471617000000000,"seq":199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc123-6466-70df-afa0-2edffd462d64","at":1768471880806000000,"seq":200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bc123-ab78-75d9-a96b-19535618ea48","at":1768471899000000000,"seq":201,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc123-f998-7d85-8a6c-a80e4b955182","at":1768471919000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc124-18d8-7f3e-a69d-cd7b136e81a4","at":1768471927000000000,"seq":203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13d-9809-7b3f-8159-b3f18dd4d42a","at":1768473597961000000,"seq":204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bc13d-da98-778d-97cf-8b3587ef052c","at":1768473615000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13e-0d60-7e27-b772-c499f7febde3","at":1768473628000000000,"seq":206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bc13e-10d2-75e8-874a-ba7b7dc696c8","at":1768473628882000000,"seq":207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bc13e-24d0-710a-bac7-abcd2ca90746","at":1768473634000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13e-8a60-74c0-b765-d1b02c8262e1","at":1768473660000000000,"seq":209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13e-b170-7c3f-936b-92c36f127aff","at":1768473670000000000,"seq":210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc13e-c635-7d16-a685-dd6601bfa15e","at":1768473675317000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bc13e-eff0-7f42-b333-bd9624ed931e","at":1768473686000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13e-f3d8-7af7-9fa7-2d9849113759","at":1768473687000000000,"seq":213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc13f-1318-7745-a183-60fb58c0ad34","at":1768473695000000000,"seq":214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

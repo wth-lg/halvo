@@ -1,0 +1,11 @@
+{"v":1,"id":"019d42f8-9d63-75e7-98de-7bd1887c94e1","at":1774945082723000000,"seq":1473,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d42f8-9d63-7ab9-b2dc-099c9768929c","at":1774945082723000000,"seq":1474,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d42f8-dcf8-76c2-b53a-c6284047d57c","at":1774945099000000000,"seq":1475,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f8-dcf8-785d-9265-be2ef5f6ccaa","at":1774945099000000000,"seq":1476,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d4314-30c3-7acc-8a6d-6c7e48ae4850","at":1774946889923000000,"seq":1477,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4314-30c3-75d5-ab6d-ac303c3732e0","at":1774946889923000000,"seq":1478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4314-8318-781a-806f-b1cb61d077d1","at":1774946911000000000,"seq":1479,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4314-bdb0-78a0-a7e5-e5d702616a3d","at":1774946926000000000,"seq":1480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4314-dcf0-7677-b2c3-0dbbe6aeb352","at":1774946934000000000,"seq":1481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4315-3f0f-7ab5-a2ff-5db2466b9069","at":1774946959119000000,"seq":1482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4315-9488-7e68-a1bb-1c4e0f1a0dc5","at":1774946981000000000,"seq":1483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

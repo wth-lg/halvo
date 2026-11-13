@@ -1,0 +1,51 @@
+{"v":1,"id":"019ca84a-0ab5-7382-aebe-84fbeec35aa8","at":1772349950645000000,"seq":742,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca84a-0ab5-797b-896b-7daa7b11a3d0","at":1772349950645000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ca84a-13e8-7601-a557-06ddf6cd04f2","at":1772349953000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ca84a-4e80-7e1e-801d-9803f20f60e5","at":1772349968000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca84a-8d00-7304-bf8a-1ea2b49df9b7","at":1772349984000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca84a-a5f9-70cd-94ef-9efbf2c2eed1","at":1772349990393000000,"seq":747,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ca84a-e2f0-772c-851b-c2ca988e3a0b","at":1772350006000000000,"seq":748,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca84b-15b8-773e-bb20-ba28f29a0131","at":1772350019000000000,"seq":749,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca84b-19a0-7589-aa8c-2ca4d3fd37f1","at":1772350020000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ca84b-1d88-7baa-ae6c-95709915cf32","at":1772350021000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca84b-2940-70d4-8a25-a5ea09753c8c","at":1772350024000000000,"seq":752,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca84b-489e-7714-9cee-4add7584c27d","at":1772350032030000000,"seq":753,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ca84b-5050-7c02-882f-0a0d0e85e8ce","at":1772350034000000000,"seq":754,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca84b-7f30-7899-8e64-61d85b9a27e0","at":1772350046000000000,"seq":755,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca84b-b5e0-7ef2-893d-38eacd2cc922","at":1772350060000000000,"seq":756,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca84b-c916-7e26-aed1-300677c2a531","at":1772350064918000000,"seq":757,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ca84b-e0d8-7026-a3e2-7e7d85a3cda0","at":1772350071000000000,"seq":758,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca84b-f848-7633-a54c-20d6dce18cf7","at":1772350077000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca84c-1788-7e32-84d7-dd3c0982b6d6","at":1772350085000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca84c-19f8-7abc-86d1-79d0fb7d583b","at":1772350085624000000,"seq":761,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ca84c-36c8-78e8-9401-2b01e7034ff1","at":1772350093000000000,"seq":762,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ca84c-9488-76f0-8b18-2e9a62abe67a","at":1772350117000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca866-7065-7f17-800d-40ff1a70f858","at":1772351811685000000,"seq":764,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ca867-1998-7482-a495-16a639f793bf","at":1772351855000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca867-3009-7c52-b070-66b2e325ee07","at":1772351860745000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ca868-1398-7748-8056-37f72b3e506b","at":1772351919000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ca868-252a-7be9-ac19-3822345592b0","at":1772351923498000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ca868-65a0-74fa-92ce-d744f8ade248","at":1772351940000000000,"seq":769,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca868-7d69-7705-b3c6-aafc790ca211","at":1772351946089000000,"seq":770,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ca869-185b-7d41-8c0f-258740848121","at":1772351985755000000,"seq":771,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ca869-2cd8-70ce-89d1-1899f10c8006","at":1772351991000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca869-86b0-7d36-8acf-b3ba59a99f1c","at":1772352014000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca869-9e20-7d9c-bf27-112627ae7ee6","at":1772352020000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87d-b43e-7d66-8a05-dee831bbf2ca","at":1772353336382000000,"seq":775,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca87d-b43e-7531-a80d-6fc22205fb0f","at":1772353336382000000,"seq":776,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca87d-f140-7198-90b8-74575323ea91","at":1772353352000000000,"seq":777,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ca87e-0c98-7141-b9dc-8c30d240047f","at":1772353359000000000,"seq":778,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ca87e-1080-7cbc-b03e-ea6c7d334f4b","at":1772353360000000000,"seq":779,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca889-14fb-7d81-acb8-1a69c04740f3","at":1772354082043000000,"seq":780,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca889-14fb-7fec-99f5-9920cac8dad9","at":1772354082043000000,"seq":781,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca889-ad7e-7a0f-8fd7-0c6e065c4aea","at":1772354121086000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca88a-3db0-782e-976a-8e6a0c2c2180","at":1772354158000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88a-8400-738d-93fe-0cb3228eb49e","at":1772354176000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca88a-9b70-7fcd-8e42-f0f0926f06cc","at":1772354182000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88a-b1bb-7a6e-b2a2-affdc0636e5b","at":1772354187707000000,"seq":786,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca88b-1c58-7674-8a2b-fcb05d068048","at":1772354215000000000,"seq":787,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca88b-3dc7-7415-8605-e585e3c73c16","at":1772354223559000000,"seq":788,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca88b-4368-7cda-a42b-fa18f4ae2cda","at":1772354225000000000,"seq":789,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca88b-4f20-76de-b58b-91ab95d9070b","at":1772354228000000000,"seq":790,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca88b-85d0-78f6-a1ea-85d3f1c392d5","at":1772354242000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88b-f330-7c68-9b05-3fc49696894c","at":1772354270000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

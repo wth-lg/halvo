@@ -1,0 +1,22 @@
+{"v":1,"id":"019ca395-f436-77ef-a0be-9954f14aeb63","at":1772271039542000000,"seq":729,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca395-f436-72ce-af99-5505883413f3","at":1772271039542000000,"seq":730,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca396-82a0-70c2-b230-2ad7e280a515","at":1772271076000000000,"seq":731,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca396-de2d-7b95-ba8a-1b81c7529149","at":1772271099437000000,"seq":732,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca396-de2d-710d-b9ea-a866de6aad98","at":1772271099437000000,"seq":733,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ca396-fbb8-74ba-aaa8-fe6b1e764eff","at":1772271107000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ca397-9fe8-72ca-bdc7-835f1819b5d9","at":1772271149032000000,"seq":735,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ca397-cea8-7613-83de-40fe6cf60dfd","at":1772271161000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca398-0489-7fe3-b2df-939f863921c0","at":1772271174793000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ca398-5378-7b60-b546-0ff17b8885a2","at":1772271195000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca398-5f30-7a88-a828-ab234ed38b16","at":1772271198000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca398-f4ce-7aee-acdc-3010ed07092e","at":1772271236302000000,"seq":740,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ca399-2668-7df1-82b9-f71db04ca990","at":1772271249000000000,"seq":741,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca399-2a50-76c8-bd5f-f593d48e528b","at":1772271250000000000,"seq":742,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ca399-68d0-7a58-addc-3349d4e78800","at":1772271266000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca399-7870-74ed-940f-d9725ccf51c2","at":1772271270000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca399-8b6d-743b-b85f-ab22e567e829","at":1772271274861000000,"seq":745,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca399-8b6d-73c9-b40b-9862378362cc","at":1772271274861000000,"seq":746,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca399-8bf8-7885-ba72-2aa1806a873a","at":1772271275000000000,"seq":747,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ca399-93c8-7eca-bdbf-ced900eda7e0","at":1772271277000000000,"seq":748,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca399-c690-76ed-be2a-ae26f7a22702","at":1772271290000000000,"seq":749,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca399-de00-71d2-92b7-442adabb961e","at":1772271296000000000,"seq":750,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

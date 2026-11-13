@@ -1,0 +1,16 @@
+{"v":1,"id":"019c1333-1a6b-7902-bf3a-f1bb1264d244","at":1769848642155000000,"seq":622,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1333-1a6b-7c61-b426-34c265c7ec1b","at":1769848642155000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1333-1db8-788b-ae82-f717d95fb2e8","at":1769848643000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c1333-6bd8-7dd7-9f34-14bef9859da5","at":1769848663000000000,"seq":625,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1348-c0bc-7ab4-ab6d-866cadaa8442","at":1769850060988000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1349-5b1e-7c65-8402-4211e20e1e2e","at":1769850100510000000,"seq":627,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c134a-2c10-79e9-8af2-afe70dbcb319","at":1769850154000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c134a-5e77-70b7-90bb-ad72713ab400","at":1769850166903000000,"seq":629,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c134a-62c0-765b-aebb-bb2b72a3286b","at":1769850168000000000,"seq":630,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c134a-89d0-775e-9771-041b4144ddc0","at":1769850178000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c134a-9588-7fb8-b3aa-c2147d04ec9c","at":1769850181000000000,"seq":632,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1352-b675-7881-b782-185d499f6056","at":1769850713717000000,"seq":633,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c1352-c348-7f25-9c21-aa112be3a5f3","at":1769850717000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c1352-ea58-7f30-b7ed-e3bf815a7dd3","at":1769850727000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1352-f9f8-7f0f-87e5-85e2ec03b733","at":1769850731000000000,"seq":636,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1353-24f0-765c-8641-81d575277560","at":1769850742000000000,"seq":637,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

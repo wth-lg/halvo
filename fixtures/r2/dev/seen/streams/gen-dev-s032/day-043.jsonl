@@ -1,0 +1,13 @@
+{"v":1,"id":"019c50d7-43bf-7d23-b355-f41aea5f20ee","at":1770882810815000000,"seq":609,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c50d7-43bf-725d-99e1-7ee56c9d9532","at":1770882810815000000,"seq":610,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c50d7-7358-7d0d-b021-f4e164a8755c","at":1770882823000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50d7-7b28-7b2c-99a6-dd5976d16030","at":1770882825000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c50d7-8eb0-705c-8eba-4417620cf138","at":1770882830000000000,"seq":613,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c50d7-9298-7f4e-81a6-0e35a450afdf","at":1770882831000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c50e1-bfe5-7951-b289-544ddcd513ae","at":1770883497957000000,"seq":615,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c50e1-eb08-7342-8ff9-974d071ba70a","at":1770883509000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50e2-1218-7030-a9ba-50bd4cd1ae2e","at":1770883519000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50e2-3928-7939-ac19-2b32581ea227","at":1770883529000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c50e2-470d-7db2-a7a5-50825d58392c","at":1770883532557000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c50e2-7b90-78d8-85f6-32011fd26219","at":1770883546000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50e2-b17c-749b-990d-b92b5be6fbe3","at":1770883559804000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}

@@ -1,0 +1,37 @@
+{"v":1,"id":"019d52c9-3a48-73c5-813f-9d6a3cf04bd7","at":1775210412616000000,"seq":1303,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52c9-3a48-7f66-bed2-fde8988f8c8e","at":1775210412616000000,"seq":1304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d52c9-66c0-75a3-b519-3c4bdc5e9f0d","at":1775210424000000000,"seq":1305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52c9-6e90-768d-abb9-cc014967e74d","at":1775210426000000000,"seq":1306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d52df-85b9-799a-a1c1-b4dffaf6f78e","at":1775211873721000000,"seq":1307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d52df-9e40-7c4d-8173-511957b663e4","at":1775211880000000000,"seq":1308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52df-bd80-7011-ae9c-51d2a83faee6","at":1775211888000000000,"seq":1309,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52f3-742c-7c88-bf4f-429a3dadae67","at":1775213179948000000,"seq":1310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d52f4-5ad8-7095-ba69-a364441eadf2","at":1775213239000000000,"seq":1311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52f4-5ad8-7e6b-a05a-9efb5079a830","at":1775213239000000000,"seq":1312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d52f4-6d81-7b93-8ddb-6ca791c0886f","at":1775213243777000000,"seq":1313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d52f4-9570-7f7d-828c-c110d97f5cf0","at":1775213254000000000,"seq":1314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d52f4-b0c8-7295-ac09-b01dec6f7057","at":1775213261000000000,"seq":1315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52f5-1e98-79fd-b581-d8fa9e3aa22a","at":1775213289112000000,"seq":1316,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d52f5-9358-7ebc-a9e6-10ef8ccbde86","at":1775213319000000000,"seq":1317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52f5-9f10-7521-873a-9fe22205e1dd","at":1775213322000000000,"seq":1318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d52f5-ba68-7768-bab6-d5f8d3c99a20","at":1775213329000000000,"seq":1319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d52f5-dfd3-7098-849b-7baaf117821b","at":1775213338579000000,"seq":1320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d52f6-5a90-7d0e-b57f-f701f53761aa","at":1775213370000000000,"seq":1321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52f6-a4c8-7953-b621-f30d9361b7e2","at":1775213389000000000,"seq":1322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52f9-ef2e-7a6c-9334-e611f23c4391","at":1775213604654000000,"seq":1323,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d52f9-f088-7221-ab5c-fe08083e46ef","at":1775213605000000000,"seq":1324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52f9-fc40-76e5-a7f0-fca62b270d41","at":1775213608000000000,"seq":1325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d52fa-32f0-7bff-aefd-ee2ac437cbbf","at":1775213622000000000,"seq":1326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52fb-ce05-7bf6-a451-f61008781812","at":1775213727237000000,"seq":1327,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d52fc-9c20-7417-b35c-5429adf13e2e","at":1775213780000000000,"seq":1328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d52fc-b5b1-71fd-91a2-7eea5b710735","at":1775213786545000000,"seq":1329,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d52fc-f210-79f3-b857-656fae8444b8","at":1775213802000000000,"seq":1330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52fc-f210-7d7b-82d2-c883db8620ed","at":1775213802000000000,"seq":1331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d52fd-4030-720c-8753-581a362c1b91","at":1775213822000000000,"seq":1332,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d52fd-6f10-7304-a2f2-4732bdce5e1c","at":1775213834000000000,"seq":1333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d52fd-a1d8-7b59-aec9-9e79a3b77192","at":1775213847000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52fd-aa18-727c-acae-c2bf48600793","at":1775213849112000000,"seq":1335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d52fd-b560-7a53-9f95-91f6e232c283","at":1775213852000000000,"seq":1336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52fd-c118-7b0a-b86a-9474f64ee3e4","at":1775213855000000000,"seq":1337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d52fd-d0b8-7875-9f29-88611e531099","at":1775213859000000000,"seq":1338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d52fe-0768-7808-902a-d5d90eac9141","at":1775213873000000000,"seq":1339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

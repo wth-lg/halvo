@@ -1,0 +1,21 @@
+{"v":1,"id":"019c2c9d-64d6-7089-a72b-6ca77bc076d9","at":1770275038422000000,"seq":540,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2c9d-64d6-7688-bd95-198dd9d008d5","at":1770275038422000000,"seq":541,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2c9e-0f10-713d-94a4-6e42826fa205","at":1770275082000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2c9e-12f8-7938-93e7-44667f6e299e","at":1770275083000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c2c9e-17b1-7625-9312-2ee24c899464","at":1770275084209000000,"seq":544,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2c9e-3238-74b2-af5e-5f047db4baa4","at":1770275091000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c2c9e-6cd0-74fa-a987-4e149d28d0cd","at":1770275106000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2c9e-93e0-7281-9f0d-4aac8e27e5ac","at":1770275116000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2c9e-f588-7f8f-94e0-9173b4f946e6","at":1770275141000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2c9f-0761-7a3a-9b75-a3023d177f9d","at":1770275145569000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2c9f-0cf8-7531-be96-4f1de530a721","at":1770275147000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2c9f-a550-700b-b9ea-e8acf0695ef0","at":1770275186000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c2c9f-c490-76db-abd1-948f9c90655d","at":1770275194000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2c9f-d818-7880-995e-33607766a104","at":1770275199000000000,"seq":553,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2c9f-f84f-71e0-8a4d-786d9a164c75","at":1770275207247000000,"seq":554,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2ca0-9f50-78d2-bcfd-a1d8225c59da","at":1770275250000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c2ca0-c278-7d54-9d33-d087a82d1cea","at":1770275259000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2ca0-c2f7-7335-bc9d-23b03704fefc","at":1770275259127000000,"seq":557,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2ca0-fd10-791b-8e8c-0659b00a648c","at":1770275274000000000,"seq":558,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2ca1-1c50-76d0-86a3-e884d149f750","at":1770275282000000000,"seq":559,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2ca1-2420-7f45-b21b-a256bbb8f424","at":1770275284000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

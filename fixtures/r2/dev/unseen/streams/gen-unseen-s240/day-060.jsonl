@@ -1,0 +1,21 @@
+{"v":1,"id":"019ca85d-8f1c-71e1-9eb0-5535b3dd0588","at":1772351229724000000,"seq":860,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca85d-8f1c-70fe-b5c8-97bd836ecd2b","at":1772351229724000000,"seq":861,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ca85e-24a0-7745-a5d6-f9381c08f72e","at":1772351268000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ca85e-47c8-7eef-82ac-a201fed82b2f","at":1772351277000000000,"seq":863,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca85e-738d-70b3-bf23-762a4f3c96aa","at":1772351288205000000,"seq":864,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ca85e-76a8-78ce-a41d-7d7dde35437b","at":1772351289000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca85e-b7f2-75af-a593-c721286f9eca","at":1772351305714000000,"seq":866,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ca85e-d850-70ab-b4df-b64acea6ecf7","at":1772351314000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca85e-e408-7659-890b-a3c4a6faf9ad","at":1772351317000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca85e-ebd8-7d5e-a49a-6f5c82130433","at":1772351319000000000,"seq":869,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca85e-efc0-7eff-bea6-218b62d0c29b","at":1772351320000000000,"seq":870,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca85f-a9e8-7e80-8a66-f3e029bc6065","at":1772351367656000000,"seq":871,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ca85f-ca80-7734-a220-192cc73a7764","at":1772351376000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca85f-e9c0-7dc7-a588-b64d63ff3ee6","at":1772351384000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca860-0130-7f69-967e-e7e3be9731da","at":1772351390000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ca860-3010-7708-a3c8-432a0fccd197","at":1772351402000000000,"seq":875,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca860-7d5d-79d1-95b7-b6aeadbbb157","at":1772351421789000000,"seq":876,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ca860-d038-70ae-bd4c-cc0e99a755ba","at":1772351443000000000,"seq":877,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca860-dfd8-70c7-8f78-5269c7696c72","at":1772351447000000000,"seq":878,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca861-1e58-7c9b-aa25-e9e86b1f92ab","at":1772351463000000000,"seq":879,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca861-2df8-7205-a6e0-48763de37ce6","at":1772351467000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}

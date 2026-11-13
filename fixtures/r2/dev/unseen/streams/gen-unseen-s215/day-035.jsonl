@@ -1,0 +1,45 @@
+{"v":1,"id":"019c284d-4ecd-79f6-8947-2d682c8c4597","at":1770202681037000000,"seq":461,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c284d-4ecd-7099-be42-4d180967d47f","at":1770202681037000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c284d-75b8-71d2-a8d3-c0c314fb55d8","at":1770202691000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c285a-3941-734f-8293-8ad9d2e8aa78","at":1770203527489000000,"seq":464,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c285a-8190-70b3-b2aa-0b2415c3d38d","at":1770203546000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c285a-8d48-797e-a67e-06707fc5667d","at":1770203549000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c285a-a0d0-7043-8885-644efff3899a","at":1770203554000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c285a-bc6c-706b-81d7-457d6e5903f4","at":1770203561068000000,"seq":468,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c285b-6808-739c-a1b5-f1e2f3130d88","at":1770203605000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c285b-acd3-79c9-933d-a298ae69f782","at":1770203622611000000,"seq":470,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c285c-13e8-703d-a7a4-fddf8cdf1aaa","at":1770203649000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c285c-5268-7912-b8df-7e52918e3fdb","at":1770203665000000000,"seq":472,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c285c-6208-7042-b03c-3e66a9d25b14","at":1770203669000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c285c-6fd8-7188-b9e4-9d46f61b69ab","at":1770203672536000000,"seq":474,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c285c-8148-7a66-b347-8a43e3a925da","at":1770203677000000000,"seq":475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c285c-b028-7d4f-a493-0138be01bdf7","at":1770203689000000000,"seq":476,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2860-48b0-7fa0-92be-b76eb8fb0b12","at":1770203924656000000,"seq":477,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c2860-5d90-7983-b6cd-00a63588b2bf","at":1770203930000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2860-7500-7169-b454-a866e52e53af","at":1770203936000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2860-80b8-73db-b692-515c3d4024d5","at":1770203939000000000,"seq":480,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2860-8888-7076-9032-93e9fa01e2d6","at":1770203941000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c287a-a0d8-7c0a-ac78-0e4d7ad3a068","at":1770205651160000000,"seq":482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c287b-1568-7117-9afe-c2dead904bba","at":1770205681000000000,"seq":483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c287b-2cd8-7d19-83eb-26e30a3e0c79","at":1770205687000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c287b-57d0-7365-93f5-e54b312b5d1e","at":1770205698000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c287b-689f-7050-b69e-e796febe6e26","at":1770205702303000000,"seq":486,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c287b-a5f0-7fd4-a99e-943ef5da09f5","at":1770205718000000000,"seq":487,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c287b-b2ee-71cb-a5f9-de4011ba2b31","at":1770205721326000000,"seq":488,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c287b-c530-76e5-86b0-0c67e9d57dd8","at":1770205726000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c287b-e088-7adf-9097-7c829d259d36","at":1770205733000000000,"seq":490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c287c-0798-78f7-bd7f-2d26b7200901","at":1770205743000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c287c-6940-7aac-beca-13cb72dcbb45","at":1770205768000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c287c-9c9b-722a-ae54-578e284f3de3","at":1770205781147000000,"seq":493,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c287c-ee10-7942-ba07-9ab936d60df9","at":1770205802000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c287c-f5e0-7437-b7b2-6833bbf2200b","at":1770205804000000000,"seq":495,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c287d-4fb8-7f91-926c-8801b8697281","at":1770205827000000000,"seq":496,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c287d-ab0b-7110-96bd-03b719dcb451","at":1770205850379000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c287d-ad78-751b-ad1b-cb15b57d4093","at":1770205851000000000,"seq":498,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c287d-dc58-728c-94b7-2cbc41abcf16","at":1770205863000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c287d-e428-7380-b41d-0fed5172516d","at":1770205865000000000,"seq":500,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c287e-1ad8-7389-a19f-e7b84bdfc95b","at":1770205879000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c287e-1f77-7963-a079-0d457b7cfc21","at":1770205880183000000,"seq":502,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c287e-2690-7862-91e3-3a6d00b66914","at":1770205882000000000,"seq":503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c287e-45d0-70a0-840a-ab370972ade5","at":1770205890000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c287e-6ce0-7779-a89e-6f2e343df66c","at":1770205900000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

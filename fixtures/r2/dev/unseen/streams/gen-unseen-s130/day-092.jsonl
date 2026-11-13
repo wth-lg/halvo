@@ -1,0 +1,11 @@
+{"v":1,"id":"019d4d6e-25d1-78bb-8655-faf931b3947b","at":1775120557521000000,"seq":1450,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d6e-25d1-7ca9-9ab8-864f1ab46d91","at":1775120557521000000,"seq":1451,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d4d6e-4ec0-74f7-a644-39b7fbf0bb56","at":1775120568000000000,"seq":1452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d6e-8188-7d78-9959-9c0db28ee024","at":1775120581000000000,"seq":1453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d4d6e-8a9d-7d4f-8d05-3db3d5bcc7f9","at":1775120583325000000,"seq":1454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d4d6e-8d40-7daa-97de-fef27a2c0d16","at":1775120584000000000,"seq":1455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4d6e-9510-76ff-bc91-9555777bd073","at":1775120586000000000,"seq":1456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d4d6e-bc20-7b26-8808-b96ba410287d","at":1775120596000000000,"seq":1457,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4d6e-c008-7772-b9dc-d1ccbdbb2466","at":1775120597000000000,"seq":1458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d7d-1d55-7619-b0de-b94850b91e0e","at":1775121538389000000,"seq":1459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d4d7d-eec0-7dc1-b356-bdb403d876bd","at":1775121592000000000,"seq":1460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

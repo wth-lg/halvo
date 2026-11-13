@@ -1,0 +1,3 @@
+{"v":1,"id":"019d3dab-0d50-7267-8fcb-d893ec985447","at":1774856113488000000,"seq":1431,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3dab-0d50-7fb7-8256-dae6c9f23b67","at":1774856113488000000,"seq":1432,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3dab-6540-7dfb-a6f0-9de7674e3b6a","at":1774856136000000000,"seq":1433,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

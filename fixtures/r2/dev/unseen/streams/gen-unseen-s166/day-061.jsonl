@@ -1,0 +1,49 @@
+{"v":1,"id":"019cad97-6326-7f83-bab2-bb8ae92bd21b","at":1772438905638000000,"seq":809,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cad97-6326-7af1-b2a2-de3240146f9c","at":1772438905638000000,"seq":810,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cad97-87b8-783b-984f-d8e05ec07cc2","at":1772438915000000000,"seq":811,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cad97-aae0-7a27-a799-cd0d03edf100","at":1772438924000000000,"seq":812,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cadab-9338-71b5-8bb7-fa841ff35554","at":1772440228664000000,"seq":813,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cadab-9338-718e-b2ce-88a8c40ea92d","at":1772440228664000000,"seq":814,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cadac-2128-7db9-adfc-4f8dcefa4758","at":1772440265000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cadac-26e8-76f9-8784-ce18ded97108","at":1772440266472000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cadac-30c8-7a7f-a7ea-4e397cfcaa66","at":1772440269000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cadac-4838-789f-8af1-08c2bd0fc810","at":1772440275000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadac-4c20-7961-832c-a0c28e084935","at":1772440276000000000,"seq":819,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cadac-7000-7d64-8969-c44df7c47fcc","at":1772440285184000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cadac-82d0-7622-a358-69caa3455500","at":1772440290000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cadad-03b8-7a34-9e5a-7ad132c7f035","at":1772440323000000000,"seq":822,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cadad-0f70-759f-ae6c-95ccb1de6823","at":1772440326000000000,"seq":823,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cadad-4983-73af-9f17-633f3b973fdf","at":1772440340867000000,"seq":824,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cadad-9058-7fad-ae3f-c67e9915fea6","at":1772440359000000000,"seq":825,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cadad-9c10-736b-84e8-2f89f2c72ba8","at":1772440362000000000,"seq":826,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cadad-d952-79b0-8d03-20205919f956","at":1772440377682000000,"seq":827,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cadad-f200-781d-b0d3-2aec0affdd4d","at":1772440384000000000,"seq":828,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cadad-f9d0-7845-b54e-d36bebe63a83","at":1772440386000000000,"seq":829,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cadae-24c8-7d15-9b23-8727c7b2c0b0","at":1772440397000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadae-3468-72dc-bbc0-18fb1819d588","at":1772440401000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadae-3cb0-7a12-8a21-246dbff5ef0a","at":1772440403120000000,"seq":832,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cadae-4fc0-7aa6-b4a0-7a6e7e052954","at":1772440408000000000,"seq":833,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cadae-ad80-7aa1-bc2e-fb96258ee89b","at":1772440432000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadae-c4f0-76c5-b875-febc1e3861db","at":1772440438000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadae-f7b4-72a7-8494-d8373c8fd022","at":1772440450996000000,"seq":836,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cadaf-4da8-7f9d-a9f7-b7e69073c1fb","at":1772440473000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cadc4-27a3-79a9-9312-c8b623875995","at":1772441839523000000,"seq":838,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cadc4-27a3-706c-9528-586befec93d1","at":1772441839523000000,"seq":839,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cadc4-2d68-758e-976f-96e36fa20f5a","at":1772441841000000000,"seq":840,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadc4-40f0-7a80-9eba-57f65c57530d","at":1772441846000000000,"seq":841,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadde-779c-7baf-ab24-498b9242f78e","at":1772443563932000000,"seq":842,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cadde-779c-7a4c-b6ac-1c584b891470","at":1772443563932000000,"seq":843,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cadde-cccd-75e2-97e2-f8ede9df6d37","at":1772443585741000000,"seq":844,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019caddf-3360-7cda-b3c1-87b0679a4197","at":1772443612000000000,"seq":845,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019caddf-8180-7e2b-bae9-f775e07e0ea2","at":1772443632000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019caddf-9508-7bfc-87ab-444b5d41c214","at":1772443637000000000,"seq":847,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019caddf-b448-72bb-92bb-0e9d65fa35a8","at":1772443645000000000,"seq":848,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019caddf-e328-701f-8c1b-a0aee3b0db64","at":1772443657000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cade0-2590-7507-89c4-b8644898251c","at":1772443674000000000,"seq":850,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cade0-8738-7e9c-b5a3-85bf7a7f0b98","at":1772443699000000000,"seq":851,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cade0-c3c6-763a-877c-9bb59f8f3980","at":1772443714502000000,"seq":852,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cade0-d558-7116-900f-923c3987c3ab","at":1772443719000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cade0-e110-7b2f-8f76-7f5b2524e34d","at":1772443722000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cade0-f880-7661-8dd2-555b213be38c","at":1772443728000000000,"seq":855,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cade1-0820-7dbf-a85e-95de34af4eee","at":1772443732000000000,"seq":856,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cade1-0c08-7043-adc2-1d4f20e91d5d","at":1772443733000000000,"seq":857,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

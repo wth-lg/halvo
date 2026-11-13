@@ -1,0 +1,12 @@
+{"v":1,"id":"019c9920-ee32-7278-9966-9e216c6523fe","at":1772095598130000000,"seq":868,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9920-ee32-73bf-890f-2bf1c2a90c7b","at":1772095598130000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c9921-9d01-7ad0-aba0-10f476233f78","at":1772095642881000000,"seq":870,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c9921-dbf8-75fa-a88b-e47e31ee6b85","at":1772095659000000000,"seq":871,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9922-06f0-7670-854e-a0ab2bd83e38","at":1772095670000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9922-12a8-7d1c-9ea1-ae6258804f84","at":1772095673000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9922-7450-748a-b867-5f09383fede2","at":1772095698000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9922-acf6-74c8-9b14-5412f2314e5e","at":1772095712502000000,"seq":875,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c9922-baa0-72dd-8050-9e48d5e1db98","at":1772095716000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9923-27e5-73c9-ba87-2406898e5349","at":1772095743973000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c9923-4740-7012-8c13-f4bdde0e7783","at":1772095752000000000,"seq":878,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9923-6298-76cb-ad31-b16c83975880","at":1772095759000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

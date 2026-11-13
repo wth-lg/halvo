@@ -1,0 +1,31 @@
+{"v":1,"id":"019c3c6a-af4a-7938-80d3-e95275b03df3","at":1770540150602000000,"seq":499,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c6a-af4a-70eb-a407-ef7d247c7a7d","at":1770540150602000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c3c6b-1595-73ef-8afd-bfbdca539fb7","at":1770540176789000000,"seq":501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c3c6b-4930-7fac-8f3b-56e24f1f6b3d","at":1770540190000000000,"seq":502,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3c6b-6c58-75ff-b0ef-8669a8325595","at":1770540199000000000,"seq":503,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3c7d-214a-7011-ae4b-235f8e272ce0","at":1770541359434000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3c7d-2f38-7833-956a-738742c5266e","at":1770541363000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c7d-6db8-729d-92c4-f7c12632fd0e","at":1770541379000000000,"seq":506,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3c7d-90e0-7961-8972-273881926997","at":1770541388000000000,"seq":507,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3c7f-a93d-79bf-9c12-8f273c72197f","at":1770541525309000000,"seq":508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3c7f-b7a8-7cf8-87df-02c86b031ad6","at":1770541529000000000,"seq":509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c7f-bb90-7664-8bd4-d74baf741789","at":1770541530000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c7f-cf18-73a7-a0c7-41f1e69c7504","at":1770541535000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c3c80-dc8c-7e7b-92c8-08985762e798","at":1770541603980000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c3c81-3678-7da7-906c-ed1cb34ea6da","at":1770541627000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c81-e258-7ef2-b852-ad5b0217beb8","at":1770541671000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c3c81-ec2c-77e9-9fe5-7cbf056d9da8","at":1770541673516000000,"seq":515,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c3c82-1908-7e34-bcb8-d20c7f518c6e","at":1770541685000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3c82-3078-7cf5-84ce-43ad52346751","at":1770541691000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c82-72e0-752c-a972-05b7883db8d0","at":1770541708000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c3c82-76c8-725f-aa5f-1af9a90a0968","at":1770541709000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c82-8dc1-7a2b-8415-e2352f027cb8","at":1770541714881000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c3c82-8e38-7e04-872b-2432903f1264","at":1770541715000000000,"seq":521,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3c82-ad78-758a-98cd-767ff5727286","at":1770541723000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c82-bd18-78e4-b866-b899c280e699","at":1770541727000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c82-e040-7cfb-a6dd-6691b9412045","at":1770541736000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c3c83-0b38-7f19-9dcb-3a7eca327b6a","at":1770541747000000000,"seq":525,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3c83-6d34-777e-a47b-3c0af8e2d476","at":1770541772084000000,"seq":526,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c3c83-97d8-78a7-95f7-530c8629bf94","at":1770541783000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c3c83-f598-7d12-b160-70877d0b591f","at":1770541807000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c83-fd68-7a33-aa98-6d6c5bc72262","at":1770541809000000000,"seq":529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

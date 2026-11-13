@@ -1,0 +1,11 @@
+{"v":1,"id":"019ca35b-f8c2-7519-baf7-7ada5c950151","at":1772267239618000000,"seq":791,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca35b-f8c2-7e4d-8a64-5c83ec92eb56","at":1772267239618000000,"seq":792,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ca35c-5800-7600-a12e-b219f444ae80","at":1772267264000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ca35c-f4a5-7516-8a6a-fb6d97f963bc","at":1772267304101000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ca35d-07c8-737a-b30d-05801147daea","at":1772267309000000000,"seq":795,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca35d-9468-7772-85c6-eb3d181f3c3b","at":1772267345000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ca35d-c730-7439-8fb6-d59bbb0b2418","at":1772267358000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca35d-dea0-72aa-bba6-e192d42b5944","at":1772267364000000000,"seq":798,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca35d-f1a0-7e80-9de0-3a16f4ff1db4","at":1772267368864000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ca35d-f228-7191-b10b-f9e8368414ff","at":1772267369000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca35e-30a8-774e-8172-a7cc2d1ec987","at":1772267385000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

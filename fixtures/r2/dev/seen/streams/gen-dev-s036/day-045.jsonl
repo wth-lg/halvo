@@ -1,0 +1,32 @@
+{"v":1,"id":"019c5b6f-f00c-73a2-a835-4ebbb3388912","at":1771060588556000000,"seq":612,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b6f-f00c-7b6b-8d3f-2e6e48df2c82","at":1771060588556000000,"seq":613,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5b6f-f1c8-7b2c-9fe5-a4db9ab5d34b","at":1771060589000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5b70-1108-799f-87f4-b1727cc84c77","at":1771060597000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b86-417b-76b2-94aa-8e6e5ba00956","at":1771062051195000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b86-5828-70d4-a82f-80d8b30a5f0c","at":1771062057000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b86-67c8-78cb-8c7e-c244a0967b0a","at":1771062061000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5b86-9973-776d-b42f-409771a84e92","at":1771062073715000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b86-fc38-7b03-9e90-c2443e1943a7","at":1771062099000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5b87-32e8-7b41-ba58-8e0c01c12a69","at":1771062113000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b87-51aa-7787-8f84-92b6ec4f51c4","at":1771062120874000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b87-5228-7340-a721-3513eeb9901e","at":1771062121000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b87-65b0-70fb-92b1-576c0035c42e","at":1771062126000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b87-7d20-76e8-9e0c-579cfac27304","at":1771062132000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5b87-84f0-7658-84c0-7fe7a069e420","at":1771062134000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b87-90a8-7c8d-b8e7-3af590c7b05a","at":1771062137000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b87-96e7-729e-9cfb-650a41ec81c3","at":1771062138599000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b87-f638-76f3-b91e-c02ee7511955","at":1771062163000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5b88-57e0-7fe8-a335-65942e39fd64","at":1771062188000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b88-a5f9-7685-90bc-70882276c676","at":1771062207993000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b88-e868-7a77-ba2a-e66805f2b04f","at":1771062225000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b88-f420-7c2a-9618-d793d19a4550","at":1771062228000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5b89-26e8-74e1-8a70-550bb90ffae5","at":1771062241000000000,"seq":634,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5b89-83fd-706e-9444-d3fd4f6f306a","at":1771062264829000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b89-afa0-74ec-a227-e790d04a1ca4","at":1771062276000000000,"seq":636,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5b8a-1148-7235-b6d5-6a17ca4d58c2","at":1771062301000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5b8a-3c40-745d-aca9-c4e439d0634d","at":1771062312000000000,"seq":638,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b92-253c-7104-92dd-1657647dc0b8","at":1771062830396000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5b92-7d88-76cb-ac53-6e9a3d58bad9","at":1771062853000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c5b92-a498-78c2-a333-ccdc1958be36","at":1771062863000000000,"seq":641,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5b96-9cf0-7f7f-a0ff-8a866cb853a0","at":1771063123184000000,"seq":642,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b96-9cf0-77be-b33c-6816a5b8013d","at":1771063123184000000,"seq":643,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}

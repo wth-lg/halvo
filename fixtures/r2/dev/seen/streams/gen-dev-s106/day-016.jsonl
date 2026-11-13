@@ -1,0 +1,51 @@
+{"v":1,"id":"019bc666-0c71-7c03-9032-ea81f6172211","at":1768560135281000000,"seq":198,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc666-0c71-7b9c-91f4-e487567e0671","at":1768560135281000000,"seq":199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bc666-3a38-7375-9fe5-72cfee2a3672","at":1768560147000000000,"seq":200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc666-4dc0-735b-9a4c-7822cf0f5390","at":1768560152000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc676-e925-7601-b9b3-1e68448c1416","at":1768561240357000000,"seq":202,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc676-e925-7d7f-b0f6-d2462fa3c2a9","at":1768561240357000000,"seq":203,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc677-0318-7184-854c-dc5e193099a6","at":1768561247000000000,"seq":204,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc677-1a88-7922-8876-d302fb4239f6","at":1768561253000000000,"seq":205,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bc680-cdb1-7fc4-82eb-187698225208","at":1768561888689000000,"seq":206,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc680-cdb1-746c-9846-11fd9133cc91","at":1768561888689000000,"seq":207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bc680-fdc8-709b-b077-857145d2334a","at":1768561901000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bc681-0d68-7b58-8319-2abbdbc15502","at":1768561905000000000,"seq":209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc681-1d08-7ebe-9b06-6f40a91bbc9e","at":1768561909000000000,"seq":210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc681-941d-799c-94c2-cb9cb8131a71","at":1768561939485000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bc681-dc70-7b53-97d0-a2e33a467e43","at":1768561958000000000,"seq":212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc681-e058-7ce5-8ff6-67cce40e8953","at":1768561959000000000,"seq":213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc681-e416-7cb0-9a8d-c5e9e71a205d","at":1768561959958000000,"seq":214,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc681-e416-74d2-b049-5a36d21c9ed8","at":1768561959958000000,"seq":215,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc682-1ed8-74d9-80a9-2f59269d1a44","at":1768561975000000000,"seq":216,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc682-49d0-7f11-8083-cfa4f3859898","at":1768561986000000000,"seq":217,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bc682-9408-77d5-b7ad-4f3c57e53e01","at":1768562005000000000,"seq":218,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc682-b730-7c0d-b202-484c54265645","at":1768562014000000000,"seq":219,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc682-cbc6-768a-a9c3-0b6ac981c6b4","at":1768562019270000000,"seq":220,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc682-cbc6-777d-93e2-3edac2fe9e87","at":1768562019270000000,"seq":221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bc682-d670-72cf-ab4b-4c809a04c5b9","at":1768562022000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bc682-e610-783b-8848-c9e4b8c2ba54","at":1768562026000000000,"seq":223,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc683-2277-7f02-98ab-70837eebbc50","at":1768562041463000000,"seq":224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bc683-47b8-74c0-8b4b-7ad394352b7a","at":1768562051000000000,"seq":225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc687-ccb2-7f42-b1eb-17d17cb0eb7a","at":1768562347186000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bc688-3188-716d-b1b7-851bd5eb89da","at":1768562373000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc688-3ddb-7b09-b37b-72c6007fa1bc","at":1768562376155000000,"seq":228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bc689-1fd0-72d2-b7c0-2decc462ea34","at":1768562434000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bc689-39d8-704d-8da6-06b951558b2a","at":1768562440664000000,"seq":230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bc689-6238-7fdf-a1cd-85aca6181b37","at":1768562451000000000,"seq":231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc689-f2ca-70ee-b331-8f07c2a8f461","at":1768562488010000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bc68a-40e0-71f8-b8c7-65b4306f5733","at":1768562508000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc68a-48b0-7e81-877a-ce0ddd233467","at":1768562510000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc68a-6408-74f0-96e1-a21f037da4b8","at":1768562517000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc698-2ea4-7e63-9b80-4125811f9b8b","at":1768563420836000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc698-ac48-7ce9-8751-e331e705cc36","at":1768563453000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bc698-e575-7e11-8e83-846eb5458276","at":1768563467637000000,"seq":238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc699-0238-780e-a126-aef06802736e","at":1768563475000000000,"seq":239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc699-5058-7607-bf35-b539b1c0f2af","at":1768563495000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc699-5440-7054-a46d-8b4ece341fe2","at":1768563496000000000,"seq":241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc699-5ff8-7c72-b88f-63300e4437f6","at":1768563499000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bc699-e9b7-7e7e-8bac-8508ac9b35fd","at":1768563534263000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc69a-32e8-7941-bf7f-3dd580200399","at":1768563553000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bc69a-582d-7a0e-ac8f-43ffdf2ff910","at":1768563562541000000,"seq":245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc69a-9490-7800-b3e4-cde9e0a6cc4e","at":1768563578000000000,"seq":246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc69a-afe8-714d-9d79-4a7176cf0cd3","at":1768563585000000000,"seq":247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc69a-f250-7fed-bac6-ebae8f1e16a3","at":1768563602000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

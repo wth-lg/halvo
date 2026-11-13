@@ -1,0 +1,15 @@
+{"v":1,"id":"019c84b6-a9bf-7e97-8cb1-c87742bfb0fa","at":1771753089471000000,"seq":581,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84b6-a9bf-7b13-bbf5-7b658c56066d","at":1771753089471000000,"seq":582,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c84b6-e668-7ab2-ba92-dc67a910a2e8","at":1771753105000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84b7-2100-7b80-8afa-d9a52c7240da","at":1771753120000000000,"seq":584,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c84b7-28d0-702f-bc22-2274fe7f371d","at":1771753122000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84b7-3c58-74ad-848c-3a7358219f25","at":1771753127000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c84ba-83d0-7460-af06-af656e7d0cb2","at":1771753341904000000,"seq":587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c84ba-8430-701b-a639-bb5878065096","at":1771753342000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84bb-0900-7e6f-9138-e5b5685e2097","at":1771753376000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84bb-42bd-7406-9071-705ae61b9ab7","at":1771753390781000000,"seq":590,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c84bb-4b68-75de-91b5-e8865980a98b","at":1771753393000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c84bb-7278-7b87-b611-8b8a24e5b90f","at":1771753403000000000,"seq":592,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c84bb-7e30-76cb-916c-5044df1474a5","at":1771753406000000000,"seq":593,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c84bb-8218-7195-beed-c4cc5f79f41d","at":1771753407000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84bb-8600-7380-a406-71291d87d816","at":1771753408000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

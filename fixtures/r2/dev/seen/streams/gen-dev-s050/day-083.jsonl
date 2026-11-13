@@ -1,0 +1,10 @@
+{"v":1,"id":"019d1f47-bb93-7a25-bd23-2bd7c8148f95","at":1774346288019000000,"seq":1270,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1f47-bb93-73c8-89e4-a8d680f6a76c","at":1774346288019000000,"seq":1271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d1f47-d2f0-7103-8e86-9dd34977ff8c","at":1774346294000000000,"seq":1272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f48-4820-7548-84e4-ed531fc26b02","at":1774346324000000000,"seq":1273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f48-706d-76bf-a36c-5d5e473b5d3c","at":1774346334317000000,"seq":1274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d1f48-82b8-7a0b-90e1-288a13eebdfd","at":1774346339000000000,"seq":1275,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1f48-adb0-7f33-9d14-b5f02a0259c5","at":1774346350000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f49-513c-7602-9fc1-f38cb50a5d6c","at":1774346391868000000,"seq":1277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d1f49-80a0-766c-a42a-e726a8dd0230","at":1774346404000000000,"seq":1278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1f49-de60-7a78-9ca5-b969335ac203","at":1774346428000000000,"seq":1279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

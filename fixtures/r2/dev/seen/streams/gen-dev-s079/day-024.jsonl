@@ -1,0 +1,15 @@
+{"v":1,"id":"019bef23-05ef-7b61-bc4e-a50c9d2d7ba3","at":1769243608559000000,"seq":316,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef23-05ef-7391-8db9-8c69bd05c425","at":1769243608559000000,"seq":317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bef23-3688-76f6-b390-cbdb1006f3e0","at":1769243621000000000,"seq":318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bef23-d131-7db2-ad18-b64b2c1ade22","at":1769243660593000000,"seq":319,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bef24-0978-7513-bc98-1cf6d6d00d32","at":1769243675000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bef24-1d00-74db-81b0-28e2b108baf1","at":1769243680000000000,"seq":321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bef24-6883-79e9-b298-d86ee22aba2b","at":1769243699331000000,"seq":322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bef24-76d8-7232-91b6-71a63bf390e1","at":1769243703000000000,"seq":323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bef24-8290-7ddc-a7b7-beed8b73f5fc","at":1769243706000000000,"seq":324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bef24-a5b8-7b69-86c6-3b8a2f270d0e","at":1769243715000000000,"seq":325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bef28-d182-7c72-8c5b-ccea707a2664","at":1769243988354000000,"seq":326,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef28-d182-7b47-b8e7-d6e4b34961da","at":1769243988354000000,"seq":327,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef28-f348-7847-977f-cf2a6fa56cd7","at":1769243997000000000,"seq":328,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bef29-3d80-7f45-ae05-277e43080929","at":1769244016000000000,"seq":329,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bef29-4550-7330-b2fb-e94568c2abc1","at":1769244018000000000,"seq":330,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}

@@ -1,0 +1,33 @@
+{"v":1,"id":"019be4e1-2617-7dcb-a9b9-8e6c20fd9074","at":1769071519255000000,"seq":260,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be4e1-2617-7201-a5ba-750b334fccc5","at":1769071519255000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019be4e2-1748-7d79-867c-2a39581836a4","at":1769071581000000000,"seq":262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be4e2-1b30-776e-93d6-d6690b7d3f4b","at":1769071582000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4e4-6827-7cdc-a405-ea92f316ef2e","at":1769071732775000000,"seq":264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019be4e4-da50-7b93-91a0-3486b646b475","at":1769071762000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be4ee-992f-70c1-be8b-dca38b1dc1d5","at":1769072400687000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019be4ee-a238-7253-b47b-ce7f242bbbd7","at":1769072403000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ee-d3c6-7860-85c9-f2bb46aebe91","at":1769072415686000000,"seq":268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019be4ee-ec70-7aa4-a907-925c4fe7f655","at":1769072422000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ef-32c0-7e49-b3a4-dd784109fda7","at":1769072440000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ef-dd76-7edd-9eeb-073a940cd76c","at":1769072483702000000,"seq":271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019be4f0-57b8-7df5-ab5d-b42a3fa9b021","at":1769072515000000000,"seq":272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be4f0-6370-7d9b-8198-be10e56e631c","at":1769072518000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4f0-8e68-7985-ac0f-ee97774114e7","at":1769072529000000000,"seq":274,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4f0-9250-7805-b2eb-673a9a7d3676","at":1769072530000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019be4f0-a5d8-78fa-bab5-ddfde6a464cf","at":1769072535000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be507-6786-7e5c-89cc-eda5ac218f91","at":1769074026374000000,"seq":277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019be507-75b0-75a3-b632-e4dacde82d4c","at":1769074030000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019be507-8938-7bbe-86a0-d02932454434","at":1769074035000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be507-9108-77a5-aee6-b6bbe8b6f4e6","at":1769074037000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be507-d4c0-7f7e-8528-ebe209227adf","at":1769074054336000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019be508-6010-76b8-b7d2-e1dbdc57627d","at":1769074090000000000,"seq":282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be508-7b68-7fc8-b489-11ddaa61dae8","at":1769074097000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019be508-b96c-7302-b46b-f93053c67d1e","at":1769074112876000000,"seq":284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019be509-0038-7a7a-b0bf-0679867a87d0","at":1769074131000000000,"seq":285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be509-2b30-7d62-9a1e-cfdb2836c877","at":1769074142000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019be509-3300-7906-9aea-a6b6bdf2e0bb","at":1769074144000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be509-65e1-77b3-a6b4-80c0659a8cb6","at":1769074157025000000,"seq":288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019be509-6d98-7f92-889c-c71f3c06721b","at":1769074159000000000,"seq":289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be509-a830-71cb-b081-09073a70d7c1","at":1769074174000000000,"seq":290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be509-ea98-743a-8519-ce1c841fa146","at":1769074191000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be509-f650-794e-b635-eb16a86553de","at":1769074194000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

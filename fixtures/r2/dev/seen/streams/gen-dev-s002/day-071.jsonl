@@ -1,0 +1,24 @@
+{"v":1,"id":"019ce108-4cdc-77de-9ffd-39d8b7775967","at":1773301943516000000,"seq":1018,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce108-4cdc-7c4d-ba28-c64605c6ae2e","at":1773301943516000000,"seq":1019,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce108-8188-70dc-994a-461d56ad8c81","at":1773301957000000000,"seq":1020,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce108-8b29-7e4c-a869-913141987023","at":1773301959465000000,"seq":1021,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce108-a0c8-7b75-b961-0920a937059f","at":1773301965000000000,"seq":1022,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ce109-91d7-72f3-8a04-4c8b2f692a6e","at":1773302026711000000,"seq":1023,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce109-c5c0-7f67-a84b-1cfec9e549b4","at":1773302040000000000,"seq":1024,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce111-344d-7572-98f3-0e745b5b5277","at":1773302527053000000,"seq":1025,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ce111-6d87-78df-aa17-4a3cff5487ca","at":1773302541703000000,"seq":1026,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ce111-8238-7d86-b6b4-cd30bea5f7ac","at":1773302547000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce111-f380-7693-a055-ec10de517dfc","at":1773302576000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ce112-5cf8-749f-a1fa-26ad3398e27f","at":1773302603000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce112-6760-71c7-9daf-271f853625a7","at":1773302605664000000,"seq":1030,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ce112-ca58-7474-8b84-3feadcfa1942","at":1773302631000000000,"seq":1031,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce113-1c60-7118-9e3c-2a2a19182d1e","at":1773302652000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce113-1c60-7046-90d5-3f2185508f03","at":1773302652000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ce113-3a43-739d-a1a5-3c9855d2b3fe","at":1773302659651000000,"seq":1034,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ce113-56f8-7fbc-aedf-fa4030373578","at":1773302667000000000,"seq":1035,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce125-0a7c-7e76-852c-d92ff542d3aa","at":1773303827068000000,"seq":1036,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce125-0a7c-7d7e-b425-56ed096a5886","at":1773303827068000000,"seq":1037,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce125-1208-7856-b3ee-d92b46166db4","at":1773303829000000000,"seq":1038,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce125-40e8-7a13-8425-9500937ec161","at":1773303841000000000,"seq":1039,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce125-44d0-7573-8c2f-ce50b0a98392","at":1773303842000000000,"seq":1040,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce125-6410-78b0-bb29-d62aa5321041","at":1773303850000000000,"seq":1041,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

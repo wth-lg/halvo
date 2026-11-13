@@ -1,0 +1,21 @@
+{"v":1,"id":"019c3781-13e8-7ec9-97a4-9f4a797404ae","at":1770457732072000000,"seq":523,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3781-13e8-74fb-ba50-43ca36c2ce2d","at":1770457732072000000,"seq":524,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3781-88d0-7850-93dd-474fdbf421da","at":1770457762000000000,"seq":525,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c3781-afe0-7a6c-b538-1f21476d7680","at":1770457772000000000,"seq":526,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c378b-32a8-7532-850c-82510ead3655","at":1770458395304000000,"seq":527,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c378b-32a8-76e6-b195-775069f65fee","at":1770458395304000000,"seq":528,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c378b-3d30-761b-822b-1f1299a49c99","at":1770458398000000000,"seq":529,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c378b-48e8-7a95-bfef-a9d9466ced6a","at":1770458401000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c378b-6c10-7b8f-9e4a-4abb1ac01d01","at":1770458410000000000,"seq":531,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c37a5-1156-74e3-82e9-653c2ffa0185","at":1770460090710000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c37a5-9236-7749-8b6c-090a9fb9e260","at":1770460123702000000,"seq":533,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c37a5-a6e8-785e-84f1-3d0cb0b13f55","at":1770460129000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37a5-b688-7dc3-8ef2-4700c3c7c3ab","at":1770460133000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c37a5-ba70-725c-b61c-2696dd4eaa12","at":1770460134000000000,"seq":536,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37a5-d059-70e8-94cf-cc72fc6186ad","at":1770460139609000000,"seq":537,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c37a6-0890-7b44-bc40-20f6ad2decb2","at":1770460154000000000,"seq":538,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c37a6-98b2-7eff-821d-a3e04e0ab83d","at":1770460190898000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c37a6-9918-7dcc-aed2-5d0bcc9d3485","at":1770460191000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c37a6-b088-71ae-b239-9a93b71e7ef3","at":1770460197000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37a7-396a-798b-bb3c-9001e7049461","at":1770460232042000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c37a7-5880-7cc3-830c-dbb8faae2d85","at":1770460240000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

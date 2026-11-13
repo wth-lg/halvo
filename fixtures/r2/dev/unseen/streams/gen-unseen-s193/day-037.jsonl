@@ -1,0 +1,18 @@
+{"v":1,"id":"019c321d-3c31-77e2-a766-144362799e90","at":1770367302705000000,"seq":424,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c321d-3c31-723d-bad3-7c5bc053eb2d","at":1770367302705000000,"seq":425,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c321d-7578-7bb8-b94c-0bc21b10c3fd","at":1770367317368000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c321d-8f60-7b8d-942d-8665fe1b98ab","at":1770367324000000000,"seq":427,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c321d-a6d0-7b25-b1d4-72425c81f3ed","at":1770367330000000000,"seq":428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c321d-aea0-7006-8f35-d521cff34db7","at":1770367332000000000,"seq":429,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c3220-0a43-76ba-8572-a3b7e39eae21","at":1770367486531000000,"seq":430,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c3220-0c18-7fea-bbb4-6d3bed20cc6d","at":1770367487000000000,"seq":431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c3220-42c8-7fba-a332-b4c8dc7c727e","at":1770367501000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3220-42dd-70f5-938b-59cdc5aa6656","at":1770367501021000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c3220-69d8-7e8d-a7c4-521e81332371","at":1770367511000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3220-6dc0-7647-aa6b-8edb05baee14","at":1770367512000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c3220-88b0-7b16-b64c-f0694ecff8ad","at":1770367518896000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c3220-a088-72f8-aaab-4201e2d15fe3","at":1770367525000000000,"seq":437,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3220-c798-76f4-9141-753e8d725250","at":1770367535000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3220-cf68-7700-b1f5-72a5ff8fe467","at":1770367537000000000,"seq":439,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3220-db0b-7258-9714-a572f5be53cc","at":1770367539979000000,"seq":440,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c3221-5820-7b53-8940-5ea4d98f5d00","at":1770367572000000000,"seq":441,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

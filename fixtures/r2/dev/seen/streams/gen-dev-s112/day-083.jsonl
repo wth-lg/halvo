@@ -1,0 +1,9 @@
+{"v":1,"id":"019d1eaa-2b5d-79b4-b084-eb473d8dea0e","at":1774335961949000000,"seq":1332,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1eaa-2b5d-706f-82a9-643c6bcd1e3c","at":1774335961949000000,"seq":1333,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d1eaa-c7d0-798f-bce0-6eae97a8845f","at":1774336002000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eab-073e-7085-84e7-9df59646614d","at":1774336018238000000,"seq":1335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d1eab-8b20-7c79-b68c-09b669941453","at":1774336052000000000,"seq":1336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1eab-ecc8-7067-bed2-f0d566f9e046","at":1774336077000000000,"seq":1337,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1eaf-1f92-73ca-b2d2-11f61350f57f","at":1774336286610000000,"seq":1338,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1eaf-4c10-7e25-b658-77451b6b3c51","at":1774336298000000000,"seq":1339,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1eaf-9648-7c0b-92dd-96531247b1d6","at":1774336317000000000,"seq":1340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

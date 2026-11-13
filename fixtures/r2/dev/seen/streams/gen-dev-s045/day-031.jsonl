@@ -1,0 +1,21 @@
+{"v":1,"id":"019c137d-cbde-77c1-8453-b8a17cbaf5ce","at":1769853537246000000,"seq":304,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c137d-cbde-782b-96ca-a25dfb5be326","at":1769853537246000000,"seq":305,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c137d-fdb0-72b4-90a5-c0e4092b84b6","at":1769853550000000000,"seq":306,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c1393-2b98-7bc6-9e4b-2d8f85c02198","at":1769854938008000000,"seq":307,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1393-2b98-7de9-97d7-532bc60f0eb3","at":1769854938008000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1393-3f18-792d-aa6a-1288aa90d14a","at":1769854943000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1393-5e58-7e55-ab1f-37a6c0dd45c4","at":1769854951000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c1393-abf6-70aa-9e61-c13f484b7e90","at":1769854970870000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1393-c7d0-75ec-92f5-20adfb159402","at":1769854978000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c1393-f2c8-7e44-8a07-771471576c98","at":1769854989000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1394-2d60-7486-b5fd-8659510a781b","at":1769855004000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1394-523d-7262-b268-38968136e174","at":1769855013437000000,"seq":315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1394-f498-7139-a2a0-042ffc53c0ab","at":1769855055000000000,"seq":316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1395-2760-7f24-82b7-c11668afb361","at":1769855068000000000,"seq":317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c13a7-c506-71a3-acf5-0f44aa1b0c6f","at":1769856288006000000,"seq":318,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c13a7-c506-7486-a938-30c5db6ba533","at":1769856288006000000,"seq":319,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c13a7-ccd0-799b-9955-e68ed6666903","at":1769856290000000000,"seq":320,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c13a7-eff8-7d6e-8a2d-05a22177d42e","at":1769856299000000000,"seq":321,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c13a8-0b50-77dc-ade5-b34d1eaff12f","at":1769856306000000000,"seq":322,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c13a8-8468-7426-9949-4808721b0ce6","at":1769856337000000000,"seq":323,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c13a8-a790-712d-9d54-adec3e8f0851","at":1769856346000000000,"seq":324,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

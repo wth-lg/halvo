@@ -1,0 +1,12 @@
+{"v":1,"id":"019cb2fe-91d6-7521-8554-074e7f681892","at":1772529553878000000,"seq":956,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2fe-91d6-7e0d-9546-d8a5f6a5d680","at":1772529553878000000,"seq":957,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cb2fe-dca2-7fbb-b507-059f3e575144","at":1772529573026000000,"seq":958,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ff-6158-7fb0-8203-f975abc7c3ad","at":1772529607000000000,"seq":959,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb2ff-9fd8-76fd-a03b-181be593b9b4","at":1772529623000000000,"seq":960,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb2ff-c8e6-7174-8a01-31225cef06ab","at":1772529633510000000,"seq":961,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cb300-1508-7365-bb57-73cbd1a3c115","at":1772529653000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cb300-a502-750c-b25c-c6e22e0d4b75","at":1772529689858000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cb300-ad60-7d2b-a0f9-f945420231a0","at":1772529692000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cb300-d858-7bbb-a8c7-604ada173f7c","at":1772529703000000000,"seq":965,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb300-dc40-7576-a512-70594b228476","at":1772529704000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb300-ff68-7245-8e2f-084c8b1f7108","at":1772529713000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

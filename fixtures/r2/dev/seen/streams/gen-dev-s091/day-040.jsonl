@@ -1,0 +1,29 @@
+{"v":1,"id":"019c416e-f4f7-75e3-8040-8c16c839e3af","at":1770624316663000000,"seq":587,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c416e-f4f7-7d2a-8965-b4be1ecab575","at":1770624316663000000,"seq":588,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c416f-38b0-79c2-9e05-265506d7d1b1","at":1770624334000000000,"seq":589,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c416f-4468-7e71-8ba4-e4d34dec679f","at":1770624337000000000,"seq":590,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c417c-c156-75b2-829f-d50f60bf7a3e","at":1770625220950000000,"seq":591,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c417c-c156-7117-a373-c72731fd792c","at":1770625220950000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c417c-d8f8-7c6c-8b73-697b8312d526","at":1770625227000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c417d-2330-7afb-935f-92345164f518","at":1770625246000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c417d-4a40-75ef-9f5a-77ef0574afc5","at":1770625256000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c417d-56be-7586-bacb-e70d67cc5836","at":1770625259198000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c417d-d6e0-79cf-a1f8-aa542f006933","at":1770625292000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c417d-e4c1-7965-8ec3-22156a065347","at":1770625295553000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c417e-1d30-75d2-9fef-9bb68a7cde4d","at":1770625310000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c417e-34a0-7dc6-b8e0-3b71041edd3d","at":1770625316000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c417e-3c70-76ed-8f5a-61cbd108c94c","at":1770625318000000000,"seq":601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c417e-4d22-7cce-b170-0555c4ca3494","at":1770625322274000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c417e-6b50-77b8-9523-1b6e7347acb4","at":1770625330000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c417e-7af0-78ac-a59a-1abff08c8faa","at":1770625334000000000,"seq":604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c417e-82c0-7227-b66a-0c0ba5932528","at":1770625336000000000,"seq":605,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c417e-c528-7347-b3db-e0eb3784aabe","at":1770625353000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c417e-c910-783d-a6d9-fb072a6d6f0c","at":1770625354000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c417f-053d-7cb3-b3f4-cd58947d2971","at":1770625369405000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c417f-0b78-751f-afe5-9f159269d303","at":1770625371000000000,"seq":609,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c417f-1f00-714d-ad82-5f641b52712f","at":1770625376000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c417f-22e8-7deb-9cea-22df85f6edce","at":1770625377000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c417f-55d5-7acb-a0cd-35c9cd85f2bb","at":1770625390037000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c417f-6938-7619-97f6-8312b12ff088","at":1770625395000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c417f-9430-7d8c-a690-e25a4cca3145","at":1770625406000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c417f-d2b0-7a3c-b0d4-923de3f0bd6b","at":1770625422000000000,"seq":615,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

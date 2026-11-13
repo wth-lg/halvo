@@ -1,0 +1,45 @@
+{"v":1,"id":"019c940a-fbc2-74f9-b746-2ec3738863a5","at":1772010273730000000,"seq":732,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c940a-fbc2-7d66-aa32-64e17d03bb0c","at":1772010273730000000,"seq":733,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c940b-27c8-7f08-9e83-7830c345b603","at":1772010285000000000,"seq":734,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c940b-3380-77dc-b976-2ec430478fb7","at":1772010288000000000,"seq":735,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c940b-3768-7a85-9d8b-637457be7893","at":1772010289000000000,"seq":736,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9423-bc62-70f5-80ce-1cc3725e61f2","at":1772011895906000000,"seq":737,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9423-bc62-7122-892d-a9640ee31644","at":1772011895906000000,"seq":738,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9423-d048-7079-8b2d-751c6fad0635","at":1772011901000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c9424-983b-7171-9476-1c3135b0e4d0","at":1772011952187000000,"seq":740,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9424-b2d8-7e54-a7e6-ef5560c7b798","at":1772011959000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c9425-2bf0-73b4-86ae-546584ac38f5","at":1772011990000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9425-3cca-72a6-88ca-31e7bac092f1","at":1772011994314000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9425-6688-7daa-8b0d-01d06bf672d4","at":1772012005000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c9425-b0c0-7f0e-97b7-2ab494883ce5","at":1772012024000000000,"seq":745,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9425-c060-7a17-a43e-fec8e571876b","at":1772012028000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9426-3978-7991-aeb2-60aa1272a1f4","at":1772012059000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9426-3ac1-724f-8577-331dc23c50fa","at":1772012059329000000,"seq":748,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9426-3ac1-7c48-9166-b08111930c4d","at":1772012059329000000,"seq":749,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9426-6088-790c-b15f-04163d041352","at":1772012069000000000,"seq":750,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9426-6470-770e-88f0-ad4fddfbcec5","at":1772012070000000000,"seq":751,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9426-6c40-7d27-a85a-57e873bd131b","at":1772012072000000000,"seq":752,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c9426-7be0-7a68-b2c9-4207b6134c83","at":1772012076000000000,"seq":753,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c9426-8973-729c-91cd-3cad38ae5309","at":1772012079475000000,"seq":754,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9426-8973-7de1-b7c6-ee750e1cd737","at":1772012079475000000,"seq":755,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9426-b678-7750-89a6-180e241d1add","at":1772012091000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9426-cde8-7616-921a-ac575e0220f8","at":1772012097000000000,"seq":757,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9426-e558-74f6-be05-acd71d180c3c","at":1772012103000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c9426-fe53-7102-9b59-2343c8a068da","at":1772012109395000000,"seq":759,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9427-00b0-7145-8019-986f3d61ddfd","at":1772012110000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c9427-71f8-7e7e-b74c-24ab64260b9a","at":1772012139000000000,"seq":761,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9427-77fd-711f-8423-0823554e5584","at":1772012140541000000,"seq":762,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9427-a4c0-72ee-b8f1-d3d70af8c9b3","at":1772012152000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9428-0668-7769-a52d-55595444d6d8","at":1772012177000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c9428-2990-7f4e-9a73-0ed45e175c70","at":1772012186000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9438-a83a-765f-a9e4-fc5c69b5843b","at":1772013267002000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9438-b3f0-71da-bb93-c35e68cdad85","at":1772013270000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c9439-11b0-7696-ada5-60f462bc71bc","at":1772013294000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9439-34d8-796f-bd80-d4513ba8174c","at":1772013303000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9439-35f7-762f-b34a-35bc0880d43a","at":1772013303287000000,"seq":770,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9439-5418-7b93-a85a-5f12aea89051","at":1772013311000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c9439-b9a8-7e4f-b185-e23a2ce3d363","at":1772013337000000000,"seq":772,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9439-e4a0-7d7f-a52a-7fe3aade6af0","at":1772013348000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9439-e8bb-70f7-b7aa-412374f06d1c","at":1772013349051000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c943a-84c8-7248-b147-2fd4b9c96ba3","at":1772013389000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c943a-a7f0-713d-be2c-a91ad24b1202","at":1772013398000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

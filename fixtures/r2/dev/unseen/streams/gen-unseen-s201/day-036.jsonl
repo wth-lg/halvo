@@ -1,0 +1,21 @@
+{"v":1,"id":"019c2d1c-8f97-7696-9f3d-c69dcbe4443e","at":1770283372439000000,"seq":512,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d1c-8f97-7ec4-9df4-3e37e35d70e5","at":1770283372439000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c2d1c-d048-7d1c-a87d-ffee515d0378","at":1770283389000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2d1c-ef88-76c1-a512-4eaf77e7eb69","at":1770283397000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c2d1d-0ae0-7a05-86c6-d73cd387e53b","at":1770283404000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d1d-31f0-7305-a186-bd5c0f1a9952","at":1770283414000000000,"seq":517,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2d30-7056-7c1e-bb00-221456270e97","at":1770284675158000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c2d31-0c35-7e8d-a07a-40292231c259","at":1770284715061000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for July - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c2d31-2b38-76fe-9c15-174d57445304","at":1770284723000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d31-61e8-7cc1-9edf-cb39c85f093d","at":1770284737000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d31-81c4-7f39-ae27-f29f09d77c9f","at":1770284745156000000,"seq":522,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c2d31-b008-7fab-b7aa-c99261c07439","at":1770284757000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c2d31-c390-794b-8962-649b50ea4c20","at":1770284762000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d31-eaa0-77f7-9894-520bec46d1ca","at":1770284772000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d32-09e0-7c99-8e8e-40ce4d3f0603","at":1770284780000000000,"seq":526,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d32-6026-7063-a949-38ae5fbfc225","at":1770284802086000000,"seq":527,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c2d3a-8447-7cc3-b613-45e250832605","at":1770285335623000000,"seq":528,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2d3a-8447-7c98-ac5a-5afea4cc6425","at":1770285335623000000,"seq":529,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2d3a-9948-7521-8219-a6fdb741371d","at":1770285341000000000,"seq":530,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c2d3a-a8e8-7c12-a86f-579ed0ac7258","at":1770285345000000000,"seq":531,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d3a-d7c8-712c-b92f-3f079a24a97a","at":1770285357000000000,"seq":532,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

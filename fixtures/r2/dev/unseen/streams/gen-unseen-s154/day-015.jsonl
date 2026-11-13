@@ -1,0 +1,23 @@
+{"v":1,"id":"019bc0ea-5b1f-71ea-a94e-1d8846f4143b","at":1768468142879000000,"seq":243,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc0ea-5b1f-744b-9182-af2972b0b3a0","at":1768468142879000000,"seq":244,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc0ea-8a78-7d23-8dbf-88889786c310","at":1768468155000000000,"seq":245,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bc0ea-c510-7d79-9dbb-878ef7c14f47","at":1768468170000000000,"seq":246,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0ea-f3f0-7a68-93b6-d9413dd0afcc","at":1768468182000000000,"seq":247,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc0ea-fbc0-70c6-9fb4-92a0c0fd5666","at":1768468184000000000,"seq":248,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0fe-d794-7370-9357-f4c7c206d60f","at":1768469485460000000,"seq":249,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc0fe-d794-790c-8f6d-d5f24e226725","at":1768469485460000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc0fe-d9b0-74a1-b182-43de95f9919d","at":1768469486000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bc0ff-5b81-7c11-9bc1-0aaf872d25cc","at":1768469519233000000,"seq":252,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc0ff-5b81-79d3-b877-97a712234845","at":1768469519233000000,"seq":253,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc0ff-79d8-71a8-a8c0-1edafcbed6ed","at":1768469527000000000,"seq":254,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bc0ff-b470-7ac7-bc5a-5bbf44de37f5","at":1768469542000000000,"seq":255,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bc0ff-cbe0-75c2-b6e6-5aa2c7ba43fa","at":1768469548000000000,"seq":256,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0ff-f2f0-7b67-8110-7190e4753d7c","at":1768469558000000000,"seq":257,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0ff-ff8a-7071-a054-7af1432b5492","at":1768469561226000000,"seq":258,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc0ff-ff8a-71bf-b3c8-8199b7b2dedc","at":1768469561226000000,"seq":259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc100-7f90-7058-9121-6746ca7d8c02","at":1768469594000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bc117-2d6f-7caa-90b7-c30c3f461566","at":1768471080303000000,"seq":261,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc117-2d6f-7a7e-9e8c-0f5f57681020","at":1768471080303000000,"seq":262,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc117-5f08-7282-b340-d1940f127fce","at":1768471093000000000,"seq":263,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bc117-7290-76b7-b2a3-ebab2b7a2f90","at":1768471098000000000,"seq":264,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc117-9d88-745e-ad09-197f44f08be2","at":1768471109000000000,"seq":265,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

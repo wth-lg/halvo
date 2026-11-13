@@ -1,0 +1,42 @@
+{"v":1,"id":"019d3daf-698b-775a-97f4-d6cf71d3b1cd","at":1774856399243000000,"seq":1158,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3daf-698b-7e4a-8f13-1559ce7ee5e4","at":1774856399243000000,"seq":1159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d3daf-9390-7aee-ab91-d09cb43f8993","at":1774856410000000000,"seq":1160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3db0-4614-7b80-b640-774ac7165355","at":1774856455700000000,"seq":1161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d3db0-b0b8-7a5f-aa31-84fb1b8337fc","at":1774856483000000000,"seq":1162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3db0-b888-7219-853e-b6731a14aa6b","at":1774856485000000000,"seq":1163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3db0-cd05-7d79-9293-f6575848e98e","at":1774856490245000000,"seq":1164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d3db0-dbb0-7866-885f-ac639e40f5a9","at":1774856494000000000,"seq":1165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3db1-0a90-7e66-88a3-bc8da7c40111","at":1774856506000000000,"seq":1166,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3db1-9348-7763-9bad-a20124ab5a2b","at":1774856541000000000,"seq":1167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3db1-9ba8-7ff9-954a-9d0d8c6b3b3b","at":1774856543144000000,"seq":1168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d3db1-e550-700b-9585-57b4fa96b503","at":1774856562000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d3db1-f4f0-7b4f-bcbb-1d70493afbfd","at":1774856566000000000,"seq":1170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dc6-5b0a-7b2e-9cdb-7f17933f058c","at":1774857902858000000,"seq":1171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3dc6-6f20-7503-857c-bb4b2344eb88","at":1774857908000000000,"seq":1172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dc6-8690-7c61-a9df-41dac0113875","at":1774857914000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3ddf-baec-74ca-9265-bf2d10dc57d5","at":1774859565804000000,"seq":1174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d3ddf-d320-71a9-bafc-4b595f11fd43","at":1774859572000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d3de0-5408-7846-b1fe-57aeaa49db64","at":1774859605000000000,"seq":1176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de0-a8d2-7e29-b21a-11aac7fcd3e1","at":1774859626706000000,"seq":1177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d3de1-07b8-74b7-9ade-8afd0bebd6dd","at":1774859651000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de1-2ae0-715d-9ce0-9fb7616249cc","at":1774859660000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d3de1-3a80-7072-bcf5-a95029506954","at":1774859664000000000,"seq":1180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de1-523c-7023-9254-ddb2c22396f8","at":1774859670076000000,"seq":1181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3de1-59c0-759e-988e-6512f8f99670","at":1774859672000000000,"seq":1182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de1-5da8-7576-826d-4afe04f28959","at":1774859673000000000,"seq":1183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3de1-9840-7719-81a5-014364bfabb1","at":1774859688000000000,"seq":1184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3de1-9fc4-77f6-81da-df561d10b349","at":1774859689924000000,"seq":1185,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d3de1-bf50-792c-b558-a90b07028d24","at":1774859698000000000,"seq":1186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3de1-d6c0-792d-b441-52d97220abd4","at":1774859704000000000,"seq":1187,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3de1-de90-7c7a-99d7-17ef64cef220","at":1774859706000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de2-05a0-7da1-9aa3-e526ff34b228","at":1774859716000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d3de2-1f27-7686-844b-a0c34c0d72d6","at":1774859722535000000,"seq":1190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d3de2-2cb0-7cc7-94ab-369b20f9b670","at":1774859726000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de2-7ad0-7561-accd-d16331fe37db","at":1774859746000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dee-5751-7c5b-97ab-90f9cde37d47","at":1774860523345000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d3dee-e680-7c24-a7c5-fee9aacb0429","at":1774860560000000000,"seq":1194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3dee-f620-73d6-989e-88daf56de527","at":1774860564000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3def-4a04-7c8a-a2b5-c6fd6bd2a5b9","at":1774860585476000000,"seq":1196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d3def-6b50-7fc3-8b98-0ee3dde5a97e","at":1774860594000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3def-7af0-7231-933a-7c31167fcd89","at":1774860598000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d3def-8a90-7540-a9f6-5f53c86e3955","at":1774860602000000000,"seq":1199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

@@ -1,0 +1,27 @@
+{"v":1,"id":"019c1331-7939-75f2-ab06-0bb142bb024c","at":1769848535353000000,"seq":371,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1331-7939-79d0-a64e-0278195ee561","at":1769848535353000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c1331-b658-76e4-8d02-ad59402da385","at":1769848551000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1332-037f-7a88-a18a-1e466c43f607","at":1769848570751000000,"seq":374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c1332-3f10-715c-b6b3-221a3236918d","at":1769848586000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1332-75c0-7877-9b69-61b753dbe9f5","at":1769848600000000000,"seq":376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1332-9118-79b4-87a1-6377e0c6920f","at":1769848607000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c1332-b828-7b08-a1b3-2b2bc847b5cf","at":1769848617000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1332-c7c8-7eb2-ab54-25f324303fce","at":1769848621000000000,"seq":379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1332-ced5-753f-96d6-02e23a5a1798","at":1769848622805000000,"seq":380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c1332-d380-79b9-91bc-592606b7131d","at":1769848624000000000,"seq":381,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1333-0260-7258-9bba-58790fcb837e","at":1769848636000000000,"seq":382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c1333-5080-7e0a-ab54-7e93860ecd90","at":1769848656000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1333-5c38-7d21-8880-235dd6c7492b","at":1769848659000000000,"seq":384,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1333-8224-7526-aee2-f887d7e20f63","at":1769848668708000000,"seq":385,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c1333-8b18-7d5d-8273-4b1f11e92c7a","at":1769848671000000000,"seq":386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1333-a288-795f-89e3-d81338d436c7","at":1769848677000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1333-ae40-7168-b4df-123468b139a5","at":1769848680000000000,"seq":388,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1333-b9f8-78ac-9cf9-24db395f6d0a","at":1769848683000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c1340-d7f4-77a8-a6f7-0afaeaf4ffc5","at":1769849542644000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1340-e8f8-75e6-bd63-b9b9a3251cbf","at":1769849547000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c1341-981f-7128-b944-393694e24e0f","at":1769849591839000000,"seq":392,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1342-0df0-75fe-9918-34d90653eadb","at":1769849622000000000,"seq":393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1342-11d8-7936-be5a-8b7530ff55e6","at":1769849623000000000,"seq":394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1342-83ad-756e-91df-adc7005e2bc6","at":1769849652141000000,"seq":395,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1342-b200-72c1-8be2-a41436a09a02","at":1769849664000000000,"seq":396,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1342-d910-75b4-a14e-03a079924c5b","at":1769849674000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

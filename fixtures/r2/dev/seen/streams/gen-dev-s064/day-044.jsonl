@@ -1,0 +1,25 @@
+{"v":1,"id":"019c55d6-9974-792d-947b-70ffe63f1fbc","at":1770966653300000000,"seq":418,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c55d6-9974-7d29-905b-4e5a14754b78","at":1770966653300000000,"seq":419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c55d6-9c30-7d18-a67e-584a8f6ac86c","at":1770966654000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55d6-ee38-73a6-9568-b1e7b70c9546","at":1770966675000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55d6-f287-77c2-a881-3e30bdb7e887","at":1770966676103000000,"seq":422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c55d7-28d0-75ef-bd15-f09c9a3b1f4f","at":1770966690000000000,"seq":423,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c55d7-36da-75f3-a4c9-1a1ca5b7d5d2","at":1770966693594000000,"seq":424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c55d7-7308-7f00-a0fa-01611e3a47fb","at":1770966709000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55d7-8e60-783c-ba2e-833f88e2ef49","at":1770966716000000000,"seq":426,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c55d7-9a18-744d-b4ca-a3d3704a1cba","at":1770966719000000000,"seq":427,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c55d7-b570-7bde-839f-c75e5a721abe","at":1770966726000000000,"seq":428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55d7-d915-7384-9105-271dacc994c8","at":1770966735125000000,"seq":429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c55d8-1b00-74bb-904c-e4b31a2c2157","at":1770966752000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c55d8-1ee8-7360-9142-31ec366e9442","at":1770966753000000000,"seq":431,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c55d8-22d0-7389-b954-441e58b339d8","at":1770966754000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55d8-3270-7240-91bb-91d20cc43e41","at":1770966758000000000,"seq":433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c55d8-45f8-70d5-888d-8eadf5fcfd0e","at":1770966763000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f1-d3ec-7aa2-b7b2-b885062b7ec2","at":1770968437740000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c55f1-dcc0-77ae-b28b-bc22cc4a295e","at":1770968440000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f1-ffe8-7bc4-b4f6-3b4047828638","at":1770968449000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f1-ffe8-75f2-85a1-e3d974331136","at":1770968449000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c55f2-1665-7203-b85b-7d280eae1596","at":1770968454757000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c55f2-1b40-77ee-b35a-0bd75943d478","at":1770968456000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f2-32b0-7de5-ab97-75097df77437","at":1770968462000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f2-4a20-7530-a78a-239017f2a8fc","at":1770968468000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019d0abe-cdb6-7f45-8d37-552b1e7a64dc","at":1774001769910000000,"seq":1123,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0abe-cdb6-7f7f-965f-603a6f447254","at":1774001769910000000,"seq":1124,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0abe-ddb0-7f31-be72-95f94690ae7c","at":1774001774000000000,"seq":1125,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0abf-8d78-7daa-bfa6-08110f19c279","at":1774001819000000000,"seq":1126,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d0ac8-410f-76ad-a4b0-6410b6853f94","at":1774002389263000000,"seq":1127,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0ac8-410f-7a04-8bfd-149e5cfc521d","at":1774002389263000000,"seq":1128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0ac8-d860-7305-8492-9efe4934e70f","at":1774002428000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ac8-e418-7723-ba6a-179697c212e4","at":1774002431000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d0ac8-f2ce-7ed1-ad36-6ea4c6bdbb25","at":1774002434766000000,"seq":1131,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0ac9-1eb0-7608-a18b-4ccc0e110cdc","at":1774002446000000000,"seq":1132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ac9-3a08-7397-a90a-596768ec9ee5","at":1774002453000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ac9-45c0-7e77-9eb5-095e9dce1ac4","at":1774002456000000000,"seq":1134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0ac9-47bd-7bef-b5e4-014c6da37b8d","at":1774002456509000000,"seq":1135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0ac9-68e8-7e6b-8e1a-7178a2a1c5c0","at":1774002465000000000,"seq":1136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ac9-7c70-7e42-9805-c64f291f4a51","at":1774002470000000000,"seq":1137,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0ac9-ab50-7a7a-b173-8398b5fad498","at":1774002482000000000,"seq":1138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d0ac9-ca90-7b2c-8ecf-5cc2bfbdfe0f","at":1774002490000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ac9-e4d2-7668-bf23-e2e2a1a8531b","at":1774002496722000000,"seq":1140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0adf-cb62-7581-978e-ddf243e43861","at":1774003932002000000,"seq":1141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0ae0-1d68-7bdc-8ff9-274b228c2066","at":1774003953000000000,"seq":1142,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0ae0-3ca8-7106-b75e-ef2609ec286a","at":1774003961000000000,"seq":1143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0ae0-a238-7836-ad98-a3e2c01c4160","at":1774003987000000000,"seq":1144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,26 @@
+{"v":1,"id":"019c601d-126d-70e4-9367-569da74dc873","at":1771139043949000000,"seq":619,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c601d-126d-73cb-ad2d-da5ed55476de","at":1771139043949000000,"seq":620,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c601d-12a0-7946-9268-0881ecb89dca","at":1771139044000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c601d-8bb8-7c32-a3e4-1363a743d5b0","at":1771139075000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c601d-c092-7ef5-9eaa-19b23475b272","at":1771139088530000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c601d-d208-7989-bff2-84f6d352253c","at":1771139093000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c601e-3f68-75a6-9400-ca31603cb9e2","at":1771139121000000000,"seq":625,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c601e-4c16-74e4-856a-643a06203108","at":1771139124246000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c601e-9d28-7401-bd2e-8cc060b731fa","at":1771139145000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c601f-06a0-7cba-80d0-10319b14e1cf","at":1771139172000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c601f-1e10-7df1-95d0-20d368298814","at":1771139178000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c601f-25e0-78b3-b1a7-35bf16df60a0","at":1771139180000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c601f-5898-75a5-80f5-45999e899f4a","at":1771139192984000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c601f-9ef8-7f59-8988-3b921dd8f296","at":1771139211000000000,"seq":632,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c601f-a6c8-7098-bcb2-60d1c7102af4","at":1771139213000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c601f-b668-749c-a8da-03b878197974","at":1771139217000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6039-b6c7-7c4b-8ee7-bfcacd96e690","at":1771140921031000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6039-ed58-7660-b5e1-243c40064f7c","at":1771140935000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c603a-1311-7475-bea4-3053815ba68b","at":1771140944657000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c603a-85b0-79bb-b998-c50bfb104409","at":1771140974000000000,"seq":638,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c603a-8998-7bfd-bc91-72ceffa4f285","at":1771140975000000000,"seq":639,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c603a-9550-7281-8596-3777115d5807","at":1771140978000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c603a-a108-71ef-9904-01a5d9947938","at":1771140981000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c603a-d3e8-7cfe-9c8e-be9581282115","at":1771140994024000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c603a-dba0-7b4d-af95-697b46881c6f","at":1771140996000000000,"seq":643,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c603b-3190-7a66-9ade-c64581083893","at":1771141018000000000,"seq":644,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

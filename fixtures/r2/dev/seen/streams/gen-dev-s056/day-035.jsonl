@@ -1,0 +1,15 @@
+{"v":1,"id":"019c27ec-72b1-728e-813f-1a1411cbac74","at":1770196333233000000,"seq":291,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c27ec-72b1-7435-b92f-3c7fbf698b4f","at":1770196333233000000,"seq":292,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c27ec-8938-73e3-ac67-4258a66e9ad0","at":1770196339000000000,"seq":293,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c27ec-a490-702c-93fc-0edac2ad38df","at":1770196346000000000,"seq":294,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c27ec-e255-7c64-b40a-a7aba6e24b4d","at":1770196361813000000,"seq":295,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c27ec-e255-7bd8-8248-052e1072022a","at":1770196361813000000,"seq":296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c27ec-f698-7b1b-9c68-85c73ca14096","at":1770196367000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c27ed-0e08-7cf0-8d4d-e5d32ff55f18","at":1770196373000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c27ed-3130-7d19-8dd3-4f443ab7925a","at":1770196382000000000,"seq":299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c27ed-a442-7d38-8bc0-23cba67ab892","at":1770196411458000000,"seq":300,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c27ed-a442-77cd-91e2-f91d56d51530","at":1770196411458000000,"seq":301,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c27ed-a660-7c0b-b59c-ba84182e303d","at":1770196412000000000,"seq":302,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c27ed-d928-784f-a0e3-db1d8155e9f2","at":1770196425000000000,"seq":303,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ee-17a8-737e-ac97-0af53781b8fc","at":1770196441000000000,"seq":304,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c27ee-1b90-760f-b2be-ea4485028d71","at":1770196442000000000,"seq":305,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

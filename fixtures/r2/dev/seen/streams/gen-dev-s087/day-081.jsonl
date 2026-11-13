@@ -1,0 +1,38 @@
+{"v":1,"id":"019d1526-2e46-7539-923b-a3f96c97fafe","at":1774176316998000000,"seq":1193,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1526-2e46-7ef8-8d3e-f0d69f7836d4","at":1774176316998000000,"seq":1194,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1526-49a0-7870-8902-633c75049947","at":1774176324000000000,"seq":1195,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1526-6cc8-70d9-9829-6e935a0b15ce","at":1774176333000000000,"seq":1196,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1526-9ba8-7e72-bcf7-a46871c2ed39","at":1774176345000000000,"seq":1197,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d153f-9fae-758a-911b-064040be9fa4","at":1774177984430000000,"seq":1198,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d153f-bd40-78dd-9aa0-8b2af47eae20","at":1774177992000000000,"seq":1199,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d153f-c128-7d42-91de-7f67838c7e37","at":1774177993000000000,"seq":1200,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d153f-d4b0-77ad-b3e3-4a6139c501b0","at":1774177998000000000,"seq":1201,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1544-2144-7c23-9b1c-f7985c120ae1","at":1774178279748000000,"seq":1202,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1544-2144-7488-b533-077b8b6de066","at":1774178279748000000,"seq":1203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1544-39b0-78fb-84fd-bb2c6f4470bf","at":1774178286000000000,"seq":1204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1544-d208-754b-a329-8de90f4c2385","at":1774178325000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1544-f148-70c3-92aa-a89b621ef9f3","at":1774178333000000000,"seq":1206,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1545-1ad5-7bf7-a523-1c38d87ec7d9","at":1774178343637000000,"seq":1207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1545-52f0-7ef4-a3fb-a61763bf7abe","at":1774178358000000000,"seq":1208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1545-6a60-7bf0-a948-207bad54685f","at":1774178364000000000,"seq":1209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d1545-85b8-7eee-aa5e-94986a501663","at":1774178371000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1545-89a0-7f03-a013-0e03e2f67f83","at":1774178372000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1545-9558-7be8-bf6d-6cf5948e9063","at":1774178375000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d154a-535d-7bbf-af01-7008d9a4c71f","at":1774178685789000000,"seq":1213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d154a-9937-7444-8812-f5e0ca33db29","at":1774178703671000000,"seq":1214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d154b-0010-7ef0-baed-2dba2fadca92","at":1774178730000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d154b-7540-7e26-b2af-039e686189d2","at":1774178760000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d154b-91a2-7cc6-8e43-9cee70322cd4","at":1774178767266000000,"seq":1217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d154b-d300-7e67-8d77-7087c341b41b","at":1774178784000000000,"seq":1218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d154c-00d9-79c6-a4e5-3b897418c912","at":1774178795737000000,"seq":1219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d154c-28f0-701a-a6d8-ac018477fc34","at":1774178806000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d154c-3890-74f2-a744-563192fcea39","at":1774178810000000000,"seq":1221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d154c-5f8f-7b9a-9143-bc6e902d228d","at":1774178819983000000,"seq":1222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d154c-6f40-7974-af37-e31834f9baf7","at":1774178824000000000,"seq":1223,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d154c-6f40-7d28-a531-e4f0239e0e37","at":1774178824000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d154c-82c8-772d-82f0-bad1b3687eea","at":1774178829000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d154c-adc0-717c-8d7d-783d40485567","at":1774178840000000000,"seq":1226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d154c-d750-7a7e-821d-603f17a1f5c4","at":1774178850640000000,"seq":1227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d154c-e858-7f93-9a65-f5b84f71edf2","at":1774178855000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d154d-03b0-7ac8-b128-ffa08ab7f008","at":1774178862000000000,"seq":1229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d154d-1b20-7471-a4c0-2a907a07119f","at":1774178868000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

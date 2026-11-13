@@ -1,0 +1,17 @@
+{"v":1,"id":"019cf612-83ab-77d9-9d04-3c00ca76fa66","at":1773654934443000000,"seq":1114,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf612-83ab-7f3c-9a56-e69b83d2b1e9","at":1773654934443000000,"seq":1115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cf612-8da8-7aa3-a9b5-dc1172a5230e","at":1773654937000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf612-bf5b-7663-9516-39184011e4c1","at":1773654949723000000,"seq":1117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cf613-1e30-7890-ad44-641c3d5accbb","at":1773654974000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf613-4158-7696-9128-ca2e8811945f","at":1773654983000000000,"seq":1119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf613-6480-74ef-87a9-75ac357988cb","at":1773654992000000000,"seq":1120,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf613-6c50-7406-9abe-507e4b6fb875","at":1773654994000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf624-e5d5-7c52-97c2-52a1f719559e","at":1773656139221000000,"seq":1122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf624-fc68-775c-bd8e-de642ec175f7","at":1773656145000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf625-1ba8-732a-b271-9ff0cf22a634","at":1773656153000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf625-2378-774d-a4c8-598fbbcf576e","at":1773656155000000000,"seq":1125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cf62d-bf4f-76ed-af60-15699aab6a37","at":1773656719183000000,"seq":1126,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf62d-bf4f-7003-bf8c-e6adda613f57","at":1773656719183000000,"seq":1127,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf62d-d9f0-7a45-adb4-f116d95d0d64","at":1773656726000000000,"seq":1128,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf62e-5308-7452-a0cf-5a3f7b9dd100","at":1773656757000000000,"seq":1129,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf62e-5ad8-710f-99e4-e3dd2f612357","at":1773656759000000000,"seq":1130,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}

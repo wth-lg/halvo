@@ -1,0 +1,8 @@
+{"v":1,"id":"019c1de0-b4c2-747d-9401-fa790f81b7af","at":1770027791554000000,"seq":492,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1de0-b4c2-7821-896f-81c21e14977e","at":1770027791554000000,"seq":493,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1de0-ca08-7dc5-a4b0-dc6af49b0781","at":1770027797000000000,"seq":494,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1de1-00b8-7793-86e4-67079cd5272c","at":1770027811000000000,"seq":495,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1de2-38da-766e-b82d-b1d056677db6","at":1770027890906000000,"seq":496,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1de2-38da-72b6-9d05-cf96aac8ff45","at":1770027890906000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c1de2-96f8-722d-8b00-20a59441a9c9","at":1770027915000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1de2-d655-7620-999c-2d069b6edd1c","at":1770027931221000000,"seq":499,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}

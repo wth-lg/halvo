@@ -1,0 +1,21 @@
+{"v":1,"id":"019c0ded-6310-7a5f-884b-f329bf8fe451","at":1769760187152000000,"seq":433,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0ded-6310-71cf-8db1-73e93b22a16d","at":1769760187152000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0ded-d0eb-7d4e-8269-1ecf57c5e0d8","at":1769760215275000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0dee-1df8-700b-87fa-f79770a0b232","at":1769760235000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dee-4508-7d24-bb8a-25184c9d63bf","at":1769760245000000000,"seq":437,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0dee-7bb8-7ced-9fb9-e147d74935fb","at":1769760259000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dee-81bd-7683-9713-9ddb8c912231","at":1769760260541000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0dee-c9d8-7bc1-8b4e-e28dcdcb6368","at":1769760279000000000,"seq":440,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0def-1028-7ae1-bb0f-dc1ab20e63ab","at":1769760297000000000,"seq":441,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0def-59b7-7f33-ae94-a74b332da605","at":1769760315831000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0def-df30-7686-a8ea-5a4a2a4ebd12","at":1769760350000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e09-1191-7482-8190-2bdeea343c8c","at":1769762001297000000,"seq":444,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e09-1191-7e2c-a442-53d3ffee7ee3","at":1769762001297000000,"seq":445,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e09-1c20-7de1-82e2-52a0426c58ae","at":1769762004000000000,"seq":446,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e09-6658-7032-8101-96fe2f3cd63e","at":1769762023000000000,"seq":447,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c0e09-b860-7392-ae0f-a4a61a04cf4b","at":1769762044000000000,"seq":448,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0e23-1bbc-7abb-8055-c98a846f54cd","at":1769763707836000000,"seq":449,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e23-1bbc-7f31-b5d0-afaa3b87a3e6","at":1769763707836000000,"seq":450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0e23-4370-7eef-bc48-325647294627","at":1769763718000000000,"seq":451,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e23-ace8-743a-814c-3bdf1af7d15c","at":1769763745000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c0e23-d010-7bbd-a2de-172e07359a2d","at":1769763754000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

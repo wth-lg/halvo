@@ -1,0 +1,26 @@
+{"v":1,"id":"019d522b-7715-7994-b8bb-4a73a3fa64af","at":1775200073493000000,"seq":1453,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d522b-7715-7708-80f8-cbb95ce530e3","at":1775200073493000000,"seq":1454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d522b-ea58-7a07-8f82-d9eee7e380f7","at":1775200103000000000,"seq":1455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d522c-1550-7b2a-a61b-2a828cfc2aaa","at":1775200114000000000,"seq":1456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d522c-1938-7c92-b734-71b7f03e8f0c","at":1775200115000000000,"seq":1457,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d522d-e5c8-7d90-8685-950b1472bece","at":1775200232904000000,"seq":1458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d522e-3060-7338-8d6a-58560cf25abf","at":1775200252000000000,"seq":1459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d522e-4fa0-7ed2-9a8a-4856d685db75","at":1775200260000000000,"seq":1460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d522e-5388-74ae-9f78-6d48fea408f0","at":1775200261000000000,"seq":1461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d522e-6228-77d2-b178-d5291f2e205e","at":1775200264744000000,"seq":1462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d522f-0350-76f9-b6dc-e66aa5c14ecd","at":1775200306000000000,"seq":1463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d522f-45b8-714b-908f-2a6ea3bfb2a0","at":1775200323000000000,"seq":1464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d522f-6ff4-7c52-b9c6-6d09148c84e2","at":1775200333812000000,"seq":1465,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d522f-8050-74d7-99e2-6292be3c237a","at":1775200338000000000,"seq":1466,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d522f-a378-71c6-b928-f7225d9fc93e","at":1775200347000000000,"seq":1467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d522f-ca88-74f0-becc-5b3c5cd2d84d","at":1775200357000000000,"seq":1468,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d522f-d7cc-7492-9f5d-bc468d0b8ebb","at":1775200360396000000,"seq":1469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d5230-8608-790d-9cd3-32a07d38c243","at":1775200405000000000,"seq":1470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5230-adf1-7599-9f19-fcf2bb87665e","at":1775200415217000000,"seq":1471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d5230-c0a0-708c-a01e-c4967adc9f29","at":1775200420000000000,"seq":1472,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d5230-dbf8-7874-a416-022d81d7a080","at":1775200427000000000,"seq":1473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d5231-06f0-7e2e-a72a-b684703105ae","at":1775200438000000000,"seq":1474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5231-8578-72b1-abf1-8af8ce886ff1","at":1775200470392000000,"seq":1475,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d5231-f538-7fba-b218-eb97439878e5","at":1775200499000000000,"seq":1476,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d5232-0ca8-7044-87a0-190b0745505e","at":1775200505000000000,"seq":1477,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d5232-2fd0-7db1-8f88-e801cd077a59","at":1775200514000000000,"seq":1478,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

@@ -1,0 +1,19 @@
+{"v":1,"id":"019c79fa-2b90-71f6-b467-4564e84be197","at":1771572964240000000,"seq":806,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c79fa-2b90-7401-af19-7deb98aa2928","at":1771572964240000000,"seq":807,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c79fa-2e88-7c43-b103-bafd09fd4aab","at":1771572965000000000,"seq":808,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c79fa-2e88-7b39-a3e4-e85ab5ae86d2","at":1771572965000000000,"seq":809,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c79fa-7ca8-7325-a4a6-75c6942e3b63","at":1771572985000000000,"seq":810,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a0f-702e-77ff-bcd3-edcbeb3381ce","at":1771574358062000000,"seq":811,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a0f-702e-7dd0-85fd-03aa8450bc95","at":1771574358062000000,"seq":812,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a0f-ae70-7eb1-a663-168038055477","at":1771574374000000000,"seq":813,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a0f-b258-7035-8506-c048bc9d0f37","at":1771574375000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c7a0f-be10-77fc-be5f-7a10af16b071","at":1771574378000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a1f-c69c-7c6f-b209-26b29d6d8e89","at":1771575428764000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7a2d-2b16-7979-be74-3093704bc711","at":1771576306454000000,"seq":817,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c7a2d-c1a8-779c-a6a4-0c5909516b98","at":1771576345000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a2e-0be0-7956-80a5-a98eca7e260a","at":1771576364000000000,"seq":819,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a2e-22d6-7395-a21d-2b54d1fdff59","at":1771576369878000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c7a2e-2738-7b4e-a896-e791c3d745fb","at":1771576371000000000,"seq":821,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a2e-3ea8-77b0-940b-8358de12aa16","at":1771576377000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a2e-4678-745e-8973-e6095b89b7e1","at":1771576379000000000,"seq":823,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7a2e-dae8-7ee2-babd-3b63873ded82","at":1771576417000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

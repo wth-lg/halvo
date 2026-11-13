@@ -1,0 +1,35 @@
+{"v":1,"id":"019c9910-b377-7159-b91f-6f7cb3374a96","at":1772094534519000000,"seq":904,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9910-b377-7448-9872-881f3f4f5a4a","at":1772094534519000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9910-bd28-72c2-9d22-c83eff61f4af","at":1772094537000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c9910-c4f8-754b-bbe2-02833dc2a2a6","at":1772094539000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9910-eff0-7a12-86d6-3b9895b69a77","at":1772094550000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9911-1318-7c8d-a16c-2ad2b8af86cf","at":1772094559000000000,"seq":909,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9919-5816-7991-8111-d9c7adb8cb4f","at":1772095100950000000,"seq":910,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c9919-67e8-7569-a19e-efbd508e0bd8","at":1772095105000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c9919-c1c0-71dc-b2d2-80f88d33f49c","at":1772095128000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9919-cab6-7756-8e52-e42f53b00e2d","at":1772095130294000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c9919-e4e8-763c-8db3-d505ef8dd3d7","at":1772095137000000000,"seq":914,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9919-fc58-7a4c-ba3d-46f75d07a6a5","at":1772095143000000000,"seq":915,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c991a-2f20-7056-9389-8d46e10eedff","at":1772095156000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c991a-a068-7eb8-a7c6-91b59a0f2f90","at":1772095185000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c991a-ad12-7af8-bb7b-5937ca88e215","at":1772095188242000000,"seq":918,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c991a-e538-7125-bde1-e068f25c16ea","at":1772095202616000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c991b-09e0-7845-ba38-f83c24708536","at":1772095212000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c991b-11b0-774c-a607-aaa164a08aef","at":1772095214000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c991b-1980-7a46-9be3-d73b502af851","at":1772095216000000000,"seq":922,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c991b-2538-7da3-93e2-c6048177c2f0","at":1772095219000000000,"seq":923,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9925-0023-7b69-bd2c-08b69a056c7b","at":1772095864867000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c9925-0c60-79de-b33b-aaf465c2cb0d","at":1772095868000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9925-3758-7867-bdc7-7e9bd09bb5d3","at":1772095879000000000,"seq":926,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9925-8960-7bc5-9719-29250e7b5ecd","at":1772095900000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9925-c3f8-754d-9324-e9147351b6bc","at":1772095915000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9925-c817-7e18-9f43-3b4689f46017","at":1772095916055000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c9926-0a48-712a-a65a-26752ea071b8","at":1772095933000000000,"seq":930,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9926-44e0-7b7e-a449-89fbb4e8cc43","at":1772095948000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c9926-9ad0-7e95-949d-354fc000f850","at":1772095970000000000,"seq":932,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9933-772c-7f1d-9d94-ee8c47a5217e","at":1772096812844000000,"seq":933,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9934-10a6-7a75-8520-b5f06443d982","at":1772096852134000000,"seq":934,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9934-42e8-7e81-add6-4902abaa8749","at":1772096865000000000,"seq":935,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9934-75b0-7ccb-ac09-f76dd8f941f4","at":1772096878000000000,"seq":936,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9934-75b0-7225-8f4d-b2a1028b4163","at":1772096878000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c9934-db40-719e-93c9-e329ca12f2f3","at":1772096904000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,10 @@
+{"v":1,"id":"019bfef2-b142-7bf1-b450-e80b69418d66","at":1769508876610000000,"seq":392,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfef2-b142-7f09-8006-cddd2aa05274","at":1769508876610000000,"seq":393,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bfef2-ca38-7db0-98cc-036fc95ba528","at":1769508883000000000,"seq":394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bfef3-3f68-7ae7-93ca-56fedc116df0","at":1769508913000000000,"seq":395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfef3-8105-7e62-a24c-769748c89cd9","at":1769508929797000000,"seq":396,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bfef3-9940-7e3f-8154-b53c635dfaee","at":1769508936000000000,"seq":397,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bfef3-e378-789f-844b-88266b0b21d6","at":1769508955000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfef3-f318-7511-9994-ec4673c77e2c","at":1769508959000000000,"seq":399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bfef4-58a8-70e8-b3b7-319218de6225","at":1769508985000000000,"seq":400,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bfef4-7541-7f52-a44b-2a9ebac11fd8","at":1769508992321000000,"seq":401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}

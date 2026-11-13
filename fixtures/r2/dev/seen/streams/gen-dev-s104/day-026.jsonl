@@ -1,0 +1,29 @@
+{"v":1,"id":"019bf982-bd20-72ba-abd1-74ebd3c47475","at":1769417653536000000,"seq":202,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf982-bd20-77e3-b17c-80d30a7d8f03","at":1769417653536000000,"seq":203,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf983-7a70-7f09-9be7-60fdc577e19d","at":1769417702000000000,"seq":204,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf994-5a26-79eb-bb3e-84ed1246f44f","at":1769418807846000000,"seq":205,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf994-5a26-7bf1-9703-7e233f843336","at":1769418807846000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bf994-6678-72d8-947b-f01fade15cfe","at":1769418811000000000,"seq":207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf994-6a60-79f9-9df5-16ea7381e5a3","at":1769418812000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf994-d627-7908-9960-915c0b609e1c","at":1769418839591000000,"seq":209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bf994-e378-7bc9-9a5c-844503e68be6","at":1769418843000000000,"seq":210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf994-fae8-7270-9cd6-2c28efc541b1","at":1769418849000000000,"seq":211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf995-0a88-7ca8-a363-60f652b8103a","at":1769418853000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf995-0e70-728b-a55f-a79e46887aa5","at":1769418854000000000,"seq":213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf9af-c18c-7ea4-b8fe-7c88ef76052c","at":1769420603788000000,"seq":214,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf9af-c18c-72af-8e93-35434a75d585","at":1769420603788000000,"seq":215,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf9b0-1080-7247-afa5-2e573a07dfd5","at":1769420624000000000,"seq":216,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9b8-acd2-719c-be59-53b9a2a240b8","at":1769421188306000000,"seq":217,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf9b8-acd2-77f7-9f4a-f6700a843554","at":1769421188306000000,"seq":218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf9b9-0190-732e-b56c-bbd2eca3146d","at":1769421210000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9b9-5f50-73fd-b499-fadaac1127f2","at":1769421234000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf9b9-6336-7fad-8421-6384271484cc","at":1769421234998000000,"seq":221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf9b9-7aa8-7f72-9142-64af2320acfa","at":1769421241000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9b9-b540-73bd-ae45-71c4404cf2da","at":1769421256000000000,"seq":223,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf9ba-0f18-7abb-8e0c-7ae5884dcaed","at":1769421279000000000,"seq":224,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf9ba-1ad0-7871-a09e-ddb631c3593f","at":1769421282000000000,"seq":225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bf9ba-33a1-7657-89c2-79f32e2d2cd9","at":1769421288353000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ba-3df8-7e98-ac7c-e8955ee83266","at":1769421291000000000,"seq":227,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf9ba-41e0-7ccd-ab0e-6b0665fbc111","at":1769421292000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bf9ba-45c8-7c27-bf33-f7460ec13e89","at":1769421293000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ba-5950-7de5-9a4b-6a457d652b91","at":1769421298000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

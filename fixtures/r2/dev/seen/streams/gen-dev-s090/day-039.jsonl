@@ -1,0 +1,15 @@
+{"v":1,"id":"019c3c55-1055-7371-82b0-1d776dd8d7fe","at":1770538733653000000,"seq":507,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3c55-1055-7c40-ad41-69762a4b7b36","at":1770538733653000000,"seq":508,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3c55-4994-7882-b916-7231d95efe2a","at":1770538748308000000,"seq":509,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c55-4994-7f4c-b540-a56d1837de70","at":1770538748308000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c3c55-9298-7eb4-bbf6-3f35d8d8e520","at":1770538767000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c55-b9a8-7c7b-bff0-e956345c899a","at":1770538777000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c56-0ba0-74e3-8048-50e30065df2c","at":1770538797984000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c3c56-2af0-7154-928d-0568a249bad5","at":1770538806000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c56-36a8-769f-a245-fdede178f95e","at":1770538809000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c56-3a90-747d-abf3-907ab9fd6fc8","at":1770538810000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3c56-58fe-76bb-a097-a972e279d00a","at":1770538817790000000,"seq":517,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3c56-58fe-7922-8b44-3c406143aad9","at":1770538817790000000,"seq":518,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3c56-a408-70bb-b5d7-e6c9ce58f16c","at":1770538837000000000,"seq":519,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3c56-abd8-7aab-8103-281c8f7286e9","at":1770538839000000000,"seq":520,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c56-ea58-7f3c-a51c-020d9d1b0612","at":1770538855000000000,"seq":521,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

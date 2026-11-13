@@ -1,0 +1,16 @@
+{"v":1,"id":"019c6549-769d-7bd8-90e9-39eb4f9a6d38","at":1771225839261000000,"seq":741,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6549-769d-76a7-90e1-e29e01d93788","at":1771225839261000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6549-ac48-7260-8dce-cd0d5c9e7ea2","at":1771225853000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c654a-2948-7957-a477-4da399d3e7f9","at":1771225885000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c654a-2ae1-70e7-9a78-74b5d06c3b26","at":1771225885409000000,"seq":745,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c654a-4888-7674-90e7-b5680c2ff5b4","at":1771225893000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c654a-ae18-736d-8094-465ff887a573","at":1771225919000000000,"seq":747,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c654a-d140-798d-b5a1-752909985b31","at":1771225928000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c654b-03c6-78c3-8e14-a29ce3fae036","at":1771225940934000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c654b-2348-7697-835f-878b9b1f9940","at":1771225949000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c654b-2b18-7c3a-9871-c86f0c67f33f","at":1771225951000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c654b-4288-79b9-a13d-78ac33e46b0d","at":1771225957000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c654e-88ff-794e-a94f-f51e36615156","at":1771226171647000000,"seq":753,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c654e-ad88-7921-b949-54f4b7ac13f2","at":1771226181000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c654e-ad88-7b58-967c-25fb338622a7","at":1771226181000000000,"seq":755,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c654e-ec08-7482-993d-01616c9f12ca","at":1771226197000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

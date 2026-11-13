@@ -1,0 +1,21 @@
+{"v":1,"id":"019c5b27-cc95-782e-a82d-3cf719e705e9","at":1771055860885000000,"seq":722,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b27-cc95-7aca-bcff-383642cd3b79","at":1771055860885000000,"seq":723,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c5b28-2ac8-7da4-b451-9ebf000118d3","at":1771055885000000000,"seq":724,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5b28-2eb0-7e6f-871c-e9ac6d542b9c","at":1771055886000000000,"seq":725,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5b28-6948-7651-a3ca-4d178245b60d","at":1771055901000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b28-7118-76fc-89cd-7ab873387b36","at":1771055903000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5b3a-ad1d-7522-bb89-d6fa0c39d276","at":1771057098013000000,"seq":728,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c5b3a-c098-7087-ada8-14267d4b52ff","at":1771057103000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b3b-0300-77fa-a33a-b437e6204ac6","at":1771057120000000000,"seq":730,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c5b3b-2a10-7047-af2c-3a3bc3c58b4b","at":1771057130000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b3b-6d27-7da1-abb5-78503a8f1ee5","at":1771057147175000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c5b3b-7830-7e44-bb95-a5417739c243","at":1771057150000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c5b3b-9f40-7500-950e-4664fdf5b150","at":1771057160000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b3b-b2d2-7934-88e2-d2e3e02232b0","at":1771057165010000000,"seq":735,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c5b3c-27f8-7e7f-b4f2-897d7f1500ea","at":1771057195000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5b3c-4b20-76b1-9c73-96f205d98846","at":1771057204000000000,"seq":737,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b3c-9102-7392-800e-61caf9dfe550","at":1771057221890000000,"seq":738,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c5b46-4335-785c-9556-fba592b6d6b0","at":1771057857333000000,"seq":739,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b46-4335-739c-981a-0a3d066c9818","at":1771057857333000000,"seq":740,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b4e-0afe-7752-9296-563f7cc13950","at":1771058367230000000,"seq":741,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b4e-0afe-73a0-84f3-e9ea90f40ea2","at":1771058367230000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}

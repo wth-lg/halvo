@@ -1,0 +1,38 @@
+{"v":1,"id":"019bbbce-eff3-7ec7-9bd0-0eb790a859b6","at":1768382459891000000,"seq":202,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bbbce-eff3-7e22-af70-a45c3f1db5f6","at":1768382459891000000,"seq":203,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bbbcf-6978-700e-9018-90f57e4668cc","at":1768382491000000000,"seq":204,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bbbe7-dfe8-70fe-88a1-6314b8bf38b6","at":1768384094184000000,"seq":205,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbbe7-dfe8-7229-940a-14db74614888","at":1768384094184000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bbbe7-f2b8-7b59-a605-f6f561687249","at":1768384099000000000,"seq":207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbe8-92e0-73f7-b017-4b3c7ed532b8","at":1768384140000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbe8-dfa9-77f5-be9a-1e06f9d6be9e","at":1768384159657000000,"seq":209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bbbe9-a450-7b5e-ae32-3fa4c89d0146","at":1768384210000000000,"seq":210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bbbe9-b13f-762b-b15d-9e2d3f384f58","at":1768384213311000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bbbe9-eaa0-7611-88f6-25af6d6c1ded","at":1768384228000000000,"seq":212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bbbea-417a-75e5-8186-91454b99e595","at":1768384250234000000,"seq":213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bbbea-f440-7ec2-bd4c-db80bf8e4358","at":1768384296000000000,"seq":214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bbbeb-1380-712e-a35d-bc34b61cdaae","at":1768384304000000000,"seq":215,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bbbeb-2af0-7f79-a380-b64f74e8af2a","at":1768384310000000000,"seq":216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbf9-f7dc-701a-b26e-300a6f9dd266","at":1768385279964000000,"seq":217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bbbf9-fbe8-79fc-b8e7-e5622ade5b3b","at":1768385281000000000,"seq":218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bbbfa-1740-7f70-98e4-fe1a8b830671","at":1768385288000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbfa-6f36-7071-8511-37c583a8b6ea","at":1768385310518000000,"seq":220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bbbfa-f5e8-76f1-a1d6-6b80ea0426f3","at":1768385345000000000,"seq":221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bbbfb-04a1-78ec-969f-b3c102190667","at":1768385348769000000,"seq":222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bbbfb-0970-7bec-8163-42b4134a5457","at":1768385350000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbfb-47f0-78c1-bd48-c2a958f80a40","at":1768385366000000000,"seq":224,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bbbfb-55e6-794d-842f-2b43cda5dada","at":1768385369574000000,"seq":225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bbbfb-9228-73c3-bcfc-2e8a5bbc5881","at":1768385385000000000,"seq":226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bbbfb-99f8-7d7d-9a38-f6739e1d1570","at":1768385387000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbfb-f3d0-7fd6-800e-519c64bab72d","at":1768385410000000000,"seq":228,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bbc03-70a4-714c-83a8-1140aeb95bfb","at":1768385900708000000,"seq":229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bbc04-4239-7825-b93c-8e0ce5c504be","at":1768385954361000000,"seq":230,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bbc04-4239-78d2-89d6-7ba04335475d","at":1768385954361000000,"seq":231,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bbc04-5840-7faf-a2dd-b04cfd7a92a5","at":1768385960000000000,"seq":232,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc04-7f50-748a-a67c-1e05b0ff3188","at":1768385970000000000,"seq":233,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc04-9aa8-78c8-bbad-0fa35378f98c","at":1768385977000000000,"seq":234,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bbc04-d928-738b-beda-346f0c130229","at":1768385993000000000,"seq":235,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bbc04-e97b-79a9-badd-3b30aeb5f96b","at":1768385997179000000,"seq":236,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbc04-e97b-77e8-9920-8ba4d6959218","at":1768385997179000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bbc05-0420-73be-9ad1-a1a27c7d8021","at":1768386004000000000,"seq":238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bbc05-9c78-7e4f-aa17-fb99aa4135bd","at":1768386043000000000,"seq":239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

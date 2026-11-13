@@ -1,0 +1,28 @@
+{"v":1,"id":"019beeeb-5578-7b15-b04e-cd494d532eeb","at":1769239958904000000,"seq":457,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019beeeb-5578-7f31-ab44-55e96e762a7b","at":1769239958904000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019beef7-fa63-77b5-9264-a40c27dbfbb2","at":1769240787555000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019beef8-0008-730b-a9b2-a0dbfa3635c9","at":1769240789000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019beef8-07d8-7c42-bfab-efbdd7c3da97","at":1769240791000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef8-884c-7ea5-b82a-4f20c9404482","at":1769240823884000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019beef8-9478-7614-924d-533282f049db","at":1769240827000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef9-294c-750f-b9b2-b5e3a3179090","at":1769240865100000000,"seq":464,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019beef9-4440-7672-a7c4-3ea37d9f1e08","at":1769240872000000000,"seq":465,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019beef9-5f98-7a32-8f5b-8dfcb43d8671","at":1769240879000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef9-fda3-710f-a2b3-1d02517f9e69","at":1769240919459000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019beefa-1730-7b51-9c18-f347b85dd9d7","at":1769240926000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beefa-3a58-74df-a35c-44328b6765bd","at":1769240935000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019beefa-46a2-7d84-b728-88ca68cd9211","at":1769240938146000000,"seq":470,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019beefa-55b0-7218-bc1b-80043d4b7ea8","at":1769240942000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beefa-5998-7c13-81da-995f01f2b1d0","at":1769240943000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019beefa-7cc0-7ab8-8d44-9e480d5fcf1b","at":1769240952000000000,"seq":473,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bef04-191f-7692-ac05-ffedc2a4a2f3","at":1769241581855000000,"seq":474,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef04-191f-782d-b7cd-44aa09f32301","at":1769241581855000000,"seq":475,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef04-3cd8-72f0-91eb-6010223ccd53","at":1769241591000000000,"seq":476,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bef04-4890-7f76-ad30-c77d11bc4869","at":1769241594000000000,"seq":477,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef04-8807-7d94-9179-4036d8553e11","at":1769241610247000000,"seq":478,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef04-8807-75a1-ae16-d16973c01739","at":1769241610247000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bef04-f858-70e6-b530-151a694a3b0d","at":1769241639000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef05-2b20-7538-9d61-3aae91e2de5e","at":1769241652000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef05-79d4-7097-b99b-3b5fabe0f709","at":1769241672148000000,"seq":482,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef05-79d4-7356-bab6-0025ed103ce4","at":1769241672148000000,"seq":483,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef05-ded0-7380-8ed3-2f2661e03c46","at":1769241698000000000,"seq":484,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

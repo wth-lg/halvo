@@ -1,0 +1,31 @@
+{"v":1,"id":"019d0a3f-d03b-703b-a1a0-a36226acebcc","at":1773993447483000000,"seq":936,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0a3f-d03b-7764-9318-eaa3f2ae97f6","at":1773993447483000000,"seq":937,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0a40-2830-7ace-b986-c2b5f091bc89","at":1773993470000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a40-aba3-7561-ad27-5d02462d0237","at":1773993503651000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0a40-b4d0-788b-b78c-2d6ea2ef9291","at":1773993506000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0a40-ef68-73b0-ab3b-d5fac6bd247c","at":1773993521000000000,"seq":941,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0a40-f084-7f32-b1fb-9839b652e10d","at":1773993521284000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0a41-1678-77d1-b4ab-6ab45144804c","at":1773993531000000000,"seq":943,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0a41-f5cc-7de0-84b6-145cac02ac17","at":1773993588172000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0a42-1460-709f-abe4-91815522a3dd","at":1773993596000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a42-2bd0-71a2-9ea0-bc631fa11791","at":1773993602000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a42-2fb8-7c5d-8a00-b91c55efcbdf","at":1773993603000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0a42-2fb8-770a-aa99-8f3910dee56a","at":1773993603000000000,"seq":948,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0a42-44c4-7715-b284-01fab183b32d","at":1773993608388000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0a42-4ef8-7438-a44f-e614628c2b85","at":1773993611000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0a42-52e0-75ff-ab53-5496f4cd63b9","at":1773993612000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a42-9548-75c6-8d5a-b6239764adde","at":1773993629000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d0a42-a722-706f-bc9c-862a9dd6097a","at":1773993633570000000,"seq":953,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0a43-4510-74e2-a765-b6e00b352221","at":1773993674000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0a4d-c093-754f-b4bf-7334a54aa051","at":1773994360979000000,"seq":955,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0a4d-eba0-7869-9596-44447bd3487f","at":1773994372000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a4d-ef88-756c-a8dd-61ef82ffd795","at":1773994373000000000,"seq":957,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0a4e-1e68-72cd-abfe-93c4149da610","at":1773994385000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a53-a2e1-7a5a-887c-09950869b34e","at":1773994746593000000,"seq":959,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0a53-a2e1-7e0b-80fb-1e40ea89f6f0","at":1773994746593000000,"seq":960,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0a54-0a08-7468-a9d7-484137678e98","at":1773994773000000000,"seq":961,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a54-8320-7b86-bf9c-b988571d9506","at":1773994804000000000,"seq":962,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d0a6a-c9d7-799f-889d-5b2f7caf576d","at":1773996263895000000,"seq":963,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d0a6a-d5f8-7dae-b35b-dc0d9773501b","at":1773996267000000000,"seq":964,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d0a6a-e980-7a42-a9fb-ec7604c8f71a","at":1773996272000000000,"seq":965,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a6a-ed68-77af-9e67-850d4bc69703","at":1773996273000000000,"seq":966,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

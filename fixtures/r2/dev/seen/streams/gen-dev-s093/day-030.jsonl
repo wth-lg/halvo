@@ -1,0 +1,22 @@
+{"v":1,"id":"019c0dbc-da20-7883-9120-aab190e81e9d","at":1769757006368000000,"seq":447,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0dbc-da20-7271-a4fe-e6650fdb967a","at":1769757006368000000,"seq":448,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0dbd-0790-73fc-83b3-bddbc50a6ec7","at":1769757018000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c0dbd-2740-7797-9bb1-fb426d082766","at":1769757026112000000,"seq":450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0dbd-2ab8-7af2-831f-7e407957fc4f","at":1769757027000000000,"seq":451,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0dbd-5d80-79f7-9fef-2720daaf8537","at":1769757040000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dbd-f9c0-7242-ab60-31fa0ddf5009","at":1769757080000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dbe-022d-72b5-bed6-5d83e1fd6180","at":1769757082157000000,"seq":454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0dbe-3070-7ea4-a7e3-02e2166924a1","at":1769757094000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0dbe-9067-7262-a197-a367522576de","at":1769757118567000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0dbe-9218-7c2c-9676-233b8694d474","at":1769757119000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c0dbe-c4e0-7756-8084-6617a7b22c15","at":1769757132000000000,"seq":458,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0dbe-f3c0-7a86-a9e7-4bd04201695d","at":1769757144000000000,"seq":459,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0dbf-0360-780a-bbf7-26346cf64e5b","at":1769757148000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dbf-8d30-7107-982d-ad3a0a3d7367","at":1769757183280000000,"seq":461,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0dbf-b328-787b-927e-c6d867ca6e46","at":1769757193000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dbf-c6b0-7bd2-aa02-620a5e3972fa","at":1769757198000000000,"seq":463,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0dbf-d650-7403-a7b1-78083873d96b","at":1769757202000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c0dbf-de20-725e-9962-75bc356c8915","at":1769757204000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dc1-88d5-75d2-9e21-d6afbef35bd9","at":1769757313237000000,"seq":466,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0dc1-be98-7f28-983e-9f1eb583c693","at":1769757327000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c0dc1-ddd8-779c-8e00-442bb876d628","at":1769757335000000000,"seq":468,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

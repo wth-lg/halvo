@@ -1,0 +1,11 @@
+{"v":1,"id":"019ccca9-c09a-7662-8786-ad6804c9cf0a","at":1772960202906000000,"seq":851,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccca9-c09a-73f3-a7f7-9a654df6d07f","at":1772960202906000000,"seq":852,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cccb9-18d6-7cc4-83fd-f86726fb5311","at":1772961208534000000,"seq":853,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cccb9-93c0-7c9d-916e-d57f521b657a","at":1772961240000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cccc6-ecb4-7def-b1d9-f0da5bb180bf","at":1772962114740000000,"seq":855,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cccc7-ad20-7159-bba4-6747981a94b4","at":1772962164000000000,"seq":856,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccc7-c0a8-70bf-995c-9b0d28617107","at":1772962169000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccc7-f50c-7145-a416-d53f1a50f697","at":1772962182412000000,"seq":858,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cccc8-2250-7344-9520-45b27ba65f6a","at":1772962194000000000,"seq":859,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cccc8-68a0-7c4d-9891-45541d22dc2b","at":1772962212000000000,"seq":860,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cccc8-7840-7b8e-8ddf-e9f7e6d3fb6a","at":1772962216000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

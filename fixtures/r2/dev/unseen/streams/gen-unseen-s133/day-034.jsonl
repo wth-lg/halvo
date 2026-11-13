@@ -1,0 +1,9 @@
+{"v":1,"id":"019c2300-db90-7c12-ae1a-bec705f1cf7c","at":1770113784720000000,"seq":578,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2300-db90-77f3-918e-1a781c2f0f0e","at":1770113784720000000,"seq":579,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2301-1358-75a9-94ff-4306d32d1ea6","at":1770113799000000000,"seq":580,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2301-2895-7a46-bb25-32a9f2493967","at":1770113804437000000,"seq":581,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2301-2895-77b6-a771-e98b72e0626d","at":1770113804437000000,"seq":582,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c2301-9058-7fe1-867c-2444be52c5e6","at":1770113831000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2301-968f-7559-864d-2be7ccee5a35","at":1770113832591000000,"seq":584,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2301-968f-7565-a194-bbe0a13f0d0f","at":1770113832591000000,"seq":585,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2302-20e0-7c82-add2-84d198e8d853","at":1770113868000000000,"seq":586,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

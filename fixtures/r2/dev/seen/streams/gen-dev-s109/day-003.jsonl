@@ -1,0 +1,20 @@
+{"v":1,"id":"019b82cb-3ffa-7e16-af5f-af1cfbb0ba1f","at":1767425916922000000,"seq":43,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b82cb-3ffa-7160-841e-b22054078417","at":1767425916922000000,"seq":44,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b82cb-7ec8-7711-a8b9-23354e3d9ab3","at":1767425933000000000,"seq":45,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b82cb-f7bf-7664-b0f3-3c34a10d98c3","at":1767425963967000000,"seq":46,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b82cb-f7e0-7ff1-b7c9-9b7ab67af10b","at":1767425964000000000,"seq":47,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b82cc-0398-751c-9d0d-6debb2ccdaab","at":1767425967000000000,"seq":48,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b82cc-582f-7dd8-a22e-6f0a93dd8561","at":1767425988655000000,"seq":49,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b82cc-5988-7f39-82ec-ce8bf5b66f82","at":1767425989000000000,"seq":50,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b82cc-8480-7ca6-a293-d089f7c148c3","at":1767426000000000000,"seq":51,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b82cc-a321-764e-81f9-a82803f25ecd","at":1767426007841000000,"seq":52,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b82cc-edf8-728c-b0de-f85358f346e1","at":1767426027000000000,"seq":53,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82cd-a1c8-7f08-8aac-6312e48ce616","at":1767426073032000000,"seq":54,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b82cd-a590-7e64-85e9-9524ed404944","at":1767426074000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b82cd-c4d0-71be-80ee-1eee9868ff90","at":1767426082000000000,"seq":56,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82cd-f798-7f8f-8464-56cd859afc6e","at":1767426095000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82ce-3230-78fb-be6b-eb64be415928","at":1767426110000000000,"seq":58,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b82ce-3234-7b04-84be-524af0729661","at":1767426110004000000,"seq":59,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b82ce-64f8-7952-8832-d2d6ba3f58ff","at":1767426123000000000,"seq":60,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82ce-a378-71df-a406-7bfe2198406d","at":1767426139000000000,"seq":61,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b82ce-d258-78db-9e3e-d844b2db92e9","at":1767426151000000000,"seq":62,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

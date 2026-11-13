@@ -1,0 +1,31 @@
+{"v":1,"id":"019c9e7e-ba5c-766d-8408-63e21bc1d0c2","at":1772185631324000000,"seq":882,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e7e-ba5c-77f9-870b-18ec5c5abc54","at":1772185631324000000,"seq":883,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c9e7f-2290-7438-b5db-7aa063b18854","at":1772185658000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e7f-2a60-7f7d-931f-6d858f5e3f3d","at":1772185660000000000,"seq":885,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9e7f-8438-765d-bc6d-db473e11ffb0","at":1772185683000000000,"seq":886,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e93-2674-7fc3-93dd-3d5b24bc7a17","at":1772186969716000000,"seq":887,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9e93-2674-74e9-bed0-bed93aedffab","at":1772186969716000000,"seq":888,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9e93-4ea0-7af3-a6b9-3c1a47597f22","at":1772186980000000000,"seq":889,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c9e93-7998-7458-b25d-927c1c35828e","at":1772186991000000000,"seq":890,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e93-a878-759a-92de-82f154cedd55","at":1772187003000000000,"seq":891,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c9e93-e16a-77f7-b9a1-85172b65da9d","at":1772187017578000000,"seq":892,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e93-e16a-7371-b463-d2dbba6cee2e","at":1772187017578000000,"seq":893,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c9e93-eae0-79cc-a4e2-1c563631e11f","at":1772187020000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e94-15d8-761f-8117-a9bf13334948","at":1772187031000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c9e94-5c28-7399-9a39-4f4e68943aa8","at":1772187049000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e94-5cc3-71cb-bc6a-8d6327fe37ec","at":1772187049155000000,"seq":897,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c9e94-6010-74f2-980c-888f35d61ac0","at":1772187050000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c9e94-63f8-72fd-8317-e6409c36aed5","at":1772187051000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e94-7780-74c4-918e-35a394856fe9","at":1772187056000000000,"seq":900,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e94-a278-7bb2-9c3e-8bce75a3fd6c","at":1772187067000000000,"seq":901,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9e94-e4a6-7c78-bc27-ffcc948e5501","at":1772187083942000000,"seq":902,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c9e95-a448-7bff-a1dc-6a3d92758c62","at":1772187133000000000,"seq":903,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e95-b8f4-72d2-8733-fc67712c834c","at":1772187138292000000,"seq":904,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c9e95-cf40-71f7-8983-18458ff5edfd","at":1772187144000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e95-ee80-78d1-a4b5-8bc7f4e85f6d","at":1772187152000000000,"seq":906,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9e96-4088-7077-bf76-9a072fa99915","at":1772187173000000000,"seq":907,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9e96-90ab-79c7-b034-a431149aead3","at":1772187193515000000,"seq":908,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9e96-90ab-790e-8fda-32d533392642","at":1772187193515000000,"seq":909,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9e96-d8e0-745b-84e4-c5eaa5f0d5b5","at":1772187212000000000,"seq":910,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e96-ec68-7c79-825d-252b4d2150c5","at":1772187217000000000,"seq":911,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e97-3a88-7edd-87db-5ec752228038","at":1772187237000000000,"seq":912,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

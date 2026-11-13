@@ -1,0 +1,31 @@
+{"v":1,"id":"019c849e-76b0-7754-8a20-3e2f4c8b11e6","at":1771751503536000000,"seq":713,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c849e-76b0-74e2-8326-061a6758e0b8","at":1771751503536000000,"seq":714,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c849e-8ff0-7b0f-998f-4ee2b19425c8","at":1771751510000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c849e-af30-742c-b690-9b724a576405","at":1771751518000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c849e-d690-7f65-92bc-49e6689fcd6b","at":1771751528080000000,"seq":717,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c849e-f580-7f24-9bd9-26f192b7d928","at":1771751536000000000,"seq":718,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c849f-4b70-7e00-a8c2-f96fb556b04c","at":1771751558000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c849f-c7c1-702b-bc11-5df909bbfad9","at":1771751589825000000,"seq":720,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c849f-ff20-7313-8953-ffe0579b9759","at":1771751604000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c84a0-2e00-75cb-a2a3-768aca0b3a8a","at":1771751616000000000,"seq":722,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84a0-8cd0-785f-a497-7ff58f31878e","at":1771751640272000000,"seq":723,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c84a1-2030-7b1e-877c-40fc2065cfc5","at":1771751678000000000,"seq":724,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c84a1-6e50-7b06-861d-5c3ed546a713","at":1771751698000000000,"seq":725,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84a1-8ff9-7734-bf04-5a36e1653f7d","at":1771751706617000000,"seq":726,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c84a1-9560-71c6-b504-77760094b083","at":1771751708000000000,"seq":727,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c84a1-cc10-74b6-885d-058113f49f5d","at":1771751722000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84a2-4cf8-7da7-b5b9-ba286a43228b","at":1771751755000000000,"seq":729,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c84a2-83a8-7dc3-921b-2c2f1b13dcb8","at":1771751769000000000,"seq":730,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84a2-8f60-7b16-9b56-82a8412d62c3","at":1771751772000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c84a2-a12e-74f8-a30b-4603f46c98df","at":1771751776558000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c84a2-f4f0-76d6-9263-3fda1e2a5518","at":1771751798000000000,"seq":733,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c84a3-4ec8-7ae8-8ec9-fae3afe1921e","at":1771751821000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84a3-5d5b-76e9-ad65-7fffe1aaf9bd","at":1771751824731000000,"seq":735,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c84a3-8578-7a76-b7bd-2b10e55b04ce","at":1771751835000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84a3-bc28-7025-b40a-74640f6dbb6a","at":1771751849000000000,"seq":737,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c84a3-c3f8-7925-b6d1-597994e44568","at":1771751851000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84a3-deb4-7caa-a418-39052e215ab7","at":1771751857844000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c84a3-eef0-7f97-a7fb-8df896ab6fdf","at":1771751862000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84a4-1218-7f5a-8a4a-147ffba70b03","at":1771751871000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84a4-5098-7b4c-92e8-7ce12ff8d524","at":1771751887000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c84a4-5c50-7ce2-a3e4-1d712eb1309e","at":1771751890000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

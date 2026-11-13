@@ -1,0 +1,22 @@
+{"v":1,"id":"019d0fbc-f640-75d1-ba72-c3aad179b6a9","at":1774085535296000000,"seq":1335,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fbc-f640-78f0-a407-410e69a179e7","at":1774085535296000000,"seq":1336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d0fbd-08a0-7bc9-bbbf-e94c705e5af6","at":1774085540000000000,"seq":1337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d0fbd-0c88-7e2e-97d3-996eb64c1ecb","at":1774085541000000000,"seq":1338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fbd-5bb4-7ded-a57b-e5135f6e5361","at":1774085561268000000,"seq":1339,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0fbd-5bb4-75d6-acdd-9322342ccaee","at":1774085561268000000,"seq":1340,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0fbd-6660-791a-9e58-306147011932","at":1774085564000000000,"seq":1341,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0fbd-acb0-7174-bf61-5d3877244305","at":1774085582000000000,"seq":1342,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fbd-df78-7132-b9fc-d3ac2dd4785b","at":1774085595000000000,"seq":1343,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fbd-e97b-79c4-b751-59325130ae21","at":1774085597563000000,"seq":1344,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fbd-e97b-72fc-a675-8f489ebab4e8","at":1774085597563000000,"seq":1345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d0fbe-3568-76aa-ae74-86927d671d67","at":1774085617000000000,"seq":1346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fbe-7fa0-791d-bb76-da86b707a390","at":1774085636000000000,"seq":1347,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0fbe-e918-7b8b-9cc4-8b227c7fb820","at":1774085663000000000,"seq":1348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0fbe-f0e8-7c5b-917e-49b0309b99c5","at":1774085665000000000,"seq":1349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fbe-fa5d-7734-8c27-8f466ac1d0a4","at":1774085667421000000,"seq":1350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d0fbf-1410-790b-90b2-d892bd2668d6","at":1774085674000000000,"seq":1351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0fbf-ac68-7882-96a6-07ac907852a4","at":1774085713000000000,"seq":1352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0fbf-b996-7681-a4e0-6c5df8c8b8f6","at":1774085716374000000,"seq":1353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d0fbf-c3d8-75d4-9793-11078278cbe0","at":1774085719000000000,"seq":1354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fcb-57ee-7791-9cf2-8b26bee99cd1","at":1774086477806000000,"seq":1355,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0fcb-57ee-7f14-a42b-360ff0cecee8","at":1774086477806000000,"seq":1356,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}

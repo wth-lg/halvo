@@ -1,0 +1,21 @@
+{"v":1,"id":"019c3cca-c55d-78a9-a213-d045e5ccff1b","at":1770546447709000000,"seq":654,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3cca-c55d-7e00-aa00-4497f7bb6ba2","at":1770546447709000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3ccb-2c10-783e-92ff-98bba01dbec1","at":1770546474000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ccb-5ed8-700f-be9a-6579042d3579","at":1770546487000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c3ce5-7a44-765d-80ff-72c3fd8e096c","at":1770548197956000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce5-ad38-7f0d-b61a-f77d3490a0e9","at":1770548211000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c3ce8-7b33-7788-9be0-b34383701367","at":1770548394803000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce8-f8f8-7169-86a5-be18629dbecc","at":1770548427000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ce9-3c25-765d-ba33-3f849e72d936","at":1770548444197000000,"seq":662,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce9-3f48-783d-bf2b-7e072452bc21","at":1770548445000000000,"seq":663,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3ce9-4b00-7623-a616-417859b2da31","at":1770548448000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3ce9-a0f0-7722-b709-c2d82a7b57a4","at":1770548470000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ce9-c030-7b34-8cec-964f720c5f5f","at":1770548478000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c3ce9-f462-7335-b155-3afcb810d590","at":1770548491362000000,"seq":667,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce9-fac8-712e-9f6d-723df753215c","at":1770548493000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cea-5a1f-72c9-b801-ea3c39cc7f2b","at":1770548517407000000,"seq":669,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3cea-6828-7c00-884f-68cd66b3023d","at":1770548521000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c3cea-73e0-71bf-9abc-74bc114099cb","at":1770548524000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cea-7f98-7d08-bf91-abaa479064d0","at":1770548527000000000,"seq":672,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3cea-8768-77b9-80e5-c0cbf88fbe03","at":1770548529000000000,"seq":673,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3cf0-ddaf-7fea-aa85-f4c9469838c7","at":1770548944303000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}

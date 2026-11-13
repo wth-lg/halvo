@@ -1,0 +1,11 @@
+{"v":1,"id":"019c98d7-bcb0-7636-8e1b-477643d2699e","at":1772090801328000000,"seq":683,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c98d7-bcb0-7531-889a-810295b327a5","at":1772090801328000000,"seq":684,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c98d7-f600-7478-abe4-51e4ba900a35","at":1772090816000000000,"seq":685,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c98d8-4808-7285-83ac-2af4df858b71","at":1772090837000000000,"seq":686,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c98d8-a35c-7b4e-bd1a-c205d76328f6","at":1772090860380000000,"seq":687,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c98d8-d0c0-7894-b4b2-a6d7452ed641","at":1772090872000000000,"seq":688,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c98d9-3a38-7afa-913c-879db472e110","at":1772090899000000000,"seq":689,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98d9-6918-7b52-80a7-1d028c36742b","at":1772090911000000000,"seq":690,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c98d9-7545-7ccf-8ada-cf41480f639c","at":1772090914117000000,"seq":691,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c98d9-7ca0-7e4f-b40c-7d6777f12568","at":1772090916000000000,"seq":692,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98d9-97f8-7533-a999-ba28dfda85d0","at":1772090923000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

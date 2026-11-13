@@ -1,0 +1,47 @@
+{"v":1,"id":"019bea14-38df-79a9-b1b3-6f3c17629560","at":1769158752479000000,"seq":222,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea14-38df-78af-a429-ccf5fd537081","at":1769158752479000000,"seq":223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bea14-cb70-7965-9c23-fe865f9f19fe","at":1769158790000000000,"seq":224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bea14-def8-7137-8246-38878878f6bd","at":1769158795000000000,"seq":225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea15-1c43-7919-99dd-b78b8d21870a","at":1769158810691000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bea15-2160-7374-a6ee-85ddcabab9b6","at":1769158812000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bea15-7368-7d28-a0f7-1a0fd8c7076b","at":1769158833000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea15-7750-7a72-b128-5cca387541a6","at":1769158834000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea15-8727-7aca-89c9-8e98f1b55f72","at":1769158838055000000,"seq":230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bea15-ddd4-7f8e-865d-7383d464fc5a","at":1769158860244000000,"seq":231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bea15-e898-7ef7-b8f0-5dfb241ea8da","at":1769158863000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea16-36b8-7f5f-85e4-e69eeec9b5bd","at":1769158883000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea16-4a40-7b9a-93ca-286ebc50e844","at":1769158888000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bea16-ae6e-7fcc-9d0f-13367bcf09a5","at":1769158913646000000,"seq":235,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bea16-dac8-71cd-823a-687fca7d3a07","at":1769158925000000000,"seq":236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bea16-e298-7c57-aeaf-71ba58c36020","at":1769158927000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bea16-fdf0-7bc1-b20d-891efc725f22","at":1769158934000000000,"seq":238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bea17-28e8-73f8-b795-e166e4c94411","at":1769158945000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea17-7232-726c-88b9-dabab9a192aa","at":1769158963762000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bea17-8a90-7ae5-bb50-ec34777a9ad8","at":1769158970000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bea17-e468-772f-8d46-6d910c96ba41","at":1769158993000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bea17-ffc0-78d9-bd34-b154d0a621b0","at":1769159000000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea18-1f00-7e58-b509-62d64bd216ad","at":1769159008000000000,"seq":244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bea26-7e1d-7c78-85be-3f031fbb7ab5","at":1769159949853000000,"seq":245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bea27-1320-7771-9e63-960f0331b2d1","at":1769159988000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bea35-95c9-72d6-85f8-94580e05fc03","at":1769160938953000000,"seq":247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bea35-b538-7935-b5ba-b88ea15a1870","at":1769160947000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bea35-c8c0-727c-902d-bc0da7d52c7d","at":1769160952000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea35-cca8-7f5b-9de7-02414ef8ea22","at":1769160953000000000,"seq":250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bea43-4314-71cc-967a-6a66b9f8e32f","at":1769161835284000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bea43-6cf0-7968-bb2e-1106a9fa74f8","at":1769161846000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea44-2b4d-7478-9457-b39301347bd3","at":1769161894733000000,"seq":253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bea44-3428-7bd8-80bf-d2ebfb1e7d7c","at":1769161897000000000,"seq":254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bea44-3fe0-7010-a8c5-7eed2cef7e3f","at":1769161900000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bea44-d838-74a3-9a0c-5d31f149a5a0","at":1769161939000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea44-ee86-7fc8-8f29-cd0ac63edc3f","at":1769161944710000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bea45-4980-7070-8729-617ef2c1d6c7","at":1769161968000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea45-7860-7e3e-a2c6-cbaeeb1eafd2","at":1769161980000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea45-8c6d-7965-bc93-a85145390a68","at":1769161985133000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bea45-b2f8-792a-83f1-3d17fd4a3dbf","at":1769161995000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bea45-bac8-7b85-802c-148d2eebb2bb","at":1769161997000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea46-3bb0-7dce-9295-b28640e4f6a2","at":1769162030000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea46-4b50-71f5-85ca-868406fbb3ff","at":1769162034000000000,"seq":264,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea50-757a-7758-8502-068da2c7f4c8","at":1769162700154000000,"seq":265,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bea50-757a-7947-92f1-413bec24a3e7","at":1769162700154000000,"seq":266,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bea50-c6e8-768e-9279-f63e238042c0","at":1769162721000000000,"seq":267,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea51-0950-73da-a64d-ae5ca4fe13fe","at":1769162738000000000,"seq":268,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

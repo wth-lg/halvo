@@ -1,0 +1,26 @@
+{"v":1,"id":"019c5169-91ec-7d9b-a1b6-2145c103b2f8","at":1770892399084000000,"seq":400,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5169-91ec-7001-b3d1-776e9a60dceb","at":1770892399084000000,"seq":401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c516a-35a8-7b89-ac91-b436ff66ef6f","at":1770892441000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c516a-914a-7464-af3a-cc73104e7f73","at":1770892464458000000,"seq":403,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c516a-a308-7c45-b2f9-081149bccce6","at":1770892469000000000,"seq":404,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c516a-ba78-7440-952f-869f05847adc","at":1770892475000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c516a-c630-7c5a-9154-5ebbc414c5d2","at":1770892478000000000,"seq":406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c516a-e958-71b4-8bb8-361330678d90","at":1770892487000000000,"seq":407,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c516a-fc60-7d9a-a389-a9f596f89753","at":1770892491872000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c516b-4ee8-7cfb-8e01-5e9541fd20b7","at":1770892513000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c516b-6658-722f-8e67-be05446b8280","at":1770892519000000000,"seq":410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c516c-0680-7bf6-941c-054f527d9bfb","at":1770892560000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5184-5761-795c-8c7f-ce1e7d8d6d7b","at":1770894153569000000,"seq":412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c5184-8fc0-7ac0-974a-488ea07ed2c7","at":1770894168000000000,"seq":413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c5184-b7fa-74fc-ac37-651368aa2f00","at":1770894178298000000,"seq":414,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c5184-dde0-7514-9e83-5e0442d423dd","at":1770894188000000000,"seq":415,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5184-e1c8-78bd-b516-ff8814f7b4e1","at":1770894189000000000,"seq":416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5185-09dc-761e-95ba-a54ad4e8ebed","at":1770894199260000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c5185-1490-7030-bf80-a8967ede78cc","at":1770894202000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c5185-b4b8-7d5a-8efb-ead70d58feab","at":1770894243000000000,"seq":419,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5185-c2ae-7298-b93f-9a8fe986a042","at":1770894246574000000,"seq":420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c5185-e780-70a5-b001-2a69b88bcbf5","at":1770894256000000000,"seq":421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c518e-8ac4-7b8c-81a5-6a42e4c97092","at":1770894822084000000,"seq":422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c518e-9628-78e7-b6ee-2317329c992e","at":1770894825000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c518e-a1e0-7506-a419-424032126668","at":1770894828000000000,"seq":424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c518e-a5c8-700a-b7d7-9cec6e76763d","at":1770894829000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

@@ -1,0 +1,33 @@
+{"v":1,"id":"019c6543-8f44-77e8-8257-6e7e355381e7","at":1771225452356000000,"seq":569,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6543-8f44-7e1c-b5d1-706172106694","at":1771225452356000000,"seq":570,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6543-a550-7f48-a847-d4ac4f073ad8","at":1771225458000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6543-b108-7eeb-8878-464445031763","at":1771225461000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6544-7ddd-7088-88aa-422c79ad50c7","at":1771225513437000000,"seq":573,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6545-62a0-7f30-b500-68baf85b3720","at":1771225572000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6545-62c4-7e70-9137-2b34cc9b6bba","at":1771225572036000000,"seq":575,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6545-81e0-7633-8e5a-7f23eb804c64","at":1771225580000000000,"seq":576,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6545-9180-756f-8b62-8fcc85a7b69d","at":1771225584000000000,"seq":577,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6545-c448-77b2-937d-5cc951f415df","at":1771225597000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6545-ed92-751d-ab08-771209906138","at":1771225607570000000,"seq":579,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6546-83b0-77bf-88db-5738c8e06dbe","at":1771225646000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6546-8798-766f-9c53-2bd59706013c","at":1771225647000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6546-cde8-7283-996b-8f8f2871d7b1","at":1771225665000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6546-ebb6-7bcf-adb0-dfa9c059a6f8","at":1771225672630000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6547-d788-7595-9727-b283ee2e67b8","at":1771225733000000000,"seq":584,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6547-e340-739b-b48d-b0fe30db23f7","at":1771225736000000000,"seq":585,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6547-f141-76c2-9858-be40b3a25ee6","at":1771225739585000000,"seq":586,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6548-25a8-7969-a592-c7d62dd6e863","at":1771225753000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6548-5c58-7d79-b90a-f5e0bd3952c9","at":1771225767000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6548-8b38-7695-82cc-b1901ad77331","at":1771225779000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c654b-000f-7063-b69d-32da6d29714f","at":1771225939983000000,"seq":590,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c654b-36d0-73c2-bf0a-dbb3c4dac9ee","at":1771225954000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c654b-90ac-72d1-a1ff-fdd38b770f5a","at":1771225977004000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c654c-1190-758f-b4b1-d3f98b850ab9","at":1771226010000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c654c-4070-7fb3-94c3-1491d3d06369","at":1771226022000000000,"seq":594,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c654c-50e4-78fc-983b-4388925dd77c","at":1771226026212000000,"seq":595,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c654c-7ef0-76fb-b577-a7484ae1751b","at":1771226038000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c654c-f038-7b6e-bd3f-e6b30d61c4c6","at":1771226067000000000,"seq":597,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c654d-00a4-7426-aee1-9e1240e4c1a2","at":1771226071204000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c654d-1748-7f7f-b35b-b051737fc2c7","at":1771226077000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c654d-3a70-7333-bf47-8b29bb324779","at":1771226086000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c654d-6d38-7f5b-adb5-b54633ca5eb4","at":1771226099000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

@@ -1,0 +1,25 @@
+{"v":1,"id":"019cc226-d941-7e0d-a0c1-d913bc87a497","at":1772783851841000000,"seq":995,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc226-d941-78e1-8232-80b1c12f9fa2","at":1772783851841000000,"seq":996,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cc227-4f10-746a-9eb8-7db16b803fa3","at":1772783882000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc227-56e0-7df2-ab43-d6b92f2d611f","at":1772783884000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cc227-7ed8-7dc8-889a-4abe1a106275","at":1772783894232000000,"seq":999,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cc227-a8e8-77ec-8af2-8e6d4c491f87","at":1772783905000000000,"seq":1000,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc227-d7c8-739e-9be8-d3e0d193d8fc","at":1772783917000000000,"seq":1001,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cc228-1260-7077-bf3c-2a7dfe02fee2","at":1772783932000000000,"seq":1002,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc228-41b9-7c5e-959a-72956554d5c3","at":1772783944121000000,"seq":1003,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cc228-4528-7b87-94a1-9036d11206b2","at":1772783945000000000,"seq":1004,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc228-6468-77b7-8223-cfda51952755","at":1772783953000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc228-fcc0-7cbb-b171-704dd7a8b948","at":1772783992000000000,"seq":1006,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc229-2e5e-7673-88a7-8ccb84f98310","at":1772784004702000000,"seq":1007,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cc229-4310-7a38-8826-515f7fa81f91","at":1772784010000000000,"seq":1008,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc229-8190-77b1-b15a-d51216c568c5","at":1772784026000000000,"seq":1009,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc229-eef0-7fba-aecb-e594a57eed0d","at":1772784054000000000,"seq":1010,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc22a-0c24-7922-8bd1-3878ec2d6fc1","at":1772784061476000000,"seq":1011,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cc22a-40f8-7b38-806f-3db7f58edc55","at":1772784075000000000,"seq":1012,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc22a-ba10-7824-855c-db4537ac3870","at":1772784106000000000,"seq":1013,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc22a-bdf8-7b17-badd-33e7d03fc7ed","at":1772784107000000000,"seq":1014,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc245-5ae9-7d6e-8486-4c288355c2bf","at":1772785851113000000,"seq":1015,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc245-6a18-75c2-b0a2-5bd59b289861","at":1772785855000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc245-c72d-7296-a2fe-86ac60886820","at":1772785878829000000,"seq":1017,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc246-a680-72e3-9284-1767e30a61a4","at":1772785936000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc246-c1d8-72d2-b4aa-e937fa2b3fe6","at":1772785943000000000,"seq":1019,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

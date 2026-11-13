@@ -1,0 +1,41 @@
+{"v":1,"id":"019cbd3d-836a-7898-99b6-ddd5182ec9ac","at":1772701451114000000,"seq":850,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd3d-836a-77f6-af25-5cacae434853","at":1772701451114000000,"seq":851,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd3d-8ac8-7434-b2e9-a611b12d81e5","at":1772701453000000000,"seq":852,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3d-c948-7225-ab72-a3df20385d34","at":1772701469000000000,"seq":853,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3d-e0b8-789f-9f3a-0d52992cd70b","at":1772701475000000000,"seq":854,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cbd3e-1682-716a-9c8b-9d92ed3be2ba","at":1772701488770000000,"seq":855,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd3e-2ed8-7f70-bb48-a3ae41fb9ceb","at":1772701495000000000,"seq":856,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3e-36a8-7ee5-8b0e-5c0350cc676e","at":1772701497000000000,"seq":857,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3e-6588-7616-9970-30b68e0dccb1","at":1772701509000000000,"seq":858,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cbd3e-80e0-70c4-aa4e-687b8164aa90","at":1772701516000000000,"seq":859,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cbd3e-9468-706c-a705-66e1cc7930b6","at":1772701521000000000,"seq":860,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cbd44-6c76-7bf7-8b8b-3bd1afcbb659","at":1772701903990000000,"seq":861,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd44-6c76-7777-8d04-0f05d2a235ba","at":1772701903990000000,"seq":862,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cbd44-8008-7896-bb72-ed0821596fe9","at":1772701909000000000,"seq":863,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd44-9778-7504-b1c6-8aa0c2e5b3e4","at":1772701915000000000,"seq":864,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cbd44-baa0-7d3b-bc09-a4f09857a830","at":1772701924000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd44-ce28-746e-b3e0-081e448c7a94","at":1772701929000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd44-d5f8-71bd-a96e-daf8b8a8a52f","at":1772701931000000000,"seq":867,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cbd5c-0c86-7754-9cb6-0b0035be2956","at":1772703452294000000,"seq":868,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd5c-0c86-741c-95ea-5060c81da2e6","at":1772703452294000000,"seq":869,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd5c-1330-7e6d-9f68-ac607162e7da","at":1772703454000000000,"seq":870,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd5c-4210-7f4d-a58a-5a113bb515ef","at":1772703466000000000,"seq":871,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cbd6f-5074-75fb-8cdc-988de455d615","at":1772704714868000000,"seq":872,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd6f-5074-73b7-a840-b0244b716012","at":1772704714868000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cbd6f-5cb0-7187-b4ba-f6ab4c252259","at":1772704718000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd6f-7fd8-771b-b045-e5b557d84b10","at":1772704727000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd6f-7fd8-76e6-a49a-c8d6c5a78a9a","at":1772704727000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cbd6f-9b18-7a66-9094-d37c4a576105","at":1772704733976000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cbd6f-ca10-778b-a446-8c32f549e8db","at":1772704746000000000,"seq":878,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd6f-e950-73e0-9d2e-187abced2578","at":1772704754000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd70-738c-7d47-8f67-65c5c8ff1692","at":1772704789388000000,"seq":880,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cbd70-a8b8-78ab-bab5-02d73e76dbca","at":1772704803000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd70-b088-716d-9ae5-285141d1d2cb","at":1772704805000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cbd70-fac0-78f2-ae54-53a433e6c595","at":1772704824000000000,"seq":883,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd71-5755-7598-9727-224e6f267870","at":1772704847701000000,"seq":884,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cbd71-8378-7f52-8b59-3bdccff26a52","at":1772704859000000000,"seq":885,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd71-ae70-78d3-a7d7-0f9b025a106d","at":1772704870000000000,"seq":886,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd71-f0d8-718e-8784-3f73b41c7e73","at":1772704887000000000,"seq":887,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd72-1400-79e5-a2ee-fc7029521a21","at":1772704896000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd81-e9c5-7e01-9620-75843c3999f6","at":1772705933765000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cbd82-2160-7482-93d5-979b29377398","at":1772705948000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

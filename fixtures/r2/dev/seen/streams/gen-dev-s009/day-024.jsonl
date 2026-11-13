@@ -1,0 +1,30 @@
+{"v":1,"id":"019bef43-27b9-7505-be9d-ab7adb49e9ca","at":1769245714361000000,"seq":528,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef43-27b9-76a5-be43-cc47df91ff10","at":1769245714361000000,"seq":529,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bef43-3dc0-7765-ad02-3193e1961c8b","at":1769245720000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef43-5d00-791e-b608-a981a5b51e64","at":1769245728000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef58-a678-7a32-a4da-3d2c7f1b6a34","at":1769247123064000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bef58-c190-77ac-8ed7-97fa16539f28","at":1769247130000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bef59-ac5f-7eb3-9e60-8b5044b1daee","at":1769247190111000000,"seq":534,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bef59-afd8-7844-934f-87dce27a8c73","at":1769247191000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef59-b3c0-71ae-a4de-e543c90851df","at":1769247192000000000,"seq":536,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bef5a-2cd8-7095-b4f7-59444a88fc19","at":1769247223000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5a-3890-7949-aae8-651d96f95243","at":1769247226000000000,"seq":538,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bef5a-71cc-77a3-87ab-c967e1a95ed6","at":1769247240652000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bef5a-9650-7969-bcff-326fa7acac62","at":1769247250000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bef5a-c530-74d8-8ab5-de3c121353c2","at":1769247262000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5b-03b0-7723-b816-63a6a337a256","at":1769247278000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5b-2c11-73a8-babe-a0ab92b29e55","at":1769247288337000000,"seq":543,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bef5d-e8d0-7a46-85fd-440e40aa0d7c","at":1769247467728000000,"seq":544,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bef5e-5c5d-74f9-83fc-6079044ef941","at":1769247497309000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bef5e-7a68-7ced-978c-b0e71b07a7a1","at":1769247505000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5e-c0b8-796f-a253-130e4b891af5","at":1769247523000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bef5e-fb50-753a-9ccc-e19025c7a709","at":1769247538000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5f-2260-778b-8d25-80b16c6b8204","at":1769247548000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bef5f-2648-714d-9ab8-86da466f5f5a","at":1769247549000000000,"seq":550,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bef5f-5c26-7737-8d70-8f67557dd6d0","at":1769247562790000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bef5f-8020-7170-bfb2-7f8a070adf76","at":1769247572000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5f-8408-7bb0-8219-6b1d490aaef5","at":1769247573000000000,"seq":553,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bef5f-a348-7544-bfba-549498fbc95e","at":1769247581000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5f-d0a0-754e-b3d4-e4237a27bd40","at":1769247592608000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bef5f-d228-70d3-840e-e2571e6d4733","at":1769247593000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef60-1490-7970-a353-9460e1ae4d9a","at":1769247610000000000,"seq":557,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

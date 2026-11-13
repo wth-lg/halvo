@@ -1,0 +1,35 @@
+{"v":1,"id":"019cb294-2a7b-78c5-8eea-eb917aebb716","at":1772522580603000000,"seq":889,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb294-2a7b-781f-9a6e-78267679cf7a","at":1772522580603000000,"seq":890,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb294-7a28-7725-9ff4-23411ec2c34a","at":1772522601000000000,"seq":891,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cb294-b4c0-7173-90e2-3f1883223a77","at":1772522616000000000,"seq":892,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cb294-d400-7bed-9bd4-5bac2db279bf","at":1772522624000000000,"seq":893,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cb2a2-2ca1-7940-b99d-9ddb2fa51705","at":1772523498657000000,"seq":894,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cb2a2-6c78-75d2-9840-110748451f85","at":1772523515000000000,"seq":895,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb2a2-87d0-76d8-9c5f-6c1bdc0e2773","at":1772523522000000000,"seq":896,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cb2b7-6ac2-7205-9f9b-62e1ebd5338d","at":1772524890818000000,"seq":897,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2b7-6ac2-7e58-8679-079f2250cb52","at":1772524890818000000,"seq":898,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b7-9e40-78bf-b802-802d7189ca27","at":1772524904000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2b8-07b8-77ca-8837-c1a5108b8646","at":1772524931000000000,"seq":900,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cb2b8-51f0-70d6-99ca-f40c671d96b7","at":1772524950000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2b8-60f4-7212-a3a2-e15ee007c67a","at":1772524953844000000,"seq":902,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b8-84b8-7b9c-989d-69391faaed22","at":1772524963000000000,"seq":903,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb2b8-9840-7f7f-a15b-68d46a124bad","at":1772524968000000000,"seq":904,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb2b8-b398-7dbb-9b8e-ae9ce64d1b59","at":1772524975000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2cf-d613-7d06-a61d-b64511a4ce68","at":1772526491155000000,"seq":906,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb2cf-ece8-77af-91fa-d5518933bc96","at":1772526497000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d0-0458-7a42-a07a-a0c1e1fd6297","at":1772526503000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d0-3b08-79c3-a2ec-3163d0719aae","at":1772526517000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cb2d0-6575-780e-ac50-56d59b8d55b4","at":1772526527861000000,"seq":910,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d0-6600-7f80-9fd4-4c6c8022ee87","at":1772526528000000000,"seq":911,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb2d0-8d10-738e-a279-f5032e85d2b6","at":1772526538000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d0-fa70-776e-9475-46b1e8be3e6e","at":1772526566000000000,"seq":913,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d1-2d38-722f-af57-9a418bc17d45","at":1772526579000000000,"seq":914,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb2d1-6898-795a-ad99-29139c10df88","at":1772526594200000000,"seq":915,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d1-d7fc-75bd-8f7d-e2df71994891","at":1772526622716000000,"seq":916,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d2-0410-7589-a160-e0b073fba0a9","at":1772526634000000000,"seq":917,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2d2-07f8-7a60-be78-eab9f5f809c2","at":1772526635000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d2-2f08-7d84-8c8c-8c8667d52f1f","at":1772526645000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cb2d2-4678-74dc-aff6-5b3d02c4422a","at":1772526651000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e0-d25e-74e6-9602-4f01f1bafdce","at":1772527604318000000,"seq":921,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb2e0-d25e-7120-aa3a-fea75bad1a45","at":1772527604318000000,"seq":922,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb2e1-3e80-771a-9387-eae1cc81bb02","at":1772527632000000000,"seq":923,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

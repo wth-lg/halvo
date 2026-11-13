@@ -1,0 +1,36 @@
+{"v":1,"id":"019b7915-2bc8-7448-b444-c56d6ccb8d22","at":1767262989256000000,"seq":0,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7915-2bc8-72ab-9781-4d13e8a3f929","at":1767262989256000000,"seq":1,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7915-3298-7ce7-8a56-ffe5b0b986e2","at":1767262991000000000,"seq":2,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b7915-6178-7ebc-8926-d8923901e419","at":1767263003000000000,"seq":3,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b7915-8888-7aee-b60a-3d30557e16d6","at":1767263013000000000,"seq":4,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b7915-8b61-7d26-ba1f-b6b4f7a6e8f9","at":1767263013729000000,"seq":5,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7915-8b61-789b-bfbd-d7faf78aced4","at":1767263013729000000,"seq":6,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b7915-da90-764d-9a68-b5f46e35cb7b","at":1767263034000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7916-36df-74a2-9c8c-e8bb39515632","at":1767263057631000000,"seq":8,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b7916-6348-77fc-b45c-de51cac9287d","at":1767263069000000000,"seq":9,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7916-76d0-77fe-a3b0-527369862893","at":1767263074000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7916-99f8-7d70-91d4-6c406fd494e3","at":1767263083000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b7916-bd20-79f3-8f81-7b659d798297","at":1767263092000000000,"seq":12,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7916-ff88-7f4e-9c5e-e195744d0421","at":1767263109000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7917-0b9d-7ff7-8dd8-bae2ffe1bb1a","at":1767263112093000000,"seq":14,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b7918-05ac-76a3-90dd-5249165074c7","at":1767263176108000000,"seq":15,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b7918-10f8-7dbf-84b3-42c539ef43e4","at":1767263179000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7918-2098-71dd-8c48-7c7e5e1bd537","at":1767263183000000000,"seq":17,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7918-2868-7b5b-8b21-f88994ee953b","at":1767263185000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7918-3808-711b-9243-07ef8a14145e","at":1767263189000000000,"seq":19,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7918-3808-7229-b1d8-79be3816c813","at":1767263189000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b7918-3e11-709e-9c12-6aaf33ea6d23","at":1767263190545000000,"seq":21,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7918-3e11-766b-983e-9143ed8364ca","at":1767263190545000000,"seq":22,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7918-3fd8-7d9a-9e7f-e0618f2315b3","at":1767263191000000000,"seq":23,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7918-5360-7e2f-a3ed-b6a87062ebed","at":1767263196000000000,"seq":24,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b7918-c4a8-71dc-8802-d4fb2ba776d2","at":1767263225000000000,"seq":25,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792e-ee9f-7757-b160-5bb66f546909","at":1767264677535000000,"seq":26,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b792e-ee9f-7ca5-887d-3c077ca37439","at":1767264677535000000,"seq":27,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b792f-07e0-728c-8e10-bd8b7a94571a","at":1767264684000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b792f-0bc8-7345-b196-e93e40120ced","at":1767264685000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792f-4a48-74fd-957b-06b936cb9d6b","at":1767264701000000000,"seq":30,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b792f-4e30-7d15-8c43-e77736a39e6e","at":1767264702000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7937-d1a9-7a33-97aa-b6af122a50f3","at":1767265259945000000,"seq":32,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7938-5e80-716e-84a0-0857e7c74ecd","at":1767265296000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7938-6e20-7ea9-9020-1ce3515b78ee","at":1767265300000000000,"seq":34,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7938-79d8-7542-ad32-8ae8eb815c7f","at":1767265303000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,7 @@
+{"v":1,"id":"019bc5aa-d38c-7968-88b1-e85f53a1a1d7","at":1768547865484000000,"seq":248,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc5aa-d38c-7561-99eb-18b112f43780","at":1768547865484000000,"seq":249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bc5ab-71d0-73c1-8726-5dcf6a23c086","at":1768547906000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5ab-beed-76bb-af34-ec42368ab1f7","at":1768547925741000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bc5ab-cf90-7f5b-a44b-e44208f11ccb","at":1768547930000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc5ab-fe70-7882-9828-3937db57ea26","at":1768547942000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5ac-11f8-7779-bcfc-3ee8c70dbdc3","at":1768547947000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

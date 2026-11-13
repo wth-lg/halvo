@@ -1,0 +1,15 @@
+{"v":1,"id":"019b9788-53ba-75ee-8366-3715dd146e22","at":1767773852602000000,"seq":74,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9788-53ba-7354-9dc5-bca8b0abbf09","at":1767773852602000000,"seq":75,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b9788-5548-71a5-9113-66bb5d487f38","at":1767773853000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9788-7c58-7dde-aca0-50a984f20a68","at":1767773863000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9788-9b98-71aa-905f-d04bab78f2c8","at":1767773871000000000,"seq":78,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9796-aaa9-7902-8a8b-b45f87c0dfd6","at":1767774792361000000,"seq":79,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9796-aaa9-7be7-b5b4-3400dcf469cd","at":1767774792361000000,"seq":80,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9796-b8e0-7910-9fe5-8119be2e03fd","at":1767774796000000000,"seq":81,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9796-fb48-7fc1-840c-9ec6d97a1853","at":1767774813000000000,"seq":82,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b9797-0700-7c1b-838a-3407e8ae88ae","at":1767774816000000000,"seq":83,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9797-1167-70ea-a253-c50712fa3369","at":1767774818663000000,"seq":84,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9797-2640-72bf-bcc9-8cde2c2ba610","at":1767774824000000000,"seq":85,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9797-5138-75a8-a955-4cd6bff519db","at":1767774835000000000,"seq":86,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b9797-b2e0-79b2-9607-9249c56d6ce2","at":1767774860000000000,"seq":87,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b9797-e990-7cec-a513-52dd3712c01b","at":1767774874000000000,"seq":88,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

@@ -1,0 +1,43 @@
+{"v":1,"id":"019c2d5d-1baf-7746-8eb4-cd77121b5729","at":1770287602607000000,"seq":587,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d5d-1baf-75f6-8173-3d77bbef2f39","at":1770287602607000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c2d5d-4060-7699-93b4-2fbb5b88ba9d","at":1770287612000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5d-57d0-79a9-833c-c45ab1943ce7","at":1770287618000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c2d5d-68e9-74b1-a9ce-21d8064ef0cc","at":1770287622377000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c2d5d-8e80-7562-9ec4-2a17cdeb6e96","at":1770287632000000000,"seq":592,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d5d-9268-7f5c-916a-06528ed884e6","at":1770287633000000000,"seq":593,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2d5d-a5f0-7ac8-8712-9245857f06e2","at":1770287638000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5d-b978-7087-8000-9a98002779d2","at":1770287643000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5d-be42-7fc4-b66c-254ece67aedb","at":1770287644226000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2d5e-51d0-7991-a408-2a07717b8dea","at":1770287682000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5e-55b8-7b25-91d7-9b5cb99e6ffa","at":1770287683000000000,"seq":598,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2d5e-8c68-7fab-8a14-f367b9ef8368","at":1770287697000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5e-af90-72f9-ba02-20ec142517c1","at":1770287706000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c2d5e-b277-7939-9a38-4a7862d80544","at":1770287706743000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c2d5f-1138-7735-aa7d-0baf3b89e30e","at":1770287731000000000,"seq":602,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d5f-28a8-7197-972b-0d9f7c853a08","at":1770287737000000000,"seq":603,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d68-aa78-79a9-adf0-c3f8eca8b263","at":1770288360056000000,"seq":604,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2d69-0fd0-70c0-8ffc-c5be47cf183a","at":1770288386000000000,"seq":605,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d69-32f8-7f20-aa0e-32556555a660","at":1770288395000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d69-3eb0-77aa-a2bf-31ea23db0d68","at":1770288398000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d78-4bd0-7cf8-a0b4-96d3f0528d0c","at":1770289384400000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2d78-4e28-7dba-b39e-dc0bf4ec2742","at":1770289385000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d78-61b0-7047-8ab3-fd3e0d1cbeb9","at":1770289390000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d78-a926-7a78-a5ee-9d3049bcdddc","at":1770289408294000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2d78-b7a0-79c2-8b44-9abdb44a2b50","at":1770289412000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d78-deb0-78e9-bc95-727a8e032dde","at":1770289422000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d79-1178-77f4-b51f-d0eb1e2abb31","at":1770289435000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c2d79-3e32-78db-98ff-9a1eb175b519","at":1770289446450000000,"seq":615,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2d7a-3288-7e78-bf07-d3f9cc5860f3","at":1770289509000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d7a-3daa-7617-805c-fd389d3e287c","at":1770289511850000000,"seq":617,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2d7a-3daa-71a6-a426-bad75798c980","at":1770289511850000000,"seq":618,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2d7a-4228-78ee-9945-20742fe45a03","at":1770289513000000000,"seq":619,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d7a-6d20-7f4d-b566-9b049471db55","at":1770289524000000000,"seq":620,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c2d7a-b370-776c-80a4-9b03de1cdf78","at":1770289542000000000,"seq":621,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d7a-b758-711e-8402-bd789bb069f8","at":1770289543000000000,"seq":622,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d7a-cdfa-7ecb-8bcc-a7a315531352","at":1770289548794000000,"seq":623,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d7a-cdfa-7411-b774-a0914c082e40","at":1770289548794000000,"seq":624,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2d7a-de68-72c6-a08b-461b68ac6f33","at":1770289553000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d7b-0190-78a3-89b4-25e88fa56034","at":1770289562000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d7b-6635-7489-9aa5-570f8b561119","at":1770289587765000000,"seq":627,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2d7c-2a70-7dc0-9e2f-95d8aeb1a0c0","at":1770289638000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c2d7c-41e0-74e9-8b35-d557df76ad53","at":1770289644000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

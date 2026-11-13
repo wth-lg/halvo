@@ -1,0 +1,21 @@
+{"v":1,"id":"019bc5b3-806e-7a51-9fc4-06089aba19d0","at":1768548434030000000,"seq":164,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc5b3-806e-7c7a-a7ce-fc58bfc6a4c3","at":1768548434030000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bc5b3-e1f8-7183-b167-ad01967e323a","at":1768548459000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5b4-3ec8-73b9-920a-d5c31a6962f0","at":1768548482760000000,"seq":167,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc5b4-3ec8-7478-a4c9-2bf6868c9068","at":1768548482760000000,"seq":168,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc5b4-4788-7aec-8a41-0c324838c026","at":1768548485000000000,"seq":169,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bc5b4-4b70-7c05-a614-1689e3174c48","at":1768548486000000000,"seq":170,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5b4-5b10-782c-b532-5f95c219d621","at":1768548490000000000,"seq":171,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5b4-9fe7-739c-b7be-21d3f0a1bef4","at":1768548507623000000,"seq":172,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc5b4-9fe7-7657-9f06-f3f0b8a2027a","at":1768548507623000000,"seq":173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bc5b4-a160-7a02-b679-f06a1bee011e","at":1768548508000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bc5b5-7655-7d82-aeb2-ce76cd760ce2","at":1768548562517000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bc5b6-00f0-787c-8cee-f513d61fb797","at":1768548598000000000,"seq":176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc5b6-1090-70cb-9ebe-1b5dd5af2cb4","at":1768548602000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5c8-7070-703f-95cc-d426a7ba2a80","at":1768549806192000000,"seq":178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc5c8-bdd0-7ca2-98f1-d068d91e4eb1","at":1768549826000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5c8-f868-7465-a72c-1faadc2ab276","at":1768549841000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bc5cf-f31a-7b42-9ca9-7a34f47e6986","at":1768550298394000000,"seq":181,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc5cf-f31a-7fb9-bb72-13712be14127","at":1768550298394000000,"seq":182,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc5d0-2c28-7c6f-b554-0d75705c80de","at":1768550313000000000,"seq":183,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5d0-37e0-70b3-8032-b53497b32e72","at":1768550316000000000,"seq":184,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

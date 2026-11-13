@@ -1,0 +1,32 @@
+{"v":1,"id":"019b8d66-63c1-7feb-a306-c8e48bb28e9a","at":1767603856321000000,"seq":116,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d66-63c1-75f8-bb02-b978a9ed502b","at":1767603856321000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b8d66-8990-75a0-8b77-1137975dd87a","at":1767603866000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d66-c040-738d-86cf-cffb6d2138b1","at":1767603880000000000,"seq":119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d66-c666-7946-ae6d-9ee16352b041","at":1767603881574000000,"seq":120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b8d66-f6f0-7dfc-a000-60b4ae094324","at":1767603894000000000,"seq":121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8d67-2da0-7eda-9f6f-086fbe86612c","at":1767603908000000000,"seq":122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8d67-398f-7bbc-b466-e007142df903","at":1767603911055000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b8d67-e538-7e0b-a501-13fd5a649ae2","at":1767603955000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d67-f9dd-70a5-98bb-db41f4a83f3f","at":1767603960285000000,"seq":125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b8d68-79a8-776d-9b26-e293221513bb","at":1767603993000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d68-7d90-7202-8389-8f3d5f28b58a","at":1767603994000000000,"seq":127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8d68-b828-7133-8b22-623b35df387f","at":1767604009000000000,"seq":128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b8d83-e753-717c-9145-4fa2abd780cd","at":1767605790547000000,"seq":129,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8d83-e753-7e1e-8894-f04eefe8ed1d","at":1767605790547000000,"seq":130,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8d8a-b5a1-7b65-a3f0-fd6018825fff","at":1767606236577000000,"seq":131,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d8a-b5a1-73d4-b6b3-9779ae2e5105","at":1767606236577000000,"seq":132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b8d8a-c6e8-7e7f-b4e5-e79dcae89b0a","at":1767606241000000000,"seq":133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b8d8a-ceb8-72ee-b614-c0e6dec5ffbf","at":1767606243000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d8a-f9b0-7e58-8ae4-f94e89616a6b","at":1767606254000000000,"seq":135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d8b-0c21-71f4-ad82-e59e8687b02a","at":1767606258721000000,"seq":136,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8d8b-0c21-7b4d-bfbc-ab5c14956e70","at":1767606258721000000,"seq":137,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8d8b-3448-78b7-837b-2910c1e55d3c","at":1767606269000000000,"seq":138,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b8d8b-8a38-71f1-a9ac-81db871eab3b","at":1767606291000000000,"seq":139,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d8b-e410-7240-b3bf-c211326764e4","at":1767606314000000000,"seq":140,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b8d8b-eab6-7986-a0ee-968b29a7bbad","at":1767606315702000000,"seq":141,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d8b-eab6-74d7-ae8a-909babcb5f99","at":1767606315702000000,"seq":142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b8d8c-0350-71ca-84e4-02cd85d7e006","at":1767606322000000000,"seq":143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b8d8c-12f0-73ee-ad53-9d087f8f9eef","at":1767606326000000000,"seq":144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b8d8c-1ea8-751e-9e98-8f5ff0dea8af","at":1767606329000000000,"seq":145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8d8c-2b9b-7a1a-8eb4-ee445374f26f","at":1767606332315000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b8d8c-e9c8-7cdd-8895-3a56d8872bd8","at":1767606381000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

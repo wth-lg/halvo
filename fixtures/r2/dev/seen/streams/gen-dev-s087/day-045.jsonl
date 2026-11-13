@@ -1,0 +1,13 @@
+{"v":1,"id":"019c5b66-50fc-7e4c-878f-b78300c02b33","at":1771059958012000000,"seq":598,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b66-50fc-7aa0-83a4-80498242dbc6","at":1771059958012000000,"seq":599,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c5b66-9740-7a83-adc2-ca2ef303c746","at":1771059976000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c5b66-b298-74d7-9bba-728636dcb75a","at":1771059983000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b66-eb87-70fb-b88b-86af71622048","at":1771059997575000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c5b67-3d40-768c-b9c6-5ca4ae56890c","at":1771060018496000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c5b67-56a8-7d93-830e-e6a5f0a6ca47","at":1771060025000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5b67-a4c8-7ea8-906f-9b44b4265ba3","at":1771060045000000000,"seq":605,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5b67-a8b0-7ee1-a1da-9db5d02fb186","at":1771060046000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b67-bc38-717a-9a4d-e391bec3458b","at":1771060051000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7b-b559-7d0f-9213-2285da23bfb8","at":1771061359961000000,"seq":608,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b7b-b559-71fe-a6e2-38d7e6a9e0ad","at":1771061359961000000,"seq":609,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b97-210e-71b6-92d5-d5b9f576bb44","at":1771063157006000000,"seq":610,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}

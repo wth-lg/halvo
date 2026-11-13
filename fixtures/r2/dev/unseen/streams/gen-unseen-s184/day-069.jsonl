@@ -1,0 +1,20 @@
+{"v":1,"id":"019cd705-5d3a-7df1-b730-990d068f2dbd","at":1773133978938000000,"seq":974,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd705-5d3a-7ef0-bf1b-6e858548be6c","at":1773133978938000000,"seq":975,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd705-6160-7a7b-bea1-78167d8e0e4a","at":1773133980000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd705-78d0-7b5f-b2b6-89ac42d8d2cd","at":1773133986000000000,"seq":977,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd705-8c58-770a-a699-6f4671b1c471","at":1773133991000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd705-9bf8-7942-858f-109520576802","at":1773133995000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd713-da07-7863-b086-a4da8e959194","at":1773134928391000000,"seq":980,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd713-da07-7f9d-b4a2-fbe26b5d8036","at":1773134928391000000,"seq":981,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd714-1ae8-7096-8464-9a60e44ce11a","at":1773134945000000000,"seq":982,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cd714-6138-7465-88f2-8e30e701662a","at":1773134963000000000,"seq":983,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cd714-9018-7925-a52a-98691745b27a","at":1773134975000000000,"seq":984,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cd714-bed4-7d35-94c7-1cccceb9f5a7","at":1773134986964000000,"seq":985,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd714-bed4-7730-b47a-69d918978378","at":1773134986964000000,"seq":986,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd715-1841-7c21-8a74-69d4c7068be7","at":1773135009857000000,"seq":987,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd715-1841-7baa-af83-4a522a8123b8","at":1773135009857000000,"seq":988,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd715-72a8-7bcf-a257-9a7e6d936a58","at":1773135033000000000,"seq":989,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cd715-7e60-70af-8f24-b4390f331006","at":1773135036000000000,"seq":990,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cd715-9da0-7bff-ab9e-60d585ea89b4","at":1773135044000000000,"seq":991,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cd725-2890-7c7b-9930-a89404014f61","at":1773136062608000000,"seq":992,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cd725-58f8-7c30-a78e-46348635a38b","at":1773136075000000000,"seq":993,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

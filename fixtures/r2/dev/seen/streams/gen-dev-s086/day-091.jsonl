@@ -1,0 +1,20 @@
+{"v":1,"id":"019d4897-3e64-7401-a43c-18dbdb7a23d9","at":1775039364708000000,"seq":1617,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4897-3e64-727e-a63e-2e08c92d7b97","at":1775039364708000000,"seq":1618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d4897-eb68-7e2f-9af4-2ed91116e632","at":1775039409000000000,"seq":1619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4898-1278-7e99-ad12-87b92ba9c783","at":1775039419000000000,"seq":1620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d4898-4f14-737f-8bac-e4f09136d351","at":1775039434516000000,"seq":1621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d4898-50f8-7f96-a7a5-778518d4b38b","at":1775039435000000000,"seq":1622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4898-5cb0-774c-8193-b046ec0dc85b","at":1775039438000000000,"seq":1623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4898-7038-730f-a347-e6d308e003ed","at":1775039443000000000,"seq":1624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4898-87a8-725c-aaac-8fd9b28240db","at":1775039449000000000,"seq":1625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4898-8953-794a-ac26-21af7e6a38e4","at":1775039449427000000,"seq":1626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d4898-c240-78f9-b8e6-d1ec8c72057c","at":1775039464000000000,"seq":1627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d4899-27d0-7a16-a549-cf30721bf07e","at":1775039490000000000,"seq":1628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4899-6220-72d0-bcf0-d9b36252e7d9","at":1775039504928000000,"seq":1629,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d4899-6650-7e69-b278-5e770d44c99b","at":1775039506000000000,"seq":1630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d4899-a0e8-79d5-870a-231a4472c890","at":1775039521000000000,"seq":1631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4899-cfc8-73c8-9cff-a0cc96a68ac2","at":1775039533000000000,"seq":1632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4899-db80-76d6-97b4-0d59aa521625","at":1775039536000000000,"seq":1633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d489d-7fa1-7dc9-86a1-34e53929cd78","at":1775039774625000000,"seq":1634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d489d-bbb0-798c-beed-a45572d6712a","at":1775039790000000000,"seq":1635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d489e-1580-7b8f-b376-6b7aecfa09a2","at":1775039812992000000,"seq":1636,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}

@@ -1,0 +1,27 @@
+{"v":1,"id":"019caddf-9232-717e-82e9-6f73092c070e","at":1772443636274000000,"seq":910,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019caddf-9232-7b0f-bd5c-a89b6fe99500","at":1772443636274000000,"seq":911,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019caddf-a4a8-768a-8e55-4537ecc2f811","at":1772443641000000000,"seq":912,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019caddf-d388-74e8-9c10-e8ea1c5fa62b","at":1772443653000000000,"seq":913,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cadf8-fa66-7975-8295-84f6299b485d","at":1772445301350000000,"seq":914,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cadf8-fa66-7f8e-8e3d-9be1f707978c","at":1772445301350000000,"seq":915,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cadf9-3b70-739b-96f6-ec835e5eb1cd","at":1772445318000000000,"seq":916,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cadf9-52e0-7bab-b49b-6f1dddde2ef0","at":1772445324000000000,"seq":917,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cadf9-c428-72b9-ac59-610b9ef595b3","at":1772445353000000000,"seq":918,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cae00-f4d1-7bae-88b2-ce7a4566f420","at":1772445824209000000,"seq":919,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cae00-ffb8-7c91-b9cd-cdcec8f4385f","at":1772445827000000000,"seq":920,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae0f-0937-7349-9421-d3d606bf7bde","at":1772446746935000000,"seq":921,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae0f-0937-7137-8575-b619394beba5","at":1772446746935000000,"seq":922,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cae0f-3088-773d-a2f9-3352a9dbe4a2","at":1772446757000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae0f-8a6b-7235-9d61-0b2afeedb59c","at":1772446780011000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview this week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cae0f-b940-7229-9bf6-c6c38c0c8873","at":1772446792000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cae10-0f30-758c-80e3-c3f46cf6eed3","at":1772446814000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae10-1ae8-7c3e-810c-7a95ba9e5835","at":1772446817000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae10-8460-7765-8f16-b321b726c062","at":1772446844000000000,"seq":928,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cae10-9318-7d9b-8d9e-d5fd34225f8a","at":1772446847768000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cae10-a3a0-7f80-879d-2dc3b9d97ac8","at":1772446852000000000,"seq":930,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cae11-0160-760a-9c7f-6c609f79427f","at":1772446876000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cae11-8b35-7dc4-a920-4c361090a401","at":1772446911285000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cae11-b128-72a2-88d8-c47ec978c9a3","at":1772446921000000000,"seq":933,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cae11-c898-7196-8519-09cd829f3a8a","at":1772446927000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae12-1e88-7d74-9798-f42b08a11fb7","at":1772446949000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cae12-60f0-7e6c-b222-3e6ebbcd936f","at":1772446966000000000,"seq":936,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

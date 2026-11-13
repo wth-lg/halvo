@@ -1,0 +1,26 @@
+{"v":1,"id":"019b9238-d6ad-734c-b9d2-313785de158c","at":1767684757165000000,"seq":65,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9238-d6ad-7cd5-b43f-99af46918150","at":1767684757165000000,"seq":66,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b9239-1870-7fe0-a3ae-21096a1e4229","at":1767684774000000000,"seq":67,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9239-4368-74d4-ba55-542d7b6e8ac4","at":1767684785000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b9239-689e-7de2-98ca-93946436aab6","at":1767684794526000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b9239-81e8-7a75-8a53-5716eaff8ee3","at":1767684801000000000,"seq":70,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b9239-8da0-7371-b1b0-1d15da109a99","at":1767684804000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9239-9188-722f-8b57-18e4be7bafd4","at":1767684805000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9239-b205-7d6e-af7c-ac2831b588a8","at":1767684813317000000,"seq":73,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9239-c838-7ccc-bb4e-e4660aeabc0f","at":1767684819000000000,"seq":74,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9239-ef48-729b-980a-64886d11c55c","at":1767684829000000000,"seq":75,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b923a-02d0-76f6-b9bc-7e61232f4768","at":1767684834000000000,"seq":76,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b923a-0596-7198-950c-f3a7c8819e37","at":1767684834710000000,"seq":77,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b923a-1270-7fbf-9d9d-0e5ea6b0013a","at":1767684838000000000,"seq":78,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b923a-31b0-7840-8a9c-248f58a56816","at":1767684846000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b923a-9e45-7e9c-81ff-5ab221f1eb3e","at":1767684873797000000,"seq":80,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b923a-e178-7722-8a6a-9e0a74248e37","at":1767684891000000000,"seq":81,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b923a-f118-76e7-a596-5351eb6aa434","at":1767684895000000000,"seq":82,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9243-fe62-7c1e-9c3c-59e5a32ce94e","at":1767685488226000000,"seq":83,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9244-14f0-7a86-8a6a-b4ce2131da29","at":1767685494000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9244-91f0-72e7-be5a-336ac2c62d7c","at":1767685526000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b9244-a190-7f1c-a83f-8a32b7324e79","at":1767685530000000000,"seq":86,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9257-3719-7de1-bac3-1ccf8ae74c29","at":1767686747929000000,"seq":87,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b9257-4318-7518-bc34-a3d6c26d2c2d","at":1767686751000000000,"seq":88,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9257-6258-7c7f-8fb0-3f6f658db0a8","at":1767686759000000000,"seq":89,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9257-8198-7168-9cb9-028a409638ed","at":1767686767000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

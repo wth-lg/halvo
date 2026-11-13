@@ -1,0 +1,14 @@
+{"v":1,"id":"019b980d-1e7c-7ea3-9d98-d697c5d7674b","at":1767782555260000000,"seq":65,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b980d-1e7c-72f9-889e-4dd2a75856ac","at":1767782555260000000,"seq":66,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b980d-34e8-76d9-b0de-2f83a474dd82","at":1767782561000000000,"seq":67,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b980d-5040-7b8a-8f6a-c892129dc6ad","at":1767782568000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b980d-5428-7428-84fd-55124925d47b","at":1767782569000000000,"seq":69,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b980d-7737-7368-bf73-2c00f8c3fd85","at":1767782577975000000,"seq":70,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b980e-0bc0-7b2b-ab86-46a7df93dd20","at":1767782616000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b981d-3d54-7668-b622-b20fc728ca41","at":1767783611732000000,"seq":72,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b981d-3d54-78f3-8ff9-cf078d897714","at":1767783611732000000,"seq":73,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b981e-28c0-78ce-87c0-e4e0c22a5976","at":1767783672000000000,"seq":74,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b9820-13c4-7cc7-b1ac-ad5a64b93f23","at":1767783797700000000,"seq":75,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9820-13c4-7e7b-8577-5d77027bc4dd","at":1767783797700000000,"seq":76,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b9820-ad48-74ff-8d88-0de0f8211e05","at":1767783837000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9820-b518-7788-bc05-f6f284643dd4","at":1767783839000000000,"seq":78,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

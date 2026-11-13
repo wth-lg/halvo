@@ -1,0 +1,22 @@
+{"v":1,"id":"019c1303-cf54-7231-8466-731f83c54644","at":1769845542740000000,"seq":480,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1303-cf54-7aad-ba8f-6117be90e4c3","at":1769845542740000000,"seq":481,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c1304-0af0-7242-bc67-de40307a9479","at":1769845558000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c1304-1e78-715b-94b7-fabcc6041326","at":1769845563000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1304-2a30-7ccb-8d6f-9605a3fc446e","at":1769845566000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c130f-d935-784f-ab16-fc37b77238ef","at":1769846331701000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1310-3ff0-7fba-9fce-4c854b90c3ed","at":1769846358000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1310-ad50-7d94-93d2-66e5ac2fb76f","at":1769846386000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1310-e473-7df6-92a3-8463f6a331f6","at":1769846400115000000,"seq":488,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1310-ebd0-7513-b2f3-c97102328840","at":1769846402000000000,"seq":489,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1310-efb8-7b28-b1c8-1afdfd1c4a1d","at":1769846403000000000,"seq":490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1310-f3a0-7f7b-9779-1b601076b82b","at":1769846404000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1311-12e0-7bc5-90fc-a1e9ed5dd80e","at":1769846412000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1311-16c8-76e4-add5-2360d05cc14f","at":1769846413000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c1311-4963-7cf6-a13b-37b6b500a5ab","at":1769846425955000000,"seq":494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1311-5160-7ea3-98c2-b2d03f8d5189","at":1769846428000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1312-3bc0-725f-b090-91317351791d","at":1769846488000000000,"seq":496,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1312-4580-7753-8d64-656b22f59531","at":1769846490496000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1312-85f8-72e6-ba3c-ac9fab5768ff","at":1769846507000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1312-e7a0-7fd5-be2e-88579f8fb559","at":1769846532000000000,"seq":499,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c131a-f266-77c3-b8f0-9c39b492dede","at":1769847059046000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c131b-53e0-7c81-87cd-b2c8fb3cd330","at":1769847084000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

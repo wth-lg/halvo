@@ -1,0 +1,30 @@
+{"v":1,"id":"019ce655-54f4-71e9-a815-13bfd98aa0a9","at":1773390877940000000,"seq":1070,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce655-54f4-7f8f-87b2-5b3202d9c765","at":1773390877940000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce655-7858-7097-8552-64ff585584c2","at":1773390887000000000,"seq":1072,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce655-ed88-7795-8aca-cdecdf191bde","at":1773390917000000000,"seq":1073,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce66b-c2ba-794f-a0da-126ee3323d24","at":1773392347834000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce66c-0d98-7d52-b5b7-eef90144b2c1","at":1773392367000000000,"seq":1075,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce66c-3c78-7c92-a1c6-efccdbe48240","at":1773392379000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce67e-2ac5-74a8-92e6-bd55becb53b8","at":1773393554117000000,"seq":1077,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce67e-45a8-7f39-992f-d01a5f39ce95","at":1773393561000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ce67e-7dfd-7b08-8da3-531de03f0544","at":1773393575421000000,"seq":1079,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce67e-8810-78f7-b428-02ba75a50e84","at":1773393578000000000,"seq":1080,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce67e-a750-7456-b7e6-99866754e69f","at":1773393586000000000,"seq":1081,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce67f-0ce0-7556-a1aa-37552624324a","at":1773393612000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce67f-7f26-7468-9f16-355069bb7694","at":1773393641254000000,"seq":1083,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce67f-d418-7a76-9674-5c0e7ecc4fbe","at":1773393663000000000,"seq":1084,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce680-0eb0-7357-8eb4-134ed9804447","at":1773393678000000000,"seq":1085,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce680-49b7-7d44-b833-02c307c3ac1d","at":1773393693111000000,"seq":1086,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce680-5118-79b1-a586-9530cf83d8eb","at":1773393695000000000,"seq":1087,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce680-7ff8-798c-a43e-6e5e7734f317","at":1773393707000000000,"seq":1088,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce687-6d13-7f1a-9e63-0b3c8ce287cd","at":1773394160915000000,"seq":1089,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce687-6d13-71c5-8f40-1a60fb01d5c8","at":1773394160915000000,"seq":1090,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce687-9090-78f8-95b8-bc8c0891918a","at":1773394170000000000,"seq":1091,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6a0-2c21-7134-a776-33133b91e027","at":1773395782689000000,"seq":1092,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6a0-2c21-7558-804e-4d732e27c462","at":1773395782689000000,"seq":1093,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a0-3140-7197-be9e-5b0aac32c5a1","at":1773395784000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6a0-8348-7381-b589-69b39f9d6f5d","at":1773395805000000000,"seq":1095,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6a0-9994-7761-ba38-dfe166192109","at":1773395810708000000,"seq":1096,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a0-f0a8-7bb1-bc40-553eb43638e0","at":1773395833000000000,"seq":1097,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce6a0-f0a8-74fa-a793-95ff93b5d2ef","at":1773395833000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce6a0-f490-73f7-8495-dbd28c3d1ad8","at":1773395834000000000,"seq":1099,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

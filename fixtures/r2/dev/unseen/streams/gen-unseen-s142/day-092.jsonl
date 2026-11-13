@@ -1,0 +1,29 @@
+{"v":1,"id":"019d4d8d-0e6c-713b-9bc4-8e6ca97a9cdc","at":1775122583148000000,"seq":1296,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d8d-0e6c-719f-85e6-c01fbb6b682d","at":1775122583148000000,"seq":1297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d4d8d-4488-79dd-8c81-98f45d6a53a2","at":1775122597000000000,"seq":1298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d4d8d-5428-722f-b077-7c7d9ab9a81a","at":1775122601000000000,"seq":1299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d8d-6f80-7bb5-bac4-15259569bf63","at":1775122608000000000,"seq":1300,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4d9b-6602-788e-97ba-2df4804fe60d","at":1775123523074000000,"seq":1301,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4d9b-6602-70fb-b779-2e80001e7080","at":1775123523074000000,"seq":1302,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4d9b-69a0-7ebd-ab02-5cdd14f5e8ad","at":1775123524000000000,"seq":1303,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d9b-aff0-7da2-8035-7bc5309e269f","at":1775123542000000000,"seq":1304,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4d9b-ea88-708f-a192-6d9699cc8069","at":1775123557000000000,"seq":1305,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d9f-1192-7225-804b-3e88c85f427d","at":1775123763602000000,"seq":1306,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d9f-1192-7347-963b-a58336d0da2f","at":1775123763602000000,"seq":1307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d4d9f-cdcd-70f2-90d6-777ad087b481","at":1775123811789000000,"seq":1308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d4da0-0550-7179-9f98-53be5804af3d","at":1775123826000000000,"seq":1309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4da0-5758-7c40-9ff2-09ebea207712","at":1775123847000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4da0-7698-7e89-84af-98050cdf72b2","at":1775123855000000000,"seq":1311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d4da0-b0b1-747e-beb8-9393ee8813b9","at":1775123869873000000,"seq":1312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d4da1-7c85-7d3b-a0cc-930d3604ff0a","at":1775123922053000000,"seq":1313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d4da1-8808-7bbe-a2b2-cf8d8668f0bc","at":1775123925000000000,"seq":1314,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4da1-b300-7337-8196-e7c474ce30cf","at":1775123936000000000,"seq":1315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4da1-f180-7b33-abff-1a456f98a405","at":1775123952000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d4daf-3d05-7c1c-9e3a-7d07f3abfb90","at":1775124823301000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d4daf-3fc0-7901-b0f1-b805543a80fe","at":1775124824000000000,"seq":1318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4daf-4b78-7bca-ae9e-6f4bdcf2e661","at":1775124827000000000,"seq":1319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4daf-5f00-766c-abd6-a30ca25088f0","at":1775124832000000000,"seq":1320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4db5-9f83-7a6f-a028-b235b4232857","at":1775125241731000000,"seq":1321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d4db6-8690-7a38-9efc-efeee067b096","at":1775125300880000000,"seq":1322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d4db6-9a90-755b-ae5c-ea1c55cd1415","at":1775125306000000000,"seq":1323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4db6-cd58-76be-a647-734a8a4a1b1b","at":1775125319000000000,"seq":1324,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

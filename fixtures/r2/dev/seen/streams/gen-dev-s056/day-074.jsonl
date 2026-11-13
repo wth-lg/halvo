@@ -1,0 +1,56 @@
+{"v":1,"id":"019cf126-5583-7b5c-a20f-21efb135948b","at":1773572347267000000,"seq":651,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf126-5583-7309-8121-d0666e46f6df","at":1773572347267000000,"seq":652,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf126-77a0-77ef-9c93-1be2fbb74410","at":1773572356000000000,"seq":653,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf126-c1d8-7690-b6f6-d6196f782648","at":1773572375000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf126-d948-7a38-92d3-c5ab58eb77d6","at":1773572381000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf126-e8e8-752c-8b06-6d0e9d52352a","at":1773572385000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf131-0ff9-7a78-8612-f6b83233353d","at":1773573050361000000,"seq":657,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf131-0ff9-745c-808f-d1c19f0ddaaa","at":1773573050361000000,"seq":658,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf131-2600-7bb6-951b-3847778f4838","at":1773573056000000000,"seq":659,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cf131-2dd0-7bf9-be15-540c5db7e142","at":1773573058000000000,"seq":660,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf131-50f8-7865-a880-8f2c38e458ca","at":1773573067000000000,"seq":661,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cf141-c147-7fd3-b8c8-1cc59acfd331","at":1773574144327000000,"seq":662,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf141-c147-72bf-8e28-b13a0deb2e83","at":1773574144327000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf142-0e20-7d2f-a917-d52d67120dfb","at":1773574164000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf142-2d60-7490-a792-b94881e5751e","at":1773574172000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cf148-66cc-7c13-987a-7ac815bffd2d","at":1773574579916000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf148-ccb0-7012-9edb-909054677c5f","at":1773574606000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf149-0b30-7982-9643-0545dc6f85a8","at":1773574622000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf149-1804-7d85-90bb-b82289e2c1ec","at":1773574625284000000,"seq":669,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf149-22a0-7894-b36a-f76b9dcdb63f","at":1773574628000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf149-2688-77d5-835f-f90e7a4b22c7","at":1773574629000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf149-c2c8-7144-844a-c4323a25a252","at":1773574669000000000,"seq":672,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf149-f1a8-72eb-bc2c-af42c4fb8538","at":1773574681000000000,"seq":673,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf14a-1ac5-75cd-9f56-f89b9693c080","at":1773574691525000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf14a-3fc8-71c0-af49-24d42b34d168","at":1773574701000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf14a-4f68-7af5-8e95-56a6a2cdbf90","at":1773574705000000000,"seq":676,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf14a-66d8-7847-86a3-96e7553b2843","at":1773574711000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf14a-b762-7f00-a5fd-0f7a55f62468","at":1773574731618000000,"seq":678,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf14b-0700-7dfc-8cae-f281300f4465","at":1773574752000000000,"seq":679,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf14b-2a28-7e56-b5ce-d864d579a0ef","at":1773574761000000000,"seq":680,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf14b-60d8-7b68-8e52-7758078789ec","at":1773574775000000000,"seq":681,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf14b-7078-7113-94a2-625917a53358","at":1773574779000000000,"seq":682,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cf14b-bac7-70b0-87a4-5d7c93c124b9","at":1773574798023000000,"seq":683,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf14b-c280-740e-92f4-238ae72d73ae","at":1773574800000000000,"seq":684,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf14b-c668-7b48-9689-1c73f76f1455","at":1773574801000000000,"seq":685,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf14b-f548-7bb7-a34e-63ff9a3abcc0","at":1773574813000000000,"seq":686,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf14c-2040-7712-9360-96dd8c988012","at":1773574824000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf14c-5560-7154-84e0-2f1043870b8c","at":1773574837600000000,"seq":688,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf14d-02d0-752f-ac8d-a7e105432df9","at":1773574882000000000,"seq":689,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf14d-2210-7c71-ae5d-7cd149921580","at":1773574890000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf14d-3d68-7c62-b47d-6c3a279cf462","at":1773574897000000000,"seq":691,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf14d-3d68-75cc-8c98-2b9502936173","at":1773574897000000000,"seq":692,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cf166-7b7e-78a7-8bf4-0608829a73b5","at":1773576551294000000,"seq":693,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cf166-ad20-7534-b3a5-84d9fea146ce","at":1773576564000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf166-b4f0-7959-b5e3-d01135a575f8","at":1773576566000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf166-d554-7d72-856a-632ee1b919e5","at":1773576574292000000,"seq":696,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cf166-ef88-7f6e-a1f0-976562df0a27","at":1773576581000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf167-2250-745b-aa09-0e12cbadfaa9","at":1773576594000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf167-9a9d-7219-943c-7632726b8d99","at":1773576624797000000,"seq":699,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cf167-b2d8-7860-a4b4-166ef9aa1527","at":1773576631000000000,"seq":700,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf167-baa8-785e-8d62-6e81fcb7440c","at":1773576633000000000,"seq":701,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf167-c278-7cb0-903e-37831a6bd86b","at":1773576635000000000,"seq":702,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf167-d32e-7ec9-8619-05c0f59ca267","at":1773576639278000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cf167-e988-74ca-bd65-7fe30341163b","at":1773576645000000000,"seq":704,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf168-2038-7e59-a4e0-ba985e5f4cbc","at":1773576659000000000,"seq":705,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf168-2fd8-758d-a7a5-7708c2170e3b","at":1773576663000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

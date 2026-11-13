@@ -1,0 +1,13 @@
+{"v":1,"id":"019bc14c-4d7a-7a40-9a08-759a23c3bfa4","at":1768474561914000000,"seq":149,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc14c-4d7a-793e-b766-88762acae9cc","at":1768474561914000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc14c-5d70-7f92-a604-cd81d20b20df","at":1768474566000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc14c-6158-79cb-8e66-56ff2efda9b6","at":1768474567000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc14c-6540-715a-aaf4-c0abc43b4f1e","at":1768474568000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bc15a-51d5-7143-9a19-75908087e908","at":1768475480533000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bc15a-5790-7b48-b216-09a32f645ce0","at":1768475482000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bc15b-136e-74a8-857e-0396fffc0a4d","at":1768475530094000000,"seq":156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bc15b-6ce8-7f25-94dd-62120ba866a6","at":1768475553000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc15d-6220-791c-b678-71602dd8b0c8","at":1768475681312000000,"seq":158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc15d-9f68-797e-92a8-baad9afd43cc","at":1768475697000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc15d-b2f0-7fbf-b887-f57b1c12813f","at":1768475702000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc15e-4f30-75ca-bc36-73ed4d77673d","at":1768475742000000000,"seq":161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

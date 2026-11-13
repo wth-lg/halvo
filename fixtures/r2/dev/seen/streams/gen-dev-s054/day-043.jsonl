@@ -1,0 +1,31 @@
+{"v":1,"id":"019c5103-5c53-7bb1-a0a6-f623610730ce","at":1770885700691000000,"seq":441,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5103-5c53-7cb0-a496-5dab14468a3f","at":1770885700691000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5104-0968-7eb5-a6dd-f5bbf0f5472c","at":1770885745000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5104-2076-7639-b3c0-a5ac6286b52b","at":1770885750902000000,"seq":444,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5104-4bd0-7dfc-b79f-e424b313a94b","at":1770885762000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5104-a5a8-7a82-980d-917459a64e39","at":1770885785000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5117-b190-7022-a43c-1c452a1873b7","at":1770887033232000000,"seq":447,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5117-b190-7497-aaad-60c93eef9cfd","at":1770887033232000000,"seq":448,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5118-0698-7eec-ad9b-0fb859a9bdab","at":1770887055000000000,"seq":449,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c5121-85af-703f-a22d-ecf09653ace6","at":1770887677359000000,"seq":450,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5121-85af-72b8-9bfa-77868c36e648","at":1770887677359000000,"seq":451,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5121-9000-7b04-9313-8ce80c1c1b0a","at":1770887680000000000,"seq":452,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5121-d268-718c-895e-2825afa5f06e","at":1770887697000000000,"seq":453,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c512c-f1b6-7331-8a18-8769f107db5a","at":1770888425910000000,"seq":454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c512c-f9e0-7c14-80a8-1dad308fe5e4","at":1770888428000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c512d-b1b7-752a-b9ba-c50629d5ba8e","at":1770888475063000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c512d-ccd0-7f63-99cd-f3a2b3f588f1","at":1770888482000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c512d-d888-79e2-b516-90562298d610","at":1770888485000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c512e-12f2-7acf-8302-c86996d529d0","at":1770888499954000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c512e-4200-71cb-bd6a-5ab95837e987","at":1770888512000000000,"seq":460,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c512e-74c8-79a3-8cbf-b5281091cf7b","at":1770888525000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c512e-75b3-741b-8def-55eb0ebab6ce","at":1770888525235000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c512f-14f0-758a-bcfa-11686674c593","at":1770888566000000000,"seq":463,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c514a-2289-7174-9a6a-ca1eb351b754","at":1770890338953000000,"seq":464,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c514a-5968-78e9-b9bd-4e2fc7effd6b","at":1770890353000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c514a-6138-7b5b-9776-d0f85cba7535","at":1770890355000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c514a-6bf7-790e-bc6b-2a28dfa5ae4c","at":1770890357751000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c514a-74c0-7443-a4ac-3296dac2d767","at":1770890360000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c514a-78a8-78ef-982d-977f5b946078","at":1770890361000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c514a-8460-773b-bceb-09feb3906b1d","at":1770890364000000000,"seq":470,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c514a-c6c8-76d0-9ec6-c0d9c50f303a","at":1770890381000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

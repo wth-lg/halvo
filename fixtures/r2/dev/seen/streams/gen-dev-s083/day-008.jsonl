@@ -1,0 +1,23 @@
+{"v":1,"id":"019b9d07-3869-7e39-b9e5-d75b53b8eb71","at":1767866054761000000,"seq":97,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9d07-3869-7872-a09e-7d0f4d81bc64","at":1767866054761000000,"seq":98,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d07-99ac-745e-8da0-fbca9e9f880e","at":1767866079660000000,"seq":99,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d07-c5f8-7b32-952d-1f5948efb044","at":1767866091000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d08-0410-76c1-a583-315fa2553204","at":1767866106896000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d08-1800-7ba3-9460-40efc432a84f","at":1767866112000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d08-2f70-72d6-871b-b7a38eacad49","at":1767866118000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9d08-440a-7202-8938-6074c67ffee7","at":1767866123274000000,"seq":104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d08-4eb0-7d99-9fbf-bc61b9e913b7","at":1767866126000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d08-6620-7ca7-9d5d-1f7a9c14d519","at":1767866132000000000,"seq":106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9d08-8178-7767-9b3f-09e143ef27dc","at":1767866139000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d08-898c-71d8-b9f1-368086f43d0c","at":1767866141068000000,"seq":108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d08-8d30-7604-914b-a76442f5c504","at":1767866142000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d08-b058-7f11-ae08-8e1176111c5d","at":1767866151000000000,"seq":110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9d08-c7c8-7f45-bcc5-89cdb98b6176","at":1767866157000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b9d08-cac1-7c05-9da7-4354b4225217","at":1767866157761000000,"seq":112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d08-fa90-7268-a6a3-01aaad05470d","at":1767866170000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d08-fe78-7db0-87c4-848f31b38f20","at":1767866171000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d09-5468-7f6b-bc74-d8cf40af5bcd","at":1767866193000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9d0f-1805-71a3-b543-595deaebd46e","at":1767866570757000000,"seq":116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b9d0f-3c20-7723-b6c8-33cb3c6a2f8a","at":1767866580000000000,"seq":117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9d0f-5390-7ce5-b13a-458e0804b19e","at":1767866586000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b9d0f-b538-7e3e-998d-b9c91dc3d6e8","at":1767866611000000000,"seq":119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

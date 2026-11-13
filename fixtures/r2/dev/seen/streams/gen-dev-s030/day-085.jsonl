@@ -1,0 +1,11 @@
+{"v":1,"id":"019d290e-8f46-7aea-b483-9dcd0ad5d7ae","at":1774510313286000000,"seq":972,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d290e-8f46-7a66-95b1-797f4522ea3d","at":1774510313286000000,"seq":973,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d290e-c8c0-7bd6-8575-011ef95952d2","at":1774510328000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d290f-7399-7827-810b-7ceaaa297c41","at":1774510371737000000,"seq":975,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d290f-8058-7482-b91b-ab31cdb41244","at":1774510375000000000,"seq":976,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d290f-8440-7966-bb87-1e0e2f82b10e","at":1774510376000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d290f-bed8-75cf-af38-3824496597ac","at":1774510391000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d290f-c0dd-7f01-83a3-ac3410d5b76d","at":1774510391517000000,"seq":979,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d290f-e9d0-7f2a-afb7-dcae92dfd9fd","at":1774510402000000000,"seq":980,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d290f-fdf1-7d50-acfc-b9922e84f41b","at":1774510407153000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d2910-f758-7a59-b901-471c80c0e1ee","at":1774510471000000000,"seq":982,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

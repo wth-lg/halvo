@@ -1,0 +1,20 @@
+{"v":1,"id":"019d387f-86da-7c78-a443-6d09aefb6137","at":1774769374938000000,"seq":1397,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d387f-86da-748f-8242-7566dacb64dd","at":1774769374938000000,"seq":1398,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d387f-b5f8-732c-af8d-9f74f6222711","at":1774769387000000000,"seq":1399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d387f-dd08-7820-88f1-bef6482a6cd5","at":1774769397000000000,"seq":1400,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3898-e545-7f31-92f5-53c1c043f842","at":1774771037509000000,"seq":1401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3899-3d20-7133-8d9b-dfcdaffeeb7f","at":1774771060000000000,"seq":1402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3899-5878-7058-b44e-d156d4e00b22","at":1774771067000000000,"seq":1403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3899-5c60-78c5-a271-6bbf4865ad41","at":1774771068000000000,"seq":1404,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d3899-8b40-7acc-8cdb-83478a6a6a9c","at":1774771080000000000,"seq":1405,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d38b3-d91b-7484-b65c-9784707374f1","at":1774772803867000000,"seq":1406,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d38b3-d91b-7f69-8de0-c77beffead6a","at":1774772803867000000,"seq":1407,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d38b4-1438-72e7-be1c-70aee25f9a78","at":1774772819000000000,"seq":1408,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d38b4-c7e8-77ca-b71e-20a6f1a3af0e","at":1774772865000000000,"seq":1409,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d38ce-2e52-7815-aa73-770cc8752f45","at":1774774529618000000,"seq":1410,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d38ce-2e52-7cc1-9d3e-a3a90c46e2f5","at":1774774529618000000,"seq":1411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d38ce-6ac2-7939-bbed-e37084662e78","at":1774774545090000000,"seq":1412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d38dd-082f-79f4-b3d4-c419c72eef58","at":1774775502895000000,"seq":1413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d38dd-46cb-7539-90eb-04444ef7ff3c","at":1774775518923000000,"seq":1414,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d38dd-6658-7308-99ff-89d25e43eb25","at":1774775527000000000,"seq":1415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38dd-f6e0-74af-bd57-bffb458ccf87","at":1774775564000000000,"seq":1416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

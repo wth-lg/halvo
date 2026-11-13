@@ -1,0 +1,6 @@
+{"v":1,"id":"019cf5f9-9c2e-793f-bb89-a24c9af9d03a","at":1773653302318000000,"seq":1079,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5f9-9c2e-77bb-8759-8a340e9082e4","at":1773653302318000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cf5f9-a6a8-7996-b219-fbe467e7911d","at":1773653305000000000,"seq":1081,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5f9-ea07-7968-b670-c514d39e65c7","at":1773653322247000000,"seq":1082,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cf5fa-db40-776d-adf9-5f3620d840d1","at":1773653384000000000,"seq":1083,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf600-1c8c-7974-abb1-dc76127ced64","at":1773653728396000000,"seq":1084,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}

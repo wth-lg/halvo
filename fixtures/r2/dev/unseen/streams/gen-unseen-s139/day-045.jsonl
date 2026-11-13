@@ -1,0 +1,16 @@
+{"v":1,"id":"019c5b3c-17fe-7165-9139-8f97209229e4","at":1771057190910000000,"seq":615,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b3c-17fe-7f73-87cf-b9d4751f89f3","at":1771057190910000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c5b3c-2fc8-7ffa-aa04-54ebda93398e","at":1771057197000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b3c-3798-7f19-a357-5d59844e99cf","at":1771057199000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5b3c-5ea8-71a8-b06a-f089c92a1410","at":1771057209000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b51-8df3-7ce5-b439-12984494595e","at":1771058597363000000,"seq":620,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c5b52-8688-7a8e-9c59-90ab7b97e53d","at":1771058661000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b6b-460d-7726-9c9b-6abf29294ff2","at":1771060282893000000,"seq":622,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b6b-460d-745e-98f5-db4baf797682","at":1771060282893000000,"seq":623,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b6b-69a0-773a-955c-e55166e1b6a1","at":1771060292000000000,"seq":624,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b6b-6d88-7f16-b03c-eb54c6e635b4","at":1771060293000000000,"seq":625,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b6b-b7c0-7024-ad24-3cc844eaf2df","at":1771060312000000000,"seq":626,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c5b6b-c5fa-706c-abc2-7b19c1e6eab2","at":1771060315642000000,"seq":627,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5b6b-d318-7c70-a9c1-e24c615d4558","at":1771060319000000000,"seq":628,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c5b6b-f258-7582-b3c4-1f9d5e08c016","at":1771060327000000000,"seq":629,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c5b6c-05e0-7225-bfc2-221ca6daf453","at":1771060332000000000,"seq":630,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

@@ -1,0 +1,28 @@
+{"v":1,"id":"019d152b-887a-7420-b7d7-4f9e664a034a","at":1774176667770000000,"seq":1179,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d152b-887a-7cf6-8cbe-a3c623d131d8","at":1774176667770000000,"seq":1180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d152c-48c8-7b5d-9c9c-05e666bbf621","at":1774176717000000000,"seq":1181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d152c-6487-7a02-ac51-8d32e2c6ba85","at":1774176724103000000,"seq":1182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d152c-8f18-724a-8b08-ec9fd56994b0","at":1774176735000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d152c-96e8-7038-b49d-1e7f01720ba3","at":1774176737000000000,"seq":1184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d152c-e3c6-7d5b-bc93-6bbd521e2ab1","at":1774176756678000000,"seq":1185,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d152d-3710-7929-ab0a-1a7292c19aba","at":1774176778000000000,"seq":1186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d152d-ac40-7da2-a65c-92f0491bcbfa","at":1774176808000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d152d-bfba-72ba-85c6-875dd2bad301","at":1774176812986000000,"seq":1188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d152d-bfc8-7f0c-a926-d6351f7080d8","at":1774176813000000000,"seq":1189,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d152d-d738-7766-8e75-92e2fab518eb","at":1774176819000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d152e-7378-7ee8-8c6e-2161d1067250","at":1774176859000000000,"seq":1191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d152e-ae10-7daf-8447-474c4cc81395","at":1774176874000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d152e-c4cc-7998-b162-b93f52730a06","at":1774176879820000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d152f-0018-7fe2-8542-9816189bc88d","at":1774176895000000000,"seq":1194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d152f-1b70-7ed8-88ec-3d2c5ab59896","at":1774176902000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d152f-8848-7cad-9ac2-966330057c0a","at":1774176929864000000,"seq":1196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d152f-9488-77b7-8b81-eef4028222e1","at":1774176933000000000,"seq":1197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d152f-9870-7e51-9572-d92c516dc4e4","at":1774176934000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d152f-f229-7f39-b797-bc16e86da581","at":1774176956969000000,"seq":1199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d1530-1570-7dee-85b5-7264f8d7fc80","at":1774176966000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1530-1570-7559-b6e0-c39c79c1fc99","at":1774176966000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d1530-7330-7ca2-af0d-93e0630805ef","at":1774176990000000000,"seq":1202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1530-7b00-7812-b44e-04944a085a58","at":1774176992000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1530-a603-7bf9-9426-103c7f6ffb02","at":1774177003011000000,"seq":1204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d1530-fbe8-7189-b976-f8fd13527aca","at":1774177025000000000,"seq":1205,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1531-07a0-7b62-890a-aa0e1b51c979","at":1774177028000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

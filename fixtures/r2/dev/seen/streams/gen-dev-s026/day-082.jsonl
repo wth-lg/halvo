@@ -1,0 +1,52 @@
+{"v":1,"id":"019d1a47-dfc5-742d-a9c0-48e1d93dfeb1","at":1774262411205000000,"seq":1001,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1a47-dfc5-7ae2-af62-4bc8f22f568a","at":1774262411205000000,"seq":1002,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d1a48-0608-772e-8fed-a5778e9c1896","at":1774262421000000000,"seq":1003,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1a48-0dd8-7326-aa55-dfb972d30678","at":1774262423000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d1a48-11c0-7933-8cc1-897d0de38ca1","at":1774262424000000000,"seq":1005,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1a48-15a8-77c6-8d9a-a6ea7d3ac274","at":1774262425000000000,"seq":1006,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a54-2b69-7292-8b47-34b33c3fcca4","at":1774263217001000000,"seq":1007,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d1a54-96b7-7f1b-920f-b4cf7d911078","at":1774263244471000000,"seq":1008,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d1a54-ead0-76de-ab96-9e2fb3392007","at":1774263266000000000,"seq":1009,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d1a55-1414-794a-abf0-ee6da7076cc7","at":1774263276564000000,"seq":1010,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d1a55-b208-79fc-a10f-2e75d2582765","at":1774263317000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a56-0028-74f4-8fce-7eb7e9438d85","at":1774263337000000000,"seq":1012,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1a56-0f6c-7535-ac05-3974496d5a0c","at":1774263340908000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d1a56-1f68-7b06-ba25-adb026f9e65e","at":1774263345000000000,"seq":1014,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1a56-2350-7123-8f2d-c671e6067fce","at":1774263346000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a56-2b20-7401-8bd2-90f45ce8a031","at":1774263348000000000,"seq":1016,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1a56-65b8-7891-87c9-8de4bb460b62","at":1774263363000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a56-730b-7cc2-be3e-186a6e1ec105","at":1774263366411000000,"seq":1018,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d1a56-c378-77d5-9327-928f38305f44","at":1774263387000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a56-cb48-7467-bcc5-80d66af29e6f","at":1774263389000000000,"seq":1020,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1a56-fa28-7ef9-8a20-435f0f7a39de","at":1774263401000000000,"seq":1021,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1a57-1580-7e6d-a3a3-9773ffcee51a","at":1774263408000000000,"seq":1022,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a57-178f-7646-bd29-40d1d69fbc69","at":1774263408527000000,"seq":1023,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d1a57-2138-73ac-935d-f78ed508d936","at":1774263411000000000,"seq":1024,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a57-2138-7498-a9c0-f461c51521af","at":1774263411000000000,"seq":1025,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d1a57-30d8-772f-999c-4116f803fad2","at":1774263415000000000,"seq":1026,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a57-51e0-7c34-9940-d0fb95d3466d","at":1774263423456000000,"seq":1027,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d1a57-9a50-7e9a-acbd-f26ca6af303f","at":1774263442000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a5d-8e3a-70fb-8740-8e02033236e8","at":1774263832122000000,"seq":1029,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d1a5d-cc40-725f-8ec8-a945a294c458","at":1774263848000000000,"seq":1030,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a5d-ff08-7266-acf8-79d1595ba318","at":1774263861000000000,"seq":1031,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a78-4fa7-7067-bf47-13f7c1febb8b","at":1774265585575000000,"seq":1032,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d1a78-a358-7ae3-8b71-dae343ba9488","at":1774265607000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a78-da08-7278-ba0d-b25368fe95d0","at":1774265621000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d1a79-1888-7a67-a040-2228bddcbf05","at":1774265637000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a79-5a9b-703d-b9af-1efe33342481","at":1774265653915000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d1a79-9d58-7398-8a75-797731d03259","at":1774265671000000000,"seq":1037,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1a79-acf8-7acb-b22f-c424dc9b17f8","at":1774265675000000000,"seq":1038,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1a7a-69bb-7060-bb4e-4ff5dbca995a","at":1774265723323000000,"seq":1039,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d1a7a-7c00-73a6-a1d7-f003ce41e9c4","at":1774265728000000000,"seq":1040,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a7a-aae0-71b3-bc3e-0ea075ccf2b0","at":1774265740000000000,"seq":1041,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1a7a-d1f0-70c0-9fc7-89ee9e3b32ad","at":1774265750000000000,"seq":1042,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1a7b-4c4c-73b2-8992-cc96bd012e3b","at":1774265781324000000,"seq":1043,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d1a7b-5aa8-7156-ad16-b7b916e1b1d1","at":1774265785000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a7b-5e90-7e71-a5c2-8426dc0a145b","at":1774265786000000000,"seq":1045,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a91-369a-7910-b956-1cb98f052b72","at":1774267217562000000,"seq":1046,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1a91-369a-7d8c-a0eb-af5254d0f779","at":1774267217562000000,"seq":1047,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1a91-3c38-7a28-a6b5-efd693c28da8","at":1774267219000000000,"seq":1048,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d1a91-4bd8-7774-83ed-d20c1ed8236c","at":1774267223000000000,"seq":1049,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d1a91-6348-7093-84af-5ed14afafbf8","at":1774267229000000000,"seq":1050,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d1a91-a1c8-7125-9418-ddb910e81d54","at":1774267245000000000,"seq":1051,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a91-ad80-762c-a422-3aa8cfb42d58","at":1774267248000000000,"seq":1052,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

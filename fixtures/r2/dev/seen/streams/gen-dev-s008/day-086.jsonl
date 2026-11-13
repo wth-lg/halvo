@@ -1,0 +1,12 @@
+{"v":1,"id":"019d2e45-dbba-74c4-9424-db73f53898d0","at":1774597823418000000,"seq":1144,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2e45-dbba-7dc9-90be-a2d9ac8045e9","at":1774597823418000000,"seq":1145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2e45-e5d0-7bf9-b23d-1f7ab1ebb628","at":1774597826000000000,"seq":1146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d2e46-a150-7cae-a45e-c2a84f7e0e9a","at":1774597874000000000,"seq":1147,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2e46-a538-7d83-b0b9-1d7c58c52e58","at":1774597875000000000,"seq":1148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e46-b4d8-7069-8e87-c14cc44b94b6","at":1774597879000000000,"seq":1149,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2e46-bb51-7628-9f70-166bf3882bf8","at":1774597880657000000,"seq":1150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2e46-bca8-729a-b285-9e26877830d9","at":1774597881000000000,"seq":1151,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2e46-cc48-7db2-8c05-2016a41e4064","at":1774597885000000000,"seq":1152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2e46-d418-7d36-9dd9-e30c82a7bb27","at":1774597887000000000,"seq":1153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e46-d418-7093-a908-17e13197aa15","at":1774597887000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d2e46-e7a0-7645-8e09-48e71349df40","at":1774597892000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

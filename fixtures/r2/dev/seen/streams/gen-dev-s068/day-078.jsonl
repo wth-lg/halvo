@@ -1,0 +1,14 @@
+{"v":1,"id":"019d059f-f118-7702-b37c-0c40ab21e211","at":1773915861272000000,"seq":1042,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d059f-f118-72e5-b2e7-c4ecba04a62d","at":1773915861272000000,"seq":1043,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d059f-fbc0-79b0-9ec5-0bafa5ca5b56","at":1773915864000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d05a0-0b60-7a38-938b-166a0a4faeac","at":1773915868000000000,"seq":1045,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a0-2afc-7d9c-a42b-70032aee873e","at":1773915876092000000,"seq":1046,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d05a0-8860-7afa-808b-8054605aecec","at":1773915900000000000,"seq":1047,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a0-a7a0-7373-82d7-5c33a91c4a70","at":1773915908000000000,"seq":1048,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d05a0-de50-7d86-baa2-8a798a240d80","at":1773915922000000000,"seq":1049,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d05a0-e620-75d3-ab7e-9715f22ea3c7","at":1773915924000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a1-18e8-7bc5-865d-ab05496f02b8","at":1773915937000000000,"seq":1051,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d05a1-382b-71c6-b050-85b307a56e8d","at":1773915945003000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d05a1-3ff8-7034-a6e9-37020553f058","at":1773915947000000000,"seq":1053,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d05a1-8a30-7153-b59f-03b3df579367","at":1773915966000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a2-16d0-7beb-bc16-77156ed03190","at":1773916002000000000,"seq":1055,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

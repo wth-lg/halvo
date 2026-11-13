@@ -1,0 +1,36 @@
+{"v":1,"id":"019bb1d9-0cdb-73b1-90d7-dd1aac13d7a7","at":1768215350491000000,"seq":190,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb1d9-0cdb-70ed-bb4a-b31f0800fc8f","at":1768215350491000000,"seq":191,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb1d9-39d0-77aa-b903-56ca6e76271f","at":1768215362000000000,"seq":192,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb1d9-41a0-78e1-a2f2-c35afa1036a9","at":1768215364000000000,"seq":193,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1d9-6c98-7c8f-a924-59bb30113a2d","at":1768215375000000000,"seq":194,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1d9-8bd8-76e1-9ae6-77481cfa2068","at":1768215383000000000,"seq":195,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bb1ef-109b-77b6-9bb8-235bb59ca376","at":1768216793243000000,"seq":196,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1ef-109b-7cea-bce4-246cf5bc7d61","at":1768216793243000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb1ef-3aa0-7e51-8b47-6b1c1a56d877","at":1768216804000000000,"seq":198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb1ef-61b0-7857-a513-9d8e62746468","at":1768216814000000000,"seq":199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb1ef-7150-72f5-bd47-5e7a7234cd8c","at":1768216818000000000,"seq":200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bb202-301d-77c1-9c81-1a740db3fdcd","at":1768218046493000000,"seq":201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bb202-5158-759b-90a4-6dbfe904bd21","at":1768218055000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb202-ad73-7bea-a520-9d7e51f029ff","at":1768218078579000000,"seq":203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bb202-c2a0-7bdb-ba4a-ffe8950d2fa0","at":1768218084000000000,"seq":204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bb202-ce58-7552-937b-9511d644b6f1","at":1768218087000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb202-e1e0-79f8-9586-830507819d8c","at":1768218092000000000,"seq":206,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb21a-4eb8-7fd2-85f6-37d2bc87d51f","at":1768219627192000000,"seq":207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb21a-7120-7bda-895b-a7fad9e833da","at":1768219636000000000,"seq":208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb226-4ba8-72c9-a57b-295c2b4eb9d0","at":1768220412840000000,"seq":209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bb226-c166-7137-93ca-9db8096a36e0","at":1768220442982000000,"seq":210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bb226-c948-7e7d-abd7-a618881fdb60","at":1768220445000000000,"seq":211,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb227-1b50-7a07-a4c8-95eb98e6e6b3","at":1768220466000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb227-2708-7d7a-a04e-17184dc903d2","at":1768220469000000000,"seq":213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb227-61a0-7ec0-acde-15ca72663322","at":1768220484000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bb227-7ba4-75c9-bdb0-1f0829e17d33","at":1768220490660000000,"seq":215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bb227-7cf8-73b6-b3db-a23ded6a1bbc","at":1768220491000000000,"seq":216,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb228-2cc0-761a-8b12-e633154a9004","at":1768220536000000000,"seq":217,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb228-4d4d-75f2-93ef-8a0f49589df4","at":1768220544333000000,"seq":218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bb228-4fe8-7d1d-b9fa-9a661c1541bc","at":1768220545000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb228-5f88-7ebf-9424-cd945c4d5936","at":1768220549000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb228-76f8-7573-9e68-3dd77cb1d774","at":1768220555000000000,"seq":221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bb228-7ae0-7fa1-90c0-784d9452bc16","at":1768220556000000000,"seq":222,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb228-b14d-7fee-b525-a5e1e7a7f96b","at":1768220569933000000,"seq":223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bb229-0a85-75ec-951b-fbfa49d5d446","at":1768220592773000000,"seq":224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bb229-6928-721a-9188-883d4678fe27","at":1768220617000000000,"seq":225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

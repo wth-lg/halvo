@@ -1,0 +1,26 @@
+{"v":1,"id":"019bc5f6-d141-7132-8e92-c44f2cf8b9cb","at":1768552845633000000,"seq":154,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc5f6-d141-7c66-bb5d-0d4a33e15f84","at":1768552845633000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bc5f7-1518-7477-a3f3-ee699de72f9e","at":1768552863000000000,"seq":156,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc5f7-1ce8-7db1-8c12-f9c15ac2bcaf","at":1768552865000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bc5f7-20d0-7859-9155-0a024e71bc01","at":1768552866000000000,"seq":158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc604-a864-7460-b6f8-349e49e5e80c","at":1768553752676000000,"seq":159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bc604-f3e0-7848-aea1-70d37edf37bd","at":1768553772000000000,"seq":160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc60b-fb23-7b1a-8413-01864c087772","at":1768554232611000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc60c-3f10-7cfa-b045-f84c90de2a46","at":1768554250000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bc60c-5298-73f4-842b-58806974a7aa","at":1768554255000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc60c-ec9d-7254-83fa-6969be9fd849","at":1768554294429000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc60d-5080-7b3e-93a9-588991d0357b","at":1768554320000000000,"seq":165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc60d-c5b0-7e87-b95f-15027faf0cfb","at":1768554350000000000,"seq":166,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc60d-da8b-729c-9b7a-fdf7cd0ae918","at":1768554355339000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc60e-13d0-7e64-b424-2746323ebf99","at":1768554370000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc60e-3310-7c31-b0d6-1db8faab31a0","at":1768554378000000000,"seq":169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc60e-4f5e-7fd5-a5fe-9bd7d1ec8d5a","at":1768554385246000000,"seq":170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc60e-5a20-7869-a38a-26779469569c","at":1768554388000000000,"seq":171,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc60e-b3f8-7662-a7ca-4b3fb46e4bc4","at":1768554411000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc626-eb9d-7548-bfb5-3d27a5c30412","at":1768555998109000000,"seq":173,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc626-eb9d-7e24-adb5-fe930d6c03df","at":1768555998109000000,"seq":174,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc627-3950-7bd3-b325-85a3f4de3b70","at":1768556018000000000,"seq":175,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bc627-be99-779c-ab6f-07d0490fdbbf","at":1768556052121000000,"seq":176,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bc627-c9d8-78d4-9da4-765bb76a8307","at":1768556055000000000,"seq":177,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc627-e530-755c-9f4a-b46e0de86da3","at":1768556062000000000,"seq":178,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bc627-ed00-7a42-8020-5c20097b9fad","at":1768556064000000000,"seq":179,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

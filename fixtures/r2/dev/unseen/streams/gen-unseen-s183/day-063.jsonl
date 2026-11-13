@@ -1,0 +1,17 @@
+{"v":1,"id":"019cb829-f87b-7883-b1ca-3e01b686ad08","at":1772616284283000000,"seq":872,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb829-f87b-7c83-9aa2-6ac65a4ffa5c","at":1772616284283000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cb82a-2258-756f-aa88-49a8b5a5b653","at":1772616295000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb82a-2a28-7d01-915b-0c21898c76a8","at":1772616297000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cb82a-7dce-7f70-8d2a-ace56267f4dc","at":1772616318414000000,"seq":876,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb82a-7dce-7e59-b5c1-7484d4c86ad1","at":1772616318414000000,"seq":877,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb82a-c280-7fc5-9ef3-c99b6d0186b5","at":1772616336000000000,"seq":878,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cb82a-c668-767a-b8bb-54a2bd28da97","at":1772616337000000000,"seq":879,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb82b-47b8-7a55-97f5-744d22628cf7","at":1772616370104000000,"seq":880,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cb82b-6a78-7057-9b27-c9b01a2f78dc","at":1772616379000000000,"seq":881,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb82b-81e8-7844-ab6d-aa777dd82240","at":1772616385000000000,"seq":882,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cb82b-a510-7ae1-8ffc-54fe2bf54ee8","at":1772616394000000000,"seq":883,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb82b-b4b0-78b6-8762-6a8c11dcee41","at":1772616398000000000,"seq":884,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cb82b-d86e-7c8c-8369-21d1a0f28172","at":1772616407150000000,"seq":885,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb82b-d86e-7b7a-832c-02205e17006e","at":1772616407150000000,"seq":886,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cb82b-f330-7e80-9df4-181a8a1b7ec1","at":1772616414000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cb82c-0e88-721f-9604-491ff8da1029","at":1772616421000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

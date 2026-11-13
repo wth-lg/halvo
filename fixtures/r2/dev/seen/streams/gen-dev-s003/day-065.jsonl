@@ -1,0 +1,33 @@
+{"v":1,"id":"019cc215-b143-7bf9-b2ff-c03607962e6d","at":1772782727491000000,"seq":928,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc215-b143-7720-adc1-43f696f9f5ac","at":1772782727491000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc216-0930-7f46-ae16-24841dd2edfa","at":1772782750000000000,"seq":930,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cc216-2c58-75d0-99e0-3cd9a1c6e0ac","at":1772782759000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc22a-65a5-70f5-a963-3d00e1e750ff","at":1772784084389000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cc22a-6808-77e5-997a-0b28a2d610cc","at":1772784085000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cc22a-b8f7-7495-b7bb-910c44b0788d","at":1772784105719000000,"seq":934,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cc22b-5a38-7130-ad1d-38f55d2101e7","at":1772784147000000000,"seq":935,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc22b-69d8-7f25-93c0-1f7023ffc349","at":1772784151000000000,"seq":936,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cc22b-83b4-79c5-acde-73a181bc06b5","at":1772784157620000000,"seq":937,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cc22b-bbe0-737a-9225-fc70bcf37f76","at":1772784172000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc22b-c315-731c-9731-96205a0ce951","at":1772784173845000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cc22b-e2f0-7d84-a675-86c0c530ea74","at":1772784182000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc22c-4498-7506-8555-1a34d94c3c0f","at":1772784207000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc22c-8318-76ee-9ff2-a75b2c2513f5","at":1772784223000000000,"seq":942,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc22d-ca4e-7111-ad2a-c2dd9b4f6500","at":1772784306766000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cc22e-4450-7ee4-b4f9-79effd1a88c6","at":1772784338000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc22e-4780-7cc6-8241-b63dc5b16814","at":1772784338816000000,"seq":945,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cc22e-a210-790e-aed1-a5c1f6193c3c","at":1772784362000000000,"seq":946,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc22e-b2fd-71aa-b068-af92323aa0ad","at":1772784366333000000,"seq":947,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc22e-b2fd-7d6b-9f1b-6b03de0b4f79","at":1772784366333000000,"seq":948,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc22e-c920-7179-8065-b8f15546e2a2","at":1772784372000000000,"seq":949,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc22e-e860-7a3f-b071-b09473c3eeb9","at":1772784380000000000,"seq":950,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc22e-f800-7f5e-a187-6f4e654f9ab0","at":1772784384000000000,"seq":951,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cc22f-1730-749a-a2f9-04a599d90a5c","at":1772784391984000000,"seq":952,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc22f-1730-7e60-ba2b-32023fef4b08","at":1772784391984000000,"seq":953,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cc22f-3680-71de-81c2-37c3b610e893","at":1772784400000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc22f-5d90-7f30-b9fa-7176cbd2f6c5","at":1772784410000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc22f-6531-722c-ba9f-234a39f767cc","at":1772784411953000000,"seq":956,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cc22f-9c10-7c3e-80ad-36a92b152ca6","at":1772784426000000000,"seq":957,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc22f-bb50-76ef-8e34-284b37fa6db8","at":1772784434000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cc22f-bf38-7fbe-a8ea-b83dd6273b9f","at":1772784435000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc230-1910-7f38-8408-5fdfa28b2003","at":1772784458000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

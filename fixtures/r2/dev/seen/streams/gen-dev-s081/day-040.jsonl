@@ -1,0 +1,26 @@
+{"v":1,"id":"019c41a8-e9ac-7734-b217-4090b8391725","at":1770628114860000000,"seq":615,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c41a8-e9ac-7838-9ba1-2cc619b7c399","at":1770628114860000000,"seq":616,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c41c2-227f-793c-b1a6-e6c8cfff67e2","at":1770629767807000000,"seq":617,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41c2-227f-785c-99c9-e6944b2e64f8","at":1770629767807000000,"seq":618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c41c2-3e98-7065-96c3-4f6c715762d7","at":1770629775000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41c2-4280-78b6-ada9-67948bd95a6c","at":1770629776000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c41c2-4668-7587-aec4-b9c5963f355d","at":1770629777000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41c4-e5e6-7db4-8904-be506144ea1f","at":1770629948902000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c41c5-1140-77e7-b50b-6aa1910a41ba","at":1770629960000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c41c5-6348-7714-90d8-760ada57b33e","at":1770629981000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c5-7482-7601-9183-aab5e9d6d24e","at":1770629985410000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c41c5-8a58-7aef-9c55-573a62edba61","at":1770629991000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c5-9228-74c0-b186-2fca1c3822c3","at":1770629993000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c5-9228-7aee-b6e5-7b65bd6f50a3","at":1770629993000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c41c5-9610-713c-8c1b-d5d999bba8af","at":1770629994000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41c5-b049-7eb6-81ff-ece0e433f0a2","at":1770630000713000000,"seq":630,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c41c5-e048-7392-aacb-c78bd5f59716","at":1770630013000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c6-3e08-72f8-8b9c-791f291f29cd","at":1770630037000000000,"seq":632,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c41c6-41f0-79fa-bbd6-32058c8e2257","at":1770630038000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41c6-4e75-70fb-8e1a-5b96c94b42a1","at":1770630041205000000,"seq":634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c41c6-b338-792b-be0a-18dcb291ac6f","at":1770630067000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c41c6-e600-7106-b971-7b0e9d4187d5","at":1770630080000000000,"seq":636,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41c7-2c50-7830-ade7-27bc46f418f7","at":1770630098000000000,"seq":637,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41c7-551c-75fc-9b7a-c4f8e9366985","at":1770630108444000000,"seq":638,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c41c7-6ad0-7103-9450-3ea37a0f5d4a","at":1770630114000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c8-2268-7f21-a7cf-feb0f58fa40e","at":1770630161000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

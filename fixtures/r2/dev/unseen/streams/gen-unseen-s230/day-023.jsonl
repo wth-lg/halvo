@@ -1,0 +1,45 @@
+{"v":1,"id":"019be9db-2bee-7825-b938-7f07f3fc24be","at":1769155013614000000,"seq":193,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be9db-2bee-78dc-88d2-3956d1bad953","at":1769155013614000000,"seq":194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be9db-6fd8-78d2-a984-0aa5c0919512","at":1769155031000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9db-e4e4-710f-a102-dd374506e799","at":1769155060964000000,"seq":196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be9db-f0c0-7aab-b40f-36f8f65cd93c","at":1769155064000000000,"seq":197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019be9dc-1bb8-792f-9c40-8af763390152","at":1769155075000000000,"seq":198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be9dc-3328-7387-a7ba-890490a01e17","at":1769155081000000000,"seq":199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9dc-5e20-72da-8bad-e7dc239cab03","at":1769155092000000000,"seq":200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be9dc-8530-7419-b892-547d54aa83eb","at":1769155102000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9dc-87ef-714a-8604-b83a431ca0c3","at":1769155102703000000,"seq":202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be9dc-94d0-7b5d-9175-24da5f328e67","at":1769155106000000000,"seq":203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be9dc-a470-7a76-ae7d-e560fbdf1107","at":1769155110000000000,"seq":204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9dc-c3b0-7a1c-9749-dd9ae6808999","at":1769155118000000000,"seq":205,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be9dc-d350-71d1-8509-56950c42eb94","at":1769155122000000000,"seq":206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019be9dc-d738-74b9-9f9d-7e8d34a2c287","at":1769155123000000000,"seq":207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9dd-0dc7-7312-bd08-ce44888d1cd8","at":1769155136967000000,"seq":208,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be9dd-19a0-7e3f-b0a5-0637354ec68c","at":1769155140000000000,"seq":209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9dd-38e0-75de-a040-87ac31170eef","at":1769155148000000000,"seq":210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be9dd-5820-7709-add1-8b1d88afebcc","at":1769155156000000000,"seq":211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019be9dd-814f-7063-a3eb-fa49b985a903","at":1769155166543000000,"seq":212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be9dd-c968-7ecd-a7f1-1249e5f83ef9","at":1769155185000000000,"seq":213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be9dd-f848-7eb8-83e7-573a67f736c6","at":1769155197000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019be9de-9033-799a-92ab-e834ae110487","at":1769155235891000000,"seq":215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be9de-a428-7afb-983c-386e9e47c017","at":1769155241000000000,"seq":216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f9-7cee-79a1-9398-d052b0753e0a","at":1769157000430000000,"seq":217,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be9f9-7cee-73c4-a664-4f4bb5d35171","at":1769157000430000000,"seq":218,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be9f9-b5d8-7dcc-9d8e-7b208b68c1d7","at":1769157015000000000,"seq":219,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019be9f9-c578-7e58-9bb7-4edd8ace9523","at":1769157019000000000,"seq":220,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9fa-32d8-73ab-95a9-cfc30ec041f1","at":1769157047000000000,"seq":221,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bea0b-2875-7386-a9e1-d575ade534e2","at":1769158158453000000,"seq":222,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bea0b-a798-71db-86f3-1e21c38bf796","at":1769158191000000000,"seq":223,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea1d-f430-7dec-810a-a5942e59b5d5","at":1769159390256000000,"seq":224,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea1d-f430-786f-95ea-11c34a752d2a","at":1769159390256000000,"seq":225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bea1e-06b8-7ffa-8a52-2bc2f6c1f14a","at":1769159395000000000,"seq":226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bea1e-25f8-76a6-ab4e-8b44ab3ffaa7","at":1769159403000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea32-fbe3-711b-966f-18d290c1daa1","at":1769160768483000000,"seq":228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bea33-24f8-78b1-88a7-aa44e490b5ab","at":1769160779000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea33-4c08-767e-82a3-98717212eae3","at":1769160789000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea33-74ec-7136-bb67-b82f1a04ed4c","at":1769160799468000000,"seq":231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bea33-8a88-73cb-9ddb-340ea95d48b1","at":1769160805000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea33-b968-7b24-a828-8c838204c0e4","at":1769160817000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea33-bf8f-7b9a-94b5-7785eaa8057e","at":1769160818575000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bea33-c138-7576-83da-5c0c09052a49","at":1769160819000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bea33-c520-7171-95e3-3f5c50eb9389","at":1769160820000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea34-0cb2-7933-8c3b-eb0ab427acf5","at":1769160838322000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}

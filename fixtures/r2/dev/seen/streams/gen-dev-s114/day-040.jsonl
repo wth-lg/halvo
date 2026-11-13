@@ -1,0 +1,37 @@
+{"v":1,"id":"019c41eb-bfc7-7e24-a93f-e156b4b57d4c","at":1770632495047000000,"seq":559,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41eb-bfc7-77de-a97d-10e216d6103d","at":1770632495047000000,"seq":560,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c41ec-09d0-7e6f-ab21-3929bafccccf","at":1770632514000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ec-6f60-7c77-ab4d-7473e55c0b5c","at":1770632540000000000,"seq":562,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4203-c7fc-7ef6-b86e-2bbbabad2335","at":1770634070012000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4203-f2e8-7db1-8626-af2cf174a584","at":1770634081000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4203-f2e8-7713-9a48-dd8edb826eb6","at":1770634081000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c4204-b250-73e2-8af5-8d553011bed7","at":1770634130000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4204-c0d7-71bc-a0c6-125de1e317f4","at":1770634133719000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4204-d190-75c6-a910-9c03707247ee","at":1770634138000000000,"seq":568,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4204-e130-7b5f-9a64-df444429258e","at":1770634142000000000,"seq":569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4205-17e0-7372-801c-68c9b0f27377","at":1770634156000000000,"seq":570,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4205-5041-7466-96b3-25e33c9ab50d","at":1770634170433000000,"seq":571,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4205-8158-7a2f-9f06-7765970be38e","at":1770634183000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4213-c1f6-7452-ae26-c7d84e7f8fa0","at":1770635117046000000,"seq":573,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4213-c1f6-73a4-a8da-8c08cbf49532","at":1770635117046000000,"seq":574,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4214-5638-7dee-88c7-6122adf62eb4","at":1770635155000000000,"seq":575,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4214-5a20-7972-ae00-d19e94c7a5cd","at":1770635156000000000,"seq":576,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c4214-6016-743e-9d82-1020ad614dbb","at":1770635157526000000,"seq":577,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4214-6016-77ad-811e-6e8f5abc6e8c","at":1770635157526000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c4214-c398-7a14-8af9-643e339d8318","at":1770635183000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c4214-e81c-7b89-9f52-98657f75b072","at":1770635192348000000,"seq":580,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c4215-5bf0-7a09-afca-3d338e8702f7","at":1770635222000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4215-7748-7e50-bee6-593fb77cc46c","at":1770635229000000000,"seq":582,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4215-8eb8-7da7-8695-a1b0fdb4b500","at":1770635235000000000,"seq":583,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4215-967d-7d93-b320-8dcd708866d7","at":1770635236989000000,"seq":584,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c4215-b9b0-7e41-ae09-160b9ee69d43","at":1770635246000000000,"seq":585,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4215-cd38-7b91-9569-1242897e7337","at":1770635251000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4215-e919-75c1-874c-eb623d544158","at":1770635258137000000,"seq":587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c4216-a028-7674-b5bc-0cc4b0ddb3e0","at":1770635305000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4216-b942-7d51-8015-861afd2d7dd2","at":1770635311426000000,"seq":589,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4216-b942-7d50-9f01-32e2eb6dafae","at":1770635311426000000,"seq":590,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4216-d2f0-7491-a804-be06966506bf","at":1770635318000000000,"seq":591,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c4217-57c0-7948-abd9-b6d7afe26a6d","at":1770635352000000000,"seq":592,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c4229-713f-74f6-884b-ed5eedc6f8e6","at":1770636538175000000,"seq":593,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4229-713f-7c3b-b41b-5724bf8177dd","at":1770636538175000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4229-fd30-75bf-9bc6-bf8698ea5930","at":1770636574000000000,"seq":595,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

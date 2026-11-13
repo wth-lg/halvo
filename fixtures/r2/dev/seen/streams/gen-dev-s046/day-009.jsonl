@@ -1,0 +1,32 @@
+{"v":1,"id":"019ba1a4-f7ba-7f03-be03-7a877e13d537","at":1767943501754000000,"seq":171,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1a4-f7ba-740e-9d26-d708765c14d3","at":1767943501754000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ba1a5-1fc0-7fcb-a31d-f204c65e60b7","at":1767943512000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba1a5-3348-77d1-a9a7-f44e7443c31b","at":1767943517000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1b7-ead4-7e53-8fc8-4e586222f872","at":1767944743636000000,"seq":175,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba1b7-ead4-78d6-a88b-f503473fa948","at":1767944743636000000,"seq":176,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba1b8-1f08-7df8-a1f2-fb86ae04dfa9","at":1767944757000000000,"seq":177,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ba1b8-7cc8-7479-9484-859765b0f5c0","at":1767944781000000000,"seq":178,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1b8-bb48-76dd-80cd-f036767f01f8","at":1767944797000000000,"seq":179,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1b8-d0e2-724e-9b46-e8869376662e","at":1767944802530000000,"seq":180,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1b8-d0e2-72d8-a133-5fdbc187f4bd","at":1767944802530000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba1b8-e258-7323-9002-1c0886f4923d","at":1767944807000000000,"seq":182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba1b9-4bd0-77a5-9264-7a6b51f3a3c6","at":1767944834000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba1b9-53a0-77bd-98e9-be78510b26c0","at":1767944836000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1b9-d5f2-75e2-b469-16c16a375189","at":1767944869362000000,"seq":185,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba1b9-d5f2-7906-bc98-51d1785fca8d","at":1767944869362000000,"seq":186,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba1ba-0b38-70fc-910b-ed3084815bfe","at":1767944883000000000,"seq":187,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ba-6128-77e3-af69-91877d5e494a","at":1767944905000000000,"seq":188,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1c1-1ba1-7833-8ab0-c835688a77b0","at":1767945345953000000,"seq":189,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1c1-1ba1-7bd4-8429-5caad3760a5a","at":1767945345953000000,"seq":190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba1c1-1fb8-7f0b-ad5f-22d630157045","at":1767945347000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ba1c1-5a50-7a1b-94e9-c413b86b6007","at":1767945362000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1c1-71c0-73ec-92b3-04cf99128844","at":1767945368000000000,"seq":193,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba1c1-7990-7920-9f50-9115374402b7","at":1767945370000000000,"seq":194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba1d8-6873-7925-81d6-2d840bb6107b","at":1767946872947000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba1d9-1c58-7df4-af31-7b80a85737c3","at":1767946919000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1d9-40fe-7c64-a257-f7c15c7cab2e","at":1767946928382000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba1d9-7630-791a-81c9-71d565fb8d2d","at":1767946942000000000,"seq":198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba1d9-85d0-7895-9823-4a8e0539f20c","at":1767946946000000000,"seq":199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1d9-9188-7677-a18f-fbcb83f38e3a","at":1767946949000000000,"seq":200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba1d9-d93b-761c-b794-a55d233c5a99","at":1767946967355000000,"seq":201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba1d9-e390-7076-8f1a-44f626280bd2","at":1767946970000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

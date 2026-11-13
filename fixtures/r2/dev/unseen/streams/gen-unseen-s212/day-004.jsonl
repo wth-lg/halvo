@@ -1,0 +1,29 @@
+{"v":1,"id":"019b88a6-652d-7905-9fa2-ce3aaba9b138","at":1767524164909000000,"seq":52,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b88a6-652d-781f-9f3b-2b41f11b88ed","at":1767524164909000000,"seq":53,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b88a6-6d58-7f5a-ba27-b784df1a3001","at":1767524167000000000,"seq":54,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b88a6-b790-7a6b-8e95-306e3534f736","at":1767524186000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a7-7458-7ef8-86f4-3eb1620caeb6","at":1767524234328000000,"seq":56,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b88a7-d8a0-7d32-9f69-764d95297bb3","at":1767524260000000000,"seq":57,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b88a7-e070-72f9-b74f-890be708476b","at":1767524262000000000,"seq":58,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a7-f3f8-77b4-9651-e78084423ad6","at":1767524267000000000,"seq":59,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a8-2886-7872-ae2f-3aa2b42358e8","at":1767524280454000000,"seq":60,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b88a8-3e30-7b8d-9b7b-5d2cdc39274f","at":1767524286000000000,"seq":61,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b88a8-6928-7d75-b37d-96d70157ac24","at":1767524297000000000,"seq":62,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b88a8-c300-7283-8b1d-e5cfd9827e10","at":1767524320000000000,"seq":63,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a8-dd90-7ee8-addb-05ea49cead58","at":1767524326800000000,"seq":64,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b88a8-de58-7b41-9a4c-ef870df80bd9","at":1767524327000000000,"seq":65,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a8-edf8-7987-9c21-bb3ab03b7da0","at":1767524331000000000,"seq":66,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a8-edf8-78d8-966e-3da1d8677ca8","at":1767524331000000000,"seq":67,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b88a8-f1e0-7ecc-9c79-af254929cd11","at":1767524332000000000,"seq":68,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b88a9-0568-75bb-af4d-28e2f5c54b30","at":1767524337000000000,"seq":69,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b88b2-1ff9-7396-8317-70f4bb810d80","at":1767524933625000000,"seq":70,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b88b2-2940-7a7a-8616-c032dabbc63d","at":1767524936000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88b2-4c68-7272-92ec-207e6901639a","at":1767524945000000000,"seq":72,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b88b2-7b48-7626-9f7b-95cf0782482f","at":1767524957000000000,"seq":73,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88b2-8101-7494-80a6-717a2b8c151f","at":1767524958465000000,"seq":74,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b88b2-8700-715f-8275-5db004feb829","at":1767524960000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88c3-007e-72e9-ac90-25e7d482a582","at":1767526039678000000,"seq":76,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b88c3-6750-7035-912e-6a4b484b458b","at":1767526066000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88c3-d652-7e49-b367-1feed3469c13","at":1767526094418000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b88c3-e068-7af1-8b93-0ec7abbf75fe","at":1767526097000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b88c4-1f3b-7a94-91b7-b324870476a7","at":1767526113083000000,"seq":80,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}

@@ -1,0 +1,34 @@
+{"v":1,"id":"019c4149-9bfb-70de-8b37-fcc8eb86a952","at":1770621869051000000,"seq":381,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4149-9bfb-7784-8302-da0b04d3a218","at":1770621869051000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c4149-9fb0-7c6e-b7a4-7210e4f893e5","at":1770621870000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4149-c6c0-786e-993d-e4fe6adfa28b","at":1770621880000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c414a-0812-7b0d-9d33-0e8d74813e3d","at":1770621896722000000,"seq":385,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c414a-18c8-7d2e-862c-b6cb88a71783","at":1770621901000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c414a-43c0-75d0-a411-002d9fb59013","at":1770621912000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c414a-5748-7169-8dad-3beb16da8d48","at":1770621917000000000,"seq":388,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c414a-72a0-7c49-b016-56e960fcbd6b","at":1770621924000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c414a-8d56-7822-8c3a-46c98f9f5912","at":1770621930838000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c414a-ad38-7001-8f21-29920abcaf25","at":1770621939000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c414a-bcd8-7530-9744-eefbd7991c5d","at":1770621943000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c414a-e22d-7796-a737-646c11976a95","at":1770621952557000000,"seq":393,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c414a-efa0-715c-adde-992e79f0a19b","at":1770621956000000000,"seq":394,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c414a-fb58-74cd-aaa0-9367a3cc6e32","at":1770621959000000000,"seq":395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c414b-2650-7690-b192-3667dca5f700","at":1770621970000000000,"seq":396,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c414b-2650-772a-beeb-79f9bf74f790","at":1770621970000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c4165-a271-7ace-b71d-33427bbeef36","at":1770623705713000000,"seq":398,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4165-bee8-7660-b420-a32c54d441f6","at":1770623713000000000,"seq":399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4166-18c0-748c-abaf-b626bc51cd5e","at":1770623736000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4167-778a-7173-93b0-cec391b54522","at":1770623825802000000,"seq":401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c4167-87f0-71e0-8b74-6375aac2ba59","at":1770623830000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4168-0c28-73d2-a32f-f501656f5dd2","at":1770623863848000000,"seq":403,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c4168-0cc0-7946-8879-5061d0f9e423","at":1770623864000000000,"seq":404,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4168-3ba0-7386-b58e-bfac14edb91a","at":1770623876000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4168-4370-7f6d-bf61-2c457273fed1","at":1770623878000000000,"seq":406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4168-5ec8-70b9-998c-75f15acab6bc","at":1770623885000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4168-6756-748c-82c1-ff2a86eec4d4","at":1770623887190000000,"seq":408,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4168-6756-7b66-b1c0-94b65c5326f8","at":1770623887190000000,"seq":409,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4168-7250-7926-b183-2f074b04b59d","at":1770623890000000000,"seq":410,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c4168-9578-74d3-a9b1-617ba9783259","at":1770623899000000000,"seq":411,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4168-a900-7df5-91e6-fe539e769162","at":1770623904000000000,"seq":412,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c4168-b6fd-767a-b5f1-8dc9dd51c564","at":1770623907581000000,"seq":413,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4168-b6fd-735e-81d3-1c1666c30230","at":1770623907581000000,"seq":414,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}

@@ -1,0 +1,17 @@
+{"v":1,"id":"019cd1bd-4dbb-79c5-bdec-d4f20a37d26e","at":1773045370299000000,"seq":1014,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd1bd-4dbb-7fa4-9773-fe2208d028fa","at":1773045370299000000,"seq":1015,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cd1bd-6018-7e95-b294-e9ac896b9b38","at":1773045375000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1bd-73a0-7d07-a7b8-4f324c602ef1","at":1773045380000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cd1cb-4121-7611-9d56-19f1a77b4f15","at":1773046284577000000,"seq":1018,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cd1cb-8d00-76da-a5d3-032c4ff848e5","at":1773046304000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1cb-90e8-7ac6-bbe1-d98783141602","at":1773046305000000000,"seq":1020,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1cb-a470-78ce-8b6f-f67b146d690d","at":1773046310000000000,"seq":1021,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cd1cb-c14f-7e1c-8c39-d6366ec699e8","at":1773046317391000000,"seq":1022,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cd1cb-e2f0-76dc-93dd-c6d91a34cf64","at":1773046326000000000,"seq":1023,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1cb-f678-78b7-8708-2bc81f1a375e","at":1773046331000000000,"seq":1024,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1cc-05d1-7a75-866e-2f7c65d14e15","at":1773046334929000000,"seq":1025,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cd1cc-15b8-7d1d-af7f-f8d5cba08a60","at":1773046339000000000,"seq":1026,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1cc-fc07-77d1-9261-53cd4414f487","at":1773046397959000000,"seq":1027,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cd1cd-1b70-7dc3-bcc6-3892a0fccacd","at":1773046406000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cd1cd-7d18-7804-8040-dfde2e17e982","at":1773046431000000000,"seq":1029,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd1cd-8cb8-768d-933d-eefb52f7b5f9","at":1773046435000000000,"seq":1030,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

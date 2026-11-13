@@ -1,0 +1,20 @@
+{"v":1,"id":"019bb101-9702-7937-b7bb-79ac9bfedbf7","at":1768201230082000000,"seq":120,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb101-9702-7d81-996c-cb0e13a322f3","at":1768201230082000000,"seq":121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bb101-b9d8-71a1-bc7b-9abba4537977","at":1768201239000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb101-d918-752e-aa2f-48230edeefb0","at":1768201247000000000,"seq":123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb101-e557-70d6-85ea-1069fe3afb47","at":1768201250135000000,"seq":124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bb101-fc40-7308-baf5-669727cc6478","at":1768201256000000000,"seq":125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb102-2350-7b14-899c-a6b5f1fcf10f","at":1768201266000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb102-4678-7c24-ab1b-03a44079357c","at":1768201275000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bb102-5469-72bc-8a21-c833b2c20f00","at":1768201278569000000,"seq":128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bb102-7940-7f57-ad7b-3814c71b5067","at":1768201288000000000,"seq":129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb102-a3e4-7f36-bbf4-97aed4ab9807","at":1768201298916000000,"seq":130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bb102-aff0-7d13-8782-58c3a2a617b4","at":1768201302000000000,"seq":131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb103-5018-7515-a95d-3d07d96d7379","at":1768201343000000000,"seq":132,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb103-59ba-7485-8fba-32c30db82121","at":1768201345466000000,"seq":133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bb103-6b70-758d-900f-bc19a953126e","at":1768201350000000000,"seq":134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb103-9280-73da-8fd3-43632fde12f5","at":1768201360000000000,"seq":135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb103-a608-79c2-b42c-da1e34ced239","at":1768201365000000000,"seq":136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb103-c930-7852-bbc2-00228578f47e","at":1768201374000000000,"seq":137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb103-d001-70db-a131-b2a387bc7f79","at":1768201375745000000,"seq":138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bb103-f810-77da-ba7a-092d213c48c2","at":1768201386000000000,"seq":139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

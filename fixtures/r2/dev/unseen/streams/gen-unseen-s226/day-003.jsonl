@@ -1,0 +1,12 @@
+{"v":1,"id":"019b8325-2382-7813-8431-cdfe646c44b4","at":1767431807874000000,"seq":23,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8325-2382-74ae-82d6-d313681de29c","at":1767431807874000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8325-33a0-7d22-83c4-275faa3df08c","at":1767431812000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8325-3b70-7868-90e2-78846c1e0c82","at":1767431814000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8325-6e38-7f11-872b-2e32e63cc29a","at":1767431827000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b8325-9d18-7f8d-a265-d49c8ff3a0da","at":1767431839000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b8327-0466-7a6a-a0c4-74609a1e388e","at":1767431930982000000,"seq":29,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8327-0466-79e6-9649-f09bf0bb6b19","at":1767431930982000000,"seq":30,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8327-0478-74be-84df-e01a0c535d94","at":1767431931000000000,"seq":31,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8327-1be8-7586-bca8-2ebbda25f23f","at":1767431937000000000,"seq":32,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b8327-27a0-7c4e-9b1a-e1d43162f70d","at":1767431940000000000,"seq":33,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b8327-3f10-79cc-a781-a54d79aa66ae","at":1767431946000000000,"seq":34,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

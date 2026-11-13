@@ -1,0 +1,12 @@
+{"v":1,"id":"019d151f-0e90-7041-b8c6-5da5fc8181cf","at":1774175850128000000,"seq":1282,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d151f-0e90-72c1-b66d-43a76a18d3b2","at":1774175850128000000,"seq":1283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d151f-b920-7aa4-9c64-277a177291ed","at":1774175893792000000,"seq":1284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d151f-c5a8-7b8d-b0a5-8511684cc8a5","at":1774175897000000000,"seq":1285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d151f-e4e8-78b6-8862-d3761b6b6bef","at":1774175905000000000,"seq":1286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d151f-ecb8-7969-b4f9-ad5b4b6d933d","at":1774175907000000000,"seq":1287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d1520-0060-730b-8d88-9efda8624468","at":1774175912032000000,"seq":1288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d1520-0fe0-7f99-bf29-5c6ac3100445","at":1774175916000000000,"seq":1289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1520-8510-737e-b0ce-7b1e65bedb66","at":1774175946000000000,"seq":1290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1520-af36-70c7-b594-acb356c0b474","at":1774175956790000000,"seq":1291,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d1521-05f8-715f-90db-3208044643ba","at":1774175979000000000,"seq":1292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1521-6f70-7b99-a165-3edb0c3b6d2d","at":1774176006000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,34 @@
+{"v":1,"id":"019d336a-4e03-7847-82a9-bf39ce14e38e","at":1774684098051000000,"seq":1197,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d336a-4e03-704d-9e0c-f76b89fcb221","at":1774684098051000000,"seq":1198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d336a-6d10-7b47-aa61-9424d49d0cd8","at":1774684106000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d336a-70f8-7726-b8ce-b25591fa2ca9","at":1774684107000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d336a-8868-75a3-a233-6e5cc48e5545","at":1774684113000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d336a-aab2-7337-8a0a-dd72cd4d1a0f","at":1774684121778000000,"seq":1202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d336a-ceb8-79b2-806f-cff6efec40c5","at":1774684131000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d336a-de58-7827-90aa-6603103321a3","at":1774684135000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d336a-edf8-70b1-a232-b257ecfd6bbc","at":1774684139000000000,"seq":1205,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d336b-714a-7b03-9d00-dedf6c1beab6","at":1774684172618000000,"seq":1206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d336b-72c8-7510-9e5c-54ff0009d068","at":1774684173000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d336c-12f0-75eb-8002-bf34031e1d0d","at":1774684214000000000,"seq":1208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d336c-1645-7a86-af6c-1e03a03923ac","at":1774684214853000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d336c-16d8-78ac-bf2e-0de7390cfb3d","at":1774684215000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d336c-8050-77e2-b393-73690cd2b6e1","at":1774684242000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d336c-de10-7828-854b-6d86ab6601e9","at":1774684266000000000,"seq":1212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d337e-3fe8-776c-b37c-34cd25fc5154","at":1774685405160000000,"seq":1213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d337e-4ee8-7382-9514-c33d5c87619c","at":1774685409000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d337e-6658-79ce-9885-952b870d5ccc","at":1774685415000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d337e-7210-7cec-a26f-72969b4ee072","at":1774685418000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d337e-efca-7fe6-9b84-07ed34a17170","at":1774685450186000000,"seq":1217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview this week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d337f-25c0-78e1-859f-544234a3c2ac","at":1774685464000000000,"seq":1218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d337f-a2c0-741f-bc55-a488af131bda","at":1774685496000000000,"seq":1219,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d337f-c200-78bc-857d-3f3e9f6f3058","at":1774685504000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d337f-d514-79fd-a05d-3184c849e2ae","at":1774685508884000000,"seq":1221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d3380-2790-74e8-a437-53bf7bc402af","at":1774685530000000000,"seq":1222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3380-3670-7061-8dd0-33a8952b0533","at":1774685533808000000,"seq":1223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d3380-3b18-76cc-b9f5-eb2df1e6d0d7","at":1774685535000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3380-7998-730a-b61a-8bb82aa216c9","at":1774685551000000000,"seq":1225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3380-b048-72e0-939b-9a758e8fc3ed","at":1774685565000000000,"seq":1226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3382-8c27-72c3-8985-8804fcceef26","at":1774685686823000000,"seq":1227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d3382-a448-72f3-8aba-8046c532d003","at":1774685693000000000,"seq":1228,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3382-b7d0-7cfa-b14e-4922f25c71a7","at":1774685698000000000,"seq":1229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3382-bfa0-7a15-9ce6-a0b3fce7a856","at":1774685700000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

@@ -1,0 +1,17 @@
+{"v":1,"id":"019c3c11-ccf3-71f0-9a83-9660de0f0341","at":1770534325491000000,"seq":369,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c11-ccf3-7609-9fb1-5ea95c585e6f","at":1770534325491000000,"seq":370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c3c11-ea48-7fce-a392-a5ad61ef37b4","at":1770534333000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c12-3e6a-713c-973f-850cca782bdf","at":1770534354538000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c3c12-7eb8-79b2-8641-4e9c2916e0b7","at":1770534371000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c3c12-db1f-780a-b819-b5f4eed8c464","at":1770534394655000000,"seq":374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c3c13-3e20-71db-83ef-dba4c83044d6","at":1770534420000000000,"seq":375,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3c13-45f0-7c8b-83a2-f924c4b2b05f","at":1770534422000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c3c13-6d00-7966-be5f-3789b9eeaea8","at":1770534432000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c13-8465-7ee2-a311-811b67bbe830","at":1770534437989000000,"seq":378,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c3c13-a798-7928-984c-275c8db4ae60","at":1770534447000000000,"seq":379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3c14-2498-792c-9daa-d570f6ac63ff","at":1770534479000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c3c1d-305c-7220-96ea-cd2d8ad00f4a","at":1770535071836000000,"seq":381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3c1d-38d0-7090-9900-ca271a9062e2","at":1770535074000000000,"seq":382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c3c1d-3cb8-763f-89ab-a19e5cc59f27","at":1770535075000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c1d-4870-7702-95fe-a3f196372fa4","at":1770535078000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c1d-7368-7d36-b523-96d0e0b7ca61","at":1770535089000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

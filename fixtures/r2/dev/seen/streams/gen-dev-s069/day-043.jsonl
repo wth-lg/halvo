@@ -1,0 +1,14 @@
+{"v":1,"id":"019c50d5-d6b9-7cfc-9f8d-8d0e3c030a21","at":1770882717369000000,"seq":695,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c50d5-d6b9-70b5-af3f-9681b8c15c80","at":1770882717369000000,"seq":696,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c50d6-0bf8-7686-9d26-de5abed1523c","at":1770882731000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50d6-17b0-79b8-96f9-ab456189a498","at":1770882734000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50d6-2022-7134-b390-5bcfbd334df6","at":1770882736162000000,"seq":699,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c50d6-4690-7439-82a3-ddded430d086","at":1770882746000000000,"seq":700,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50d6-b008-7870-985a-646e92599377","at":1770882773000000000,"seq":701,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c50d6-b7d8-7781-b660-cd48e477d02c","at":1770882775000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50d6-d3cf-7a30-8ea7-72c05898edd4","at":1770882782159000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c50d6-d718-7409-8ee1-76b245d882e2","at":1770882783000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50d7-1598-70c3-becf-a902c1938df6","at":1770882799000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50d7-1d68-7c33-992f-48fafb5de1bd","at":1770882801000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c50d7-4bab-7c7d-a316-5681063d2eba","at":1770882812843000000,"seq":707,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c50d7-5030-79fd-bef4-553fcebefdbf","at":1770882814000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

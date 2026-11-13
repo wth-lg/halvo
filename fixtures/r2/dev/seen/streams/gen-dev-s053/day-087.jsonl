@@ -1,0 +1,31 @@
+{"v":1,"id":"019d3395-ff23-7e61-a4b3-0c2051588c8a","at":1774686961443000000,"seq":1455,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3395-ff23-78e3-9e63-faa7b6c06d42","at":1774686961443000000,"seq":1456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d3396-3fd0-7149-b484-ccede49fbbae","at":1774686978000000000,"seq":1457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d3396-aa1f-7dc9-9ae2-c8caa734fc5c","at":1774687005215000000,"seq":1458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d3396-ebb0-784c-b251-48637961a4d8","at":1774687022000000000,"seq":1459,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3397-692e-72fa-aae2-7ce90507cf53","at":1774687054126000000,"seq":1460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d3397-7850-73a9-8fbb-509ed947fba5","at":1774687058000000000,"seq":1461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d3397-7c38-71ed-8c86-a9228efc9245","at":1774687059000000000,"seq":1462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3397-8bd8-7084-b9d1-3eb8faab71b8","at":1774687063000000000,"seq":1463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3397-a48b-70eb-98ea-b122150a944e","at":1774687069323000000,"seq":1464,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d3397-ab18-7ff4-beb3-01104878385c","at":1774687071000000000,"seq":1465,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3397-ab18-7bcb-8f4a-d8b0ed155f28","at":1774687071000000000,"seq":1466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3398-1c60-7595-a90d-df8e93770953","at":1774687100000000000,"seq":1467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3398-5ec8-743e-b634-e183f151225f","at":1774687117000000000,"seq":1468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3398-9190-71ad-8493-a4bc6d578395","at":1774687130000000000,"seq":1469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d339e-2d0d-7480-81b5-c8ac5c0cc3ea","at":1774687497485000000,"seq":1470,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d339e-4e50-7b7b-9a54-b1b72beacd93","at":1774687506000000000,"seq":1471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d339e-4e50-70b9-91d8-717240b7e632","at":1774687506000000000,"seq":1472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d339e-674f-767e-9587-5703ddd6addd","at":1774687512399000000,"seq":1473,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d339e-7560-7144-8f4d-01841460c02d","at":1774687516000000000,"seq":1474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d339e-94a0-7a11-80f5-c8e7d8c8a617","at":1774687524000000000,"seq":1475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d339e-9888-75fb-b168-4e61fe67b59a","at":1774687525000000000,"seq":1476,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d339e-b6fd-7256-afca-b35d53d4c41d","at":1774687532797000000,"seq":1477,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d339e-d708-7151-8c9a-573d9db35b49","at":1774687541000000000,"seq":1478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d339e-f260-7335-ba1a-1bb8c3e15229","at":1774687548000000000,"seq":1479,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d339f-0db8-7203-b7be-0b2aecacdb04","at":1774687555000000000,"seq":1480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d339f-57d9-7143-9041-c0c4ca09fd52","at":1774687573977000000,"seq":1481,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d339f-7b18-79a3-95f6-0090c639dcd5","at":1774687583000000000,"seq":1482,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d339f-a9f8-7b3f-9c6e-122307d1d272","at":1774687595000000000,"seq":1483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d339f-c938-7b87-b57a-7dda4758287f","at":1774687603000000000,"seq":1484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33a0-1f28-7a55-9ef2-0738985b7058","at":1774687625000000000,"seq":1485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

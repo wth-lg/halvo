@@ -1,0 +1,19 @@
+{"v":1,"id":"019ca359-56e2-7e50-873e-fd11608cb3d9","at":1772267067106000000,"seq":686,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca359-56e2-7b1b-a0e5-8107a3872786","at":1772267067106000000,"seq":687,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019ca359-a0b0-7e21-8a6b-46bd6a9635b6","at":1772267086000000000,"seq":688,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca359-bc08-7800-8ca9-5cfd256d70aa","at":1772267093000000000,"seq":689,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ca35a-2d50-7028-95dd-a73d7bf8d270","at":1772267122000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca35a-4405-7485-b931-dfb830891b6c","at":1772267127813000000,"seq":691,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca35a-4405-7530-a6a4-0aca91668395","at":1772267127813000000,"seq":692,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca35a-44c0-7b9e-bf4c-a451061c25ac","at":1772267128000000000,"seq":693,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019ca35a-5078-76f6-b06e-c0f438d04003","at":1772267131000000000,"seq":694,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ca35a-6400-735c-9339-dfc3dd314390","at":1772267136000000000,"seq":695,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ca35a-a939-7673-ba29-e27a3a5e4f53","at":1772267153721000000,"seq":696,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca35a-a939-782e-ae3b-0ac90a307329","at":1772267153721000000,"seq":697,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019ca35a-aa50-7a83-9b1d-8b347f92ed3a","at":1772267154000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ca35a-b220-76d1-8b09-0cac14515ca8","at":1772267156000000000,"seq":699,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca363-2682-7b5c-851f-92c96c606c14","at":1772267710082000000,"seq":700,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca363-2682-7596-90ae-f1b368d4450e","at":1772267710082000000,"seq":701,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca363-5128-77dc-a1f8-72699de44554","at":1772267721000000000,"seq":702,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ca363-58f8-79a4-b57d-d2dcfa8fe687","at":1772267723000000000,"seq":703,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca363-87d8-7ed4-b5e5-c5e27ba7bb38","at":1772267735000000000,"seq":704,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

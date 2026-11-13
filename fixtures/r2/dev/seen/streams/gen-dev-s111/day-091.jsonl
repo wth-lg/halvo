@@ -1,0 +1,24 @@
+{"v":1,"id":"019d47e3-92c9-70ea-94d2-0457954051fe","at":1775027589833000000,"seq":1208,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d47e3-92c9-7825-a236-72fa962769ee","at":1775027589833000000,"seq":1209,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d47f4-68db-7f2c-ac2d-7a41873a0404","at":1775028693211000000,"seq":1210,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d47f4-68db-79ee-9a4a-e87d7e9f9411","at":1775028693211000000,"seq":1211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d47f4-7f78-7a1c-904c-2c898981c7e4","at":1775028699000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d47f4-8360-7b5f-8273-05527e52f2d2","at":1775028700000000000,"seq":1213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d47f5-0448-7c74-aa5a-e8d5c24840c6","at":1775028733000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47f9-64c5-78be-ad91-5e4551633392","at":1775029019845000000,"seq":1215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d47f9-fe29-76c0-870c-6863c681a6b1","at":1775029059113000000,"seq":1216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d47fa-20e0-787f-a666-a679bcbd6b34","at":1775029068000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d47fa-6909-7775-89ee-242da6c791b1","at":1775029086473000000,"seq":1218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d47fa-9610-7698-9d81-64db1be316b2","at":1775029098000000000,"seq":1219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47fa-99f8-7a3b-8fdb-ab539f987bc5","at":1775029099000000000,"seq":1220,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d47fa-a5b0-7146-8d1b-bc42114e6c05","at":1775029102000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47fa-bd20-7277-9023-242d15348724","at":1775029108000000000,"seq":1222,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d47fa-ff2c-7bed-862d-a7f611c25327","at":1775029124908000000,"seq":1223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d47fb-8458-7ef7-b2df-59d5c6a28f87","at":1775029159000000000,"seq":1224,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d47fb-9fb0-79de-8795-1d43d7de1081","at":1775029166000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d47fb-e9e8-7062-a276-c90f2219a446","at":1775029185000000000,"seq":1226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d47fb-f550-720f-a7fa-6a5e11f808bc","at":1775029187920000000,"seq":1227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d47fc-3038-7535-89e6-b96a17d97dea","at":1775029203000000000,"seq":1228,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d47fc-4b90-79cf-9abb-28b1be1c0ef6","at":1775029210000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d47fc-535f-7a82-b72e-29a3853950ec","at":1775029211999000000,"seq":1230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d47fc-66e8-7bce-862d-bbf33b7aca43","at":1775029217000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

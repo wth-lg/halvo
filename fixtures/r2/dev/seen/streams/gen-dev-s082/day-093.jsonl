@@ -1,0 +1,28 @@
+{"v":1,"id":"019d529f-b119-758b-9fd8-e0594cbbac6f","at":1775207690521000000,"seq":1208,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d529f-b119-7975-bbf1-6352539acd70","at":1775207690521000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d529f-ce50-7751-a348-e07e1f261d0d","at":1775207698000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52a0-08e8-78ea-b053-12eaec487671","at":1775207713000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d52a0-5cfd-7649-aaa1-07c55c88676b","at":1775207734525000000,"seq":1212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d52a0-7a30-7894-bc61-b29b3a07b37c","at":1775207742000000000,"seq":1213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52a0-8200-78ac-b8ad-eb3e578b1ee6","at":1775207744000000000,"seq":1214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d52a0-d408-7aed-957c-1ad4a6e63956","at":1775207765000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52a0-fd7b-7764-afa8-d2319f433e95","at":1775207775611000000,"seq":1216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d52a1-1a58-781a-ab03-b83f34efcaab","at":1775207783000000000,"seq":1217,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52a1-7fe8-7164-abb7-111a3ef27679","at":1775207809000000000,"seq":1218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52a9-3847-72b5-9489-5af136dc7bda","at":1775208314951000000,"seq":1219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d52a9-53d0-7163-9f18-b735fcbef265","at":1775208322000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d52a9-6f28-7c7c-b4eb-cc44dbabb5ac","at":1775208329000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52a9-7ec8-7e1f-a7f6-31ace0789c92","at":1775208333000000000,"seq":1222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52a9-a2f7-726a-a1a7-2ac20c2626c7","at":1775208342263000000,"seq":1223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d52a9-c900-76be-ae14-47e44c5b513e","at":1775208352000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d52aa-0780-7a4b-b6a9-75679eacb5b6","at":1775208368000000000,"seq":1225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52aa-22d8-7767-aaf2-dd46ac5da5ee","at":1775208375000000000,"seq":1226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52aa-26c0-724b-b9d5-77a23e79f23f","at":1775208376000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52aa-4119-75c3-81d8-287d5b305145","at":1775208382745000000,"seq":1228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d52aa-ab90-7718-a91d-6915bdb1aaee","at":1775208410000000000,"seq":1229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52aa-ea10-7330-9b98-4f6864fd2396","at":1775208426000000000,"seq":1230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52ab-0180-7efe-9e8f-e90a0a57309d","at":1775208432000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d52ab-14af-7f3a-8263-1617868b256d","at":1775208436911000000,"seq":1232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d52ab-20c0-7558-b418-08606ec9d224","at":1775208440000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52ab-4bb8-7e8a-8810-b6d4affbc8b6","at":1775208451000000000,"seq":1234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52ab-c8b8-75f6-829f-9da39bd277e9","at":1775208483000000000,"seq":1235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

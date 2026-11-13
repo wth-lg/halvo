@@ -1,0 +1,20 @@
+{"v":1,"id":"019bbb9b-5ac8-706e-8575-11c69e4d4049","at":1768379079368000000,"seq":141,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bbb9b-5ac8-70d3-a63c-d909d77e51ae","at":1768379079368000000,"seq":142,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bbb9b-a390-7cb8-8581-a12758e6bb3b","at":1768379098000000000,"seq":143,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbb9b-ce88-7c62-a8f9-11938da4416d","at":1768379109000000000,"seq":144,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbba1-ba29-73e1-b12d-910b793ef1f7","at":1768379497001000000,"seq":145,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bbba1-cdb0-7639-96b2-3d507750409c","at":1768379502000000000,"seq":146,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbba2-0848-7d82-924a-27fb80840594","at":1768379517000000000,"seq":147,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bbba2-3ef8-7f1e-a128-e11fa426fe31","at":1768379531000000000,"seq":148,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbba2-46c8-706c-90bb-efe270fe95dc","at":1768379533000000000,"seq":149,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bbba2-b372-75b1-b553-a5c62f58bbd2","at":1768379560818000000,"seq":150,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbba2-b372-76c8-9613-bfe31d55c45c","at":1768379560818000000,"seq":151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bbba2-ead8-7685-9453-fa8d31e769a1","at":1768379575000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bbba3-2570-78c4-81c8-20e4282fd1a2","at":1768379590000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbba3-2dde-76bd-889d-1f3c0c0c8805","at":1768379592158000000,"seq":154,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bbba3-2dde-72c1-984a-8892dba4717c","at":1768379592158000000,"seq":155,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bbba3-9e88-7d35-aac4-781fdb3d0497","at":1768379621000000000,"seq":156,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bbba3-b9e0-7252-896b-c1cb37545b84","at":1768379628000000000,"seq":157,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bbba3-c1b0-73fb-a5af-79073e6cc401","at":1768379630000000000,"seq":158,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bbba3-d150-79cd-9b2b-a9b46b411c9a","at":1768379634000000000,"seq":159,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbba3-f478-7e1a-a38a-598a5d89f18f","at":1768379643000000000,"seq":160,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019c946a-410b-781b-be4b-e3366a32c869","at":1772016517387000000,"seq":681,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c946a-410b-7b03-80f6-18c8432c4f4d","at":1772016517387000000,"seq":682,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c946a-6698-75ad-988a-d82b997adb6e","at":1772016527000000000,"seq":683,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c946b-0e90-7e20-8fb6-3393ded559fa","at":1772016570000000000,"seq":684,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c946b-15b5-7d85-9e0f-331547089761","at":1772016571829000000,"seq":685,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c946b-8b90-7b34-966d-3b78cf65fa51","at":1772016602000000000,"seq":686,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c946b-aad0-74aa-a39a-0ddab93b6845","at":1772016610000000000,"seq":687,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c946b-b688-7b4b-9ad9-3a02604e6338","at":1772016613000000000,"seq":688,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c946b-cdf8-70ad-8de2-9c8c66c8d2fe","at":1772016619000000000,"seq":689,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c946c-0890-786f-8903-2168e9a8bfeb","at":1772016634000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c946c-1343-78ea-8c4a-821c65702b0d","at":1772016636739000000,"seq":691,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c946c-2bb8-79a5-9576-7fe1939ded32","at":1772016643000000000,"seq":692,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c946c-3770-7d1c-a590-39b535ea2210","at":1772016646000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c946c-4328-7a18-b5d3-b60182a41862","at":1772016649000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c946c-4c75-7d66-8fc2-0504aeb6681a","at":1772016651381000000,"seq":695,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c946c-9530-7cec-a2c6-5202b1ec860f","at":1772016670000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9476-9d39-7310-9a64-2904773d74ad","at":1772017327417000000,"seq":697,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9476-bec0-768e-95dd-7295225c5023","at":1772017336000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9476-c690-7e5c-a16c-c860dc2a2f0f","at":1772017338000000000,"seq":699,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9477-37d8-76aa-8565-81deeb61f7a2","at":1772017367000000000,"seq":700,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9477-4b60-7cf9-b7d1-838028196c75","at":1772017372000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

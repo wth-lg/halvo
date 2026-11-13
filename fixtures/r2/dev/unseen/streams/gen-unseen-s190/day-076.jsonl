@@ -1,0 +1,21 @@
+{"v":1,"id":"019cfae1-2886-7dab-9bd8-e317d2267b0e","at":1773735585926000000,"seq":1068,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfae1-2886-7b36-aa41-ddc120b29af7","at":1773735585926000000,"seq":1069,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfae1-82a8-7659-988e-76bec86efef6","at":1773735609000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfae1-c8f8-7e13-8cb6-65130c0a1f06","at":1773735627000000000,"seq":1071,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cfae1-ec9f-74fc-9e7b-ee46a3b02a5e","at":1773735636127000000,"seq":1072,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfae2-ceb0-7b0a-a1f4-9e8c041a1370","at":1773735694000000000,"seq":1073,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cfae2-fd31-7eb3-9eac-852a0e4fd4b5","at":1773735705905000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfae3-20b8-7974-9387-21b5b6a9eb93","at":1773735715000000000,"seq":1075,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfae3-43e0-712f-a013-cc98653abd3c","at":1773735724000000000,"seq":1076,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfae3-a2ad-70bb-86b3-ac83f3903c00","at":1773735748269000000,"seq":1077,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfae4-5938-732f-af0a-f553950c13b2","at":1773735795000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfae4-7c60-7255-8b3f-55b72da4ba0f","at":1773735804000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfae4-ae4e-700f-802a-ca3f0c933ec9","at":1773735816782000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfae4-af28-7a83-97bb-5ffe27c3ccae","at":1773735817000000000,"seq":1081,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfae4-bec8-7daf-8766-57738645bca0","at":1773735821000000000,"seq":1082,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfae4-ca80-7d56-843d-a120b324a821","at":1773735824000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfae4-e5d8-792c-b754-9fae3f668a6d","at":1773735831000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cfae4-ecd3-7ba9-b2ae-6ccd07cade74","at":1773735832787000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfae5-0518-7d2f-9de1-97e1b793f6cc","at":1773735839000000000,"seq":1086,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfae5-b0f8-73c4-b2d1-1312c80054d0","at":1773735883000000000,"seq":1087,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfae5-c868-7d43-99a0-090bdd258f92","at":1773735889000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

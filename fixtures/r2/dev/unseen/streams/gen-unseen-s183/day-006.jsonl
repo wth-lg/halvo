@@ -1,0 +1,26 @@
+{"v":1,"id":"019b9231-2739-7799-b285-2b69e191234b","at":1767684253497000000,"seq":42,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9231-2739-7a57-a410-0f5d3a5021e3","at":1767684253497000000,"seq":43,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9231-5040-7d09-88a6-5791488f900a","at":1767684264000000000,"seq":44,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b9231-5428-71ac-b1b0-2aa9d6b8241d","at":1767684265000000000,"seq":45,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b9231-9690-74a0-af09-e08ea44f3938","at":1767684282000000000,"seq":46,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b9241-c57b-702f-b5ec-f2f047d1c445","at":1767685342587000000,"seq":47,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9242-01b0-7a5f-ad35-b21af5309226","at":1767685358000000000,"seq":48,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9242-0598-7222-9841-b785bd032975","at":1767685359000000000,"seq":49,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b9259-8c56-71b3-bcaa-f058ebb3815b","at":1767686900822000000,"seq":50,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9259-ac48-7ade-b202-981c0f3f91e5","at":1767686909000000000,"seq":51,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9274-89fe-7411-a997-d3643f3802b9","at":1767688669694000000,"seq":52,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9274-9eb8-735e-a333-e1a961066759","at":1767688675000000000,"seq":53,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9274-c1e0-7302-be73-4fa65664219b","at":1767688684000000000,"seq":54,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9274-d950-753d-a27e-a42210dcee6a","at":1767688690000000000,"seq":55,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b9274-fc78-7e63-92d1-c1a2d704dd51","at":1767688699000000000,"seq":56,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b9275-1aa2-7391-88e7-1c2ab7e6f9ba","at":1767688706722000000,"seq":57,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9275-7d60-7737-94f9-ce7c85cd529e","at":1767688732000000000,"seq":58,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b9289-f030-7eb5-9cfc-3bdb7bdb86c1","at":1767690072112000000,"seq":59,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b928a-6108-7710-bd58-91521c1c0816","at":1767690101000000000,"seq":60,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b928a-6108-740c-8562-d798ba3dc588","at":1767690101000000000,"seq":61,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b928a-bae0-76bd-ab2a-5e337118be43","at":1767690124000000000,"seq":62,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b928a-ce68-79a0-a37a-c4057674eebd","at":1767690129000000000,"seq":63,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b928a-d3e9-7c2b-8041-7cc4c3c982a4","at":1767690130409000000,"seq":64,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b928a-f578-79d5-9635-2bdf18fd7cee","at":1767690139000000000,"seq":65,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b928b-0518-773e-a967-076ea2b9c1d9","at":1767690143000000000,"seq":66,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b928b-37e0-7ad4-a505-7716e3f1d343","at":1767690156000000000,"seq":67,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}

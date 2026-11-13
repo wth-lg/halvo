@@ -1,0 +1,13 @@
+{"v":1,"id":"019bf43e-6566-78de-ad70-c3a122c3d5f0","at":1769329288550000000,"seq":451,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf43e-6566-7bac-9ca4-08e745efd318","at":1769329288550000000,"seq":452,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf43e-6728-7589-b41c-0a856c2daac7","at":1769329289000000000,"seq":453,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bf43e-76c8-761b-b52e-493355d13738","at":1769329293000000000,"seq":454,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bf43e-a618-7f06-88bd-4697d5afb264","at":1769329305112000000,"seq":455,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bf43e-b160-70eb-81de-59e41aa9a1a7","at":1769329308000000000,"seq":456,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf43e-b548-77d7-86b5-f8e9de495adb","at":1769329309000000000,"seq":457,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf43e-ebf8-7295-baa6-a7eedb9089f6","at":1769329323000000000,"seq":458,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bf43e-f262-7a1f-8c3c-3d1aca300505","at":1769329324642000000,"seq":459,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bf43e-ff80-73aa-94f2-01e64a60fd95","at":1769329328000000000,"seq":460,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bf43f-1308-7ae9-b685-9c1b36c4197a","at":1769329333000000000,"seq":461,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bf44e-df13-77e0-8cb7-ec73826f17d7","at":1769330368275000000,"seq":462,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf44e-df13-7380-b063-5f0efb083dea","at":1769330368275000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}

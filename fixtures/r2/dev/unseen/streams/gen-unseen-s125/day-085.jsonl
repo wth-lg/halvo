@@ -1,0 +1,16 @@
+{"v":1,"id":"019d29a8-1356-7a7d-961e-f69e25181443","at":1774520374102000000,"seq":1061,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d29a8-1356-743a-92e0-0039e8f3fae3","at":1774520374102000000,"seq":1062,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d29a8-64f8-7319-b582-02c274f0b254","at":1774520395000000000,"seq":1063,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29a8-7880-78c1-bfe8-3dfb4ee26ce6","at":1774520400000000000,"seq":1064,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d29a8-7c68-7d1f-bf8b-607a5b5e7800","at":1774520401000000000,"seq":1065,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d29c1-a3af-70e8-9311-fb30aaaef9be","at":1774522049455000000,"seq":1066,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d29c1-a3af-75a0-adab-96c1a2f8d3e4","at":1774522049455000000,"seq":1067,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d29c1-a5d0-7752-84cd-712b992a0880","at":1774522050000000000,"seq":1068,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29c1-e450-7102-b204-35ce3ab5e429","at":1774522066000000000,"seq":1069,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29cb-e056-77bf-b81c-5b0aa32b4ded","at":1774522720342000000,"seq":1070,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d29cb-e056-7d44-a970-2335da00b0b4","at":1774522720342000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d29cc-5048-7ed7-bd7e-c5a0db8e7c2e","at":1774522749000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d29cc-7ca5-777d-bb6c-e52207665505","at":1774522760357000000,"seq":1073,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d29cc-7f28-7803-9edc-8d1ae76576dc","at":1774522761000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29cc-8310-7a95-a7ac-43aaae285d43","at":1774522762000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d29cc-f458-7db7-996a-5d2c3a3d645b","at":1774522791000000000,"seq":1076,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

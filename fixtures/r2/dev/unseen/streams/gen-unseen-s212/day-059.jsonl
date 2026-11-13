@@ -1,0 +1,21 @@
+{"v":1,"id":"019ca37b-b04c-7a32-83e2-309d5d646276","at":1772269318220000000,"seq":719,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca37b-b04c-77d8-b5a6-792288679c6c","at":1772269318220000000,"seq":720,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca37b-ceb0-7f03-ab24-6f67228f7d97","at":1772269326000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca37b-e620-7593-99c0-34fb83902619","at":1772269332000000000,"seq":722,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca384-274e-73ad-a2c0-cea9138d773e","at":1772269872974000000,"seq":723,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca384-274e-7fa5-965d-e9b033421fa4","at":1772269872974000000,"seq":724,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca384-2768-77c6-afb5-abb7d6afd459","at":1772269873000000000,"seq":725,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ca384-2b50-7172-96bb-3e8eef947e3e","at":1772269874000000000,"seq":726,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ca384-3320-77e6-af06-b73ce89d6063","at":1772269876000000000,"seq":727,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ca39f-b144-7d3f-a80e-c39031316ac3","at":1772271677764000000,"seq":728,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca39f-b144-7254-a32c-61f7d2dc7156","at":1772271677764000000,"seq":729,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019ca39f-bde8-740d-8ce1-f9403e4dd0fe","at":1772271681000000000,"seq":730,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ca3a0-1859-7d2c-b4d1-69a0a2776e4f","at":1772271704153000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement May - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a0-1f90-7103-b02f-1cd9ef1fcff8","at":1772271706000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3a0-65e0-7d15-89f9-922326383e90","at":1772271724000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca3a0-7198-74c6-bbc4-b56d670fda30","at":1772271727000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3a0-8138-791d-940a-547273a51df9","at":1772271731000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3a0-9616-76a3-bf00-0853645357c0","at":1772271736342000000,"seq":736,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a1-5829-730f-be85-64fc38ecfc40","at":1772271786025000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a1-8ec0-7b0e-ab32-ed2d02504219","at":1772271800000000000,"seq":738,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca3a1-e898-7143-9660-1d3a475160d1","at":1772271823000000000,"seq":739,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

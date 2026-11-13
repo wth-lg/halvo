@@ -1,0 +1,30 @@
+{"v":1,"id":"019bf403-75dc-7109-bad0-6e272e0fbafc","at":1769325426140000000,"seq":331,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf403-75dc-725a-9cb3-270a46dd1216","at":1769325426140000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf403-ac00-77fe-a211-a09a2538ce13","at":1769325440000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bf403-b7b8-7be7-bbbd-81efd4081b0e","at":1769325443000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf404-5bc8-7a0d-91dc-ea0043e1c0cb","at":1769325485000000000,"seq":335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf404-5de9-7563-abba-31b730d375ac","at":1769325485545000000,"seq":336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf404-86c0-75f4-b696-0649491bf4e2","at":1769325496000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf404-bd70-7048-b9d1-e700554e3baa","at":1769325510000000000,"seq":338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf405-07a8-75cb-afe1-123d72e32597","at":1769325529000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf405-3f81-7be0-8b08-bbdd20825354","at":1769325543297000000,"seq":340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf405-59b0-75a4-ac6a-f2f2a5e84a22","at":1769325550000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf405-84a8-71cd-a32d-bed8cededb28","at":1769325561000000000,"seq":342,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf405-a7d0-787e-8a8c-5cb28c550574","at":1769325570000000000,"seq":343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf405-dc02-7f28-8681-a54375ea262d","at":1769325583362000000,"seq":344,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf405-de80-7fd9-8a22-e523dd4ac742","at":1769325584000000000,"seq":345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf406-3088-7e99-a938-1c7dca2b0bf2","at":1769325605000000000,"seq":346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bf406-4be0-72f0-8082-a4916eea26de","at":1769325612000000000,"seq":347,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf419-c724-7824-ad68-478dedb55451","at":1769326888740000000,"seq":348,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf419-c724-72f1-b5c8-cdcbe366bf62","at":1769326888740000000,"seq":349,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf41a-2db8-7868-b2c6-8162c8519111","at":1769326915000000000,"seq":350,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf41a-31a0-7e55-9dc2-198495970248","at":1769326916000000000,"seq":351,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bf432-874d-7d5e-acbd-210ebaa6fbe8","at":1769328510797000000,"seq":352,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf432-874d-7d31-82e2-cba845b80920","at":1769328510797000000,"seq":353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf432-af28-727f-a1f1-0aaf74c34079","at":1769328521000000000,"seq":354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf433-14b8-79c9-bca3-15a3b6a72dff","at":1769328547000000000,"seq":355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf433-14b8-7ff3-a73b-79045d819c75","at":1769328547000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bf44b-84ef-7023-ad3a-9ea50a831e14","at":1769330148591000000,"seq":357,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf44b-9a10-7018-b8a5-baf349899f93","at":1769330154000000000,"seq":358,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf44b-ad98-7f42-bb49-67000c31423a","at":1769330159000000000,"seq":359,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf44b-b568-7135-adbd-688dbcce735c","at":1769330161000000000,"seq":360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

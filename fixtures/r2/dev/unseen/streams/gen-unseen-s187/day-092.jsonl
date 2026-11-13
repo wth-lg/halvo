@@ -1,0 +1,13 @@
+{"v":1,"id":"019d4d92-2649-7baa-83b2-252fb911aefd","at":1775122916937000000,"seq":1608,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d92-2649-73a3-9b89-2eed69b22a6d","at":1775122916937000000,"seq":1609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d4d92-70c0-79d8-8408-4011a52377a5","at":1775122936000000000,"seq":1610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d4d92-ab58-7493-9041-d4b408b60cd1","at":1775122951000000000,"seq":1611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d93-2c4b-78ae-a96b-cff20339f487","at":1775122984011000000,"seq":1612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d4d93-6ac0-70c9-8911-bae8a573045b","at":1775123000000000000,"seq":1613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d93-d050-7f12-9a1f-e21060b294bd","at":1775123026000000000,"seq":1614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4da4-9bae-707a-8f38-b5b034d3c72e","at":1775124126638000000,"seq":1615,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4da4-9bae-798b-8215-1c0aac611e20","at":1775124126638000000,"seq":1616,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4da4-b488-7494-aad0-67ca5488eff8","at":1775124133000000000,"seq":1617,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4da4-c428-79d9-9034-16deaed0c03c","at":1775124137000000000,"seq":1618,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d4da4-cbf8-7585-9c97-a1ddbf317270","at":1775124139000000000,"seq":1619,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4da4-d3c8-763e-9b34-c31875bd8d82","at":1775124141000000000,"seq":1620,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

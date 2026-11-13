@@ -1,0 +1,42 @@
+{"v":1,"id":"019cebbc-761f-7902-8dc9-97792eb0c0f4","at":1773481522719000000,"seq":1055,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cebbc-761f-7f34-b893-d8885c62c0b3","at":1773481522719000000,"seq":1056,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cebbc-7738-7dab-baca-fe0cddd74e3d","at":1773481523000000000,"seq":1057,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cebce-354f-7b7b-840f-31a7e6475608","at":1773482685775000000,"seq":1058,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cebce-354f-743b-83c3-67213e4913fb","at":1773482685775000000,"seq":1059,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cebce-ce88-7436-9f06-6e3b857e7b8d","at":1773482725000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cebcf-301e-7d23-915a-7577b6362f62","at":1773482749982000000,"seq":1061,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cebcf-4f70-7f96-be36-8f5d45aeb242","at":1773482758000000000,"seq":1062,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebcf-66e0-72d1-849a-c37187a16f0a","at":1773482764000000000,"seq":1063,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cebcf-a178-746c-8eb3-7775c9d90743","at":1773482779000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebcf-aac9-7799-98b3-daceb9defc89","at":1773482781385000000,"seq":1065,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cebcf-d828-77bd-9142-3df348f06515","at":1773482793000000000,"seq":1066,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cebcf-ebb0-7154-affe-72b4c825d88e","at":1773482798000000000,"seq":1067,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cebd0-0ed8-78a3-a63b-16269c732d16","at":1773482807000000000,"seq":1068,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebd0-146f-7009-ad99-1d629119bb40","at":1773482808431000000,"seq":1069,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cebd0-1e78-7260-9b10-047bcc439223","at":1773482811000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebd0-3db8-7761-8f02-a8d2efeb61a2","at":1773482819000000000,"seq":1071,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cebd0-4588-7adc-9a0a-4dffaf5bd61e","at":1773482821000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cebe5-aa99-7998-8cdf-b22a272728b3","at":1773484223129000000,"seq":1073,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cebe6-1f48-75b7-8291-5306445bcba1","at":1773484253000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf6-f08c-7278-985b-a6771889afe9","at":1773485355148000000,"seq":1075,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cebf7-8c38-778c-b48f-992ab5b7fab9","at":1773485395000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf7-9020-7e75-9113-42d515058841","at":1773485396000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf7-a11c-7ba9-9b03-f9cdc65e9d9c","at":1773485400348000000,"seq":1078,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview this week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cebf7-cab8-707c-a32d-03f4caf0d926","at":1773485411000000000,"seq":1079,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cebf7-ede0-73dc-bb29-cfffbe240941","at":1773485420000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cebf8-14f0-7111-9829-78dc526d10b9","at":1773485430000000000,"seq":1081,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebf8-2849-7308-89d0-c3d2008dde9e","at":1773485434953000000,"seq":1082,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cebf8-4ba0-7c22-bf63-324b98fbe6e9","at":1773485444000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf8-4f88-7be4-a899-fa3fc7fc63ca","at":1773485445000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf8-6310-7499-99e4-1a0ac75e0018","at":1773485450000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cebf8-87be-7834-b893-abd2ed269893","at":1773485459390000000,"seq":1086,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cebf8-91f0-7726-bd42-b49a48271f51","at":1773485462000000000,"seq":1087,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cebf8-bce8-7ea7-b8b8-3a0cab8aa976","at":1773485473000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf8-c8a0-7e06-b8f8-ba904f5151c1","at":1773485476000000000,"seq":1089,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cebf8-cc88-7538-8227-c7ca6c0fa701","at":1773485477000000000,"seq":1090,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cebf9-45a0-7bfd-9450-0653a9071def","at":1773485508000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cec0b-b1b3-78af-91a6-a21057c84798","at":1773486715315000000,"seq":1092,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cec0b-bc30-7fd2-886e-67d086b429bd","at":1773486718000000000,"seq":1093,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cec0b-c018-7c9b-9ea0-3db30001c305","at":1773486719000000000,"seq":1094,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cec0b-c400-7b77-b821-ddbbf15e552c","at":1773486720000000000,"seq":1095,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cec0c-0a50-76c5-87bd-b1e7ec9dab70","at":1773486738000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

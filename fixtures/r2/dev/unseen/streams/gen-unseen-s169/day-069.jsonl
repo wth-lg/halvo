@@ -1,0 +1,14 @@
+{"v":1,"id":"019cd764-648b-7f07-9087-bb58094b9997","at":1773140206731000000,"seq":1254,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd764-648b-77c0-b07f-7aa74ba66a4c","at":1773140206731000000,"seq":1255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd764-6d68-7580-9031-8f66d83ed64e","at":1773140209000000000,"seq":1256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd764-7150-7c2b-82ad-12bd6673cb08","at":1773140210000000000,"seq":1257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd764-84d8-7876-bda5-f8790f3a7efa","at":1773140215000000000,"seq":1258,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd765-0d90-71a8-ae12-cacd074987b1","at":1773140250000000000,"seq":1259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd77a-97b0-78e2-9cee-25e69a70786b","at":1773141661616000000,"seq":1260,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd77a-97b0-7686-8e75-c376b635f955","at":1773141661616000000,"seq":1261,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd77a-e750-7785-a637-8b9ee832b6ab","at":1773141682000000000,"seq":1262,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cd77b-6068-72a8-9a5b-63056a4a339d","at":1773141713000000000,"seq":1263,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cd77b-9d93-72fb-b44e-0d8e2b66cd37","at":1773141728659000000,"seq":1264,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cd77b-ae88-77f7-9e4e-fd4e7dae5919","at":1773141733000000000,"seq":1265,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cd77b-dd68-7560-91e3-7d6b7d5e9583","at":1773141745000000000,"seq":1266,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cd77b-fca8-701a-9b67-458360c02273","at":1773141753000000000,"seq":1267,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

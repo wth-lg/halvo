@@ -1,0 +1,13 @@
+{"v":1,"id":"019c3cb4-ee5f-705d-a61f-76a9a3bec214","at":1770545016415000000,"seq":579,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3cb4-ee5f-763f-9e07-eb7578b52adc","at":1770545016415000000,"seq":580,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c3cb5-2758-7338-b864-1fb29a563061","at":1770545031000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cb5-7960-7f2a-bea8-2bb8f7efaa4b","at":1770545052000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cb5-7f61-70bd-94a6-7a0afce0445c","at":1770545053537000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c3cb5-94b8-7c22-88e9-4e0eaa3ec756","at":1770545059000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c3cb6-4aa6-760e-a1eb-5a07bb3d40a4","at":1770545105574000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c3cb6-d120-76f7-9ca6-06ba54893d1c","at":1770545140000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3cb7-03e8-7725-8982-ebccc0333d19","at":1770545153000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cb7-2dee-7f53-84c3-6488790cd461","at":1770545163758000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c3cb7-5dc0-7139-8e6e-9fafc903b523","at":1770545176000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3cb7-f618-723c-a834-cc2a8c03a4dc","at":1770545215000000000,"seq":590,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3cb8-05b8-72cc-8a3f-1dd0e1f10423","at":1770545219000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

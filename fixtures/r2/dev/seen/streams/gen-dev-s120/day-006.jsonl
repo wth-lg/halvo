@@ -1,0 +1,27 @@
+{"v":1,"id":"019b9294-f7ac-7c35-a607-faf8a01a6cd7","at":1767690794924000000,"seq":38,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9294-f7ac-7090-8406-d9963b719823","at":1767690794924000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b9295-59a0-72d5-8558-6f803ef32b22","at":1767690820000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b92ab-c24b-7028-be6b-9e5ab5bb5288","at":1767692288587000000,"seq":41,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b92ab-cfa0-7244-bc32-433707b435d5","at":1767692292000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92ac-5088-74a8-b57e-bdd76211cf6b","at":1767692325000000000,"seq":43,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b92ac-a678-7d07-9af7-baa7c78a31ee","at":1767692347000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92bb-3470-78dd-8fad-55f7d563c694","at":1767693300848000000,"seq":45,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b92bb-6bb8-7029-9403-b11b588ddbc4","at":1767693315000000000,"seq":46,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b92bb-7453-7fb7-a632-e4a2c4c3b9c0","at":1767693317203000000,"seq":47,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b92bb-7f40-79b2-9e8c-896be1af120b","at":1767693320000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92bb-8710-746d-a9e9-695e966e6880","at":1767693322000000000,"seq":49,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b92bb-b5f0-77c5-ab7b-8e04826f3459","at":1767693334000000000,"seq":50,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92bb-c9b6-70e3-b413-0738dfda46a8","at":1767693339062000000,"seq":51,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b92bb-e0e8-7304-b46a-8a865a8b75e8","at":1767693345000000000,"seq":52,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b92bb-fc40-7207-a680-d15b41f47afe","at":1767693352000000000,"seq":53,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92bc-0410-7c71-b57e-5e86a388d3a4","at":1767693354000000000,"seq":54,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b92bc-0fc8-7c18-b6d2-a3ec2243b3b8","at":1767693357000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92bc-1ec5-7bbf-bef1-447d1b56a89a","at":1767693360837000000,"seq":56,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b92bc-2b20-707c-9d50-651bcbd37a40","at":1767693364000000000,"seq":57,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b92bc-4e48-777b-9952-f6519bb0a891","at":1767693373000000000,"seq":58,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b92bc-6d88-73e8-8cbf-e02834c84db7","at":1767693381000000000,"seq":59,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92ce-8fd4-79ec-9104-0d2e9d83791d","at":1767694569428000000,"seq":60,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b92ce-8fd4-7a1f-adfa-2a3799ab8d4d","at":1767694569428000000,"seq":61,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b92ce-a598-796e-935f-3546bddfa480","at":1767694575000000000,"seq":62,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b92ce-ad68-70a5-934b-fa440583238f","at":1767694577000000000,"seq":63,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b92cf-2a68-7dd8-b7fa-b6bb83a6ce0a","at":1767694609000000000,"seq":64,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

@@ -1,0 +1,27 @@
+{"v":1,"id":"019cd228-ca12-712f-af04-6ca2abc9cd6d","at":1773052414482000000,"seq":1162,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd228-ca12-7105-9d1b-2a5b7a0fc57a","at":1773052414482000000,"seq":1163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd229-6470-7ba8-a09e-be98ee8fbc6b","at":1773052454000000000,"seq":1164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd239-571d-7a41-beaa-14ea26bba8f7","at":1773053499165000000,"seq":1165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cd239-b820-7d2d-adda-cc5ee6d37e63","at":1773053524000000000,"seq":1166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd239-d760-787f-9175-11def1e06a26","at":1773053532000000000,"seq":1167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd23a-2198-7766-9e2d-6348bb8a353b","at":1773053551000000000,"seq":1168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd244-126a-7f93-a851-e71c9855dbf2","at":1773054202474000000,"seq":1169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cd244-3f70-7215-9194-396dee3e6cd7","at":1773054214000000000,"seq":1170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd244-4f10-7823-870d-2df007cb9e3b","at":1773054218000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd245-1ce2-7801-83a5-a1385ea036c8","at":1773054270690000000,"seq":1172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cd245-29d0-7635-bd32-e19b943831c4","at":1773054274000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd245-3970-72fa-adb9-d378d4d9e415","at":1773054278000000000,"seq":1174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd245-3d58-7dea-8fc8-133c6f1909b3","at":1773054279000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cd245-8b4a-76a0-aa88-a692028f3b93","at":1773054298954000000,"seq":1176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cd245-a6d0-7a1a-a560-1e690faaa40e","at":1773054306000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd245-aea0-71da-929b-64e14bf54171","at":1773054308000000000,"seq":1178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd245-b670-79f4-a575-b3755f51f0f6","at":1773054310000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd245-e168-7f2c-94aa-e617e7c32465","at":1773054321000000000,"seq":1180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cd246-1fe8-7377-9263-22d9801dd61f","at":1773054337000000000,"seq":1181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd246-591f-71ea-bc29-9a7b89b3234d","at":1773054351647000000,"seq":1182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cd246-c3f8-7a2f-bb99-f34cbd5c5c2c","at":1773054379000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd247-46a1-7368-be02-cd6e04bf6db7","at":1773054412449000000,"seq":1184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cd247-5480-7c29-9263-0e8393d23788","at":1773054416000000000,"seq":1185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cd247-b240-746f-b661-71b5e1f49b94","at":1773054440000000000,"seq":1186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd247-dd38-7c49-a61c-d2a4706e4cff","at":1773054451000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd247-f0c0-7b05-8d80-53b9d8902ed9","at":1773054456000000000,"seq":1188,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

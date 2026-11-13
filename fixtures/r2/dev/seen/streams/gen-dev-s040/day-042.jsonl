@@ -1,0 +1,12 @@
+{"v":1,"id":"019c4b95-23fd-7a83-b984-e99126255aca","at":1770794591229000000,"seq":517,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4b95-23fd-77d0-99c2-cfd39e9667ec","at":1770794591229000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4b95-36a0-7ca7-bc3c-fa6025d6454a","at":1770794596000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c4b95-7cf0-7d8e-809d-2b2274b5793a","at":1770794614000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b95-a400-7e97-a92a-dbb67239e8b2","at":1770794624000000000,"seq":521,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4b95-b788-7da0-b962-dd9a330f0df5","at":1770794629000000000,"seq":522,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4bb0-30bb-7861-a63a-d76d2fa07787","at":1770796363963000000,"seq":523,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4bb0-5020-7d01-b438-99e4484308f8","at":1770796372000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bb0-5bd8-7970-963e-701751806d7c","at":1770796375000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bb0-cb86-7468-9c37-c971b4e62448","at":1770796403590000000,"seq":526,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4bb0-e0a8-7551-880b-33c0cc242fee","at":1770796409000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bb1-26f8-73ef-b5c7-185b70cec2e6","at":1770796427000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

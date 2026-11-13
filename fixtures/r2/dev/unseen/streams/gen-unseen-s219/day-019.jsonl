@@ -1,0 +1,29 @@
+{"v":1,"id":"019bd593-e243-7423-9797-5bc90ab4a9b2","at":1768814797379000000,"seq":296,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd593-e243-7400-9f2e-b2d2b5702f07","at":1768814797379000000,"seq":297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bd594-8ea8-7d18-af32-e3f6c5519483","at":1768814841512000000,"seq":298,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bd594-bf70-73fe-98bd-5a015a73dd23","at":1768814854000000000,"seq":299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd595-1560-76f8-9d11-5d6fb066387e","at":1768814876000000000,"seq":300,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd595-28e8-72aa-a791-8b560b1cbed9","at":1768814881000000000,"seq":301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bd597-a7d1-7602-8fb7-3864bda22fed","at":1768815044561000000,"seq":302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bd597-e420-7ed3-b4bd-5cd64e771c6a","at":1768815060000000000,"seq":303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd598-0b30-75fe-b282-e9b5f78e7442","at":1768815070000000000,"seq":304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd5b3-bd22-730c-96a8-833442011e76","at":1768816885026000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bd5b3-d090-7316-9336-fe5f955da227","at":1768816890000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5b4-73c1-71ab-980b-2db1ea9b22fd","at":1768816931777000000,"seq":307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bd5b4-8440-7e8b-a2b2-0e894698cd80","at":1768816936000000000,"seq":308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd5b4-8c10-74ab-a959-4838fa92915c","at":1768816938000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5cf-2229-7fec-9ca3-411ea2d1ef44","at":1768818680361000000,"seq":310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bd5cf-8650-70b0-a8fb-19a0762b0184","at":1768818706000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5cf-ad60-7439-8e58-d2dbd2962b47","at":1768818716000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bd5cf-c012-72fd-9d2d-d0f1e01682fe","at":1768818720786000000,"seq":313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bd5cf-ebe0-7c96-8fcc-9a0c936e537e","at":1768818732000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bd5cf-efc8-7793-8d2c-8d469314f5ff","at":1768818733000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5d0-3230-7680-9464-0a5adfd10268","at":1768818750000000000,"seq":316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd5d0-3618-7f34-b5e5-1442b5a2e216","at":1768818751000000000,"seq":317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd5d0-5a72-71ee-9f83-ebbe946e31aa","at":1768818760306000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bd5d0-a760-7095-bb2b-824eb64bfff5","at":1768818780000000000,"seq":319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd5d0-ca88-7e91-88b2-f02149086249","at":1768818789000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd5d0-e111-78db-aa7d-aa1d4c1e0a29","at":1768818794769000000,"seq":321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bd5d1-18a8-789b-bb1d-9d958452717d","at":1768818809000000000,"seq":322,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd5d1-3018-792e-ba57-5f3b35d127b8","at":1768818815000000000,"seq":323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd5d1-91c0-7b3d-aa7b-58174c2f7f4c","at":1768818840000000000,"seq":324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}

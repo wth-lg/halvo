@@ -1,0 +1,24 @@
+{"v":1,"id":"019c4b84-0dd8-7c3f-891d-8bc0fffa0925","at":1770793471448000000,"seq":644,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4b84-0dd8-70e7-930d-e235487cf10d","at":1770793471448000000,"seq":645,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4b84-8148-798c-a189-e46ca0ab2f33","at":1770793501000000000,"seq":646,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c4b84-9ca0-7592-bd67-22f82a6eb1ac","at":1770793508000000000,"seq":647,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b84-a858-76d2-a861-3ca5f13af1be","at":1770793511000000000,"seq":648,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c4b84-ac40-79e9-9028-e9ce508ec606","at":1770793512000000000,"seq":649,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c4b9a-8396-7bab-a25f-9748590f123b","at":1770794943382000000,"seq":650,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4b9a-8396-78b6-8393-d8eab07c5ae4","at":1770794943382000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c4b9b-3654-75b8-8b56-3da92f649406","at":1770794989140000000,"seq":652,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c4b9b-4180-7e23-ac99-01911bc32efe","at":1770794992000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b9b-8000-76a5-8071-3781d646c3b8","at":1770795008000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c4ba6-e2b0-7f4a-8898-8890c29f91e5","at":1770795754160000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c4ba7-bcd0-7cfb-8cc7-e1da14b1e203","at":1770795810000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bba-10db-7513-a2a8-e2388af3e6cb","at":1770797011163000000,"seq":657,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c4bba-5688-7132-b3df-1e42d0d72a08","at":1770797029000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c4bba-71e0-7632-9a29-f5bfe846e718","at":1770797036000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bba-7930-791d-b519-e7bee725bd5b","at":1770797037872000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c4bba-9cd8-783e-8d04-daccfc778765","at":1770797047000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bba-b830-7edf-b282-54d43a00685c","at":1770797054000000000,"seq":662,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4bba-c964-7691-b73a-7cb8d6e46bee","at":1770797058404000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c4bbb-8f08-7290-a391-50981f9c4885","at":1770797109000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c4bbb-aa53-7f70-9219-0632a179718c","at":1770797115987000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c4bbb-bde8-7490-b008-bbc3eb4e4b7b","at":1770797121000000000,"seq":666,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4bbb-c9a0-7084-8097-1a46e2356153","at":1770797124000000000,"seq":667,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

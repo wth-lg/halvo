@@ -1,0 +1,20 @@
+{"v":1,"id":"019ca891-167f-7448-9ed2-eefe5ebd33a8","at":1772354606719000000,"seq":811,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca891-167f-7c7b-a7a9-bb28bd746039","at":1772354606719000000,"seq":812,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ca891-1798-739d-9ecb-ca0883e0ed57","at":1772354607000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca891-7940-7040-bc43-a5dc65a44e6b","at":1772354632000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca891-8110-7972-ac98-dccf2ef772a4","at":1772354634000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca891-aaa2-7e84-b8ed-df4b037a335b","at":1772354644642000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ca891-bf90-7390-80b4-712b80cac623","at":1772354650000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ca891-f640-7b6d-9c64-d8df40fd2593","at":1772354664000000000,"seq":818,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca892-9712-7a2b-8fe3-02086e741860","at":1772354705170000000,"seq":819,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ca892-cd18-7141-8258-60d54e20162f","at":1772354719000000000,"seq":820,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca893-1750-7c2a-8534-79746cae3f5f","at":1772354738000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca893-7ce0-7048-b8eb-a266688bdd8a","at":1772354764000000000,"seq":822,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca893-9f48-7964-bfa5-aff8257b441f","at":1772354772808000000,"seq":823,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ca893-de88-74a9-8b8b-5a4ffd5bb954","at":1772354789000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ca893-f9e0-757b-b097-da48d49302b8","at":1772354796000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca894-4030-7469-aef6-9756839d369b","at":1772354814000000000,"seq":826,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca894-5e8c-798c-af2c-5b192e515ab4","at":1772354821772000000,"seq":827,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ca894-8a68-7176-8e35-51c6567be816","at":1772354833000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca894-9a08-702c-9efd-f736d74179a5","at":1772354837000000000,"seq":829,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca894-bd30-7b12-884f-a496e80b2c2b","at":1772354846000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

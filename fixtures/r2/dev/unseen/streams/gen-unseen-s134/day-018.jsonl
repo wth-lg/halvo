@@ -1,0 +1,24 @@
+{"v":1,"id":"019bd0a6-c845-704f-8198-86861fe31ee9","at":1768732149829000000,"seq":231,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd0a6-c845-7807-9c91-77f9e92230bf","at":1768732149829000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bd0a6-e448-7960-a095-c53c82810671","at":1768732157000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0a6-ec18-7b70-8ae8-509b61fab81d","at":1768732159000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c1-100b-796e-809f-14273dfdb7e8","at":1768733872139000000,"seq":235,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd0c1-4a18-7afe-8a5b-2f94d3a10cbf","at":1768733887000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bd0c1-bf48-775b-ba7d-baf60fdb6765","at":1768733917000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c1-cb00-7cda-8afb-32881b4dbfbe","at":1768733920000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c1-e051-746f-a628-a7c372bc3ec8","at":1768733925457000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd0c1-f210-79e7-bee3-f8bebd1841ec","at":1768733930000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd0c2-1538-7045-b208-af79e455edf2","at":1768733939000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c2-28c0-736b-992f-9c8932e72884","at":1768733944000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c2-28c0-77fe-9c4d-e64958c1dd6d","at":1768733944000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bd0c2-3d5b-755d-92d2-d5ff3b43b6b3","at":1768733949275000000,"seq":244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd0c2-4030-7b62-b349-9d33e8dd600b","at":1768733950000000000,"seq":245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd0c2-4800-7a9e-903f-697b6cc1ab4c","at":1768733952000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd0c2-5f70-7a3e-ad00-17ca2cd85e62","at":1768733958000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c2-6358-74da-b927-0afdd622e716","at":1768733959000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd0c2-764c-79aa-8456-67a5e49d4da7","at":1768733963852000000,"seq":249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd0c2-8a68-7bf7-b51f-26c6f87f5afe","at":1768733969000000000,"seq":250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd0c2-9620-7b94-9956-099a3c36c1ce","at":1768733972000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c2-9df0-72b2-9ad3-62adbd1f297a","at":1768733974000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd0c2-a5c0-7f52-a6ef-a76a3ce81c90","at":1768733976000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bd0c2-d888-7fe8-b742-c6ef0e2a0832","at":1768733989000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

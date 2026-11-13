@@ -1,0 +1,15 @@
+{"v":1,"id":"019bd581-967f-75e9-8713-4f6d3cd9fed0","at":1768813598335000000,"seq":253,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd581-967f-79aa-bd62-a2265d06120a","at":1768813598335000000,"seq":254,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bd582-5f33-7b6c-8526-398919910ca2","at":1768813649715000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bd582-aa88-7e6c-ba11-fe70ef665c02","at":1768813669000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bd582-c9c8-7d72-9a62-fb1d458cbd93","at":1768813677000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd588-cf84-7133-a12b-8d8dcb8008be","at":1768814071684000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd588-e060-7cf5-8751-18d14682b1a7","at":1768814076000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bd589-1f0e-7838-983b-3f46c1acb8c7","at":1768814092046000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd589-26b0-7f3d-8974-41c493b9fef8","at":1768814094000000000,"seq":261,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd589-2a98-7c1e-8c54-479eb2b8858a","at":1768814095000000000,"seq":262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd589-45f0-77b0-b919-c6f7cd9e3d94","at":1768814102000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bd589-5ad7-777a-ba2c-6810440ca3ef","at":1768814107351000000,"seq":264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd589-74d0-7f55-8bb4-de5d22cb3226","at":1768814114000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bd589-f9a0-7dc0-80cd-e34254a9c0de","at":1768814148000000000,"seq":266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd58a-2c11-7fc4-b971-2ae02e20ad76","at":1768814160913000000,"seq":267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}

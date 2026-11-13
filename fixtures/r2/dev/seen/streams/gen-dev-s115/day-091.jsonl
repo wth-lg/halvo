@@ -1,0 +1,19 @@
+{"v":1,"id":"019d483b-e4ae-73f0-92f7-767855821380","at":1775033377966000000,"seq":1316,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d483b-e4ae-7bcb-ba21-1064d3421a44","at":1775033377966000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d483b-f470-7f16-8d74-ee4362584869","at":1775033382000000000,"seq":1318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d483c-1798-79b8-a03e-c3b5cc1124cd","at":1775033391000000000,"seq":1319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4852-ec2d-781b-9303-731754e20291","at":1775034887213000000,"seq":1320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4853-1a38-74fc-ba57-92d514bb96c7","at":1775034899000000000,"seq":1321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d4853-7410-7408-bbaf-2178e1865d0a","at":1775034922000000000,"seq":1322,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4853-8798-7bda-ba3b-befe55bf630a","at":1775034927000000000,"seq":1323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4855-f1e6-7f43-9d2b-ae6283e2d1a8","at":1775035085286000000,"seq":1324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d4856-17d8-7a0b-893d-5649d68fc340","at":1775035095000000000,"seq":1325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4856-4e88-731b-8fa6-0b7c09fe8d5d","at":1775035109000000000,"seq":1326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4857-019d-7188-bfed-1adf3291a772","at":1775035154845000000,"seq":1327,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d4857-0a08-71fd-af02-ca320a53fbf8","at":1775035157000000000,"seq":1328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d4857-1d90-7ffa-97b3-e794677c8663","at":1775035162000000000,"seq":1329,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4857-3118-7009-a4a8-932b882cdb7e","at":1775035167000000000,"seq":1330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4857-3500-7bed-84a8-67b813c816c9","at":1775035168000000000,"seq":1331,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4857-8708-7a1a-a6ad-dc27da2f2194","at":1775035189000000000,"seq":1332,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4857-96bf-7b3b-8065-54f98d309de9","at":1775035193023000000,"seq":1333,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d4857-ec98-7ecd-9231-4ad14c826908","at":1775035215000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

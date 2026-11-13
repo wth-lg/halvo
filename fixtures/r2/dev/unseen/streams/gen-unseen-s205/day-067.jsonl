@@ -1,0 +1,31 @@
+{"v":1,"id":"019cccfb-b313-7473-b3b6-855eab6ee8a0","at":1772965573395000000,"seq":967,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cccfb-b313-7e07-b082-d7af5c65e163","at":1772965573395000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cccfc-22d0-715e-9266-faa7fab260dd","at":1772965602000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd00-0682-7cfb-9483-3ad0e31aa5b0","at":1772965856898000000,"seq":970,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccd00-0682-7106-8fe9-1596cdbffa70","at":1772965856898000000,"seq":971,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccd00-31e0-795b-ba75-f5fbc275860c","at":1772965868000000000,"seq":972,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd00-58f0-7925-aea4-7b8a9b13f175","at":1772965878000000000,"seq":973,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ccd00-64a8-7edf-9def-f6fe3091abb3","at":1772965881000000000,"seq":974,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ccd00-87d0-7a46-a6c2-847f59bc312e","at":1772965890000000000,"seq":975,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd1a-204f-7236-ad1a-75ce4f5af17b","at":1772967567439000000,"seq":976,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccd1a-204f-7d5c-9d50-0e91022f6483","at":1772967567439000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ccd24-462d-788d-a077-bdd23a3aeefd","at":1772968232493000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ccd24-9260-7fcf-82d1-6bc2ea8becab","at":1772968252000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd24-9f6d-7c53-9b8d-1dc15dd507b6","at":1772968255341000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ccd25-61bf-7956-a453-1b5b281a921b","at":1772968305087000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ccd25-cae0-7af4-9f3f-a8ec8c944135","at":1772968332000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd26-053c-7fd0-88b9-dcfa68ece5eb","at":1772968346940000000,"seq":983,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ccd26-0960-788e-bd27-9069fe848eb5","at":1772968348000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ccd26-5f50-7e86-b3bb-a1ab1f2b0807","at":1772968370000000000,"seq":985,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccd26-9218-7471-ab33-d0c633e6fe1c","at":1772968383000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd26-ab50-7fc5-b56f-8307336753a3","at":1772968389456000000,"seq":987,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ccd26-dc50-77b3-b245-512a3a829fea","at":1772968402000000000,"seq":988,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ccd26-efd8-785a-91e0-f7a9691087bf","at":1772968407000000000,"seq":989,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ccd27-1eb8-783d-be3b-69f69ef9f445","at":1772968419000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ccd27-2a70-7115-964b-f655ca3b4839","at":1772968422000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd27-6508-736c-9f86-59a4125af455","at":1772968437000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd27-b5f4-73e4-a7bb-171d8140a124","at":1772968457716000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ccd27-c6b0-7553-bc0c-640c9e87eb0a","at":1772968462000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd27-ce80-7bc7-abe3-b611aa734b9e","at":1772968464000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd27-da38-7764-8b0c-382a903bb45e","at":1772968467000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ccd27-f1a8-757a-bac7-4209b392787c","at":1772968473000000000,"seq":997,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

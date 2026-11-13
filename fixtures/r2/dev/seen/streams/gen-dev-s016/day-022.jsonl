@@ -1,0 +1,45 @@
+{"v":1,"id":"019be487-4116-785a-a53b-1e82be132910","at":1769065627926000000,"seq":329,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be487-4116-75a4-bcfd-9ede2d59088c","at":1769065627926000000,"seq":330,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be487-5cb8-7e2a-b959-c08e2a857191","at":1769065635000000000,"seq":331,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019be487-d9b8-7036-aed1-43dadfda0840","at":1769065667000000000,"seq":332,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019be497-5c4c-7966-9b61-df482618ed91","at":1769066683468000000,"seq":333,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be497-5c4c-7904-8cd0-717997b45680","at":1769066683468000000,"seq":334,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be497-cfa8-73d7-af00-5d9c52f8ca48","at":1769066713000000000,"seq":335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be497-db60-7a3d-b9cc-9c1a9960a286","at":1769066716000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019be497-df48-729d-9d9e-0b569a7b218f","at":1769066717000000000,"seq":337,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be498-3538-7aa5-9e14-a3728a926d7d","at":1769066739000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be49b-0351-7a86-92ea-b1d2d21c7c35","at":1769066922833000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be49b-2ef0-7b15-94e7-057b6dc3fc73","at":1769066934000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be49b-32d8-7d45-85e8-62879b4d744e","at":1769066935000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be49b-a420-7320-9f9c-c6256b39a204","at":1769066964000000000,"seq":342,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be4a6-34b4-7632-bcd0-fbfb8180eaa6","at":1769067656372000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019be4a6-9cb8-7275-a2df-fa3cb28c3f94","at":1769067683000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4a6-e6f0-717e-bb39-4dfc146c2254","at":1769067702000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4a7-217e-773a-88e9-bc1347ac521e","at":1769067716990000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019be4a7-9aa0-7f66-b4c2-11586c9ea1c8","at":1769067748000000000,"seq":347,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4a7-bdc8-7f34-b2c3-0eb75694db2a","at":1769067757000000000,"seq":348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be4a8-2548-7c04-b462-94b834d9451b","at":1769067783496000000,"seq":349,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019be4a8-a058-7b39-b5f5-2d4b931cace9","at":1769067815000000000,"seq":350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be4a9-1d5b-7fae-bd59-be282a816003","at":1769067847003000000,"seq":351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019be4a9-2140-752e-add3-acbdbd87bf7d","at":1769067848000000000,"seq":352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019be4a9-2528-7fa7-82bd-c406b59fb6d9","at":1769067849000000000,"seq":353,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4a9-9670-7874-9032-a9e257fdda2c","at":1769067878000000000,"seq":354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be4a9-c168-7218-8a95-f2cbf042efe7","at":1769067889000000000,"seq":355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b4-5d1b-787e-9259-8ed9ebb061ef","at":1769068584219000000,"seq":356,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019be4b4-67f8-7cfb-8ec8-8ec50b9a88a5","at":1769068587000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b5-2378-75ec-8265-d3749d84bb29","at":1769068635000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019be4b5-42b8-7d54-8033-fbf988c1adde","at":1769068643000000000,"seq":359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b5-6bc6-7ea8-98cb-05703fca4541","at":1769068653510000000,"seq":360,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 11 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019be4b5-90d8-7c1a-b8d9-2eb86bde8e8f","at":1769068663000000000,"seq":361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4b5-d626-7406-8224-614c0e542d54","at":1769068680742000000,"seq":362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019be4b6-5810-7994-88b6-3804623d9cf1","at":1769068714000000000,"seq":363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b6-7750-7d83-afa7-e8517b1da596","at":1769068722000000000,"seq":364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b6-aa18-7fea-a462-1bf4b1cf5055","at":1769068735000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019be4b6-c63d-7169-96f9-d473cee79f1f","at":1769068742205000000,"seq":366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019be4b6-d8f8-7fcf-881f-a1e0f1063a83","at":1769068747000000000,"seq":367,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be4b7-6d68-7c92-a05d-9220f4aea658","at":1769068785000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b7-84d8-7999-bbf9-4b9ccb86436c","at":1769068791000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b7-b0ed-73ec-a310-45039f05e30e","at":1769068802285000000,"seq":370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019be4b7-ea68-7c5c-ba64-26cef2dff660","at":1769068817000000000,"seq":371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be4b8-5bb0-70b3-9497-c34606f972b5","at":1769068846000000000,"seq":372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be4b8-7af0-7cdb-9e97-dd83fc67b6ee","at":1769068854000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

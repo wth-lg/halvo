@@ -1,0 +1,47 @@
+{"v":1,"id":"019cae09-3dd1-7124-912d-fdf35ef3e4b2","at":1772446367185000000,"seq":758,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae09-3dd1-7b8a-9f36-a8ca573ec523","at":1772446367185000000,"seq":759,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cae09-6810-7c1a-a91d-6f33cfb15883","at":1772446378000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae09-a690-7eab-a29f-8e1431b7535a","at":1772446394000000000,"seq":761,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cae09-ba18-7559-82ef-1a2945d9334e","at":1772446399000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cae22-d6fd-7cac-bf5d-aed14c778b27","at":1772448044797000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cae22-faf0-721d-b63e-51a1e7143588","at":1772448054000000000,"seq":764,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cae23-0a90-7161-8dde-381d63c3476e","at":1772448058000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cae23-8790-77f7-b9d8-1665a625579f","at":1772448090000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae32-964e-7c96-bc2e-3ab439f3e91b","at":1772449076814000000,"seq":767,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cae32-964e-749e-97a9-3e635ebf0da8","at":1772449076814000000,"seq":768,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cae32-cdb8-7dbc-a574-850cf0cc4dd4","at":1772449091000000000,"seq":769,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cae33-3f35-70ef-99f7-81b8b25a6f5e","at":1772449120053000000,"seq":770,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cae33-98d8-754b-9bb8-09024449475e","at":1772449143000000000,"seq":771,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae49-61fe-71b5-999a-c0bc0fc219d7","at":1772450570750000000,"seq":772,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cae49-8df0-7551-86d3-06644f628f5f","at":1772450582000000000,"seq":773,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cae49-99a8-7f6c-9d99-7d687e6a87d0","at":1772450585000000000,"seq":774,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae49-c0b8-745f-b6f0-e7b6c01f5478","at":1772450595000000000,"seq":775,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae4a-0708-7d5b-986e-03504c86f6bb","at":1772450613000000000,"seq":776,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cae4a-6300-7721-9890-88d2677907e2","at":1772450636544000000,"seq":777,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae4a-6300-75b8-800b-63e29acbc729","at":1772450636544000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cae4a-8408-7501-83ae-561f333c6feb","at":1772450645000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cae4a-d9f8-71a3-ac9d-8c6e64417e69","at":1772450667000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae4a-e998-7c14-9ecd-a2b149ce2444","at":1772450671000000000,"seq":781,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cae4a-fd20-75ea-ad55-d54d07eda71e","at":1772450676000000000,"seq":782,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cae4b-1607-71c4-b86c-0b3203d1e04d","at":1772450682375000000,"seq":783,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cae4b-1607-71a9-a440-91995afc73a7","at":1772450682375000000,"seq":784,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cae4b-2818-7460-813a-86d997c4ff2d","at":1772450687000000000,"seq":785,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae4b-3f88-7a5f-9fce-7094070083c7","at":1772450693000000000,"seq":786,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cae62-0fde-7ba1-88e7-e767badd6a79","at":1772452188126000000,"seq":787,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae62-0fde-7409-9a6d-ef26f1e21500","at":1772452188126000000,"seq":788,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cae62-22e8-7764-88ea-8239c64db07e","at":1772452193000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae62-49f8-7156-a67c-262df8f81ca2","at":1772452203000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cae62-5d80-7bb5-ad71-ba3037cd548f","at":1772452208000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae62-6ae0-7eef-8b7b-8a89d05e7efc","at":1772452211424000000,"seq":792,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for July - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cae62-f5d8-72e3-9af4-5ef123a7f83e","at":1772452247000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae63-185a-7816-af13-b7a3e5351785","at":1772452255834000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cae63-3458-7447-9905-e213764bf53a","at":1772452263000000000,"seq":795,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cae63-47e0-7f37-90d0-155a5eca00ee","at":1772452268000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae63-4fb0-7370-af6e-9d9603f822da","at":1772452270000000000,"seq":797,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae63-6338-799d-8487-62dc1ebdd30b","at":1772452275000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae63-6b08-75e4-948b-eaf976754cc2","at":1772452277000000000,"seq":799,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cae63-6dec-7600-99d4-441710b494b2","at":1772452277740000000,"seq":800,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cae63-e038-70b9-993f-3217e522076f","at":1772452307000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cae63-e420-7be2-8eac-0da0a3ac9120","at":1772452308000000000,"seq":802,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae63-ebf0-7b93-bd30-470f28a2f1d5","at":1772452310000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae63-ff78-739f-b419-3c3f110bb112","at":1772452315000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

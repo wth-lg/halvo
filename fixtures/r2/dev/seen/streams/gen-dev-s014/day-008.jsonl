@@ -1,0 +1,30 @@
+{"v":1,"id":"019b9cf1-67ba-7144-9cc4-31d12bc79bf2","at":1767864625082000000,"seq":161,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9cf1-67ba-76ec-bd47-537acaef7942","at":1767864625082000000,"seq":162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf1-a5e8-74e1-afba-2aa25be42970","at":1767864641000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b9cf1-c7ff-7afc-b516-5e73b2be3126","at":1767864649727000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf2-74f0-7b61-a3b9-7f9265394206","at":1767864694000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b9cf2-9372-7483-b6ad-1cad6d1b3f20","at":1767864701810000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf2-9430-74cf-be49-40fc117a40c3","at":1767864702000000000,"seq":167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9cf2-9c00-784a-9d57-270438ba2fd6","at":1767864704000000000,"seq":168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cf3-5780-776f-ac48-9eedd2607cf2","at":1767864752000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cf3-6340-7a56-9812-ab0e26bd730f","at":1767864755008000000,"seq":170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf3-72d8-7bc1-a1f6-2486166253ad","at":1767864759000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cf3-8e30-71b9-811c-01f2e22bbc68","at":1767864766000000000,"seq":172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9cf4-2e58-7465-b512-270bdeb586bf","at":1767864807000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cf4-4a2f-77d5-8e27-17acfa544977","at":1767864814127000000,"seq":174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf4-93e8-7dcb-b1e9-9ae5503de1c8","at":1767864833000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cf4-a770-7803-bd91-6da6c5874c70","at":1767864838000000000,"seq":176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9cf4-f04e-78c7-9daf-b5dda192b7e0","at":1767864856654000000,"seq":177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf5-8618-72f4-8991-30030f24d038","at":1767864895000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b9cf5-b4dd-7e57-aab8-b7ad201df19f","at":1767864906973000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf5-eba8-761f-8c9b-5b682ad77eff","at":1767864921000000000,"seq":180,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9d00-3a0a-7bc2-976a-f5f4f34486ad","at":1767865596426000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b9d00-57a0-7d83-8442-60dfef5bd875","at":1767865604000000000,"seq":182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9d00-6f10-77be-ba32-b1299017c9ce","at":1767865610000000000,"seq":183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9d00-72f8-75f2-92a7-cb14cd56be43","at":1767865611000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d00-7ac8-72a6-a4e5-16048121fdec","at":1767865613000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b9d00-ccd0-76e9-85c5-3dfee4ff54ea","at":1767865634000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d12-4d1d-7c9f-b49e-062a87a9e8d1","at":1767866780957000000,"seq":187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b9d12-5518-7e2f-8e97-ab02fd83b3df","at":1767866783000000000,"seq":188,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9d12-7458-7cac-a6d3-eb8d2929e987","at":1767866791000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b9d12-8010-7ea4-8c63-322cd6fe3c4c","at":1767866794000000000,"seq":190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

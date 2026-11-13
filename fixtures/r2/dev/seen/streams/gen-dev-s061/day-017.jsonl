@@ -1,0 +1,21 @@
+{"v":1,"id":"019bcadb-38d7-76a0-b76d-8dab35ad7138","at":1768634923223000000,"seq":204,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcadb-38d7-7310-9d65-0d7f001c0915","at":1768634923223000000,"seq":205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bcadb-62f0-78e3-9f08-a4852a62fa6d","at":1768634934000000000,"seq":206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcadb-91d0-7244-aba0-1d1933f05325","at":1768634946000000000,"seq":207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcadb-ad28-7513-8206-885848aef261","at":1768634953000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bcadb-ebc1-7c98-95dd-82e396ab8735","at":1768634969025000000,"seq":209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bcadb-ef90-7072-ade2-ac3e94aa3ba2","at":1768634970000000000,"seq":210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcadc-58fa-708b-89de-1dac0cd94e10","at":1768634996986000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bcadc-7460-7fd2-abea-b597070e640a","at":1768635004000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcadc-9788-7896-a15d-ab4532de7ae8","at":1768635013000000000,"seq":213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcadc-aef8-79bf-bce7-e03c5bd2399f","at":1768635019000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bcadc-d220-7dc2-835a-ddd9cee793fb","at":1768635028000000000,"seq":215,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcadc-ddd8-739e-ac93-99704ce1f2e9","at":1768635031000000000,"seq":216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcadd-0157-7529-9d10-1349eddbbece","at":1768635040087000000,"seq":217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bcadd-2810-7901-8a09-4557f1981522","at":1768635050000000000,"seq":218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bcadd-37b0-7e9c-a58c-5e6a2224207f","at":1768635054000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcadd-7e00-79f9-b3e6-a9df257ff579","at":1768635072000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcaf3-7418-7be2-a33f-32abd86d82f5","at":1768636511256000000,"seq":221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bcaf3-86a0-7f9b-b888-d8ac577c72c9","at":1768636516000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcaf4-c560-71d1-8238-380b959f1a67","at":1768636597600000000,"seq":223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bcaf5-0570-761f-a4ae-e3b4be3733e2","at":1768636614000000000,"seq":224,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

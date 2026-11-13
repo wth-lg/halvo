@@ -1,0 +1,8 @@
+{"v":1,"id":"019d0a55-64c0-7d45-a25d-e4dd496a7f8b","at":1773994861760000000,"seq":1152,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0a55-64c0-7c24-b446-380f409bd99e","at":1773994861760000000,"seq":1153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d0a55-9c60-7f44-814d-be38118e3f3d","at":1773994876000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a55-e432-7bca-b9f4-9ea80273073e","at":1773994894386000000,"seq":1155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0a56-6780-76de-a59a-f38b72eb2406","at":1773994928000000000,"seq":1156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d0a56-b1b8-711a-a38a-49100252ec4e","at":1773994947000000000,"seq":1157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a56-bf51-7b43-b60b-eaba8048ded4","at":1773994950481000000,"seq":1158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d0a56-f420-7fa6-a0ac-2a7c50a23a98","at":1773994964000000000,"seq":1159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

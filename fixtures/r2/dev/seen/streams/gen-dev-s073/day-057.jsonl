@@ -1,0 +1,14 @@
+{"v":1,"id":"019c990a-6e3f-7321-a26e-0dc93b6f63d4","at":1772094123583000000,"seq":784,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c990a-6e3f-7890-9b47-2e3073b2b301","at":1772094123583000000,"seq":785,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c990a-f0c8-7e34-9ca4-22abfefed497","at":1772094157000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c990b-0838-7a30-8587-80206e10bb2f","at":1772094163000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c990b-7277-7071-b92e-3b42aa6813dd","at":1772094190199000000,"seq":788,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c990b-d740-7f94-a6d1-fd3c8b34e8fa","at":1772094216000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c990b-df10-7142-913c-b57e5f41e87e","at":1772094218000000000,"seq":790,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c990b-e2f8-7b59-92bf-17a40ca46016","at":1772094219000000000,"seq":791,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c990c-19a8-7098-af74-f0df307567cd","at":1772094233000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c991f-ee73-7a24-b74f-9ee2d6e47ebb","at":1772095532659000000,"seq":793,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c991f-ee73-7b27-a1ad-76243b4c9127","at":1772095532659000000,"seq":794,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9920-4d88-796b-bd52-ac02fcd4c95d","at":1772095557000000000,"seq":795,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c9920-6cc8-746f-bb60-fb1fdacf6cc3","at":1772095565000000000,"seq":796,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c9920-8050-7387-9d6c-dbac4a51db43","at":1772095570000000000,"seq":797,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

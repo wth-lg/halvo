@@ -1,0 +1,14 @@
+{"v":1,"id":"019c3250-b19f-78ff-9cb5-5bd8a2c69f62","at":1770370675103000000,"seq":553,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3250-b19f-7bac-8ea8-cdf4b3bbe467","at":1770370675103000000,"seq":554,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c3250-b908-746a-aed9-cdff02957bc9","at":1770370677000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c3251-a23f-712d-b039-29a2f9e73761","at":1770370736703000000,"seq":556,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c3252-78cb-7714-a228-18ac862730c0","at":1770370791627000000,"seq":557,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c3252-8210-7708-9798-781154d25fbc","at":1770370794000000000,"seq":558,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3252-c090-7e2f-a486-031aeb1c2078","at":1770370810000000000,"seq":559,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c3252-c7cd-76f6-8dfa-dfcd150a4cb4","at":1770370811853000000,"seq":560,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c3252-d800-7949-8b55-799fe6ef1319","at":1770370816000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3252-e7a0-723d-8073-786de62a2f38","at":1770370820000000000,"seq":562,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3253-1680-7192-ac5b-b253bd7aeb6b","at":1770370832000000000,"seq":563,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3253-4d30-7843-9fc7-24d64589568c","at":1770370846000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c3256-6cc1-72c0-a888-fa8a1ee364bc","at":1770371050689000000,"seq":565,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3256-6cc1-7ce3-9be9-9b6d62a22c75","at":1770371050689000000,"seq":566,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}

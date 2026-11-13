@@ -1,0 +1,28 @@
+{"v":1,"id":"019ba702-9626-73ed-819f-9a42cd5592db","at":1768033523238000000,"seq":144,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba702-9626-71f2-b6ef-5c04ea77a81c","at":1768033523238000000,"seq":145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba702-a4d8-7d1f-8e40-3f41759973e6","at":1768033527000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba702-fa5c-7743-b94d-b13b55b99bc2","at":1768033548892000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba703-0e50-7597-91ad-77daa43c3430","at":1768033554000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ba703-3d30-7c9c-ba7f-a4a6c00b5c1e","at":1768033566000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba703-c5e8-7e66-985b-a40a14031ecb","at":1768033601000000000,"seq":150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba703-e528-7213-92e3-13743b23ccf3","at":1768033609000000000,"seq":151,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba704-0302-7fca-a9b2-473c65bde9ad","at":1768033616642000000,"seq":152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba704-1fc0-77d6-8f4e-8da00831f31e","at":1768033624000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba704-941e-7e1f-ba49-6039af8358c3","at":1768033653790000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba704-a490-7cae-bb3a-7949c1ac39ac","at":1768033658000000000,"seq":155,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba704-a878-7c0e-850e-7c194d63b5cf","at":1768033659000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba704-b048-73f7-8339-f125de59130c","at":1768033661000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba704-b430-7f9c-ab18-5588663f00b7","at":1768033662000000000,"seq":158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba704-c3d0-7aa2-8e1e-5f364d8495d8","at":1768033666000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba704-ea43-76df-9922-caf0b374530a","at":1768033675843000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba704-eae0-7738-a56e-3c80bece7400","at":1768033676000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba705-5840-7a62-b41a-e293c5cda581","at":1768033704000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba705-5c28-720d-8188-7fa7fb704169","at":1768033705000000000,"seq":163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba70b-9f40-7a0f-ad7f-32f9adec56e8","at":1768034115392000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019ba70b-dc38-70c3-aba3-06f4690e7d7d","at":1768034131000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba70c-6bc6-7310-bec9-4f94a6276443","at":1768034167750000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019ba70c-b6f8-72a0-bbb0-a4b878bd4b45","at":1768034187000000000,"seq":167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba70c-c2b0-769b-b1df-70556ef2d6e5","at":1768034190000000000,"seq":168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba70d-0165-77f0-aadf-071a44f5efa2","at":1768034206053000000,"seq":169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019ba70d-a09c-75fa-b0bc-abdf87cecdca","at":1768034246812000000,"seq":170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019ba70e-4568-7189-880f-62568ee689d3","at":1768034289000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,10 @@
+{"v":1,"id":"019c37a4-7f28-7b10-8e0d-136fffd2505a","at":1770460053288000000,"seq":597,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c37a4-7f28-7431-aca6-19c801888d87","at":1770460053288000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c37a4-8da8-7b3d-b500-2f0ae4a4ba96","at":1770460057000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c37a4-b6c0-70b4-93fd-692f1c2330d1","at":1770460067520000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c37a4-dbc8-7b58-8f30-0ca84c7139a5","at":1770460077000000000,"seq":601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c37a4-ef50-774a-b8ea-59949f6bb2cb","at":1770460082000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c37a5-0aa8-74e4-8052-09fbffea7e55","at":1770460089000000000,"seq":603,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c37a5-3851-7f0e-928a-132e9dbf6293","at":1770460100689000000,"seq":604,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c37a5-7bf0-72ec-bd0d-3eefc9beaf6b","at":1770460118000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c37a5-a794-7141-921a-95352ea21dcd","at":1770460129172000000,"seq":606,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}

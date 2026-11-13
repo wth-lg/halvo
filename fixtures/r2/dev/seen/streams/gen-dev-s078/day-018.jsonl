@@ -1,0 +1,38 @@
+{"v":1,"id":"019bd053-cea2-71cd-8334-a458cc865270","at":1768726711970000000,"seq":281,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd053-cea2-7456-b97e-a3b187566924","at":1768726711970000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd054-5390-7878-b7d9-8791eadf663b","at":1768726746000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd054-9dc8-7f3e-8334-52c2f90cb148","at":1768726765000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bd054-acc5-7b2a-a0dd-676e40e78a23","at":1768726768837000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd055-2298-7aaf-bf08-3d02df134e16","at":1768726799000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd055-2a68-782e-86d3-9bfc0185978e","at":1768726801000000000,"seq":287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd055-3238-7a6a-8e4c-f555dc3a302b","at":1768726803000000000,"seq":288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd055-7888-7734-b32f-c5ee9e2bede7","at":1768726821000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd055-9a06-73ef-b955-3b06c87b8359","at":1768726829574000000,"seq":290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd055-b320-7623-89b9-90272e45e274","at":1768726836000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bd055-baf0-77d9-b7fe-60e621bf4045","at":1768726838000000000,"seq":292,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd055-ca90-76a9-8c08-684a02d9189f","at":1768726842000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd055-f4e2-7064-8ec4-c16669bd5599","at":1768726852834000000,"seq":294,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd055-f970-7d2b-89ab-05f00d8bc402","at":1768726854000000000,"seq":295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd056-7a58-7c7e-945d-51bf85f6cd18","at":1768726887000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bd056-8009-77af-b99b-01712636cccd","at":1768726888457000000,"seq":297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd056-8de0-7a18-b14e-984e95f60fe3","at":1768726892000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd056-a550-7e4d-91f9-77e5e2fc33ec","at":1768726898000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bd056-c0a8-72a2-beff-06fe37ec5e04","at":1768726905000000000,"seq":300,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd056-c330-7a90-a301-86942b2e1f4b","at":1768726905648000000,"seq":301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd056-c490-7c95-a248-740b2d923ebc","at":1768726906000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd057-39c0-71a3-834f-a5deae9a1b0d","at":1768726936000000000,"seq":303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd057-4578-794c-bace-539f68ce25bc","at":1768726939000000000,"seq":304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd057-5900-7a8d-afd3-88eb6a657713","at":1768726944000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd066-c31e-7f4c-8d19-96eef07f0b0f","at":1768727954206000000,"seq":306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bd067-04b8-7edb-bd6d-5212b0f8c4b4","at":1768727971000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd067-3398-7f3f-8df4-84537778b023","at":1768727983000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd067-53d5-73cb-a972-ae67f67d3d35","at":1768727991253000000,"seq":309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bd067-8988-7d2c-ad16-4c00b1d047b3","at":1768728005000000000,"seq":310,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd067-d3c0-7431-a605-4e5c0eb391d3","at":1768728024000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd067-e748-7aa8-87ac-dfe283eaf378","at":1768728029000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd067-fad0-7620-a712-bc35871e39ec","at":1768728034000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd068-34d2-73b0-b746-d36c5e585bb9","at":1768728048850000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bd068-3568-768e-bb10-a4d1a9fdbffe","at":1768728049000000000,"seq":315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd068-f9b0-71a7-8aa5-ab393ffd3f34","at":1768728099248000000,"seq":316,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bd069-3b20-7210-900d-e7915eadd954","at":1768728116000000000,"seq":317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd069-79a0-7436-acd7-06476aa31193","at":1768728132000000000,"seq":318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,0 +1,23 @@
+{"v":1,"id":"019c6fb2-e1d5-7d94-a2b2-7a6d940f0a2f","at":1771400520149000000,"seq":764,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fb2-e1d5-728f-b12c-064f9ec44fe1","at":1771400520149000000,"seq":765,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c6fb2-f4c8-7fc4-8cbd-934b57ead578","at":1771400525000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fb3-1020-7d19-b0e6-e93162780245","at":1771400532000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c6fb3-5288-79cf-9f0b-0c77abfa8340","at":1771400549000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fb3-5df8-702b-a0c1-60c175262172","at":1771400551928000000,"seq":769,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c6fb3-7d80-78d0-83d1-e3530d5a1476","at":1771400560000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6fb3-8168-75f6-b13b-84c2789cb096","at":1771400561000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fb3-bfe8-739f-b51e-33bd5bcc4a36","at":1771400577000000000,"seq":772,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6fc1-a825-70ea-a769-7237802e5d6b","at":1771401488421000000,"seq":773,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc1-dd30-7d9d-bdf6-0e159fa13ea2","at":1771401502000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c6fc2-0440-7073-a925-64e2b059ecf6","at":1771401512000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc2-9a8a-7167-90fd-50a3a7b56bf0","at":1771401550474000000,"seq":776,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc2-b408-7283-985e-fe8dc0086efc","at":1771401557000000000,"seq":777,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c6fc2-df00-7f18-bed6-f672d6ea1f10","at":1771401568000000000,"seq":778,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6fc2-e95c-777d-afc9-f083eb11519b","at":1771401570652000000,"seq":779,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc3-40a8-7234-b480-3ea82ab9fdc3","at":1771401593000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6fc3-8ae0-7315-af18-d0a96c62e962","at":1771401612000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c6fc3-8de6-7179-9e00-7e197d2a1ef5","at":1771401612774000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc3-9e68-7735-93f5-a7c5d0983428","at":1771401617000000000,"seq":783,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6fc3-b1f0-7a20-92bf-a7ad2486a720","at":1771401622000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6fc3-bda8-7174-bc37-e8957f906cbf","at":1771401625000000000,"seq":785,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6fc3-e4b8-7a1e-a543-ea7cad570db5","at":1771401635000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

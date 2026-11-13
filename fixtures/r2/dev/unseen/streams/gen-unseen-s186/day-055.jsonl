@@ -1,0 +1,9 @@
+{"v":1,"id":"019c8ead-4248-7152-877b-b99916dd7abd","at":1771920245320000000,"seq":787,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8ead-4248-7392-8872-e5bd746a28c8","at":1771920245320000000,"seq":788,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c8ead-44f0-74f7-a8d0-3f5803018948","at":1771920246000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c8eae-2af7-709b-8d61-a4c05f88f42b","at":1771920304887000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8eae-6600-7638-b5be-a8f83c5da41e","at":1771920320000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eae-ead0-79ec-83c9-aade89e9560d","at":1771920354000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eae-eeb8-716c-b87e-3df50c24f575","at":1771920355000000000,"seq":793,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8eaf-049c-73ca-8d2e-61d936b314ce","at":1771920360604000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c8eaf-0628-77be-9625-d2c4f79e8451","at":1771920361000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

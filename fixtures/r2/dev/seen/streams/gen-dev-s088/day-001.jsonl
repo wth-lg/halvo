@@ -1,0 +1,10 @@
+{"v":1,"id":"019b785d-4d14-7b1a-8876-d68efe6815b0","at":1767250939156000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b785d-4d14-752c-8d64-082bbaf1490a","at":1767250939156000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b785d-86c7-73b2-b4e2-0d15f862c589","at":1767250953927000000,"seq":2,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b785d-b208-757a-8c6f-dbcedc4247c7","at":1767250965000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b785d-e0e8-7282-b31c-bc85ed628bd1","at":1767250977000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b785e-9100-7238-9920-a570501120a3","at":1767251022080000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b785e-f640-7b88-8a7f-47ceb77f1f5f","at":1767251048000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b785f-1d50-7af1-9f62-c1eade77e8ff","at":1767251058000000000,"seq":7,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b785f-2138-7243-bcac-67a858c05b17","at":1767251059000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b785f-3359-7239-88b9-64bcacc9ef27","at":1767251063641000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}

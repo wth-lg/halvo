@@ -1,0 +1,24 @@
+{"v":1,"id":"019d1999-1f3e-7f91-8718-59d5d6cdb653","at":1774250958654000000,"seq":1081,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1999-1f3e-77f1-a660-13f3c1cd4d31","at":1774250958654000000,"seq":1082,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d1999-3bf0-77a3-9139-2a5c4e62db97","at":1774250966000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1999-ca35-758c-9f34-a68ef3baf0df","at":1774251002421000000,"seq":1084,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d1999-fb58-774f-9cf7-fad36f899dbb","at":1774251015000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d199a-2e20-7f93-a4ea-92561bb0536b","at":1774251028000000000,"seq":1086,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d199a-5dc3-7b80-abba-d249a692b054","at":1774251040195000000,"seq":1087,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d199a-68b8-7147-bd86-0e2435646991","at":1774251043000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d199a-6ca0-7bff-b255-fbc2c5ca7458","at":1774251044000000000,"seq":1089,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d199a-6ca0-79e8-b70a-5f3f4621c867","at":1774251044000000000,"seq":1090,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d199a-abf9-71b6-9569-cf6507aa17d2","at":1774251060217000000,"seq":1091,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d199a-d618-73ad-9cd7-e8f3b56e620d","at":1774251071000000000,"seq":1092,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d199a-dde8-767c-98bf-ddf8003dfac9","at":1774251073000000000,"seq":1093,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d199b-04f8-75e7-9951-960274c68f13","at":1774251083000000000,"seq":1094,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d199b-8e2a-72b2-82fb-7dda50553516","at":1774251118122000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d199b-9968-73b0-b4a2-8dbe2095ca33","at":1774251121000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d199b-a520-7a5c-be18-4ca15ec8717e","at":1774251124000000000,"seq":1097,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d199b-bc90-7be8-a467-274b66f4544b","at":1774251130000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d199b-fef8-7f8b-8918-c00507d0addf","at":1774251147000000000,"seq":1099,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d199c-3d78-7c46-8247-f4b34fb93814","at":1774251163000000000,"seq":1100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d199c-7c02-7941-b008-6608e4faff42","at":1774251179010000000,"seq":1101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d199c-9b38-788e-bf32-b8ed3fd38266","at":1774251187000000000,"seq":1102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d199c-d9b8-776d-ac15-1b2878f66bef","at":1774251203000000000,"seq":1103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d199c-e570-732a-92f6-e42fc1eeeff1","at":1774251206000000000,"seq":1104,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

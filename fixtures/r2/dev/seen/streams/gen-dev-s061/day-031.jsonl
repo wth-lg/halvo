@@ -1,0 +1,26 @@
+{"v":1,"id":"019c138b-a449-72f7-a15d-a84c95945f7a","at":1769854444617000000,"seq":365,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c138b-a449-70ad-b182-f9717bbbc6d1","at":1769854444617000000,"seq":366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c138b-f3e8-780e-9cab-9f22641ce146","at":1769854465000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c138b-ff10-7be3-80e9-dd59a3c24b27","at":1769854467856000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c138c-5978-72ca-b6e5-c6f755cc28db","at":1769854491000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c138c-88a0-7d9d-8a56-3db00f89e0b0","at":1769854503072000000,"seq":370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c138c-9410-7b1b-9e6f-a985744c4c29","at":1769854506000000000,"seq":371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c138c-ab80-7570-aaed-3be63ed4a36e","at":1769854512000000000,"seq":372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c138c-f1d0-7443-a3fb-fd6e2e48bcf4","at":1769854530000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c138d-0940-7cfe-8bd9-4956cbec903f","at":1769854536000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c138d-2f9f-7aa4-9e87-f5d1fad54f62","at":1769854545823000000,"seq":375,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c138d-3820-7860-839e-29a0aaff66a4","at":1769854548000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c138d-4f90-7769-ae6e-1b87e603b53c","at":1769854554000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c138e-1290-736d-a59a-13487aeeeb06","at":1769854603920000000,"seq":378,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c138e-1ab0-764a-957a-8188d5ee7d90","at":1769854606000000000,"seq":379,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c138e-8040-7cf2-acde-cdcd3df48572","at":1769854632000000000,"seq":380,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c138e-8428-7f28-9ba6-7854eadd00cd","at":1769854633000000000,"seq":381,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c138e-fa5f-72b3-b19f-c3334fad5499","at":1769854663263000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c138f-0128-7965-9592-2a3e0c11fc2b","at":1769854665000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c138f-14b0-7413-a005-1a19e266f227","at":1769854670000000000,"seq":384,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c138f-2838-7745-bc88-dce4cbc9de5f","at":1769854675000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c138f-3008-75eb-88f8-0abf0f4d4d25","at":1769854677000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c13a3-f452-76b4-aa36-5f1f03514fb7","at":1769856037970000000,"seq":387,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c13a3-f452-7580-b6ae-0e92cbecfe8b","at":1769856037970000000,"seq":388,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c13a4-6d88-7322-b4c5-2762e6869735","at":1769856069000000000,"seq":389,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c13a4-8110-7368-a242-f31dd302d7e3","at":1769856074000000000,"seq":390,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

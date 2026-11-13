@@ -1,0 +1,25 @@
+{"v":1,"id":"019c0e4d-f9b6-7cfa-83c2-d414f70ff216","at":1769766517174000000,"seq":535,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e4d-f9b6-75bb-b200-30aac61e1ff3","at":1769766517174000000,"seq":536,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0e4e-2bd0-788a-917e-7306517e9163","at":1769766530000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e4e-3788-7ba5-9c5e-5f273fbce8a9","at":1769766533000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e4e-6280-7512-9b45-eaea2dde2800","at":1769766544000000000,"seq":539,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c0e4e-ab5c-7de8-8556-53e5f40ce0d4","at":1769766562652000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0e4e-b0a0-77ec-9260-b1fc6119f9b7","at":1769766564000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c0e4e-c810-7482-b6dd-d79bd2caa290","at":1769766570000000000,"seq":542,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e4e-cbf8-7e8b-abf2-138aadabafed","at":1769766571000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e4f-2dbc-7615-a209-0ed1cc0b6112","at":1769766596028000000,"seq":544,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0e4f-3570-7350-bcb1-1b3c2033eba1","at":1769766598000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e4f-3570-75df-a9b4-2538c0ea05e4","at":1769766598000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c0e4f-7fa8-7c5a-b752-f5aef540a8cb","at":1769766617000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0e4f-dd68-7557-95b6-054fcdf7bc80","at":1769766641000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0e4f-f4ab-73db-be06-7aa23bb77357","at":1769766646955000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c0e50-0860-7cc1-90e3-2dfd21661c34","at":1769766652000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c0e69-c701-7777-b697-05b2cc6c4a50","at":1769768339201000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0e69-d1f0-7ee3-9a64-2ec03111649c","at":1769768342000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e69-f130-7e26-877e-445259a97201","at":1769768350000000000,"seq":553,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0e69-f900-715c-8d98-931bd7f89515","at":1769768352000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e69-fce8-7656-9350-f51df9982443","at":1769768353000000000,"seq":555,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e6a-fcea-73d6-939e-ec51361b8c2b","at":1769768418538000000,"seq":556,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e6a-fcea-70f4-b070-4a5e8f155ef5","at":1769768418538000000,"seq":557,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e6b-8388-784e-b78d-6c4e3ac40ec9","at":1769768453000000000,"seq":558,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e6b-8388-7cc2-9e57-869c08e5a2d5","at":1769768453000000000,"seq":559,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}

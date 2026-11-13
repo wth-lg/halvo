@@ -1,0 +1,37 @@
+{"v":1,"id":"019d2e5b-97f3-76d8-8e13-3f965b0d2ace","at":1774599247859000000,"seq":1201,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2e5b-97f3-72a1-b3f8-21a0229b52c5","at":1774599247859000000,"seq":1202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d2e5b-a438-7f21-ada2-a46244bf4de2","at":1774599251000000000,"seq":1203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e5b-cb48-776d-a41c-ca59873c5cec","at":1774599261000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e5c-05e0-7dd1-a71a-ace2b8487d32","at":1774599276000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d2e5c-9d9b-7fbc-8103-759c56647cdd","at":1774599314843000000,"seq":1206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d2e5c-9e38-7c20-9755-c33da8025433","at":1774599315000000000,"seq":1207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e5c-b5a8-732f-8997-0088e0db2e1c","at":1774599321000000000,"seq":1208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2e5c-d8d0-76e8-a578-6af6e5a9e384","at":1774599330000000000,"seq":1209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e5c-e0a0-799b-bcdf-34a8b3ad3fb6","at":1774599332000000000,"seq":1210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2e5d-08ee-7632-b973-2962ecc3005e","at":1774599342318000000,"seq":1211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d2e5d-6570-7ea2-b14c-e3347396facb","at":1774599366000000000,"seq":1212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d2e5d-a3f0-73c6-b393-2d27968d58fb","at":1774599382000000000,"seq":1213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e5d-f210-7864-a674-31131acb05f4","at":1774599402000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e6b-2ae4-7c9c-83a4-63b81e5f7b95","at":1774600268516000000,"seq":1215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2e6b-3c68-7d65-af06-1d9af9faf5e5","at":1774600273000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d2e6b-6760-76cd-a6e5-65e0f1b2f6fe","at":1774600284000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e6b-7cc9-71f4-b8cb-e60dbcef29bf","at":1774600289481000000,"seq":1218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2e6b-9a28-7fc0-9bd2-ec3484d563c3","at":1774600297000000000,"seq":1219,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2e6b-b580-7527-9423-a8078cd2d582","at":1774600304000000000,"seq":1220,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2e6b-d4c0-78d6-a89f-1defbb74a942","at":1774600312000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e6c-32eb-7d7f-aaff-9b4b6b3ef031","at":1774600336107000000,"seq":1222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2e6c-3a50-7bec-846c-8ec0c9622a48","at":1774600338000000000,"seq":1223,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2e6c-4dd8-7459-8362-809679931a54","at":1774600343000000000,"seq":1224,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2e6c-51c0-7970-a88e-f3edbb97dea3","at":1774600344000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d2e6d-2fb2-758b-90db-e528d3ec5f71","at":1774600400818000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2e6d-7aa0-7363-90ca-86c40bea8b10","at":1774600420000000000,"seq":1227,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2e6e-16e0-7a98-b716-6116951fdb7b","at":1774600460000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d2e6e-2556-70c4-bdf5-d97f3223148e","at":1774600463702000000,"seq":1229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2e6e-a380-74f8-a873-cdb384ee4c65","at":1774600496000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e6e-bed8-763a-b8e0-c3372fcbbf9d","at":1774600503000000000,"seq":1231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2e72-3685-7b7f-be73-40997ed78690","at":1774600730245000000,"seq":1232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2e72-8798-765c-a510-9628f620b697","at":1774600751000000000,"seq":1233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2e7a-234d-7b18-80b7-53df76c5ec41","at":1774601249613000000,"seq":1234,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2e7a-234d-709a-9b25-0dbaafbf7f7b","at":1774601249613000000,"seq":1235,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2e7a-5f68-7098-bb7d-e634a2b3568b","at":1774601265000000000,"seq":1236,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d2e7a-8678-7b44-9428-0f08c1c98f42","at":1774601275000000000,"seq":1237,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

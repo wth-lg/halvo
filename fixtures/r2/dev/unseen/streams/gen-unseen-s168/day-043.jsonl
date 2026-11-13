@@ -1,0 +1,32 @@
+{"v":1,"id":"019c513a-b6a4-705c-924d-6dda705865c5","at":1770889328292000000,"seq":730,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c513a-b6a4-7f61-ae96-f13edb37264a","at":1770889328292000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c513b-03a0-724a-a9b6-c856397b2d77","at":1770889348000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c513b-0f58-78b4-8940-d828fdf839fd","at":1770889351000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c513b-5990-7d0e-b967-8ee72678e2c7","at":1770889370000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c513b-8d0a-78be-a7e3-ba7756a778fd","at":1770889383178000000,"seq":735,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c513b-a3c8-7f3d-96cc-708396bf9da9","at":1770889389000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c513b-f1e8-7850-be8c-6504ed6a24d4","at":1770889409000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c513c-2c80-73c2-aea4-9a55e511be6b","at":1770889424000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c513c-5f48-7a91-a08a-51a77a130f29","at":1770889437000000000,"seq":739,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5150-77dc-7346-b2ff-726748de0632","at":1770890754012000000,"seq":740,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c5150-f8b8-7f32-bf66-fd80dae33f23","at":1770890787000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c5151-2268-748d-ac6e-d4885aaf320b","at":1770890797672000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c5151-2798-766d-ab9b-47b088c539ab","at":1770890799000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5151-42f0-71e6-87bb-3236cf15ca1c","at":1770890806000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c5151-6618-7830-8464-f9237585d266","at":1770890815000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5151-793d-73d1-8605-a2bc71debc48","at":1770890819901000000,"seq":746,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c5152-58c2-7487-940b-3f226338c14c","at":1770890877122000000,"seq":747,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c5152-6fb8-787c-b149-9036a7ca8527","at":1770890883000000000,"seq":748,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5153-0bf8-76dc-8a82-667e4c357bb5","at":1770890923000000000,"seq":749,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c5153-36f0-7c3c-8e6a-343827b9a521","at":1770890934000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515a-6e2c-77b9-b1e9-0d0340ab6f56","at":1770891406892000000,"seq":751,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c515a-8608-721d-a5e7-8a81ef747984","at":1770891413000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515a-9d78-7b8c-a749-bafcef9628c1","at":1770891419000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515a-ad18-7bea-bf23-9d1210688426","at":1770891423000000000,"seq":754,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5163-ec30-7b09-ac76-7d969d970f68","at":1770892028976000000,"seq":755,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c5163-fbe8-7fbf-a145-18a12c458e72","at":1770892033000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5164-59a8-778e-8b22-e8db85d23128","at":1770892057000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5164-6560-7432-84c7-d4ff038eda75","at":1770892060000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c517b-ed4e-7bcf-a0b3-6cb90f1fef54","at":1770893602126000000,"seq":759,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c517b-ed4e-74db-9a78-128b22e69cb5","at":1770893602126000000,"seq":760,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c517c-0058-7002-9a0b-46f41729f779","at":1770893607000000000,"seq":761,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

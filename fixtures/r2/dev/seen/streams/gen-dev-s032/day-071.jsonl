@@ -1,0 +1,33 @@
+{"v":1,"id":"019ce164-96a1-7c97-810b-06f4836709ca","at":1773307991713000000,"seq":1033,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce164-96a1-7feb-b10d-f867aadd2b48","at":1773307991713000000,"seq":1034,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce165-10d8-760b-9fba-fe188fa5708b","at":1773308023000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce165-217b-7cb2-a87a-139a0425f030","at":1773308027259000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce165-43a0-7869-9c07-70a88bd5d57b","at":1773308036000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce165-4f58-700f-b943-9af3f2bee84c","at":1773308039000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ce165-5ef8-7c68-8c2e-c1b4d17cb1fa","at":1773308043000000000,"seq":1039,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce165-657f-7bcd-bd23-7227344c1099","at":1773308044671000000,"seq":1040,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce165-9990-72d6-b813-7cd4a0db2081","at":1773308058000000000,"seq":1041,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce165-d040-73b5-b9da-c3c814b46ea4","at":1773308072000000000,"seq":1042,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce165-d810-7f21-9afc-81201a5ae0ad","at":1773308074000000000,"seq":1043,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ce165-eaed-7d65-9245-2233d170d5cb","at":1773308078829000000,"seq":1044,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce166-2a18-7eb2-9086-0dc28ecc9b1d","at":1773308095000000000,"seq":1045,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce166-2e00-7acf-ac60-bc3f90b2a4c3","at":1773308096000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce176-1f93-7795-971a-29b90e702606","at":1773309140883000000,"seq":1047,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce176-1f93-719b-ae22-b8c3c224fd11","at":1773309140883000000,"seq":1048,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce176-81b0-7f39-b386-c62d3a6454cc","at":1773309166000000000,"seq":1049,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ce176-9d08-7e38-b2a8-e69fb2324e66","at":1773309173000000000,"seq":1050,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce176-a4d8-7f41-95a0-6bce30f1e056","at":1773309175000000000,"seq":1051,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ce176-b860-7bd9-ae31-6261ce41f541","at":1773309180000000000,"seq":1052,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce17c-eeef-7cd8-a1ec-e9d3d26a9441","at":1773309587183000000,"seq":1053,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce17c-eeef-78df-98f7-49f936595ad1","at":1773309587183000000,"seq":1054,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce17c-f608-73fb-8f5d-bbba115843b4","at":1773309589000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ce17c-f9f0-7d55-98a6-b895de46e2e3","at":1773309590000000000,"seq":1056,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce17d-4040-78b1-9a68-25fa8cec6f23","at":1773309608000000000,"seq":1057,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce194-dc6b-722c-b915-6d255146e065","at":1773311155307000000,"seq":1058,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ce195-2958-73f4-bd9e-b2c7680b23e4","at":1773311175000000000,"seq":1059,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ce195-3510-7124-8515-5a4bb3b7c31d","at":1773311178000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce195-3ce0-7681-b4ce-99b0d76c644b","at":1773311180000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce195-dbd6-747d-a101-7f006078535e","at":1773311220694000000,"seq":1062,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ce196-800b-799d-bd99-cdfa16a2a037","at":1773311262731000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ce196-ac10-7e83-ae4d-f0ac8dc23cee","at":1773311274000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce196-b3e0-7f9c-a5c3-421f3541cbb4","at":1773311276000000000,"seq":1065,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,17 @@
+{"v":1,"id":"019b82d7-8aad-77c4-bef4-42a93a1e58bf","at":1767426722477000000,"seq":67,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b82d7-8aad-7279-b74c-f8526c706502","at":1767426722477000000,"seq":68,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b82d7-a810-77f4-b4f2-12493c20b265","at":1767426730000000000,"seq":69,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b82d7-b7b0-79fc-aab3-31a1f36a5af7","at":1767426734000000000,"seq":70,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b82d7-bf80-7d8c-90ea-f56893bc1122","at":1767426736000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82f3-1e66-709e-83b8-0e9254b8f778","at":1767428529766000000,"seq":72,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b82f3-1e66-7ad4-84e3-6d94c3dc5b52","at":1767428529766000000,"seq":73,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b82f3-7d10-7ef9-a1f4-ba9181c4b88d","at":1767428554000000000,"seq":74,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82f3-8cb0-7ac6-b845-8bf11b52d26d","at":1767428558000000000,"seq":75,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82f3-9c50-79dc-ace8-0f4128efc034","at":1767428562000000000,"seq":76,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b82f3-deb8-7740-bb13-fe0ba1063a40","at":1767428579000000000,"seq":77,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b82f4-0ec7-7892-abde-290cfebfedff","at":1767428591303000000,"seq":78,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b830e-b8b1-780b-a6f9-ea142d31f2f4","at":1767430338737000000,"seq":79,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b830e-b8b1-7e6e-a678-54719b4f419a","at":1767430338737000000,"seq":80,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b830f-1390-7b9c-9416-53555e7d55be","at":1767430362000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b830f-5210-725e-a493-0a63690f9195","at":1767430378000000000,"seq":82,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b830f-9090-7f53-8bbd-7dfe6e6bc159","at":1767430394000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

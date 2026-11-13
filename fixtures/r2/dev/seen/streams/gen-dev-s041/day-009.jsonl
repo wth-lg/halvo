@@ -1,0 +1,31 @@
+{"v":1,"id":"019ba21d-5068-7964-875f-973f25197976","at":1767951388776000000,"seq":68,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba21d-5068-7d72-9843-cefe94f72844","at":1767951388776000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba21e-4312-7aa8-8417-d91c1680bf7c","at":1767951450898000000,"seq":70,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba21e-4378-7e4c-8dfb-b32ba9b68fa4","at":1767951451000000000,"seq":71,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba21e-5ae8-7dd0-b541-4b939a8f044b","at":1767951457000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ba21e-7e10-7a56-ab32-992d93269771","at":1767951466000000000,"seq":73,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba21e-b0d8-7814-a341-cb59159154a6","at":1767951479000000000,"seq":74,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21e-cff4-7c16-b025-cc930cd83d79","at":1767951486964000000,"seq":75,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba21e-ef58-7d6f-ab57-617fea8edd64","at":1767951495000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21f-2220-74b3-a9e8-e1c0a8bbd5ed","at":1767951508000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ba21f-b690-7b42-91c6-2c9999e0d88d","at":1767951546000000000,"seq":78,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21f-cbb1-744d-8bb0-f5c82ce68703","at":1767951551409000000,"seq":79,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba220-4bf6-7c95-bed1-46fbf1133413","at":1767951584246000000,"seq":80,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba220-8598-72d2-9cd1-44926acfdc1d","at":1767951599000000000,"seq":81,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba220-9d08-73f9-8ef5-33df131a07e3","at":1767951605000000000,"seq":82,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba221-3797-7b19-a019-a521bc5fc637","at":1767951644567000000,"seq":83,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba221-6c10-7ee8-8677-eb78b1181c5b","at":1767951658000000000,"seq":84,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba221-ae78-7098-99fc-c4e2400b39e4","at":1767951675000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba237-19af-79ab-86d0-444300879c4e","at":1767953078703000000,"seq":86,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba237-5188-72f2-a0f1-98232957c079","at":1767953093000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba244-fbe4-709f-8f42-1de5b1d51919","at":1767953988580000000,"seq":88,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba244-fbe4-7dec-91ad-6c2779e2ce4b","at":1767953988580000000,"seq":89,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba245-18e0-7421-b002-3bf39c07fdf7","at":1767953996000000000,"seq":90,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ba245-4ba8-7431-8096-eaa4ed64950f","at":1767954009000000000,"seq":91,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ba245-5378-71d2-a05f-f1d9cd129e30","at":1767954011000000000,"seq":92,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba245-a968-7c35-8237-d9ee8bc2966f","at":1767954033000000000,"seq":93,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ba245-c8a8-73a7-b104-b9b386ab3200","at":1767954041000000000,"seq":94,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba245-fe2d-7cea-b981-2eef10c06ea5","at":1767954054701000000,"seq":95,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ba246-0340-76b5-b5ad-8e7d5ab7f371","at":1767954056000000000,"seq":96,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ba246-da18-7465-83c5-e3cd896048bc","at":1767954111000000000,"seq":97,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ba246-e1e8-766e-b4ac-078fb8006dc3","at":1767954113000000000,"seq":98,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

@@ -1,0 +1,38 @@
+{"v":1,"id":"019ce104-237e-7842-84f2-3069464d271b","at":1773301670782000000,"seq":973,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce104-237e-7aca-8958-a7d4085ca5dd","at":1773301670782000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ce104-b153-7fe2-abde-45b9916e90f1","at":1773301707091000000,"seq":975,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ce105-3571-7581-8ecf-c40a193b508d","at":1773301740913000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ce105-4d38-7a17-a948-f800bbe2f98a","at":1773301747000000000,"seq":977,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce105-ddc0-79d7-b046-82e31f48b081","at":1773301784000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce105-f918-7ca4-8ac8-3335903123e4","at":1773301791000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce105-f9f2-70eb-b1ab-e62576da34ec","at":1773301791218000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ce105-fd00-7f71-9672-dc4702f7d89f","at":1773301792000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ce106-0ca0-7e84-94ec-d2674d90475f","at":1773301796000000000,"seq":982,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce106-1470-79e8-89d8-ee606c893ceb","at":1773301798000000000,"seq":983,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce10c-61f4-7451-b987-e72d77146d08","at":1773302211060000000,"seq":984,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce10c-61f4-71ab-bb79-feebfd781210","at":1773302211060000000,"seq":985,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce10c-65a0-7f91-a168-3fd78cc72465","at":1773302212000000000,"seq":986,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ce10c-6988-7e2c-917a-e1e979ebbffa","at":1773302213000000000,"seq":987,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce10c-9c50-7fa1-bb91-d9ba62c21a87","at":1773302226000000000,"seq":988,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ce11f-4774-7be8-81f4-625704492033","at":1773303449460000000,"seq":989,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ce11f-68d0-78b2-b350-2a3900fa7dbc","at":1773303458000000000,"seq":990,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ce11f-70a0-7cce-8993-6f54146744ce","at":1773303460000000000,"seq":991,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019ce11f-b6f0-7327-a18a-1e89dbed89cf","at":1773303478000000000,"seq":992,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ce11f-d847-7397-9f92-80557e3a586a","at":1773303486535000000,"seq":993,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce11f-d847-761b-b46e-5af1cf079f56","at":1773303486535000000,"seq":994,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce120-4fa6-7147-88a1-d0bc33038633","at":1773303517094000000,"seq":995,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce120-4fa6-71c8-94db-ef99de12ebf3","at":1773303517094000000,"seq":996,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce121-1680-7b61-9e15-92acc4046a56","at":1773303568000000000,"seq":997,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce12c-5a35-730e-954a-ab9f2840d713","at":1773304306229000000,"seq":998,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce12c-5a35-75eb-932b-5fe61c0c28e2","at":1773304306229000000,"seq":999,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ce12c-93e8-7778-aedf-e30b50f339bd","at":1773304321000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ce12c-ac10-7316-ab98-eaa63c289f2b","at":1773304327184000000,"seq":1001,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ce12d-7e48-753b-850f-88d3d5497c3e","at":1773304381000000000,"seq":1002,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce12d-b792-7f39-b48d-fa841018de20","at":1773304395666000000,"seq":1003,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ce12d-eba8-76af-82f9-e5ea98bf97fd","at":1773304409000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce12e-12b8-7c8e-888f-acc5d63c6ae5","at":1773304419000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce12e-1e70-7c4d-a311-236c316e7c89","at":1773304422000000000,"seq":1006,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce12e-1f4d-72ec-ac4f-dd57d899f68f","at":1773304422221000000,"seq":1007,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ce12e-31f8-7fbe-be23-1d1f5e3a4968","at":1773304427000000000,"seq":1008,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce12e-39c8-7578-a84f-67ed93b1b3f1","at":1773304429000000000,"seq":1009,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce12e-4580-70a1-9742-8d640540c4f1","at":1773304432000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

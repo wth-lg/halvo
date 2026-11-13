@@ -1,0 +1,21 @@
+{"v":1,"id":"019bc0fe-383f-7630-9893-47e10903de4f","at":1768469444671000000,"seq":145,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc0fe-383f-7152-b342-395f4e9d0934","at":1768469444671000000,"seq":146,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc0fe-3d70-77eb-bfb8-b98658606f55","at":1768469446000000000,"seq":147,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bc0fe-7fd8-7ca7-aada-6ba035e7bfe1","at":1768469463000000000,"seq":148,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bc0fe-b2a0-7969-a2b4-52c81c135f5f","at":1768469476000000000,"seq":149,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0fe-dd98-7a4d-b696-4aae42522786","at":1768469487000000000,"seq":150,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bc0fe-e318-73bf-88b9-03eb2d003b2e","at":1768469488408000000,"seq":151,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bc0fe-f508-7b69-885b-dbe51969c39a","at":1768469493000000000,"seq":152,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bc0ff-04a8-7d80-9da6-ea3a472aaa41","at":1768469497000000000,"seq":153,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0ff-3f40-7f3f-a940-c2e6866d2a71","at":1768469512000000000,"seq":154,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bc0ff-7dc0-73ef-8d45-d2ffb6972398","at":1768469528000000000,"seq":155,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bc10b-0ddd-763c-8a3f-7f646d076c74","at":1768470285789000000,"seq":156,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc10b-0ddd-7b23-b7c1-9d9db2ef7f34","at":1768470285789000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bc10b-2238-76de-a282-c3e5c92c8afd","at":1768470291000000000,"seq":158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc10b-b6a8-74aa-a30e-6421c7ded980","at":1768470329000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bc120-6afa-7b2f-95ca-8e38a5feffde","at":1768471685882000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc120-7b10-7b98-839c-a301e9113d24","at":1768471690000000000,"seq":161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc120-9280-779e-8f4d-bb57be740846","at":1768471696000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc126-97e4-70ac-885e-3a097ba4de04","at":1768472090596000000,"seq":163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc126-cc40-7a72-ae67-828b7504ddc6","at":1768472104000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc126-e3b0-7b05-a925-b768f159aff0","at":1768472110000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

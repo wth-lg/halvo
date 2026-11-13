@@ -1,0 +1,15 @@
+{"v":1,"id":"019c5156-2af7-725a-b464-77a276bef2f7","at":1770891127543000000,"seq":599,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5156-2af7-7a8d-84c1-dc37e67dd424","at":1770891127543000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c5156-72d7-727c-9dce-5760bdb79d7a","at":1770891145943000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c5156-8698-73db-b810-07aa1d800d65","at":1770891151000000000,"seq":602,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5156-9250-7f65-9852-64c5746fe1f1","at":1770891154000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5157-22d8-7d9d-a24c-b5cb20de86d9","at":1770891191000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c516d-c544-7f99-ad89-8d36eb618c8d","at":1770892674372000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c516e-48a0-7f59-aeb8-a6ec26285678","at":1770892708000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c516e-5070-7a03-b311-304396ca7e5f","at":1770892710000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c516e-52ce-74b6-a8c6-57cbb1b6aba5","at":1770892710606000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c516e-67e0-7a89-9292-c7ba7e919e03","at":1770892716000000000,"seq":609,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c516e-7b68-79ce-a9e9-0796b5d1c10a","at":1770892721000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c516e-cd70-7785-be50-58d981ee4fe7","at":1770892742000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c516e-d158-72bb-8e9e-d01320c89d43","at":1770892743000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c516e-e4e0-74b2-b98b-d051c415778c","at":1770892748000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

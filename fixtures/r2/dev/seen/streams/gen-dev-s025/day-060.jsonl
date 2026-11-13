@@ -1,0 +1,41 @@
+{"v":1,"id":"019ca903-5543-721c-ba9c-37424e285a68","at":1772362093891000000,"seq":815,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca903-5543-70c5-be97-578cf5224dbf","at":1772362093891000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ca904-1afb-730f-bad1-3cfbad29c4e3","at":1772362144507000000,"seq":817,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ca904-5780-72d4-b60b-0f44993cf2fc","at":1772362160000000000,"seq":818,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca904-8a48-7930-ab78-a4ced7e5fd3f","at":1772362173000000000,"seq":819,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca904-9600-7f48-981b-3bbf3d44895a","at":1772362176000000000,"seq":820,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca904-99e8-7b54-9fcc-e1450cfcc36b","at":1772362177000000000,"seq":821,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca904-9f63-7eb3-aec8-b18d3f7f62e1","at":1772362178403000000,"seq":822,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ca904-e808-761c-8614-d6e460038db1","at":1772362197000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca904-fb90-7f37-a8aa-4678ead7981d","at":1772362202000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ca905-1ad0-780b-8aab-b99b55f86354","at":1772362210000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca905-1d50-7fea-9d51-9cb8758c2bac","at":1772362210640000000,"seq":826,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ca905-2a70-7ec5-b701-e02dedf6b856","at":1772362214000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca905-3628-7f07-ae56-6b56d0f91f6c","at":1772362217000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ca905-45c8-7bb6-9271-97aadcdba9bd","at":1772362221000000000,"seq":829,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca90b-9f74-73ca-9f63-e9111ea7da45","at":1772362637172000000,"seq":830,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca90b-9f74-76af-bcd5-bc460783770e","at":1772362637172000000,"seq":831,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca90c-13f8-7299-81be-3bcc8f81ce3a","at":1772362667000000000,"seq":832,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca90c-42d8-7d2f-8be9-5dd4e238d99a","at":1772362679000000000,"seq":833,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca90f-c987-7569-81f5-2c8d9b0a7fb7","at":1772362910087000000,"seq":834,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ca90f-cd18-7db5-a0ea-ba24e32d4abd","at":1772362911000000000,"seq":835,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca90f-d4e8-7c31-9355-9ad454d503cd","at":1772362913000000000,"seq":836,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ca928-7964-76a6-ba6a-6f4d58fe6dfe","at":1772364527972000000,"seq":837,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca928-7964-7945-a5b0-879f69337022","at":1772364527972000000,"seq":838,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ca928-e2f8-7ccb-9042-4ebe50c6ea10","at":1772364555000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca928-fa68-7128-98be-44fa2917e3f3","at":1772364561000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca929-004c-7e9d-adda-4d3fc1d32c69","at":1772364562508000000,"seq":841,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ca929-2d30-7b6b-9935-49389432486e","at":1772364574000000000,"seq":842,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ca929-4888-7167-8dcd-fcf654c54119","at":1772364581000000000,"seq":843,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca929-6f98-7d80-ae18-56362ff540a9","at":1772364591000000000,"seq":844,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca929-c30c-7c35-b81d-f39b46f3670e","at":1772364612364000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ca929-fc38-78e3-82dd-e799313c229c","at":1772364627000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca92a-4f71-764b-8e29-8ebe59b4de0f","at":1772364648305000000,"seq":847,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca92a-4f71-791f-bb45-582a6f0fcb43","at":1772364648305000000,"seq":848,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca92a-5610-7c92-a9fd-201f7c617b4f","at":1772364650000000000,"seq":849,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca92a-7168-784f-b28b-4e412b9d3777","at":1772364657000000000,"seq":850,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca92a-9878-789f-b65b-475901329a84","at":1772364667000000000,"seq":851,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ca92a-9905-75c9-b631-ac7efa7e393c","at":1772364667141000000,"seq":852,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca92a-9905-71fc-beeb-a8a87ed4a3f0","at":1772364667141000000,"seq":853,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ca92a-ee68-77b8-8bd6-b7cfa1ad1ae1","at":1772364689000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ca92b-2900-725a-a40b-8fb7e70a8189","at":1772364704000000000,"seq":855,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

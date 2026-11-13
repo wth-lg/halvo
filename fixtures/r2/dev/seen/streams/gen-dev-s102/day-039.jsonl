@@ -1,0 +1,24 @@
+{"v":1,"id":"019c3c7f-a534-7c5d-ba45-f276a8029122","at":1770541524276000000,"seq":523,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3c7f-a534-7fc3-b900-aba3fac4cc5e","at":1770541524276000000,"seq":524,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3c7f-c748-7b1d-b8b3-87fa9b2ae105","at":1770541533000000000,"seq":525,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c3c80-28f0-7239-abc5-2269039f97f8","at":1770541558000000000,"seq":526,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c80-7ee0-76e7-a65e-ae7b5113d99f","at":1770541580000000000,"seq":527,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c3c88-44ea-72ab-a030-8255a15bceb7","at":1770542089450000000,"seq":528,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c88-44ea-78f0-afd5-984e47cfc9f8","at":1770542089450000000,"seq":529,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c3c88-9918-7fbe-94ad-9fd9ce2ee102","at":1770542111000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c3c89-0290-781f-aafe-12d4abdf1403","at":1770542138000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c89-25b8-7cd0-81b8-eee450f94345","at":1770542147000000000,"seq":532,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c89-29ef-7dee-911c-20f37742510a","at":1770542148079000000,"seq":533,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3c89-2d88-728f-827d-547e5b584968","at":1770542149000000000,"seq":534,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3c89-2d88-7400-a2d3-e2d9d6e6c61a","at":1770542149000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c3c89-48e0-7c28-9624-e4ff643a7a6c","at":1770542156000000000,"seq":536,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3c89-79b6-7359-9683-6a1b9fa4f881","at":1770542168502000000,"seq":537,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c3c89-be10-7b3a-8961-0767fcaf0b5c","at":1770542186000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c8a-06ae-76c5-aa57-48d5104d5e0f","at":1770542204590000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c3c8a-23a0-718a-8c2a-e696ae046938","at":1770542212000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c8a-2f58-7b7f-b2f3-2d79e32534e3","at":1770542215000000000,"seq":541,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3c8a-3b10-7ffb-98ef-c4b813e1248d","at":1770542218000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c8a-6220-7b40-8257-226fec6d14e7","at":1770542228000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c3c8a-6fb6-7a46-b523-92ad8b302d58","at":1770542231478000000,"seq":544,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c3c8a-f690-70cc-96fd-54c345673986","at":1770542266000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c8b-0a18-7cba-8cca-9645271ea827","at":1770542271000000000,"seq":546,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

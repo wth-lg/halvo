@@ -1,0 +1,8 @@
+{"v":1,"id":"019b97b7-da26-7ca4-84a5-12f6ec45880e","at":1767776967206000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97b7-da26-709e-9d53-b7d8d713914a","at":1767776967206000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b97b8-17d8-7fa5-8d51-170b22c13ad2","at":1767776983000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97b8-5a40-7c56-8022-1efa6df6e9a4","at":1767777000000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c0-fcea-75d0-bd4f-081c199f3888","at":1767777565930000000,"seq":4,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b97c0-fcea-7f21-80b8-448751dff414","at":1767777565930000000,"seq":5,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b97c1-4380-7d1b-805b-c047c71552fa","at":1767777584000000000,"seq":6,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b97c1-62c0-7d14-94ff-508b3767bce1","at":1767777592000000000,"seq":7,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

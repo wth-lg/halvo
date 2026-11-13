@@ -1,0 +1,40 @@
+{"v":1,"id":"019c8ecd-f5a5-7f80-95ea-e1ba7a8a9f48","at":1771922388389000000,"seq":819,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8ecd-f5a5-72b0-89fb-5350a63fe7cd","at":1771922388389000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c8ece-0f78-727e-9ba6-0aa559f9e7f7","at":1771922395000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ed1-682c-74b2-904e-9efefd2f1a2a","at":1771922614316000000,"seq":822,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c8ed1-7a78-7150-93be-3797759b05b2","at":1771922619000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c8ed1-c4b0-741b-85d5-13716bdd47fc","at":1771922638000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ed2-0718-7bcc-b2a3-33572e2808fe","at":1771922655000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8edb-5500-75e9-93c0-5e77741e475f","at":1771923264768000000,"seq":826,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8edb-5500-7c71-a51f-95b1e6eac1a6","at":1771923264768000000,"seq":827,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8edb-7140-7e35-b1d0-389c53b1e95b","at":1771923272000000000,"seq":828,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c8edb-d6d0-7d26-8479-fb2c15c09856","at":1771923298000000000,"seq":829,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c8edb-e670-76a8-9f7b-d31c56d38fc3","at":1771923302000000000,"seq":830,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8edc-1938-723f-a8db-5ce3faa96839","at":1771923315000000000,"seq":831,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8edc-3da1-783f-88cf-e03a99d3b8dc","at":1771923324321000000,"seq":832,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c8edc-8698-7540-a9ce-16e8e27d64f7","at":1771923343000000000,"seq":833,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c8edc-d0d0-70b7-9620-e4ed02710620","at":1771923362000000000,"seq":834,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8edc-d4b8-7321-83ac-4c00e1491c50","at":1771923363000000000,"seq":835,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8eee-d398-7e6a-a11f-0cde40532bac","at":1771924542360000000,"seq":836,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8eee-d398-75ea-baff-e9412e5b6180","at":1771924542360000000,"seq":837,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c8eef-2c08-785e-8c25-dcf1c59eddf1","at":1771924565000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eef-2ff0-7784-ac36-0c62ce3b1c99","at":1771924566000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c8eef-a449-7d39-9306-9147b16331fe","at":1771924595785000000,"seq":840,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c8eef-d018-7b75-aa9f-9568d98f0325","at":1771924607000000000,"seq":841,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8eef-d7e8-7809-9807-92f3dd24f74a","at":1771924609000000000,"seq":842,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef0-1280-7565-b8c1-11bec31a6b6e","at":1771924624000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c8ef0-3d05-73ac-b3b3-ed8b450d04d5","at":1771924634885000000,"seq":844,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c8ef0-5cb8-78e0-8ad7-9c2f26186775","at":1771924643000000000,"seq":845,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef0-9368-7e73-be0e-0996191c1d2b","at":1771924657000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef1-4a00-7654-92d7-8b9137f9a166","at":1771924703744000000,"seq":847,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c8ef1-4ee8-772f-8f40-2132da0b28e3","at":1771924705000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8ef1-a4d8-7f67-a30e-395e9f895ce8","at":1771924727000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef1-feb0-70c0-af8f-37200f776c10","at":1771924750000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c8ef2-1df0-75dd-a99f-e3039289d585","at":1771924758000000000,"seq":851,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8ef2-2ce8-7ce3-afd3-b0feb8e1d163","at":1771924761832000000,"seq":852,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c8f06-d846-722f-9dc4-c26788cff157","at":1771926116422000000,"seq":853,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c8f06-ea28-77f5-a728-f1b10a113643","at":1771926121000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c8f07-0d50-79a7-ba27-2950a7a83a71","at":1771926130000000000,"seq":855,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f07-4bd0-7cf1-867c-a835bd6203cc","at":1771926146000000000,"seq":856,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8f07-6ef8-73d4-9b64-3531ec9f4a93","at":1771926155000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f07-8280-7db5-963c-b445d5ab7a81","at":1771926160000000000,"seq":858,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

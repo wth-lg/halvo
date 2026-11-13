@@ -1,0 +1,32 @@
+{"v":1,"id":"019bcb3a-2fc1-76a9-bbb9-983c3fe658c0","at":1768641146817000000,"seq":212,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb3a-2fc1-7769-941a-3bed4647a498","at":1768641146817000000,"seq":213,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb3a-4bd0-7b53-8210-52af89bf6406","at":1768641154000000000,"seq":214,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bcb3a-5788-7eb0-b2a9-96d224289da2","at":1768641157000000000,"seq":215,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb3a-6728-7aec-bc81-cf47b49ae7cc","at":1768641161000000000,"seq":216,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb3a-a990-7051-9bb6-3844b8adc520","at":1768641178000000000,"seq":217,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb3a-b160-72de-a992-aafe5d91a283","at":1768641180000000000,"seq":218,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bcb3a-b40c-7285-b668-9e24c2ad28fa","at":1768641180684000000,"seq":219,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb3a-b40c-7fab-86f4-be73ed949d3e","at":1768641180684000000,"seq":220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bcb3b-2a78-730b-991f-4392cfff7dab","at":1768641211000000000,"seq":221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bcb3b-a02d-71b9-8043-2cabc7a6e5d5","at":1768641241133000000,"seq":222,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb3b-a02d-7678-9ee4-663814d786f5","at":1768641241133000000,"seq":223,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb3b-ce88-7ebc-bcdf-878335bafd63","at":1768641253000000000,"seq":224,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb3b-f598-751d-9e8b-6d755e0fe2e4","at":1768641263000000000,"seq":225,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bcb3b-f980-7a4b-8df6-540b13fb7d37","at":1768641264000000000,"seq":226,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bcb3c-0150-7ea6-934b-7582a3fdf6e1","at":1768641266000000000,"seq":227,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb45-9718-752d-b4eb-58d8f7d18579","at":1768641894168000000,"seq":228,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bcb45-a9f8-756b-b476-3b51cf114939","at":1768641899000000000,"seq":229,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bcb45-bd80-7617-9816-e76ab239cd63","at":1768641904000000000,"seq":230,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bcb45-e490-7a48-a357-4b00f3c7d3e2","at":1768641914000000000,"seq":231,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb46-2ec8-7661-87c4-76e1bd359039","at":1768641933000000000,"seq":232,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb55-4597-7d47-ba5b-9cb64b94e9f8","at":1768642921879000000,"seq":233,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb55-4597-7d88-aaf3-f967937012f4","at":1768642921879000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bcb55-e250-7379-8f87-c0e29d4627f6","at":1768642962000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb56-316f-7b73-9e12-8541d56a60a2","at":1768642982255000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bcb56-3c28-727b-93f5-b2cfc1850a06","at":1768642985000000000,"seq":237,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb57-0f18-75e7-a5ce-767aa8fc7872","at":1768643039000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb57-19bb-7b2e-825f-a4f5395d0cc9","at":1768643041723000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bcb57-1ad0-783f-a1c0-a5704911fe40","at":1768643042000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb57-2688-7530-b9c1-526d68fffadd","at":1768643045000000000,"seq":241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb57-2a70-737b-b190-944c3fed8477","at":1768643046000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb57-2a70-7059-823d-40d71bd2ca72","at":1768643046000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

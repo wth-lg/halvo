@@ -1,0 +1,42 @@
+{"v":1,"id":"019b78cc-5991-7a03-a100-d6be684a7ee2","at":1767258216849000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b78cc-5991-7c49-8f78-4d3b42f5e98f","at":1767258216849000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b78cc-d340-7897-9431-d3e93257eece","at":1767258248000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78cc-f280-7b78-9ccd-9dfcaa749be0","at":1767258256000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78cc-ff86-7437-ad7e-82db2de64e0b","at":1767258259334000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b78cd-3100-7286-98a1-6c8b5ff59fee","at":1767258272000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78cd-34e8-74dd-898c-f5479899d395","at":1767258273000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b78cd-38d0-70e5-ab23-97693dbabc84","at":1767258274000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78cd-3c35-7f6d-876d-e3b65b7bb310","at":1767258274869000000,"seq":8,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b78cd-63c8-7976-a389-26aba161dc13","at":1767258285000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b78cd-9e60-7af1-aade-efee79ff2f33","at":1767258300000000000,"seq":10,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b78cd-afc4-787e-947b-4dfe22059375","at":1767258304452000000,"seq":11,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b78cd-bda0-74bd-abdb-c54de858a121","at":1767258308000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b78ce-59e0-7b3b-87f7-f8051b989a27","at":1767258348000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ce-8663-7a0a-ab29-aa142ea7feae","at":1767258359395000000,"seq":14,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b78ce-9860-727d-bb29-20c0a7fed52d","at":1767258364000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ce-b3b8-73a8-bc34-5a2f8f3a4b78","at":1767258371000000000,"seq":16,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b78ce-b7a0-7c1b-88a8-8d3e749ebe03","at":1767258372000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ce-db82-7d30-be6b-45c4af2aa61c","at":1767258381186000000,"seq":18,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b78cf-6b50-7b57-ae2e-9ee5c9409a2c","at":1767258418000000000,"seq":19,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78cf-82c0-7e63-8d8f-a0fcda81b19c","at":1767258424000000000,"seq":20,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b78e5-80c9-7078-977c-145b388e187b","at":1767259865289000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b78e6-0860-704e-bbbc-0ae2aaa58f34","at":1767259900000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b78ee-1113-7248-a3e9-e3b53513f29f","at":1767260426515000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b78ee-4a38-7344-89fc-c554aa38bd6b","at":1767260441144000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b78ee-4d90-79b2-bc43-4bd1a33e0833","at":1767260442000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ee-6500-7497-ae33-ad6a5ad8a6ae","at":1767260448000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ee-8ff8-7cea-b597-c99b93be7eb7","at":1767260459000000000,"seq":27,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b78ee-b2bd-7f64-b3a4-b9d1b8c2384a","at":1767260467901000000,"seq":28,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b78ee-edb8-77e4-8cd8-f5aaf7f17503","at":1767260483000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ef-0910-7dff-82e9-9d24933b0ded","at":1767260490000000000,"seq":30,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b78ef-5730-7c4b-9605-110316b57954","at":1767260510000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ef-a052-7c5a-81d9-102a253f4889","at":1767260528722000000,"seq":32,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b78ef-b8d8-7587-ab76-248e220c108d","at":1767260535000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ef-d430-7365-8a59-6177e16a9e19","at":1767260542000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78f0-416e-7562-80a4-12a8927d4033","at":1767260569966000000,"seq":35,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b78f0-60d0-7f7a-abdd-ab23963a61fc","at":1767260578000000000,"seq":36,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b78f0-83f8-7aa3-8e21-09454f74ad21","at":1767260587000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b78f0-9b68-7ed7-b5a8-651479e9a433","at":1767260593000000000,"seq":38,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7908-f79f-79e7-882a-8a2b6d929d7f","at":1767262189471000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7909-76b0-7ca6-989e-1176cc934d20","at":1767262222000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7909-ad60-7436-b8c0-013732636b37","at":1767262236000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

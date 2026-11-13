@@ -1,0 +1,28 @@
+{"v":1,"id":"019b87cf-ec15-79da-bb5a-5638f50df49e","at":1767510109205000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b87cf-ec15-7a20-83fd-50088735b6ab","at":1767510109205000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b87d0-7bd0-72e7-a7ce-396956efb2bc","at":1767510146000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b87d0-e7c4-7a3e-9709-d8c03df31b5f","at":1767510173636000000,"seq":3,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b87d0-e7c4-738e-ac59-7554ffe15fbe","at":1767510173636000000,"seq":4,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b87d0-f100-70ae-9c3c-642b3f7ff610","at":1767510176000000000,"seq":5,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b87d1-7e6d-7e43-ad42-0eb05658e000","at":1767510212205000000,"seq":6,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b87d1-7e6d-7ce9-8679-1a9eb9aab96e","at":1767510212205000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b87d1-9510-7e43-895c-83d908d2eee7","at":1767510218000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b87d1-9ce0-7848-83b7-9119f707275c","at":1767510220000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87d1-c3f0-76b9-8e36-9b39b722be18","at":1767510230000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87d1-da23-7bba-91d2-520ff31fe587","at":1767510235683000000,"seq":11,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b87d2-0658-76cf-859f-58e79d674e1a","at":1767510247000000000,"seq":12,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b87d2-1210-7ca4-92f2-68988a73bdec","at":1767510250000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87d2-44d8-7e3b-a5fa-22c3dd266dbf","at":1767510263000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b87d2-5860-7eae-b504-9e9b4e30e177","at":1767510268000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87d2-7ade-7a20-b047-7ec4c9899521","at":1767510276830000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b87d2-8740-7037-b3ba-5e134d488467","at":1767510280000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b87d2-e99e-74f4-8c81-acbb0b522f1b","at":1767510305182000000,"seq":18,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b87d2-ecd0-767c-8f59-c73b9f73b5eb","at":1767510306000000000,"seq":19,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b87d3-0c10-738e-9fb5-ea4f185d5d53","at":1767510314000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87d3-3708-7035-af3b-05699a5e6848","at":1767510325000000000,"seq":21,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b87e3-7ef9-7a15-ade2-991751b8c472","at":1767511391993000000,"seq":22,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b87e3-86d0-7a20-8d13-a865cc31f8c3","at":1767511394000000000,"seq":23,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b87e3-9288-7e4e-ad7b-9f1ec829b1cb","at":1767511397000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b87fe-432b-7907-b84f-caa531e8a2b3","at":1767513146155000000,"seq":25,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b87fe-432b-7d1e-903d-2758c1d58327","at":1767513146155000000,"seq":26,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b87fe-9498-717f-8355-65107d2d0640","at":1767513167000000000,"seq":27,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}

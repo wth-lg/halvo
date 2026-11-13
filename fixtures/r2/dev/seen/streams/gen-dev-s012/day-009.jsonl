@@ -1,0 +1,23 @@
+{"v":1,"id":"019ba204-eff4-75e6-a811-f8bf99d64d39","at":1767949791220000000,"seq":103,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba204-eff4-76b4-a566-8fe1b36d3d25","at":1767949791220000000,"seq":104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba204-feb8-7e6c-a4fb-d5f8098f2dbb","at":1767949795000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba205-b40b-7148-be8a-f0e9756a02cf","at":1767949841419000000,"seq":106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba205-cdc0-7813-8b82-936e6198b7ba","at":1767949848000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba206-3971-7a99-a28c-aee06c3381b2","at":1767949875569000000,"seq":108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba206-3b20-798e-a64e-5e6e7592ae7f","at":1767949876000000000,"seq":109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba206-79a0-7c10-9215-70634d9b15bc","at":1767949892000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba206-c3d8-70a6-871d-6738dad54122","at":1767949911000000000,"seq":111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba207-2252-7842-ba01-ae94b72a78d2","at":1767949935186000000,"seq":112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba207-44c0-7b3d-b60d-694f196362c4","at":1767949944000000000,"seq":113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba207-8728-7ad2-9397-a7dad251b200","at":1767949961000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba207-d160-799b-8144-865c8791a3b6","at":1767949980000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba208-2368-7f70-81ea-98271a0ff939","at":1767950001000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba20b-9da5-7616-86a6-d33eb2aff274","at":1767950228901000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba20b-9e08-7c9d-b427-a272f01529bd","at":1767950229000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba20b-b190-74b1-9bdd-341c8faa6ec6","at":1767950234000000000,"seq":119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ba20b-d4b8-722d-a4d7-ac1b0eb57bf4","at":1767950243000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21d-040d-7ddc-9432-efc13a384f6e","at":1767951369229000000,"seq":121,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba21d-040d-7318-8d09-7e9b70e51291","at":1767951369229000000,"seq":122,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba21d-7470-70e8-86f1-d642d10372ca","at":1767951398000000000,"seq":123,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ba21d-8028-7ee3-bb6f-353ae546fb0c","at":1767951401000000000,"seq":124,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba21d-e1d0-7f1f-9e05-f8ed7b60b48f","at":1767951426000000000,"seq":125,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

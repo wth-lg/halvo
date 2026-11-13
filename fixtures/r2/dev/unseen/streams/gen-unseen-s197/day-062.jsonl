@@ -1,0 +1,11 @@
+{"v":1,"id":"019cb2aa-932c-7c59-a334-ae6e93203b73","at":1772524049196000000,"seq":739,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2aa-932c-7077-9f94-516c196979f2","at":1772524049196000000,"seq":740,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cb2aa-9e20-7b12-b8dc-bb67b339c787","at":1772524052000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2aa-d0e8-722b-9c80-09bb91ab9721","at":1772524065000000000,"seq":742,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ab-01cb-797a-b830-8041e8b598da","at":1772524077515000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ab-0b80-7294-8bc2-33c7a90e92e6","at":1772524080000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cb2ab-3e48-7657-9991-23747a6a00d5","at":1772524093000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ab-51d0-7198-852f-8048ac174a21","at":1772524098000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ab-cfaa-7f00-a5ff-c87b2661474b","at":1772524130218000000,"seq":747,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ab-e258-7046-8b9d-6240242fb89f","at":1772524135000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ab-f9c8-790f-9f82-57a78c134e55","at":1772524141000000000,"seq":749,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

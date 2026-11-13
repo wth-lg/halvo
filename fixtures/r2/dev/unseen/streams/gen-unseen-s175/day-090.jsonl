@@ -1,0 +1,31 @@
+{"v":1,"id":"019d42fd-7894-7004-8798-90082891c3fb","at":1774945400980000000,"seq":1386,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42fd-7894-7f14-8013-af8e7c745e42","at":1774945400980000000,"seq":1387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d42fd-9018-709f-8f8a-65a6e6771074","at":1774945407000000000,"seq":1388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42fd-b340-7fc1-9423-93a5cdcf2918","at":1774945416000000000,"seq":1389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42fd-de38-7e42-b222-362057febee3","at":1774945427000000000,"seq":1390,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42fd-e9f0-7e93-8768-7fa866d19cc6","at":1774945430000000000,"seq":1391,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42fd-f1c0-77ea-9125-42195be1e1c4","at":1774945432000000000,"seq":1392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d42fe-38de-72fe-9a0e-9ca30dea15ae","at":1774945450206000000,"seq":1393,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d42fe-8e00-73ed-ba44-1bc681d9471e","at":1774945472000000000,"seq":1394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d4300-d235-7875-afbc-fb45601faa90","at":1774945620533000000,"seq":1395,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d4301-0ba5-7948-a066-c414d5ad64a6","at":1774945635237000000,"seq":1396,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d4301-1a58-7468-acaa-06ebb8ba12b1","at":1774945639000000000,"seq":1397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4301-7871-776f-bef9-84576a59d219","at":1774945663089000000,"seq":1398,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d4301-ce08-72d2-9af1-cd8f29588cfb","at":1774945685000000000,"seq":1399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4302-4b08-7550-9e84-752133223291","at":1774945717000000000,"seq":1400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4302-6aaf-70d6-be40-8808c9effd41","at":1774945725103000000,"seq":1401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d4302-8988-78e6-adec-de641a84fa79","at":1774945733000000000,"seq":1402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4302-acb0-7f3c-b6d4-ee47bc2a9ed9","at":1774945742000000000,"seq":1403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4303-1df8-7309-b005-beb0c84375f3","at":1774945771000000000,"seq":1404,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4303-5838-7771-bcd2-e07d10f2f298","at":1774945785912000000,"seq":1405,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d4303-7000-7bce-bf83-78ff60558912","at":1774945792000000000,"seq":1406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4303-e530-7386-8042-6d3932a9833a","at":1774945822000000000,"seq":1407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d4303-e918-71c2-9f00-886c1060f2cb","at":1774945823000000000,"seq":1408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4304-17f8-706a-a0c8-93f2bde5dd60","at":1774945835000000000,"seq":1409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4304-2831-728d-b4e4-cab816245141","at":1774945839153000000,"seq":1410,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d4304-79a0-7273-a456-ae369ff4de11","at":1774945860000000000,"seq":1411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d4314-8322-7bc0-886f-475c6dbbb8a7","at":1774946911010000000,"seq":1412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d4314-b5e0-7c1a-90af-4876054971d2","at":1774946924000000000,"seq":1413,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4314-e4c0-7658-b650-3303fb372f65","at":1774946936000000000,"seq":1414,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4314-ec90-7ab0-a96b-f2cc0b8e9910","at":1774946938000000000,"seq":1415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4315-13a0-72f0-b620-abffa90853fb","at":1774946948000000000,"seq":1416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

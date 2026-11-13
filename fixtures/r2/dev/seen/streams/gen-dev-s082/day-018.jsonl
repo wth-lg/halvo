@@ -1,0 +1,29 @@
+{"v":1,"id":"019bcfff-2c50-7670-b8db-6e9279d43434","at":1768721165392000000,"seq":195,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcfff-2c50-7630-b81e-671d67b24232","at":1768721165392000000,"seq":196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bd000-01a0-7205-bc49-d786a14307ae","at":1768721220000000000,"seq":197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd000-0d58-7b4d-974d-25cac148eeb2","at":1768721223000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd000-2493-7981-a919-87f3b4723bd6","at":1768721228947000000,"seq":199,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd000-2493-7524-af13-343a3dfa4371","at":1768721228947000000,"seq":200,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd000-3850-7dd7-93d9-fa2b32a70142","at":1768721234000000000,"seq":201,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd000-4fc0-7d20-8dce-ff9138f95151","at":1768721240000000000,"seq":202,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd000-53a8-7d8d-965e-86c308853706","at":1768721241000000000,"seq":203,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bd000-c8d8-7693-bbd5-f9caa5e9766e","at":1768721271000000000,"seq":204,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd000-f752-72e6-b766-9c9790ee5a13","at":1768721282898000000,"seq":205,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd000-f752-7004-8486-b3a89a0827e7","at":1768721282898000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bd001-2a80-7c81-90af-fafe51bb85f4","at":1768721296000000000,"seq":207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd005-9410-77b2-8fdd-2a9ba8322251","at":1768721585168000000,"seq":208,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bd006-1068-7256-8e66-7fb05956dff8","at":1768721617000000000,"seq":209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd017-a8d2-76fa-816d-c687b137c5fc","at":1768722770130000000,"seq":210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bd017-bfc0-750c-a14c-654058dba790","at":1768722776000000000,"seq":211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd017-d730-76cd-95f6-a8d53441f2ed","at":1768722782000000000,"seq":212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd018-4878-7342-81de-e6a0c6d458fd","at":1768722811000000000,"seq":213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd01a-36a8-7a27-9719-7ea2f1f3582a","at":1768722937512000000,"seq":214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bd01a-cd00-73ea-8ebc-686d5da41d45","at":1768722976000000000,"seq":215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bd01b-30a6-7575-97dd-e038534189c3","at":1768723001510000000,"seq":216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bd01b-55b8-764a-a1b5-479b99abaf3b","at":1768723011000000000,"seq":217,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd01b-6558-7d94-9e38-9b7833aa6446","at":1768723015000000000,"seq":218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd01b-6d28-7faa-b137-1543f8c0c568","at":1768723017000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bd01b-c6a0-75e3-a178-534856da7a54","at":1768723039904000000,"seq":220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bd01b-d6a0-7b44-b576-c91f638427d4","at":1768723044000000000,"seq":221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd01b-ea28-71df-81af-ae52ec54af09","at":1768723049000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd01b-ee10-7ad2-8fe5-bbf6ef7e7590","at":1768723050000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

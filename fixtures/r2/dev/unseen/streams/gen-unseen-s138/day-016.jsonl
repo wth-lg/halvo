@@ -1,0 +1,32 @@
+{"v":1,"id":"019bc5db-187f-7802-9c2e-775cb63f95f9","at":1768551028863000000,"seq":220,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc5db-187f-7f73-849a-889412115f96","at":1768551028863000000,"seq":221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc5db-8280-732c-bee4-a5556b32e61d","at":1768551056000000000,"seq":222,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc5dd-9d72-7c35-8561-e512582d8e36","at":1768551193970000000,"seq":223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bc5de-16a8-7e70-a12e-4c8b782ac77d","at":1768551225000000000,"seq":224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5de-6c98-7d51-bf61-5fefb4b8c771","at":1768551247000000000,"seq":225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5de-97aa-78bc-b197-a0ca6e89b981","at":1768551258026000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bc5de-a730-7e93-899d-e66a906a0354","at":1768551262000000000,"seq":227,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc5df-4f28-755e-87f6-c058febd30e8","at":1768551305000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5f1-5f77-7b58-858d-be006d2fea12","at":1768552488823000000,"seq":229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc5f1-ba00-7a8e-9a23-f16a000f8e65","at":1768552512000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bc5f2-6d29-7040-ad91-9cb862ad4e6b","at":1768552557865000000,"seq":231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc5f2-8908-7170-8628-c6069b5091bc","at":1768552565000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5f2-94c0-774f-8d1d-f7220b26711d","at":1768552568000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc5f2-b018-78e5-be62-349cfdd50ef6","at":1768552575000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bc5f2-c3a0-7d80-9e93-0fcc53b10eb8","at":1768552580000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5f3-1935-7d8c-9700-9f98200919da","at":1768552601909000000,"seq":236,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc5f3-1935-705d-bdb6-917600da3056","at":1768552601909000000,"seq":237,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc5f3-5bf8-777f-8fe7-b1921f41a9dc","at":1768552619000000000,"seq":238,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bc5f3-ae00-708d-b482-62ec3143dd3c","at":1768552640000000000,"seq":239,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5f3-b5d0-71b1-b384-3b10dd2f36a3","at":1768552642000000000,"seq":240,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bc5f3-dbc3-7948-a299-773afc09dfbf","at":1768552651715000000,"seq":241,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc5f3-dbc3-75d4-afea-1b7ddb835b59","at":1768552651715000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc5f4-5210-7e90-ae6b-739b449c4fd0","at":1768552682000000000,"seq":243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc5f4-6d68-75d4-8aee-4e2a878d8db2","at":1768552689000000000,"seq":244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc5f4-91e8-7a97-aa75-7207b707cd64","at":1768552698344000000,"seq":245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc5f4-abe8-7607-bb6d-a34b9909d22c","at":1768552705000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5f4-b3b8-7932-96d0-2029bee6f5b7","at":1768552707000000000,"seq":247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc5f4-f238-7cbc-a381-977b7b89c213","at":1768552723000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc5f5-1d30-7f52-9152-c9d2d79abc63","at":1768552734000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc60c-2e38-7d82-a949-e0ea3c41cab1","at":1768554245688000000,"seq":250,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc60c-2e38-7f84-b719-7941a377eaea","at":1768554245688000000,"seq":251,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}

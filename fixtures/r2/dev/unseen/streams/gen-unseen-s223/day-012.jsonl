@@ -1,0 +1,12 @@
+{"v":1,"id":"019bb192-1624-7cb0-b8c8-05ed246593b2","at":1768210699812000000,"seq":84,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb192-1624-747c-845f-a6cf21fbe223","at":1768210699812000000,"seq":85,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb192-3df0-7312-80c4-7451e888ac60","at":1768210710000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb192-6cd0-7cef-a8b4-9202c2c4f732","at":1768210722000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb192-6dfa-71d4-a7c2-98e468e6e2d3","at":1768210722298000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb192-93e0-7cf9-928f-4ea166c52d3e","at":1768210732000000000,"seq":89,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bb192-da30-761b-be97-2be12acad49d","at":1768210750000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb192-de18-7888-980d-9213183aa68a","at":1768210751000000000,"seq":91,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb193-10e0-715f-b3b9-36784a2c2429","at":1768210764000000000,"seq":92,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb1a6-1fb7-71c2-b826-34b871b924aa","at":1768212012983000000,"seq":93,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb1a6-1fb7-7792-919a-0f1b1067e68f","at":1768212012983000000,"seq":94,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb1a6-7d88-7125-860b-26e5a516a5f2","at":1768212037000000000,"seq":95,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}

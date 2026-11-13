@@ -1,0 +1,12 @@
+{"v":1,"id":"019c4c39-76ed-7aa3-954d-8cbeb3d7caff","at":1770805360365000000,"seq":467,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c39-76ed-7d03-adbb-34e60fe6b0c8","at":1770805360365000000,"seq":468,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c4c39-a848-7ece-be75-d95bcca79f9b","at":1770805373000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c39-d2b6-7581-9d20-7f54626d32b7","at":1770805383862000000,"seq":470,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c4c3a-92a8-7351-a3ae-89ef3f2214bb","at":1770805433000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c4c3a-a70a-7374-af9d-48333440809b","at":1770805438218000000,"seq":472,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c4c3a-c188-78e3-b11a-e7c754ff6a63","at":1770805445000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c4c45-f4c3-76fc-81ad-a49357137ff7","at":1770806179011000000,"seq":474,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c45-f4c3-7de5-b738-107ae4c6296b","at":1770806179011000000,"seq":475,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c46-1010-7fad-863d-580f7226bb1b","at":1770806186000000000,"seq":476,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c46-5660-78b7-b793-4f1f783b57cd","at":1770806204000000000,"seq":477,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c46-5a48-7f0f-b00a-e7d2f32fff97","at":1770806205000000000,"seq":478,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

@@ -1,0 +1,39 @@
+{"v":1,"id":"019ceba6-12ce-7a11-b0df-89453fd16f83","at":1773480055502000000,"seq":1104,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceba6-12ce-7bfa-9db0-561f9622fb41","at":1773480055502000000,"seq":1105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ceba6-a930-70ad-b992-ad0cfb9e195e","at":1773480094000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ceba6-eff4-7ec0-8df6-ff7d934212a6","at":1773480112116000000,"seq":1107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ceba7-5128-75f7-ae31-724eff6911a7","at":1773480137000000000,"seq":1108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ceba7-6c80-7621-8d49-e67f407d8d34","at":1773480144000000000,"seq":1109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ceba7-709b-7a39-8ec8-6431ef69c7fc","at":1773480145051000000,"seq":1110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ceba7-7450-7c3e-bc57-26bfb1c05459","at":1773480146000000000,"seq":1111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceba7-ab00-7255-a368-3e420a9b758b","at":1773480160000000000,"seq":1112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ceba7-b2d0-737a-a580-54caa10aa144","at":1773480162000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba7-cef1-794b-be65-6c0263e89957","at":1773480169201000000,"seq":1114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ceba7-ddc8-71d8-8743-74a27fe82032","at":1773480173000000000,"seq":1115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceba7-ed68-7d46-a2ae-c05513e68ab5","at":1773480177000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ceba7-f538-72ab-9355-503f51fd831c","at":1773480179000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebba-00a4-7ada-8965-f8a2d42d3cd9","at":1773481361572000000,"seq":1118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cebba-3130-7d54-8ab9-6f0757f46815","at":1773481374000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cebba-87da-79fc-ae0e-6e3bc582849c","at":1773481396186000000,"seq":1120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cebba-8ef0-76bf-b62b-65b556d60977","at":1773481398000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebba-ae30-7dff-a215-d1bdbd254d71","at":1773481406000000000,"seq":1122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cebba-f868-771d-8a65-c98057170401","at":1773481425000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbb-1da4-7942-b329-58803fd7c5d9","at":1773481434532000000,"seq":1124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cebbb-36e8-7c23-aa5d-e23eca80e616","at":1773481441000000000,"seq":1125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cebbb-6d98-794e-af4c-9df867a27709","at":1773481455000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbb-b3e8-71f4-94b7-92930b620445","at":1773481473000000000,"seq":1127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cebbb-c388-782a-8136-693b8b8f637d","at":1773481477000000000,"seq":1128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cebbb-e048-79bc-8074-b7422ffd5850","at":1773481484360000000,"seq":1129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cebbc-4470-75ab-8b06-3ed6ac02669d","at":1773481510000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbc-4858-7a5b-8975-71f5e12b3a0b","at":1773481511000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cebbc-57f8-7ea4-be9d-e2be8f0094d4","at":1773481515000000000,"seq":1132,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebc7-707c-7dca-b2cf-8183ab997254","at":1773482242172000000,"seq":1133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cebc7-8b28-7455-bd0f-14a15e45e86b","at":1773482249000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebc7-9eb0-7c9d-b144-73cf6c5b5e30","at":1773482254000000000,"seq":1135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebc7-a680-7024-b840-e93f298654e9","at":1773482256000000000,"seq":1136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cebd1-ac19-7918-8a0c-bb848c1f1980","at":1773482912793000000,"seq":1137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cebd2-29e8-7ed1-aecf-9e23dc17321c","at":1773482945000000000,"seq":1138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cebd6-3de8-73bf-b9c8-49279cf0020a","at":1773483212264000000,"seq":1139,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cebd6-3de8-7ac2-a3ce-477156a9ea6d","at":1773483212264000000,"seq":1140,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cebd6-7390-71f5-82e9-e769431b50f5","at":1773483226000000000,"seq":1141,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cebd6-e4d8-752e-b1dc-4eea3c36e99f","at":1773483255000000000,"seq":1142,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}

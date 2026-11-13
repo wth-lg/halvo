@@ -1,0 +1,22 @@
+{"v":1,"id":"019cb34a-3821-70c0-94f3-5a1906f27c3d","at":1772534511649000000,"seq":1019,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb34a-3821-7296-acc0-78002882e32b","at":1772534511649000000,"seq":1020,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb34a-7800-772a-9224-bf87de5d57c2","at":1772534528000000000,"seq":1021,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cb34b-1440-7e0f-a7c1-98f3f48bfbfa","at":1772534568000000000,"seq":1022,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb34b-23e0-789c-bd39-7548cac73754","at":1772534572000000000,"seq":1023,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cb353-e3c6-7c9e-bd24-829a82b3c4a0","at":1772535145414000000,"seq":1024,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb353-e3c6-7732-b83a-d9514cf21cba","at":1772535145414000000,"seq":1025,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cb354-2878-75df-9d8a-5bb618c4b26a","at":1772535163000000000,"seq":1026,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb354-5f28-76a4-844c-9bb65d05892b","at":1772535177000000000,"seq":1027,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb354-99c0-7b65-8e04-62fbab82afac","at":1772535192000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cb354-b900-764f-849a-2390cf502f96","at":1772535200000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb367-559d-7e10-9299-b09565eb8ded","at":1772536419741000000,"seq":1030,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb367-71f8-70a7-8402-46a376aeafb1","at":1772536427000000000,"seq":1031,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb367-d788-7aa3-8a63-f31bc5efa793","at":1772536453000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb367-dd06-792d-ab99-6fba0a82f873","at":1772536454406000000,"seq":1033,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cb367-df58-7105-9068-0422e3630a57","at":1772536455000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb367-fab0-7740-967e-948e799cd66e","at":1772536462000000000,"seq":1035,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb368-5488-77d2-b630-9bb678a0a25f","at":1772536485000000000,"seq":1036,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb368-6289-77a8-999a-0fdb16b3e05e","at":1772536488585000000,"seq":1037,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb368-73c8-7b87-9fd6-71470917c323","at":1772536493000000000,"seq":1038,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb368-77b0-7f27-bcf4-08a122c45890","at":1772536494000000000,"seq":1039,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb368-8368-71fb-b127-f247e6a08c21","at":1772536497000000000,"seq":1040,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

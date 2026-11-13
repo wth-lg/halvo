@@ -1,0 +1,17 @@
+{"v":1,"id":"019d52dc-a17e-7f5b-8ce2-ef0e4bf0aa06","at":1775211684222000000,"seq":1563,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52dc-a17e-7bbf-ac9f-7880850bec97","at":1775211684222000000,"seq":1564,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d52dc-bbf8-70bd-a2c9-ae38f68acdab","at":1775211691000000000,"seq":1565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52dc-bfe0-73fe-bcb3-aa05298a8def","at":1775211692000000000,"seq":1566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52dc-fd16-78d0-a56c-727feeaa2264","at":1775211707670000000,"seq":1567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d52dd-38f8-72a7-9b88-473b30f44cf1","at":1775211723000000000,"seq":1568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52dd-5450-7945-ba96-3de4751116f5","at":1775211730000000000,"seq":1569,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d52e1-5634-7b6f-9c41-7e547be83b29","at":1775211992628000000,"seq":1570,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52e1-5634-7e6c-8a0c-fde15315321c","at":1775211992628000000,"seq":1571,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52e1-6748-72bd-b678-81c069d56dda","at":1775211997000000000,"seq":1572,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d52fb-e4ed-7e51-9e57-6df5baf6ff5d","at":1775213733101000000,"seq":1573,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52fb-e4ed-7c9b-9ff6-503dc3ede0cf","at":1775213733101000000,"seq":1574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d52fc-8898-7dcd-ab84-bd97084593b8","at":1775213775000000000,"seq":1575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52fc-94ff-742f-a3c0-07795f9630d8","at":1775213778175000000,"seq":1576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d52fd-26e2-7302-88e1-06dda91d6556","at":1775213815522000000,"seq":1577,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d52fd-5b88-7b74-9509-b5149cfb5b6c","at":1775213829000000000,"seq":1578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52fd-6740-7ae2-86cf-07ca05d161dc","at":1775213832000000000,"seq":1579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

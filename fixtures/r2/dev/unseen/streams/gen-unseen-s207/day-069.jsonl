@@ -1,0 +1,28 @@
+{"v":1,"id":"019cd6e6-54e2-7a41-9a21-17a7225e4fea","at":1773131945186000000,"seq":1101,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6e6-54e2-77dc-845e-adf41e262d86","at":1773131945186000000,"seq":1102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e6-5bf8-7373-ada0-0fb934fb5d97","at":1773131947000000000,"seq":1103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e6-7b38-7747-8198-48fc08f278eb","at":1773131955000000000,"seq":1104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cd6e6-d128-7dc9-9a9e-9283a7358ce9","at":1773131977000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e7-5e0c-7820-8696-6aa84be911bb","at":1773132013068000000,"seq":1106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e7-84d8-7e93-bc01-d4cd6d2b79b5","at":1773132023000000000,"seq":1107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e7-9478-72a3-9c00-defc8bc3fc89","at":1773132027000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cd6e7-9860-760c-ac25-d4baf63f5e56","at":1773132028000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e7-bdfc-7d08-92ea-ff6eec49fc4d","at":1773132037628000000,"seq":1110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e7-c358-7d17-bcf3-786c18fc9629","at":1773132039000000000,"seq":1111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd6e7-c358-79b4-bace-f6375b8195f1","at":1773132039000000000,"seq":1112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cd6e7-cf10-7698-9c30-ad94cca1bc94","at":1773132042000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e7-fa08-7e0d-9ca4-d7c3a53b54bc","at":1773132053000000000,"seq":1114,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd6e8-09a8-79f2-99c2-b1465efc072b","at":1773132057000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e8-0b0b-7ce8-a2c3-0f3485cb0867","at":1773132057355000000,"seq":1116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e8-4828-79a4-9dc1-aff940adceb7","at":1773132073000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e8-7af0-7fa8-9237-36be1d213365","at":1773132086000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6fe-1a9b-748c-9344-215f7c1ef3f3","at":1773133503131000000,"seq":1119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd6fe-1e00-75f8-8687-0446c511f3ae","at":1773133504000000000,"seq":1120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6fe-3d40-767f-8199-ff95e89f76d5","at":1773133512000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd703-1963-71b8-8fa1-3ab23c883e70","at":1773133830499000000,"seq":1122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cd703-1f40-7a31-b147-f516adff242e","at":1773133832000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd703-4a38-72fb-8b77-579e48d3a72a","at":1773133843000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd703-4e20-7d6d-83c8-6eba83742320","at":1773133844000000000,"seq":1125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd703-daeb-7b16-83ee-a61cd0b646cd","at":1773133880043000000,"seq":1126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cd704-1940-7373-a1bf-46bf4ff97fe7","at":1773133896000000000,"seq":1127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cd704-4820-71f8-acee-e7fa9a679c9c","at":1773133908000000000,"seq":1128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

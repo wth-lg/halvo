@@ -1,0 +1,27 @@
+{"v":1,"id":"019ceba0-8433-7977-9e91-e4c904678d03","at":1773479691315000000,"seq":1037,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ceba0-8433-7e23-bf5a-93c967283759","at":1773479691315000000,"seq":1038,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ceba0-b9a8-7355-bb36-4e7cc35523a9","at":1773479705000000000,"seq":1039,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba0-dcd0-7fdf-990b-81f71747e481","at":1773479714000000000,"seq":1040,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ceba1-1380-729f-9a0d-5ca3dec3b503","at":1773479728000000000,"seq":1041,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ceba1-3e78-7037-80c4-99af95cc2ce7","at":1773479739000000000,"seq":1042,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba1-4cb2-7069-9195-c39ec86498eb","at":1773479742642000000,"seq":1043,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceba1-4cb2-7692-a013-c29f5fccb915","at":1773479742642000000,"seq":1044,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ceba1-59d0-77d3-aff5-c39227a7a6a6","at":1773479746000000000,"seq":1045,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba1-dea0-722d-9937-9816f50d0ae0","at":1773479780000000000,"seq":1046,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ceba2-2d42-7e61-b582-ee1f359f534b","at":1773479800130000000,"seq":1047,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ceba2-30a8-7954-8d85-b62c9941bbd6","at":1773479801000000000,"seq":1048,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ceba2-4818-7027-bc89-8b62ae7d7d78","at":1773479807000000000,"seq":1049,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceba2-6758-72b7-87f3-f546a65a0366","at":1773479815000000000,"seq":1050,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceba2-7a0a-7bd6-9919-e42c1ee6e3f3","at":1773479819786000000,"seq":1051,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ceba2-7ae0-7336-a5ad-db0cc3f8429c","at":1773479820000000000,"seq":1052,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba2-9a20-7402-bb4c-4e9906d88909","at":1773479828000000000,"seq":1053,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ceba2-b190-7f96-a138-79b3e2f5ee60","at":1773479834000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba2-b7ad-72a7-a9f1-5f84665509f2","at":1773479835565000000,"seq":1055,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ceba2-bd48-78fa-924a-377d52d1431b","at":1773479837000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba2-c518-7ac9-b816-2fb8cfa9faf6","at":1773479839000000000,"seq":1057,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ceba2-ffb0-742d-b4ea-b94677554fe4","at":1773479854000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba3-08c9-7f04-beed-8e57b92e1c20","at":1773479856329000000,"seq":1059,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ceba3-08c9-72bb-84b1-1f327027b5d5","at":1773479856329000000,"seq":1060,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ceba3-1b08-7b27-89f5-454ad8772123","at":1773479861000000000,"seq":1061,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba3-3e30-7d21-a1e1-eb454384c3fa","at":1773479870000000000,"seq":1062,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ceba3-55a0-7784-b86e-e835e14f3028","at":1773479876000000000,"seq":1063,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

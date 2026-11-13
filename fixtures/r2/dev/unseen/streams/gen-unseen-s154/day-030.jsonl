@@ -1,0 +1,13 @@
+{"v":1,"id":"019c0e18-ac9f-7f43-9af4-e25e71f6fc2d","at":1769763024031000000,"seq":419,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e18-ac9f-7e83-84cb-47dbc2423a03","at":1769763024031000000,"seq":420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c0e18-cfa8-7354-a143-aff8412d52af","at":1769763033000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e19-1dc8-7ac7-b8ed-12662ee9edbe","at":1769763053000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e19-1dc8-7f2b-aea1-4912052f7095","at":1769763053000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c0e19-24a7-7cb1-ba8d-b9e3c5c9e7a0","at":1769763054759000000,"seq":424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c0e19-2980-7451-b322-e7383602ae21","at":1769763056000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c0e19-5c48-716a-9800-826c91575c23","at":1769763069000000000,"seq":426,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e34-4928-78dc-898f-e558e0789e06","at":1769764833576000000,"seq":427,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e34-4928-7b87-88be-b516c8c1a822","at":1769764833576000000,"seq":428,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e34-5e58-7a81-aae7-dad416b5edfd","at":1769764839000000000,"seq":429,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c0e34-8180-7386-af25-8c1c73b6b7d5","at":1769764848000000000,"seq":430,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c0e34-e328-7fa3-98f1-08f50324b532","at":1769764873000000000,"seq":431,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

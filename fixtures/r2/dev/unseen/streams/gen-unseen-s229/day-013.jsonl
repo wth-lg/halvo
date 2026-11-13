@@ -1,0 +1,48 @@
+{"v":1,"id":"019bb673-2909-7a4c-98fe-ac617b7250ff","at":1768292559113000000,"seq":307,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb673-2909-7031-ae94-53344b5b23f8","at":1768292559113000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bb673-95f8-7c7e-be5e-f81c01def5ac","at":1768292587000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb673-a980-793b-acd0-b57a66f00800","at":1768292592000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb673-e926-7ca7-95e5-2751ae130d18","at":1768292608294000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bb673-f3b8-7fdb-873a-67bc5abc255f","at":1768292611000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb674-1eb0-7cec-a61a-e0412c4ed0d1","at":1768292622000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb674-2a68-7dc0-8797-a9ab03b3de3e","at":1768292625000000000,"seq":314,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb674-4d90-71d7-a5ae-bcd162ced044","at":1768292634000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bb674-5a46-76d2-a7f7-5e8be363cf2b","at":1768292637254000000,"seq":316,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bb674-ab50-7529-9642-36746182a6de","at":1768292658000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bb674-dc19-70d5-bd18-b2635a240b11","at":1768292670489000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bb674-f970-7328-a3b2-e293dfc6e81b","at":1768292678000000000,"seq":319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb675-2850-7915-9fb9-c3a993b31fc9","at":1768292690000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb675-2c38-7594-b595-71857813a784","at":1768292691000000000,"seq":321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb68b-1b6a-7a0f-be67-1bb149dc1c6b","at":1768294128490000000,"seq":322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bb68b-34d8-750e-bf7e-b5dbbfff6f06","at":1768294135000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bb68b-d6f8-7dd9-86f4-6d69d4939506","at":1768294176504000000,"seq":324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bb68c-2708-7dac-a3a1-5640fc3dd3f4","at":1768294197000000000,"seq":325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb68c-d983-7302-b30f-7059af811e08","at":1768294242691000000,"seq":326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bb68c-dab8-79f9-b2e0-5d4a0bf4f73e","at":1768294243000000000,"seq":327,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb68c-dab8-79ee-8ac5-0527197519ea","at":1768294243000000000,"seq":328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bb68c-f228-7fa2-a9f1-1df90f51a9f5","at":1768294249000000000,"seq":329,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb68c-fde0-764f-a127-5ed12dd51f0f","at":1768294252000000000,"seq":330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb68d-1664-75b8-b70a-2c327b338ca8","at":1768294258276000000,"seq":331,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb68d-1664-7348-af5d-39a1874e9b71","at":1768294258276000000,"seq":332,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb68d-3c60-7b89-97f4-c5a68cfa2ef4","at":1768294268000000000,"seq":333,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb68d-4c00-7521-84d1-c938566deb96","at":1768294272000000000,"seq":334,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bb68d-82b0-746e-bc5b-a1d61184dc4b","at":1768294286000000000,"seq":335,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb68d-9a20-72e2-936b-eb2ce79a6043","at":1768294292000000000,"seq":336,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb68d-cf86-7509-b21d-cba409bb17b3","at":1768294305670000000,"seq":337,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb68d-cf86-75d6-baf2-1b8db45506ad","at":1768294305670000000,"seq":338,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bb68d-f010-7d9c-a92f-0318ff903d72","at":1768294314000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bb68d-ffb0-7ca1-adae-58fb41e35944","at":1768294318000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb68e-26c0-7557-99f4-bfc90d8485ee","at":1768294328000000000,"seq":341,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb6a0-a133-745c-b75d-b136128e28c1","at":1768295538995000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bb6a1-1db4-7495-81c4-831e2df0348c","at":1768295570868000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bb6a1-1e38-7220-b500-7612f0caf6fa","at":1768295571000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a1-6c58-77d6-9b84-761893092068","at":1768295591000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a1-6f02-7b0d-a8e3-2b832bbe5407","at":1768295591682000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bb6a1-aad8-7089-87c7-08d6bcb27960","at":1768295607000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a2-2008-7338-9d96-d6eb2aef80dc","at":1768295637000000000,"seq":348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb6a2-2bc0-7d6b-b515-875179c1c927","at":1768295640000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a2-4ee8-7ab5-b29e-ffb648daae42","at":1768295649000000000,"seq":350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb6a2-6407-7e98-87a1-4cf9b22fbf53","at":1768295654407000000,"seq":351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bb6a2-bc48-7529-bbf2-2994b8a9cb1a","at":1768295677000000000,"seq":352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a2-c800-72ad-b7a4-f9fac7405934","at":1768295680000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bb6a2-d7a0-78ab-8b7a-808aa5a522ed","at":1768295684000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

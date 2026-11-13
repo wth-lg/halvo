@@ -1,0 +1,25 @@
+{"v":1,"id":"019bbbf3-d34b-73dd-8fed-8a2f727dcb7c","at":1768384877387000000,"seq":187,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbbf3-d34b-7889-8a39-e2157d76a1c3","at":1768384877387000000,"seq":188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bbbf4-6052-7caa-a59f-801d90042cbc","at":1768384913490000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bbbf4-c010-7f8e-830f-14dc6fcba73d","at":1768384938000000000,"seq":190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bbbf5-34e6-72e4-9835-0133f95631b7","at":1768384967910000000,"seq":191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bbbf5-5c50-770b-98fc-8c27819ff4da","at":1768384978000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bbbf5-8d59-75e9-8d41-1a9855904855","at":1768384990553000000,"seq":193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bbbf5-d950-7280-9458-e1d45926cf9f","at":1768385010000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bbc0a-2d44-7393-afaf-0556ab6da157","at":1768386342212000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bbc0b-2e51-72ce-bdd3-9a0510e8ce64","at":1768386408017000000,"seq":196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bbc0b-39f8-756c-95dc-a72084beba2d","at":1768386411000000000,"seq":197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bbc0b-3de0-7425-9fd8-3ea2adec74d3","at":1768386412000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc0b-8048-7a5d-a82a-8a65584a8163","at":1768386429000000000,"seq":199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bbc0b-9c94-7ecd-8f9c-162b388144a4","at":1768386436244000000,"seq":200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bbc0b-c2b0-7299-b701-38d1eac29ec5","at":1768386446000000000,"seq":201,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bbc0c-4f50-7869-9bed-f212c4e81a51","at":1768386482000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc21-1a45-7e4e-acaa-50fb98424981","at":1768387844677000000,"seq":203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bbc21-5a08-7811-b3de-f8d6c921bc2c","at":1768387861000000000,"seq":204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bbc21-65c0-7fb4-a71a-f007bb3f271b","at":1768387864000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc21-bbb0-772d-ae6e-a833df0883bb","at":1768387886000000000,"seq":206,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bbc32-6aa3-7098-93a8-d13ef58c86a6","at":1768388979363000000,"seq":207,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bbc32-6aa3-72a1-8fb7-4be774d8e3ca","at":1768388979363000000,"seq":208,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bbc32-74f0-7338-ac02-c6abee9c08ce","at":1768388982000000000,"seq":209,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bbc32-9c00-7f04-8104-e31d797fce02","at":1768388992000000000,"seq":210,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc33-4010-7032-9baa-9f17588be022","at":1768389034000000000,"seq":211,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019c03d3-b9b9-7917-9e37-8adae15a3f4c","at":1769590733241000000,"seq":400,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c03d3-b9b9-7565-9306-26e47605ef61","at":1769590733241000000,"seq":401,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c03d3-eb90-73c6-8193-de27bc222465","at":1769590746000000000,"seq":402,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c03d3-ef78-74ea-99d7-d2543ef087f4","at":1769590747000000000,"seq":403,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03d4-1e58-757a-8c36-d889482ad437","at":1769590759000000000,"seq":404,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03d4-87d0-74e4-97bf-bba09549eb1e","at":1769590786000000000,"seq":405,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c03ed-fc2e-7d35-b6f7-a630c1d7929a","at":1769592454190000000,"seq":406,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03ed-fc2e-7cb3-a96e-44f3e4df34d6","at":1769592454190000000,"seq":407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c03ee-64f5-7623-9159-e773f791a9c4","at":1769592481013000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c03ee-6cb8-777f-9059-97ddb040dd0f","at":1769592483000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03ee-ab38-7860-b004-bef30763a088","at":1769592499000000000,"seq":410,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03ee-f522-7d1e-a061-3630bafc7287","at":1769592517922000000,"seq":411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c03ef-0ce0-76f9-b972-af22a7cb79b7","at":1769592524000000000,"seq":412,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c03ef-5718-7b6d-b8e1-cc70d6bf0a48","at":1769592543000000000,"seq":413,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c03ef-66b8-7a23-bc17-ab4a12161dbb","at":1769592547000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03ef-9d68-7ca4-a1e6-b910f643e2fe","at":1769592561000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c03ef-cbff-72d7-a2ef-e382e9b88095","at":1769592572927000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c03ef-d418-7d90-a21e-9490d43325d7","at":1769592575000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03ef-f740-7384-9296-5df31133b4de","at":1769592584000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c03f0-35c0-78ce-919d-d9917fa994b7","at":1769592600000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f0-64a0-7dcd-9aed-d6d7db1a00e7","at":1769592612000000000,"seq":420,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c03f7-5302-7de9-8483-b17036edab33","at":1769593066242000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}

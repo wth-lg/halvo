@@ -1,0 +1,31 @@
+{"v":1,"id":"019cae1b-7b7a-79e2-8dd6-a3ac35577621","at":1772447562618000000,"seq":840,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae1b-7b7a-7b19-abd5-4ee846d65b66","at":1772447562618000000,"seq":841,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cae1b-bfeb-71a6-aa1e-35557bda9b84","at":1772447580139000000,"seq":842,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cae1b-dab8-72d2-94cb-94725fa2baee","at":1772447587000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae1b-ea58-789a-a6b5-174754e3a02f","at":1772447591000000000,"seq":844,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cae1b-fde0-7f54-9da3-08bbe3a0faca","at":1772447596000000000,"seq":845,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae1c-26e3-7242-8fb3-09c835282ae5","at":1772447606499000000,"seq":846,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cae1c-4430-7cff-9337-9de1287d0c75","at":1772447614000000000,"seq":847,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae1c-4c00-77b4-a506-48750796f50e","at":1772447616000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cae1c-53d0-7682-9ad2-4c45f3a36efa","at":1772447618000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae1c-57b8-7bb9-96b0-ca9da973e83d","at":1772447619000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cae31-676f-76e8-90fd-120af1b613a1","at":1772448999279000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cae31-fca3-7f49-9229-25891e6019d9","at":1772449037475000000,"seq":852,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"School messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cae32-0e50-7a06-9222-016d7068aed2","at":1772449042000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae32-21d8-704b-aabe-5a9f12a6f110","at":1772449047000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae32-4500-7869-b4c7-f08a6cc7125c","at":1772449056000000000,"seq":855,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cae32-b1f8-74b1-a7b6-03ea5e673f20","at":1772449083896000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cae33-1fc0-776a-a095-0bc5d0f957a0","at":1772449112000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae33-3b18-77fe-94a3-b48eed7de122","at":1772449119000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae33-4ea0-72c0-988a-a3a972bcc924","at":1772449124000000000,"seq":859,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cae33-5c9c-739a-9abe-c688002da1e3","at":1772449127580000000,"seq":860,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cae33-8d20-7acc-87d0-d9c78b969fbd","at":1772449140000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae33-b818-7c8d-aae5-2fa7a60fd7a6","at":1772449151000000000,"seq":862,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae33-d758-7083-822e-f8e3b30ca429","at":1772449159000000000,"seq":863,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae33-df28-78a8-8f79-3b4e590413c9","at":1772449161000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cae4a-46c6-72e4-a0f9-86c0c7d6cab0","at":1772450629318000000,"seq":865,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cae4a-8408-7a65-96d8-e96352ccb03a","at":1772450645000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae4a-b6d0-742a-8107-dd4b59b1b728","at":1772450658000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cae4b-33d0-7fdf-abe6-e3d0de3e680d","at":1772450690000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae58-6836-7291-a93b-2399a16b0957","at":1772451555382000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cae58-8210-7a33-b016-dc4b7cc91125","at":1772451562000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

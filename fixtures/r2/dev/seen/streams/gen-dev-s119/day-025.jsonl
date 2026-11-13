@@ -1,0 +1,11 @@
+{"v":1,"id":"019bf479-153e-7565-8329-b79db9717f8f","at":1769333134654000000,"seq":324,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf479-153e-7323-a899-6d200c8cdfe8","at":1769333134654000000,"seq":325,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf479-7458-7a50-9cfb-eb384b43c4a2","at":1769333159000000000,"seq":326,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bf479-8fb0-73cf-a35b-690fd4f3c04f","at":1769333166000000000,"seq":327,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf482-c4e1-7bf4-aa1f-a3e7641036d9","at":1769333769441000000,"seq":328,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bf483-4be0-7bee-b0f2-b2159f735037","at":1769333804000000000,"seq":329,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf483-a9a0-7e17-8cb1-b4434e53336c","at":1769333828000000000,"seq":330,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf491-d481-72f3-bf54-d846252ac89c","at":1769334756481000000,"seq":331,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf491-d481-701d-bb4f-a9ff0da8232e","at":1769334756481000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf491-da70-701a-9f15-a2b123b23294","at":1769334758000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf492-0d38-788d-9baa-b2b5952073ff","at":1769334771000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

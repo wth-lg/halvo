@@ -1,0 +1,11 @@
+{"v":1,"id":"019d006f-af5d-7233-80b7-371c0dd9fafc","at":1773828812637000000,"seq":916,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d006f-af5d-72e6-9436-0bbf1d4747e8","at":1773828812637000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d006f-d008-7266-9bfb-33827178771e","at":1773828821000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0070-0e88-7247-8641-01ca8a029d0b","at":1773828837000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0070-449b-700a-a531-a5b64e3f4067","at":1773828850843000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d0070-9740-77c3-b075-b41f3fe24a1c","at":1773828872000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0070-b298-7396-a8ce-1429652adf71","at":1773828879000000000,"seq":922,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0070-ed30-71f5-8518-19077597aa9e","at":1773828894000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0071-04e4-7412-8c6c-96e6282827cf","at":1773828900068000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d0071-e70f-7f65-b541-85c8675fc9fb","at":1773828957967000000,"seq":925,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d0072-25b0-7210-9554-1265790722f2","at":1773828974000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

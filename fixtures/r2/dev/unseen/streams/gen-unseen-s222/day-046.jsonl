@@ -1,0 +1,34 @@
+{"v":1,"id":"019c60e1-1efc-7ad7-af71-2ab79eface69","at":1771151892220000000,"seq":626,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60e1-1efc-77ec-9646-6dea38d3b6b3","at":1771151892220000000,"seq":627,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c60e1-2208-7ef9-ad7f-0f32e949dc8e","at":1771151893000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c60ee-61f5-7a40-9207-fafbdcc8d7b9","at":1771152761333000000,"seq":629,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c60ef-3f50-7eef-bdf8-169dae62b37f","at":1771152818000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c60ef-4a85-720b-bec5-3d31e7b710c7","at":1771152820869000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c60ef-52d8-7ecc-953e-06b862ecbbc2","at":1771152823000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ef-6660-77f6-a4c6-cb735b0b4cdb","at":1771152828000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c60ef-c808-7a45-a04c-469607627034","at":1771152853000000000,"seq":634,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60ef-da8f-7417-ab14-1da1c9a2c514","at":1771152857743000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c60f0-0a70-70ea-bcd9-68d368aac1aa","at":1771152870000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60f0-4120-7a9b-b6b9-3d5ca321f661","at":1771152884000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60f0-ba38-753d-b7ce-df024705af2f","at":1771152915000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c60f7-8d47-7b44-8d20-142817cf2289","at":1771153362247000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c60f7-9808-78d2-9a8e-52e21b3751d7","at":1771153365000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c60f8-5f40-786c-bacc-d0ab9f068c09","at":1771153416000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60f8-7a98-75ac-b4ad-537fca5a71c2","at":1771153423000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6110-e859-76b3-9732-f8cd05bccd0a","at":1771155023961000000,"seq":643,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c6111-f311-7467-8633-8caaabdcccd0","at":1771155092241000000,"seq":644,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c6111-f608-749e-a7bd-654fa05da165","at":1771155093000000000,"seq":645,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6112-01c0-74a0-86d1-43d5512e2bfe","at":1771155096000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6112-1160-76f6-b3f5-25780477af18","at":1771155100000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c6112-1930-7f68-89b4-01e017b8c9eb","at":1771155102000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6112-3870-77b5-84de-a9f7609584c1","at":1771155110000000000,"seq":649,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6112-6ca2-7e03-bc52-768c5c4264cc","at":1771155123362000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c6112-6f20-76f7-a089-b981cbda7adf","at":1771155124000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c6112-9630-7850-a6b9-89e29fe96ded","at":1771155134000000000,"seq":652,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6113-0f48-7dd3-9451-5c1f38621198","at":1771155165000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6113-7562-7080-aa68-e7fcb4abfad9","at":1771155191138000000,"seq":654,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c6113-a3b8-72e4-bdff-72f02b5604bc","at":1771155203000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6113-de50-70b5-a09c-8188e0248e2a","at":1771155218000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6116-5032-7fad-8d85-dba8ec6c44eb","at":1771155378226000000,"seq":657,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c6116-5ef0-73bc-8446-8e67a53b3f40","at":1771155382000000000,"seq":658,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6116-ad10-797f-9bbd-054f4173c79f","at":1771155402000000000,"seq":659,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

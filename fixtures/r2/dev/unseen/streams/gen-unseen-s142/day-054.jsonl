@@ -1,0 +1,21 @@
+{"v":1,"id":"019c8969-1323-74a4-8244-1e8507b50f2d","at":1771831890723000000,"seq":723,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8969-1323-7265-a532-4ca1e518ca86","at":1771831890723000000,"seq":724,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8969-71f8-7f32-99d1-343ae9c0294f","at":1771831915000000000,"seq":725,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c8969-8582-77a5-90c0-d06c3d1ecd27","at":1771831920002000000,"seq":726,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8969-9908-7dac-8b69-c1f5e791d5a0","at":1771831925000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8969-b460-7295-a7e8-60df76d66723","at":1771831932000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8969-cbd0-7c1f-8c18-ceaeb79d3cd5","at":1771831938000000000,"seq":729,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8969-cbe6-7ca7-b562-fc3c83f4a025","at":1771831938022000000,"seq":730,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c896a-1dd8-7467-b7e7-faa612b39995","at":1771831959000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c896a-a820-7871-a78d-8f2192b7d9f0","at":1771831994400000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c896a-ba18-7bf9-a15a-dcb823fd1dea","at":1771831999000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c896a-d570-7531-829e-860054c9e286","at":1771832006000000000,"seq":734,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c896a-f4b0-7152-946f-533d47bd023b","at":1771832014000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c896b-0068-7fff-96b6-6c2af332a139","at":1771832017000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c896b-0703-7d3b-8ec2-af31c5968b2e","at":1771832018691000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c896b-8150-7c2d-83b2-424dc234f123","at":1771832050000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c896b-8d08-7ff5-af6d-7767cfe2a59f","at":1771832053000000000,"seq":739,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8970-2429-7a08-9a11-05e3d0cd1789","at":1771832353833000000,"seq":740,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8970-2429-76c1-bd04-f72fc4e15b50","at":1771832353833000000,"seq":741,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8970-2ca0-74d3-ba70-c75502fcf2f4","at":1771832356000000000,"seq":742,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8970-5b80-7bab-af8e-dbb695376d24","at":1771832368000000000,"seq":743,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}

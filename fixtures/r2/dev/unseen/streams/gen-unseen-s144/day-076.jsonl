@@ -1,0 +1,13 @@
+{"v":1,"id":"019cfad4-2dd9-7604-8fe4-a5ccac578827","at":1773734735321000000,"seq":1023,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfad4-2dd9-7a46-aadb-859958bcd1c3","at":1773734735321000000,"seq":1024,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cfad4-4408-7eef-8aa7-5ec05b8c8763","at":1773734741000000000,"seq":1025,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad4-6b73-7af9-9da9-6830bab2aced","at":1773734751091000000,"seq":1026,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cfad4-9de0-75b2-a0dd-e846909fcfe0","at":1773734764000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad4-a998-7908-9dc2-545b60238169","at":1773734767000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cfad5-d899-7522-a8db-6ea35bb7899e","at":1773734844569000000,"seq":1029,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cfad5-fd70-7bc4-8702-3edf572a4bce","at":1773734854000000000,"seq":1030,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad6-5360-7441-8a6a-a0a173c039ec","at":1773734876000000000,"seq":1031,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad6-bc54-7af6-bbdc-8bff9ffcea8d","at":1773734902868000000,"seq":1032,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cfad7-1e80-7eb4-905e-4932a88fc33b","at":1773734928000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cfad7-3dc0-7137-b93d-5e92f9ffc97b","at":1773734936000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad7-5530-7953-9936-a11cd6d437ef","at":1773734942000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

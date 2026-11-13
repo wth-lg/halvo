@@ -1,0 +1,12 @@
+{"v":1,"id":"019bc63e-6d53-70c6-92ef-f39a75c900f6","at":1768557538643000000,"seq":268,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc63e-6d53-765c-81d2-13ac84aa09eb","at":1768557538643000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc63e-8240-77fe-bbda-d2dbc586feb0","at":1768557544000000000,"seq":270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc63e-8df8-7a2d-be52-b80b3bb8e7aa","at":1768557547000000000,"seq":271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc63e-91e0-76c3-8cf8-19de77325b94","at":1768557548000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc648-be8e-7959-a2a2-b3ff0c63024e","at":1768558214798000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bc648-d6c8-7572-af4c-d86850499ebe","at":1768558221000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bc648-dab0-7906-b118-5bd764e8c288","at":1768558222000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc649-06e5-7a95-8866-5bbd4a337278","at":1768558233317000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bc649-4040-75b3-9305-f5f213a9fd1a","at":1768558248000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bc649-5f80-770e-9812-280bd5d5ccf4","at":1768558256000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc649-8a78-71c5-9839-2fbae87b82f9","at":1768558267000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

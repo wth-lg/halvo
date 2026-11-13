@@ -1,0 +1,23 @@
+{"v":1,"id":"019c323c-e938-764a-b864-0835abc1f98a","at":1770369378616000000,"seq":548,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c323c-e938-7deb-aee1-7afbe23cc802","at":1770369378616000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c323d-7a47-7303-b35d-819e71f809ab","at":1770369415751000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c323d-b5d8-778a-b86a-b383f2acab84","at":1770369431000000000,"seq":551,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c323e-0010-7bea-b261-c043606afe64","at":1770369450000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c323e-0bc8-7ca3-a15b-86bc3c7e6c36","at":1770369453000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c323e-32d8-719d-b191-615b1491f678","at":1770369463000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c323e-68bc-7bff-a45b-aa2f8de802e0","at":1770369476796000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c323e-7d10-7f5e-94c9-7039e3a5b2e8","at":1770369482000000000,"seq":556,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c324f-bc09-762c-ad84-e0d1769c0922","at":1770370612233000000,"seq":557,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c3250-3ff0-7939-944e-7f857290ea2f","at":1770370646000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3250-4ec8-7437-bcee-7260019ac583","at":1770370649800000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c3250-c2c0-770d-9d11-93d117b41c7b","at":1770370679488000000,"seq":560,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c3250-ebd0-7e5c-b411-31a5fffd72ef","at":1770370690000000000,"seq":561,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3251-5d18-7df7-8c92-a0cb290e053a","at":1770370719000000000,"seq":562,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3251-cffc-7bfe-a075-9cef809830d2","at":1770370748412000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c3252-8210-75b9-84c9-ba0db20d1839","at":1770370794000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3252-89e0-773d-ade6-b6b70631b085","at":1770370796000000000,"seq":565,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c326b-840e-77e2-934d-5101d3e94387","at":1770372432910000000,"seq":566,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c326b-840e-7a06-91f6-8c0f40f95244","at":1770372432910000000,"seq":567,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c326b-9bd8-7f17-9f87-957f0b50927e","at":1770372439000000000,"seq":568,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c326b-e228-75ec-9a20-7f68df955794","at":1770372457000000000,"seq":569,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c326c-5f28-790e-92a3-415f11f12a9b","at":1770372489000000000,"seq":570,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}

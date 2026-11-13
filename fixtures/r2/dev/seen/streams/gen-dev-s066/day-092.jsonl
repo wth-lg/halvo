@@ -1,0 +1,14 @@
+{"v":1,"id":"019d4da5-1343-7f68-a0e5-dcdef9052fba","at":1775124157251000000,"seq":1299,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4da5-1343-7167-922e-247a8557f607","at":1775124157251000000,"seq":1300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d4da5-21e8-7c14-b1a0-442672f18996","at":1775124161000000000,"seq":1301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d4da5-3188-76bd-8e13-107a4923afd7","at":1775124165000000000,"seq":1302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4da5-94b5-77e8-aac2-fbb2a9b06c38","at":1775124190389000000,"seq":1303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d4da5-a6b8-7fdb-ba8d-5c680c50c51e","at":1775124195000000000,"seq":1304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4da6-181a-788d-b30c-3c65af02ddba","at":1775124224026000000,"seq":1305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d4da6-79a8-7947-812b-8b37baf8cdd1","at":1775124249000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d4da6-8d30-7905-a36d-89d7b1653f9e","at":1775124254000000000,"seq":1307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4da6-f399-7718-a0b0-427ed55d09f5","at":1775124280217000000,"seq":1308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d4da7-15e8-7275-8327-9ad0843b1d71","at":1775124289000000000,"seq":1309,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4da7-2d58-7831-a815-6f673ff9e324","at":1775124295000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4da7-3528-7fdb-bc25-b3d2f3a7d204","at":1775124297000000000,"seq":1311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d4da7-5080-7e93-abd6-970222b2ed6c","at":1775124304000000000,"seq":1312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

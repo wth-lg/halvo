@@ -1,0 +1,15 @@
+{"v":1,"id":"019c89b8-54c3-7aef-9f47-1910697a83bf","at":1771837084867000000,"seq":650,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89b8-54c3-75f1-9495-2e1f59e032cb","at":1771837084867000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c89b8-5930-7cec-a424-7e912a694fde","at":1771837086000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89b8-70a0-77a5-b263-f14d124db2c5","at":1771837092000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c89b8-8fe0-7ddd-b9d1-a03d0684d57d","at":1771837100000000000,"seq":654,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c89c5-5ac1-70a1-9b2e-99d2d289548b","at":1771837938369000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c89c5-ab58-785f-b52b-3a05b0dd9e7a","at":1771837959000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c5-e5f0-7b1c-9683-32d6e82f4437","at":1771837974000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c6-5a99-7f16-920c-bc7d6875ba25","at":1771838003865000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c89c6-b4f8-7f45-9342-9883d02d6012","at":1771838027000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c6-ba24-71b2-850a-22561a21d5e0","at":1771838028324000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c89c7-2e10-7ff3-8b7a-8eeefce68a5f","at":1771838058000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c7-9b70-7545-b7a9-3ea69a20b51c","at":1771838086000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89de-e293-71a8-b312-8faa4274705f","at":1771839611539000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c89df-5990-7959-b712-95913a04c1ae","at":1771839642000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

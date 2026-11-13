@@ -1,0 +1,16 @@
+{"v":1,"id":"019c0e59-e291-73b1-9fcd-52f5b0ab7cbf","at":1769767297681000000,"seq":369,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e59-e291-7c3c-b065-50a5e4cc2bc4","at":1769767297681000000,"seq":370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c0e5a-e457-7495-9dce-edaa4219b77b","at":1769767363671000000,"seq":371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c0e5b-0cb0-7879-9f13-76b3ca29e042","at":1769767374000000000,"seq":372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0e5b-1c50-7def-aace-f835d445dcda","at":1769767378000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c0e5b-a8bb-7430-bd8e-027a0a2e9e01","at":1769767413947000000,"seq":374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c0e5b-c060-76da-b223-a2f4f7e24e4e","at":1769767420000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c0e5c-1650-7c46-a80b-f68f407dfa68","at":1769767442000000000,"seq":376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e5c-29d8-74c2-a39d-c358f2ec8a08","at":1769767447000000000,"seq":377,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e5d-fcb4-79d1-bed0-a72f1218f72b","at":1769767566516000000,"seq":378,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c0e5e-96f0-78b0-8d81-3993778cad07","at":1769767606000000000,"seq":379,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e5e-fff7-7603-b3bc-d15f9212a0ab","at":1769767632887000000,"seq":380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c0e5f-3718-72d3-8cd8-e8cc092c532f","at":1769767647000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e5f-3ee8-71a7-8aa7-28615b73809b","at":1769767649000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e5f-8538-737b-ae8b-2013f27951c4","at":1769767667000000000,"seq":383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0e5f-8d08-7c72-b5af-14a1777969cf","at":1769767669000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

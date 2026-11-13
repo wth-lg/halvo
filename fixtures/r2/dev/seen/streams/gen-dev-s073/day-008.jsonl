@@ -1,0 +1,34 @@
+{"v":1,"id":"019b9ccc-a7fe-73c0-921f-215e00dbf32b","at":1767862216702000000,"seq":201,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9ccc-a7fe-71dc-adc6-41e1a4529a3f","at":1767862216702000000,"seq":202,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9ccc-cc50-7edb-9b6b-333bf555be3e","at":1767862226000000000,"seq":203,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9ccc-d808-7ace-a29f-b226d9c5f2b7","at":1767862229000000000,"seq":204,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9ccc-ef78-78e4-b2c3-94e5cf13fa36","at":1767862235000000000,"seq":205,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b9ce3-b3e8-7c6e-8921-52858687f7e2","at":1767863727080000000,"seq":206,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9ce4-01b8-794d-a004-c86942d995d1","at":1767863747000000000,"seq":207,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b9ce4-4038-7c50-adc3-ebf9fa302da9","at":1767863763000000000,"seq":208,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9ce4-7eb8-79cf-84e2-0a7690607776","at":1767863779000000000,"seq":209,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cfc-0cdf-7fc2-b610-04e82f94a0b8","at":1767865322719000000,"seq":210,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9cfc-0cdf-755c-a89d-6900053d0c10","at":1767865322719000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b9cfc-0df8-781c-a115-d7243e184e6c","at":1767865323000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b9cfc-5060-7bc8-bc81-e691f68ada6d","at":1767865340000000000,"seq":213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfc-96b0-7012-acc7-b43e7b9a99a1","at":1767865358000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfc-f7c1-73ad-87a7-dbef8b064336","at":1767865382849000000,"seq":215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b9cfd-2b20-7390-bcb3-847f948ed3a3","at":1767865396000000000,"seq":216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b9cfd-8cc8-76ad-9279-94adea01253f","at":1767865421000000000,"seq":217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfd-9498-7920-8fd5-a774a5613e2f","at":1767865423000000000,"seq":218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cfd-bba8-7d5d-9189-0fb98778fd84","at":1767865433000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfd-dbca-78d3-90b6-042d5f1177b3","at":1767865441226000000,"seq":220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b9cfe-30d8-7704-8946-491ea6e7a88b","at":1767865463000000000,"seq":221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b9cfe-466c-7256-901c-c9e8b515531b","at":1767865468524000000,"seq":222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b9cfe-5018-7384-97fc-2dd5300f4cca","at":1767865471000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfe-5fb8-795e-9241-902f312fc6e7","at":1767865475000000000,"seq":224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfe-6f58-7c4b-8de4-da005a49780a","at":1767865479000000000,"seq":225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cfe-91b5-70eb-b9c3-f2dbd9f49bb8","at":1767865487797000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b9cfe-9a50-7f12-91c6-5392ba5b8ac5","at":1767865490000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfe-9a50-76e5-a31a-6c5e0b0c3eae","at":1767865490000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b9cfe-c548-7ec9-ba32-da65467a6ea5","at":1767865501000000000,"seq":229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9d11-1501-7e0a-94fb-0a182a7758cd","at":1767866701057000000,"seq":230,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9d11-1501-78f4-be6a-b572f2aee9d2","at":1767866701057000000,"seq":231,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9d11-2080-7d2d-85f7-f19771b3587e","at":1767866704000000000,"seq":232,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d11-3fc0-7a2e-8cde-9ebd62280cdc","at":1767866712000000000,"seq":233,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b9d11-5b18-7a87-8169-2fc367e3a9c3","at":1767866719000000000,"seq":234,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,30 @@
+{"v":1,"id":"019bea19-4fea-7ce8-b2d9-a99ec1b878c9","at":1769159086058000000,"seq":273,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea19-4fea-76d7-844d-a47765c7b9cf","at":1769159086058000000,"seq":274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bea19-9600-7438-8e8b-d9183ae2ee64","at":1769159104000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea19-d868-77b9-856c-67ff282fcd77","at":1769159121000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bea19-ec33-7118-9483-4ca33464df12","at":1769159126067000000,"seq":277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bea1a-0360-70c2-ad1a-f6e5d51aed86","at":1769159132000000000,"seq":278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea1a-4d98-7054-9963-747a4e9c4af1","at":1769159151000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea1a-65f7-7550-bd8b-75f4eb9c1ca6","at":1769159157239000000,"seq":280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bea1a-baf8-7d4c-a32d-51263b248d95","at":1769159179000000000,"seq":281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea26-456a-7001-8f9f-9b523d7f98f0","at":1769159935338000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bea26-5f70-7d17-bbcb-5b0566359a9d","at":1769159942000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea26-9c07-7193-9881-8ab7a5a2ccea","at":1769159957511000000,"seq":284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bea27-3260-753d-912b-23944c00dd6f","at":1769159996000000000,"seq":285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea27-3a30-7145-b47a-0a46743e4bf4","at":1769159998000000000,"seq":286,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bea27-6af5-723d-8424-4e6c83f2fac0","at":1769160010485000000,"seq":287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bea27-8c38-7e83-b94d-019d094e512e","at":1769160019000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bea27-d288-75db-b82c-4a68c88930df","at":1769160037000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea28-14f0-768f-afed-9d3ec3676f82","at":1769160054000000000,"seq":290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bea28-2878-78b3-af4e-862d90704b8b","at":1769160059000000000,"seq":291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea33-1de0-7eb5-b861-65de0db847e8","at":1769160777184000000,"seq":292,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bea33-1de0-7806-b56e-b4a0da96af8d","at":1769160777184000000,"seq":293,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bea33-30b0-7aa8-b36c-9089450439c1","at":1769160782000000000,"seq":294,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bea33-3498-7d9c-b66b-a7978dca648b","at":1769160783000000000,"seq":295,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bea41-8720-7b6a-9c41-5e88c3d1d1cf","at":1769161721632000000,"seq":296,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea41-8720-760b-8324-00bc576170aa","at":1769161721632000000,"seq":297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bea42-4410-7af3-a427-210bdc23dffa","at":1769161770000000000,"seq":298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea42-7ea8-7e02-bb54-43ac73db5e80","at":1769161785000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea42-970e-7ee9-bb7b-08eabafd1a0c","at":1769161791246000000,"seq":300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bea42-a5b8-7038-ac13-8eb316b1559f","at":1769161795000000000,"seq":301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea42-ec08-74ef-93f9-c1a40379f78a","at":1769161813000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

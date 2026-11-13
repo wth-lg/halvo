@@ -1,0 +1,39 @@
+{"v":1,"id":"019cc765-8f88-7ce6-aeb1-2b53f72f0c05","at":1772871847816000000,"seq":880,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc765-8f88-753b-8057-f9f2974bc458","at":1772871847816000000,"seq":881,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cc765-bb38-7fdb-943a-c7a8eeebac36","at":1772871859000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc765-c6f0-75af-bc93-39f67961eba2","at":1772871862000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc765-c743-7218-b2b4-8f3f513c5c36","at":1772871862083000000,"seq":884,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cc766-3838-7cc3-8b46-bbe7de1221c0","at":1772871891000000000,"seq":885,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc766-4008-7ee7-80b9-11af710a492b","at":1772871893000000000,"seq":886,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc766-95f8-76f3-b41a-88e361ea7044","at":1772871915000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc766-99e0-71e3-ba57-42be36a8f7a3","at":1772871916000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc766-a3e2-76ff-8647-8e4cf83d6973","at":1772871918562000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cc766-bd08-7db5-8fe8-b0a46204f2a0","at":1772871925000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc767-0f10-7eff-bd43-79524837ea7b","at":1772871946000000000,"seq":891,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cc767-1bde-720b-bd8b-68a2195168fa","at":1772871949278000000,"seq":892,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cc767-3238-73e5-8d3f-0eec6112655d","at":1772871955000000000,"seq":893,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc767-41d8-74cb-bc16-3777a62169e8","at":1772871959000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc767-97c8-76da-99f1-4539ccbc1973","at":1772871981000000000,"seq":895,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc767-97c8-7998-976f-fab630455a6b","at":1772871981000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cc767-baf0-7446-a52e-93099d0136ca","at":1772871990000000000,"seq":897,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc773-7771-72ec-a51e-c50413614b24","at":1772872759153000000,"seq":898,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cc774-1700-7ce1-bc42-d97dca96d794","at":1772872800000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cc774-30ea-7161-9ce5-c8cfc7f5c48c","at":1772872806634000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cc774-8848-766f-98a3-126fc9baa1a9","at":1772872829000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cc774-c6c8-7f4b-837e-a57bc22cda67","at":1772872845000000000,"seq":902,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc774-d668-7278-9e27-971daed25160","at":1772872849000000000,"seq":903,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc775-1433-7d0c-979f-8db34defd97c","at":1772872864819000000,"seq":904,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cc775-a570-72c7-89ee-40c10d439131","at":1772872902000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cc775-c50d-754a-800b-ae1ece8731c0","at":1772872910093000000,"seq":906,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cc776-0ee8-7bf2-86c8-a6fe8c5d4ccf","at":1772872929000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc776-16b8-7bed-9ef1-02191997d7d8","at":1772872931000000000,"seq":908,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc776-5150-7e2b-94fa-64bedb1faa72","at":1772872946000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cc776-66bc-742d-aaa5-c4bfa67cbb85","at":1772872951484000000,"seq":910,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cc776-93b8-741e-ad73-063ed71d108e","at":1772872963000000000,"seq":911,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc776-9b88-73b7-9c54-9afca1270241","at":1772872965000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc776-ab28-7dab-80e2-33449c027fae","at":1772872969000000000,"seq":913,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc776-bca0-798b-80ec-593e3911d680","at":1772872973472000000,"seq":914,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cc776-da08-7e92-9584-595a081e4701","at":1772872981000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cc776-e5c0-7e74-bc07-20329453418c","at":1772872984000000000,"seq":916,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc776-e9a8-7fd3-a8c0-c78e0ec46540","at":1772872985000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc777-62c0-71e7-bffd-c32fc384d09a","at":1772873016000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

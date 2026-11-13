@@ -1,0 +1,11 @@
+{"v":1,"id":"019d3933-e0f4-7f89-9a5a-07d07baccf40","at":1774781194484000000,"seq":1287,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3933-e0f4-7657-85ee-a9673fa27ba4","at":1774781194484000000,"seq":1288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d3934-15c0-757f-9e36-c5f1359e1dfd","at":1774781208000000000,"seq":1289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3934-19a8-768e-a6d1-c3c44e1736d3","at":1774781209000000000,"seq":1290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d3934-811b-7c44-bac4-3fae2cc2dbe4","at":1774781235483000000,"seq":1291,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d3934-8af0-70e7-908e-4f9e08196c21","at":1774781238000000000,"seq":1292,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3934-b9d0-73ba-a873-ca7cb2f4aa26","at":1774781250000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3936-b0bb-7cf8-acf6-60a1761bda83","at":1774781378747000000,"seq":1294,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3936-b0bb-7408-9253-b56c0818c907","at":1774781378747000000,"seq":1295,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3936-e868-7181-a114-ff1e54316411","at":1774781393000000000,"seq":1296,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d3936-f038-7d69-bb49-6b3d1f01fb90","at":1774781395000000000,"seq":1297,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

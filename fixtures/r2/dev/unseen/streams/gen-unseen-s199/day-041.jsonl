@@ -1,0 +1,13 @@
+{"v":1,"id":"019c46a0-8e04-781f-9561-ef6bf5c3438d","at":1770711453188000000,"seq":384,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c46a0-8e04-7d36-b9fa-c328e6c65a8c","at":1770711453188000000,"seq":385,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c46a0-a0d0-73c3-8c8c-da6795ee2791","at":1770711458000000000,"seq":386,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c46a0-c010-745f-beec-2cd6965a7643","at":1770711466000000000,"seq":387,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c46a0-e338-7917-84e7-6b2088446e28","at":1770711475000000000,"seq":388,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46a4-50fe-7258-adfc-40f0b03a60a0","at":1770711699710000000,"seq":389,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c46a4-50fe-7b20-9aff-2f8758cbfcd2","at":1770711699710000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c46a4-7930-7964-b581-ea8600fb70a8","at":1770711710000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c46a4-b54b-73f8-9dd4-d83b69e0156e","at":1770711725387000000,"seq":392,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c46a5-7d6f-7140-a33b-13df2c376800","at":1770711776623000000,"seq":393,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c46a5-86b8-712b-be73-3973bbbdc56e","at":1770711779000000000,"seq":394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46a6-88ec-7b1e-bb34-e44443506110","at":1770711845100000000,"seq":395,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c46a6-d6a8-792c-8001-0087af44307d","at":1770711865000000000,"seq":396,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

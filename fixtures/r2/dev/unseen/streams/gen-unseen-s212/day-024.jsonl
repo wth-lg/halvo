@@ -1,0 +1,21 @@
+{"v":1,"id":"019bef5c-1745-74b5-8b5b-f47aed7599df","at":1769247348549000000,"seq":187,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef5c-1745-79a4-84be-6ce702bbbb7a","at":1769247348549000000,"seq":188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bef5c-24c0-74e0-87d3-32a804cc5b68","at":1769247352000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5c-5e1c-7502-b05e-91d5a2cee6a3","at":1769247366684000000,"seq":190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bef5c-9220-71bb-9180-0350dd198d68","at":1769247380000000000,"seq":191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bef5c-e726-7b48-913e-1dec79e45ea2","at":1769247401766000000,"seq":192,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef5c-e726-71a9-8ea3-ef657cf00704","at":1769247401766000000,"seq":193,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef5d-7e15-7506-b8f5-fe62d21518e5","at":1769247440405000000,"seq":194,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef5d-7e15-7e14-b8aa-90a34cd2df2a","at":1769247440405000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bef5d-9bc0-7ee9-93e0-1c44d8c27bc8","at":1769247448000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5d-bee8-793f-b3c4-9a1514ccb45c","at":1769247457000000000,"seq":197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bef5d-ef7b-7000-987b-fe891bdea7e5","at":1769247469435000000,"seq":198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bef5d-f1b0-7460-93aa-8e92eeaea771","at":1769247470000000000,"seq":199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5e-4f70-7491-86db-45caa2b217d8","at":1769247494000000000,"seq":200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef5e-6ac8-750a-8934-29b2769edc2e","at":1769247501000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef5e-6eb0-7acd-a42f-e0cb9b8ddf0d","at":1769247502000000000,"seq":202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bef6c-3d11-7630-8d2b-627195033012","at":1769248406801000000,"seq":203,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef6c-3d11-787e-954c-83e1ef92d4b7","at":1769248406801000000,"seq":204,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef6c-93c8-7e54-acfc-635ee6980404","at":1769248429000000000,"seq":205,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bef6c-af20-79d1-9fe0-41513b468957","at":1769248436000000000,"seq":206,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bef6c-af20-7879-9ddf-0748ceb2876a","at":1769248436000000000,"seq":207,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}

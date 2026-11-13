@@ -1,0 +1,61 @@
+{"v":1,"id":"019beed2-2c79-78c2-be00-3d0d49958790","at":1769238310009000000,"seq":251,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019beed2-2c79-79a4-b15f-b2fea770f7a7","at":1769238310009000000,"seq":252,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019beed2-a1a0-7b30-a0ee-935b00143f90","at":1769238340000000000,"seq":253,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beed2-f790-79ff-bdfc-63ca9d9e0318","at":1769238362000000000,"seq":254,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beed9-ec5d-7db9-ba93-d0665d68ac16","at":1769238817885000000,"seq":255,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019beef4-692f-7a4e-b444-6b6c45a51213","at":1769240553775000000,"seq":256,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019beef4-692f-7c65-ba3c-a461dfb5c00c","at":1769240553775000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019beef4-6df8-715d-b91c-3c9d7f9ce854","at":1769240555000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef4-71e0-7a81-88d7-abdebdd13272","at":1769240556000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef5-3530-7887-9b28-007775cf64b0","at":1769240606000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019beef5-49e8-7027-b6fc-df7d3f278534","at":1769240611304000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019beef5-73b0-7459-b974-53bc559929bf","at":1769240622000000000,"seq":262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019beef5-92f0-7276-aed5-753d9faf7707","at":1769240630000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019beef5-96d8-70de-b3d4-56e607d416d8","at":1769240631000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef5-a290-7e68-ac49-f184e2ae3ca9","at":1769240634000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef5-a582-7514-b3ac-9dc28df2b53c","at":1769240634754000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019beef5-d940-725e-993b-70ba44ceaafa","at":1769240648000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef5-dd28-795f-9430-2623cb6f6bf9","at":1769240649000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019beef6-0050-7c3e-a1d4-2b813e17472e","at":1769240658000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef6-1d51-70f5-9315-6cb1784a41ae","at":1769240665425000000,"seq":270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019beef6-69c8-7034-a506-80f15768296b","at":1769240685000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef6-ac30-7447-9490-fa0b721468be","at":1769240702000000000,"seq":272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019beef6-cb70-72db-bee1-2b161e6ba50d","at":1769240710000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef6-def8-71dd-8240-72c5f828add1","at":1769240715000000000,"seq":274,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef0d-ddce-74e2-862c-bd687cb15af7","at":1769242222030000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bef0d-fcf0-7838-b61c-95335e21b576","at":1769242230000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef0e-1078-7161-9e1f-fedbb6ec1d84","at":1769242235000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef0e-a40e-7e02-82a0-aa86af96bfaf","at":1769242272782000000,"seq":278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bef0e-d3c8-77ed-a506-83ab0074b766","at":1769242285000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bef0f-0e60-7187-b5ac-0033a8bce95b","at":1769242300000000000,"seq":280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bef0f-2da0-76ce-bc4f-0362b169167c","at":1769242308000000000,"seq":281,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bef0f-3958-7c5c-82f8-76b8bb728de1","at":1769242311000000000,"seq":282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef0f-66a1-787c-9d4c-a76198275106","at":1769242322593000000,"seq":283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bef0f-9330-7a20-8499-936e30127c5a","at":1769242334000000000,"seq":284,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bef0f-a2d0-7160-81f3-88efbcba4b04","at":1769242338000000000,"seq":285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef0f-c9e0-7972-8dfd-c4e86dd5769d","at":1769242348000000000,"seq":286,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bef0f-ed08-7d9c-9f32-f1dfeacae908","at":1769242357000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bef10-0f55-7766-a682-a36e7e506279","at":1769242365781000000,"seq":288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bef10-6a08-77ec-b6d4-b0d06dda49fd","at":1769242389000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef10-8560-7151-908b-66406d292b80","at":1769242396000000000,"seq":290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef10-c7c8-78dc-8761-6a82e4e96213","at":1769242413000000000,"seq":291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bef10-d380-7187-91a9-a899258edda5","at":1769242416000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bef10-eed8-7ad1-ab69-63391615c111","at":1769242423000000000,"seq":293,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef1a-fb1c-7614-b4f3-2a559dbb49a5","at":1769243081500000000,"seq":294,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bef1b-1868-76eb-a03c-85db0fb82576","at":1769243089000000000,"seq":295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef1b-33c0-7bd0-ac17-061d97da99d8","at":1769243096000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bef1b-62a0-744d-bc56-daa793209ad3","at":1769243108000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef1b-7f87-72f3-b520-459569934aec","at":1769243115399000000,"seq":298,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bef1b-89b0-778f-90ef-8fe05b27f092","at":1769243118000000000,"seq":299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bef1b-b4a8-7d5e-ab72-0867616af416","at":1769243129000000000,"seq":300,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef1b-dfa0-7650-bc2e-81d8694db8b5","at":1769243140000000000,"seq":301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef1c-29d8-7fca-aecc-a4c9d8ea27c0","at":1769243159000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef1c-4eaa-76ea-8e6e-0aabcd1e4f7d","at":1769243168426000000,"seq":303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bef1c-6858-727b-ac86-13439e6b1269","at":1769243175000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bef1c-aac0-791e-919b-fe0db10e7709","at":1769243192000000000,"seq":305,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bef1c-dd88-7ce8-b1be-4f06ccf476ae","at":1769243205000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef1c-ee85-76f9-a0fb-3002260ba39f","at":1769243209349000000,"seq":307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bef1d-4318-7d01-92fd-05eb079bdd78","at":1769243231000000000,"seq":308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bef1d-56a0-73b7-b0eb-f737d04b407e","at":1769243236000000000,"seq":309,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bef1d-6e10-7234-9fe2-38d644d25402","at":1769243242000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef1d-8953-7ceb-b671-371e0392d647","at":1769243248979000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}

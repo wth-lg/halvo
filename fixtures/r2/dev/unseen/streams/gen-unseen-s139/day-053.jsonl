@@ -1,0 +1,15 @@
+{"v":1,"id":"019c84fb-81ed-7d1f-8bc1-54338edf586e","at":1771757601261000000,"seq":709,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84fb-81ed-7ee3-b5f1-e019f47205d0","at":1771757601261000000,"seq":710,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c84fb-afc8-7a2f-8ec9-18ce04df3f0c","at":1771757613000000000,"seq":711,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84fb-bb80-7540-8cfd-02a28d6e5df6","at":1771757616000000000,"seq":712,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c84fb-cb20-7e6c-ab36-72ac31169ff3","at":1771757620000000000,"seq":713,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c84fb-dea8-7b14-b6d3-b38b1683e7b2","at":1771757625000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c850b-54ae-7aaf-9149-12ffcc86627e","at":1771758638254000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c850b-8290-791f-b69c-8247b97a2f36","at":1771758650000000000,"seq":716,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c850f-d601-788c-8384-407b92918258","at":1771758933505000000,"seq":717,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c8510-02e8-7734-a307-3179deb2787d","at":1771758945000000000,"seq":718,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c8510-58d8-79f1-a085-08c58591d45f","at":1771758967000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8510-aae0-70cb-a7d8-9f53f2fcc0ec","at":1771758988000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8510-ce70-7774-95a8-82040b01fc21","at":1771758997104000000,"seq":721,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c8510-e190-7c7b-9641-e7ca441cbd7f","at":1771759002000000000,"seq":722,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8510-f900-7330-a5b3-8e7b3844294e","at":1771759008000000000,"seq":723,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

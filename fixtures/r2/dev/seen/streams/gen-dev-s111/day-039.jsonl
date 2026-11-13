@@ -1,0 +1,12 @@
+{"v":1,"id":"019c3ccf-a1c2-7d49-bb83-6f3c285f8645","at":1770546766274000000,"seq":419,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3ccf-a1c2-7dc5-b404-efe083b85ccc","at":1770546766274000000,"seq":420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3ccf-a498-7350-a9b8-73e95b5c6e48","at":1770546767000000000,"seq":421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3ccf-df30-7761-97a6-57c59fe3b80a","at":1770546782000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cd0-19c8-74da-8e2d-edefee1d8924","at":1770546797000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ce9-4b73-740e-a0e9-f36a8c72ee3c","at":1770548448115000000,"seq":424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce9-5aa0-73a5-9e75-345ed5e79802","at":1770548452000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ce9-a74f-7f45-b492-61b3bfc173b2","at":1770548471631000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce9-bc48-756a-817d-0d46a512f7ac","at":1770548477000000000,"seq":427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c3ce9-f2f8-7824-b204-d2ff72b69197","at":1770548491000000000,"seq":428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cea-0298-757a-8341-e571b0426d61","at":1770548495000000000,"seq":429,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cea-25c0-7232-85a9-33a0c6499c4e","at":1770548504000000000,"seq":430,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

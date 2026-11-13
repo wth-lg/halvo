@@ -1,0 +1,68 @@
+{"v":1,"id":"019ca877-b7fe-713c-9025-0365e328a81b","at":1772352944126000000,"seq":908,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca877-b7fe-7b6f-9e76-c8a791dd2b74","at":1772352944126000000,"seq":909,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca878-6748-71ff-899b-0cbce44d7243","at":1772352989000000000,"seq":910,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ca878-7300-7dbd-8808-7f7a9a630503","at":1772352992000000000,"seq":911,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87a-5c16-701d-b8b5-6251d1a54ea6","at":1772353117206000000,"seq":912,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019ca87a-6905-7d70-89af-1bbe5cb5805a","at":1772353120517000000,"seq":913,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca87a-6905-7d51-bda4-8b72d122f508","at":1772353120517000000,"seq":914,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca87a-dc1a-75d2-a714-c851e1e90730","at":1772353149978000000,"seq":915,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca87b-12e0-7df9-98f0-97609c0c6ec5","at":1772353164000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87b-5548-7f9c-bed6-8999ca88db47","at":1772353181000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca87b-7870-7c5f-930f-53b64fa662f3","at":1772353190000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87b-93e2-7bb1-b787-e0f43755e650","at":1772353197026000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca87c-754c-74bd-98eb-2eb0906e2135","at":1772353254732000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca87d-83aa-783a-832d-e911b4bae84f","at":1772353323946000000,"seq":921,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca87d-b2c0-7d58-baf8-cf618096635d","at":1772353336000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87e-1850-7a57-a8dd-08aca7330cff","at":1772353362000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ca87e-54c5-7750-bf72-ee4708b004a1","at":1772353377477000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca87e-b0a8-745f-b602-3e04de6606b8","at":1772353401000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87e-b878-76b6-83a2-268f61fb8c57","at":1772353403000000000,"seq":926,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca87e-c430-706c-81f8-9896e644a2d0","at":1772353406000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87e-c430-7631-b08a-62ed758759d2","at":1772353406000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ca87f-0e8e-773f-b9aa-c74ee9aece22","at":1772353425038000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca87f-4bf5-7539-a0c4-cf606d274715","at":1772353440757000000,"seq":930,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca87f-6070-7dcf-90e7-ee87c0b22ca5","at":1772353446000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87f-b660-7bbe-9c8b-5f3fa79f4d6e","at":1772353468000000000,"seq":932,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca87f-d1b8-7a25-91d7-2b0c8238cd75","at":1772353475000000000,"seq":933,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca87f-e540-7a1d-a8a2-46dcc2c7fb8e","at":1772353480000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ca87f-ed10-7c01-b9bf-81928ca872e6","at":1772353482000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca880-3bd4-788d-babd-9c61115d1776","at":1772353502164000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca880-9508-7f43-b143-2ce19b14fc96","at":1772353525000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ca880-e983-75ef-aaea-d1454660e29c","at":1772353546627000000,"seq":938,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca881-9ef9-7f03-a5f8-a5dba06b561a","at":1772353593081000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca881-a290-764b-9124-c2b158bf1ea3","at":1772353594000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca881-bde8-7b7b-8912-08439c91e945","at":1772353601000000000,"seq":941,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca881-e4f8-7fa7-87e3-3e9389bfd31b","at":1772353611000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca882-127d-78a8-ba92-a9d7179c9507","at":1772353622653000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca882-17c0-76ab-a318-3f21c10339bc","at":1772353624000000000,"seq":944,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca882-5640-75e7-ad4c-63dec88401a3","at":1772353640000000000,"seq":945,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca882-69c8-73ec-a93d-4485294de79d","at":1772353645000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca882-7580-721f-baff-1d2d059a5722","at":1772353648000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca882-8b3d-7f18-9fb2-b41ed8fb1867","at":1772353653565000000,"seq":948,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca883-8308-7071-998d-cb18a47f817a","at":1772353717000000000,"seq":949,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca883-8f7e-743c-a942-012db91cbf48","at":1772353720190000000,"seq":950,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca883-9a78-766f-a4fd-d6127d2fae83","at":1772353723000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca883-d745-7ccb-a54f-0ef7093ac325","at":1772353738565000000,"seq":952,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca883-fc20-70d1-b04b-d637431f7705","at":1772353748000000000,"seq":953,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca884-1b60-72dc-aef8-8e4a1e772928","at":1772353756000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca884-4270-76c9-81f9-4612be8b4c61","at":1772353766000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca884-b268-7491-b90c-01e165433b2c","at":1772353794664000000,"seq":956,"kind":"run_mark","app":null,"p":{"edge":"end"}}
+{"v":1,"id":"019ca89b-2843-76c6-bb4e-84f7b0a6b6b1","at":1772355266627000000,"seq":957,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca89b-2da0-7a37-a651-dfde76b0fd93","at":1772355268000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca89b-808b-7355-b5a3-c5206b64d9b6","at":1772355289227000000,"seq":959,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca89c-0478-7d18-86c8-a8618b28cb43","at":1772355323000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca89c-1800-7993-9678-10ef400ccc4d","at":1772355328000000000,"seq":961,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca89c-2b88-7f8b-93b8-065104f6ca9d","at":1772355333000000000,"seq":962,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca89c-4eb0-7a3f-820c-6178d948ce81","at":1772355342000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca89c-74da-78e3-89fe-a6dafa89e974","at":1772355351770000000,"seq":964,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca89c-74da-7c5b-a2f8-01a84fa38d88","at":1772355351770000000,"seq":965,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca89d-4c98-7654-8025-f432eba516c5","at":1772355407000000000,"seq":966,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca89d-588b-7d62-ab6b-7597705a586a","at":1772355410059000000,"seq":967,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca89d-588b-78f7-9123-609a49b07f61","at":1772355410059000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca89d-8730-7ad7-8a00-1699cabcd897","at":1772355422000000000,"seq":969,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca89d-9ea0-724a-ae81-8a982f96fa30","at":1772355428000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ca89d-c1c8-7d70-9946-835ebe2312c9","at":1772355437000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8b7-e280-7ee6-b3d5-a39a1d422b80","at":1772357149312000000,"seq":972,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca8b7-e280-7fae-a77b-cfc5ad7a99c3","at":1772357149312000000,"seq":973,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca8b7-f4d0-719a-b6f2-2e95d34b9b29","at":1772357154000000000,"seq":974,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca8b8-5290-75be-8624-2788a5db895c","at":1772357178000000000,"seq":975,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

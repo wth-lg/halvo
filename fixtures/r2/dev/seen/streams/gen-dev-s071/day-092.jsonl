@@ -1,0 +1,9 @@
+{"v":1,"id":"019d4d4d-3aba-7644-8647-c3ad9ea9fd5e","at":1775118400186000000,"seq":1212,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d4d-3aba-7f44-a324-749c24f8e082","at":1775118400186000000,"seq":1213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4d4d-9f90-7c18-982b-e9bbc71a2a46","at":1775118426000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d61-d751-76a3-8a98-6f7c557be906","at":1775119750993000000,"seq":1215,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4d61-d751-7864-a9d8-d8db8bab8472","at":1775119750993000000,"seq":1216,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4d62-2578-748b-9381-ed43d84a6347","at":1775119771000000000,"seq":1217,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d62-3130-7a5e-a3c7-ece2a9d482fa","at":1775119774000000000,"seq":1218,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d4d62-40d0-79da-aa0e-a65bfef41f8c","at":1775119778000000000,"seq":1219,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d4d62-67e0-741d-8584-c15b7e3bead9","at":1775119788000000000,"seq":1220,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

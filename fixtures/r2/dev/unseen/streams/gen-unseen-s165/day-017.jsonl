@@ -1,0 +1,22 @@
+{"v":1,"id":"019bcac1-dce8-75b3-8946-0d26d108184d","at":1768633261288000000,"seq":328,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcac1-dce8-7a11-af41-af9fd2400c49","at":1768633261288000000,"seq":329,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bcac1-eb68-7023-a508-a65b22b0848f","at":1768633265000000000,"seq":330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcac2-2dd0-71ba-8d57-12f0a7defd00","at":1768633282000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcac2-31b8-73e0-a7a7-eea79d0c6371","at":1768633283000000000,"seq":332,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bcac2-4158-7e61-b753-20b53959bc59","at":1768633287000000000,"seq":333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcac2-7038-7e75-8b77-dc5e903d865a","at":1768633299000000000,"seq":334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcad0-09d2-7494-87df-0c2d339133a8","at":1768634190290000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bcad0-2bd8-7f56-b98d-e88d348b3194","at":1768634199000000000,"seq":336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bcaeb-1818-7590-bbc5-808734c6eeb4","at":1768635963416000000,"seq":337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bcaeb-1e48-7d2d-bd68-d8e632db100e","at":1768635965000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bcaeb-54f8-70fa-8eff-843893f244e8","at":1768635979000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcaeb-c21f-75ba-9373-da30fd566140","at":1768636006943000000,"seq":340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bcaec-3f58-78d3-9593-64683a06842d","at":1768636039000000000,"seq":341,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcaec-79f0-7bdb-b53d-b2e07da8d1d0","at":1768636054000000000,"seq":342,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcaec-8d99-7eb1-b203-c08e65d45947","at":1768636059033000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bcaec-b0a0-7a8f-bab0-620b37b51e4f","at":1768636068000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcaec-df80-7d2f-b213-dce5557cac67","at":1768636080000000000,"seq":345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcaec-ef20-765a-ba6d-bd22fceb304c","at":1768636084000000000,"seq":346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcaed-0650-7d8c-a883-86da57f1379e","at":1768636089936000000,"seq":347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bcaed-3958-7a64-a5ec-d21971ceb545","at":1768636103000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcaed-3958-7bd7-b817-6eae06d457c5","at":1768636103000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

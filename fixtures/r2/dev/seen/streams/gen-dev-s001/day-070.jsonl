@@ -1,0 +1,28 @@
+{"v":1,"id":"019cdc4c-e8f3-7285-b85d-62f37b7a89a0","at":1773222553843000000,"seq":1163,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc4c-e8f3-7a5a-b1e2-6257c3ee0f05","at":1773222553843000000,"seq":1164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cdc4d-2040-7a04-a326-99644ced656c","at":1773222568000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc4d-4b38-7f3e-aaf3-7cdede4f72d3","at":1773222579000000000,"seq":1166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc4d-e778-7ce9-8582-caa94ebf26df","at":1773222619000000000,"seq":1167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cdc4d-ef9f-73b4-bad5-b6493f4f4173","at":1773222621087000000,"seq":1168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cdc4e-1270-742f-841c-a32f37ad2382","at":1773222630000000000,"seq":1169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdc4e-1658-763d-91d0-4798b3755276","at":1773222631000000000,"seq":1170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc4e-29cc-7a81-8e61-5c6b94fbe8dc","at":1773222635980000000,"seq":1171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cdc4e-2dc8-7fa5-bbb6-1569bd9e5915","at":1773222637000000000,"seq":1172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc4e-7fd0-7cb0-845b-0c243ee7f5d2","at":1773222658000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc4e-9b87-7fdb-8013-9171daf8bc4b","at":1773222665095000000,"seq":1174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cdc4e-aac8-732c-976a-d9a9d9730a49","at":1773222669000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cdc4e-ba68-791d-87f4-55b0aec26b03","at":1773222673000000000,"seq":1176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc4e-be50-75df-a531-071c3568e07e","at":1773222674000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc4e-c620-79e0-9548-56e1a3c6517a","at":1773222676000000000,"seq":1178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdc4e-cdf0-71de-9ac4-2e1b419abe23","at":1773222678000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc4f-0341-76e5-a073-5246c8d1b176","at":1773222691649000000,"seq":1180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cdc4f-1828-7ecd-a671-708355384b96","at":1773222697000000000,"seq":1181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc4f-1ff8-734b-9d12-8786c0bdd324","at":1773222699000000000,"seq":1182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc4f-78b7-78de-9f6d-c284a5c06ca2","at":1773222721719000000,"seq":1183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cdc50-4382-7ccc-b3f8-2eff5764b7f8","at":1773222773634000000,"seq":1184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cdc50-fc88-7799-8907-3e595a8f7244","at":1773222821000000000,"seq":1185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc51-31f7-73af-8509-74baaa57fe65","at":1773222834679000000,"seq":1186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cdc51-3ef0-7f00-ba26-aa93ab1bd44a","at":1773222838000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc51-5a48-7638-96b9-f0b966e51d6b","at":1773222845000000000,"seq":1188,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc51-5e30-7fee-b526-cdc476e12f56","at":1773222846000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cdc51-d360-739b-8312-99f85a1f228f","at":1773222876000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

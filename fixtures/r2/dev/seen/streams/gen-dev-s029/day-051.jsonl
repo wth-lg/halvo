@@ -1,0 +1,15 @@
+{"v":1,"id":"019c7a19-fffe-72d9-87b5-00fc9e6ba646","at":1771575050238000000,"seq":702,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a19-fffe-73b9-a898-f19af19ea68c","at":1771575050238000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a1a-02f8-773c-b55e-d18211553b68","at":1771575051000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a1a-83e0-73e2-897e-82ab475979ca","at":1771575084000000000,"seq":705,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a35-939a-753e-888c-ab1012eea592","at":1771576857498000000,"seq":706,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c7a35-f738-7145-b9c8-8d2e8fdc6640","at":1771576883000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a35-fb20-74be-ab1b-04a21b34c1d0","at":1771576884000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7a35-ff08-7f0d-9989-f533674c5303","at":1771576885000000000,"seq":709,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a36-0365-78d5-a8b5-9d93247dabd9","at":1771576886117000000,"seq":710,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c7a4c-5b41-71ef-ab48-b556e57255f1","at":1771578350401000000,"seq":711,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a4c-5b41-729b-af3f-ee7570107c78","at":1771578350401000000,"seq":712,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a4c-6568-714e-b4f9-b8000fdcb860","at":1771578353000000000,"seq":713,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a4c-7120-7164-aeeb-e0b2ca1527ec","at":1771578356000000000,"seq":714,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a4c-d6b0-7e50-a715-3d276f8e34f8","at":1771578382000000000,"seq":715,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a4d-01a8-71ce-9799-890639612960","at":1771578393000000000,"seq":716,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

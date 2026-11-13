@@ -1,0 +1,14 @@
+{"v":1,"id":"019d3406-681e-7f1e-bfc7-4f8b1749826e","at":1774694328350000000,"seq":1322,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3406-681e-7520-9697-4bcc0352fce7","at":1774694328350000000,"seq":1323,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3406-7278-754b-b948-54bb43c09e86","at":1774694331000000000,"seq":1324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3406-7a48-7bb1-a51e-d9f86cb99f9f","at":1774694333000000000,"seq":1325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3406-d420-7ac3-b238-f8e90121cd50","at":1774694356000000000,"seq":1326,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3406-e7a8-76d6-a5e0-54b355cdd64c","at":1774694361000000000,"seq":1327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3421-6ea3-775a-bc89-52b091ff7dea","at":1774696099491000000,"seq":1328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d3421-ab38-7a08-98a3-838d99bf1c44","at":1774696115000000000,"seq":1329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3421-c2a8-77d3-9eef-3ad8522a05ff","at":1774696121000000000,"seq":1330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3422-016c-7bb4-a819-dd12a68b2743","at":1774696137068000000,"seq":1331,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d3422-2c20-7c78-90ef-abee8f49a492","at":1774696148000000000,"seq":1332,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3422-4390-7af3-b0db-14e760de142f","at":1774696154000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3422-9980-75ff-9aa5-f113b644cf52","at":1774696176000000000,"seq":1334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3422-c860-7b91-9638-905a68ac878b","at":1774696188000000000,"seq":1335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

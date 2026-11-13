@@ -1,0 +1,22 @@
+{"v":1,"id":"019d4d31-c563-7172-958b-916dfdfd0f1b","at":1775116600675000000,"seq":1354,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d31-c563-76d5-812b-03186ff917b0","at":1775116600675000000,"seq":1355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d4d31-e9d0-773c-900f-bcf26bf9695d","at":1775116610000000000,"seq":1356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d31-f1a0-7103-ac0b-3959c9ab8f89","at":1775116612000000000,"seq":1357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d32-0e91-732c-ab23-221f52c7006a","at":1775116619409000000,"seq":1358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d4d32-4790-7f72-abc5-2b8f7d02ce61","at":1775116634000000000,"seq":1359,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4d32-7a58-77df-b28e-e9de3e15d073","at":1775116647000000000,"seq":1360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d4d32-e093-759a-a489-df61ad52f978","at":1775116673171000000,"seq":1361,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d4d32-ef88-7694-a341-8432059d280d","at":1775116677000000000,"seq":1362,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4d32-ff28-7e9d-b668-732a7cd0f08d","at":1775116681000000000,"seq":1363,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4d33-3da8-7e9b-958d-85d028477d88","at":1775116697000000000,"seq":1364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d4d33-8fb0-7993-94eb-6ddde20b0fff","at":1775116718000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d33-aaea-78dc-ab29-fd852213d331","at":1775116724970000000,"seq":1366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d4d33-d9e8-7462-8f93-187a436d91fa","at":1775116737000000000,"seq":1367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d33-d9e8-7c62-baff-37a3fd377a05","at":1775116737000000000,"seq":1368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d4d34-1868-7422-827c-f51686981fbe","at":1775116753000000000,"seq":1369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d34-37b2-7aa6-a740-29e31984df26","at":1775116761010000000,"seq":1370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d4d34-6688-763b-b910-558e0c76dc5c","at":1775116773000000000,"seq":1371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d34-c629-7167-9269-4e3e0016eda9","at":1775116797481000000,"seq":1372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d4d34-faf8-7634-bab2-2d13a033037a","at":1775116811000000000,"seq":1373,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4d35-06b0-764d-b661-12b5687536ff","at":1775116814000000000,"seq":1374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4d35-1a38-75ac-b7ec-6b91cd54e320","at":1775116819000000000,"seq":1375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

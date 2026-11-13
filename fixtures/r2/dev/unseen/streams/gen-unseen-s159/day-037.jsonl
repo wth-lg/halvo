@@ -1,0 +1,30 @@
+{"v":1,"id":"019c328f-c91b-7b7d-9ec9-9d1ccde86876","at":1770374809883000000,"seq":701,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c328f-c91b-7ff8-9d41-4e5b4e12d190","at":1770374809883000000,"seq":702,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c328f-e100-79e6-b996-1b570b580b71","at":1770374816000000000,"seq":703,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3290-2750-7fe7-9ba4-64f23a839475","at":1770374834000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c32a9-7ee2-720a-91d4-409a4489758a","at":1770376494818000000,"seq":705,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c32a9-7ee2-7ea1-82dc-e2bafdbb31ab","at":1770376494818000000,"seq":706,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c32a9-c9d0-7767-8a7a-95ccfc6bf30f","at":1770376514000000000,"seq":707,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32a9-f8b0-7530-8b93-9f1922c91fba","at":1770376526000000000,"seq":708,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ae-bfdc-7fbe-a389-fd85a2e67085","at":1770376839132000000,"seq":709,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c32ae-bfdc-781f-b179-e198365050c6","at":1770376839132000000,"seq":710,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c32af-2100-7299-aa9b-8cc21ca99a1f","at":1770376864000000000,"seq":711,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32af-8dd1-78e1-a226-ab29eee6fb5e","at":1770376891857000000,"seq":712,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c32af-9a18-7b83-963e-87be82138cbc","at":1770376895000000000,"seq":713,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c32af-bd40-760d-80ab-8c49da77a67d","at":1770376904000000000,"seq":714,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c32b4-8381-76b1-83aa-19b8fc4a4324","at":1770377216897000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c32b4-a328-75f2-914d-67e1162411e3","at":1770377225000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b4-e590-760d-9fdd-c99ff5c095a3","at":1770377242000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c32b5-1f1e-7c91-8a39-0b1bec6f3c4e","at":1770377256734000000,"seq":718,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c32b5-2028-7db1-a6f5-9cae229e9e8e","at":1770377257000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b5-2410-7886-9b74-dd909030200a","at":1770377258000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b5-94bf-700e-9624-f703ba0228fb","at":1770377286847000000,"seq":721,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c32b5-bc68-724a-9bc0-ce8693fc34fb","at":1770377297000000000,"seq":722,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c32b5-cc08-7c12-a683-4fd12132dc28","at":1770377301000000000,"seq":723,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c32b5-f6ff-772d-a528-99023f3f83a0","at":1770377311999000000,"seq":724,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c32b5-fed0-702f-b92a-4a6b6ab5d8d8","at":1770377314000000000,"seq":725,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c32b6-6078-7bcf-b5a3-b7b8d7efbdd8","at":1770377339000000000,"seq":726,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c32b6-6848-76ec-8ac4-cd4cc2e6dc90","at":1770377341000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b6-9728-76e5-8376-775d47227a1f","at":1770377353000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b6-97d5-7af3-9319-9d40d8df8661","at":1770377353173000000,"seq":729,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c32b6-ba50-7829-b8cb-5091fb375560","at":1770377362000000000,"seq":730,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

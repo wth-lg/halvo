@@ -1,0 +1,12 @@
+{"v":1,"id":"019d3e09-bce3-702d-ab6e-725ad37c8b2d","at":1774862318819000000,"seq":1308,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3e09-bce3-7642-8d66-6bb7de5a9891","at":1774862318819000000,"seq":1309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d3e09-d120-73e5-a8e8-d0ea2061cb18","at":1774862324000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e09-ec78-7e65-8f7d-633108a4f68d","at":1774862331000000000,"seq":1311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d3e1c-c338-72c6-8515-d40e0a65b802","at":1774863565624000000,"seq":1312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3e1c-fb60-74cb-8ba0-75a65d28e639","at":1774863580000000000,"seq":1313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d3e1d-2270-7da3-a91b-939b3e04f8fa","at":1774863590000000000,"seq":1314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e1d-3096-749d-bff3-73d9b530f34d","at":1774863593622000000,"seq":1315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3e1d-4980-7fc3-9082-3128d8428aeb","at":1774863600000000000,"seq":1316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3e21-ff13-7125-a945-1fb91c5fd10c","at":1774863908627000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3e22-0470-731e-a9f9-40b6e4862b0b","at":1774863910000000000,"seq":1318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d3e22-3738-7b19-9e8d-6121469c4ca8","at":1774863923000000000,"seq":1319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

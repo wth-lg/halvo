@@ -1,0 +1,35 @@
+{"v":1,"id":"019bb12c-2142-7660-8225-8cf23eabd072","at":1768204017986000000,"seq":149,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb12c-2142-7c71-a84f-47fc4c871ad0","at":1768204017986000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bb12c-9ec6-7ef2-9531-e2cd3cf58c36","at":1768204050118000000,"seq":151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bb12c-f828-7b88-8d56-8339251668ce","at":1768204073000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bb12d-051e-7be2-8bbc-8035c26659e2","at":1768204076318000000,"seq":153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bb12d-55e8-7554-b7df-a9c4cb81acc8","at":1768204097000000000,"seq":154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb12d-7cf8-7d6b-a6af-032cb5b3b9ce","at":1768204107000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb12d-80e0-7352-996b-18c1edc19a8d","at":1768204108000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb12d-b7d4-75a2-9b4a-44412203ea22","at":1768204122068000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bb12e-0d80-7b9d-9b93-e66b41382217","at":1768204144000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb12e-3c60-7cd3-914f-af16587afaf9","at":1768204156000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb12e-76f8-769f-a512-0309b519b80b","at":1768204171000000000,"seq":160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb12e-82b0-7543-a860-0fa2522a9468","at":1768204174000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb136-2654-77e7-950f-d66956d54362","at":1768204674644000000,"seq":162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bb136-46f8-7713-b9f7-165008282f13","at":1768204683000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb136-5698-77a3-baf6-d4bfd2a2b5f2","at":1768204687000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb136-cea8-79fa-b221-1e9dd1d1ba60","at":1768204717736000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bb136-df50-791b-9280-bd9e813a7de6","at":1768204722000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb136-f6c0-738a-a7b1-3b3088c8efe1","at":1768204728000000000,"seq":167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb137-a688-72bf-8e5d-3e5fb3d4aeaf","at":1768204773000000000,"seq":168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb137-b622-7c55-a42f-7206ee7bafe0","at":1768204776994000000,"seq":169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bb137-e120-7a0b-b667-3f0aa5dafe77","at":1768204788000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb138-0448-7a31-ae61-39e6eb8bb09c","at":1768204797000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bb138-279d-7356-b1e4-e13290c1dde5","at":1768204806045000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bb138-6208-7570-b79c-2c7e6c52d697","at":1768204821000000000,"seq":173,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb138-a088-7e73-8545-dc5ae00d5bf4","at":1768204837000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb138-b028-7be9-9f01-557033d04ada","at":1768204841000000000,"seq":175,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb138-b410-7644-a1a5-ade353996aba","at":1768204842000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb13f-d4b6-7f26-8b4b-47e419514005","at":1768205309110000000,"seq":177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bb13f-dc18-7d72-987e-b3fb3abc591c","at":1768205311000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb140-a350-78b2-8e85-baae2db2dd14","at":1768205362000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bb14e-e067-7be8-ba38-a42dd2af356f","at":1768206295143000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bb14f-1688-75f8-b69c-89cb440e6444","at":1768206309000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb14f-64a8-7e64-998b-d36f2aab24d9","at":1768206329000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bb14f-b2c8-7377-a87b-a6849a882f05","at":1768206349000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

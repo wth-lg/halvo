@@ -1,0 +1,27 @@
+{"v":1,"id":"019bf9ee-a44f-7c04-927b-ab481d6c0cb0","at":1769424725071000000,"seq":504,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf9ee-a44f-791c-bf86-349716aef7a2","at":1769424725071000000,"seq":505,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ee-a7f0-7748-9992-130669fc5c18","at":1769424726000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ee-c730-79de-95e2-b5740bf56ee4","at":1769424734000000000,"seq":507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bf9ee-cb18-7258-a027-7d007aa06dba","at":1769424735000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa00-df39-7570-9f51-8f4f04268c63","at":1769425919801000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bfa00-e3e8-705b-9090-5db460c4f1f4","at":1769425921000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bfa01-1a98-7068-903a-1cac7e751a7b","at":1769425935000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfa01-7858-73d9-9bcd-1315ae714e16","at":1769425959000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa01-8028-7157-9ec3-bc619dc077b7","at":1769425961000000000,"seq":513,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfa01-8410-77fd-ac14-fab231f2b3e4","at":1769425962000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa05-98bc-7a98-861b-26005ec456a2","at":1769426229436000000,"seq":515,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bfa05-98bc-700b-8ef2-507ed06061e1","at":1769426229436000000,"seq":516,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bfa05-9af0-7e0b-abcb-801036d53d11","at":1769426230000000000,"seq":517,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfa05-ecf8-7896-8b69-ac97a6c5936d","at":1769426251000000000,"seq":518,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bfa06-3b18-7d57-aa72-5926ff8b5cd9","at":1769426271000000000,"seq":519,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfa06-3b79-74da-a8ce-ef756ea7539d","at":1769426271097000000,"seq":520,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfa06-3b79-7f75-bb27-48239daf4065","at":1769426271097000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bfa06-6228-7ecc-b227-1661531f8302","at":1769426281000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bfa06-7998-7deb-a01e-346042bd1468","at":1769426287000000000,"seq":523,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfa06-7d80-7fa2-affe-dbe004dfcfed","at":1769426288000000000,"seq":524,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bfa06-95b9-75a0-a81f-150da4dc5816","at":1769426294201000000,"seq":525,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bfa06-95b9-71ad-9afc-a7fbb60bc16a","at":1769426294201000000,"seq":526,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bfa06-b048-793b-9b78-72b03faf0545","at":1769426301000000000,"seq":527,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bfa06-bc00-7c20-b6a8-86d025586c83","at":1769426304000000000,"seq":528,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bfa06-df28-7d74-93e2-9b0979e281e0","at":1769426313000000000,"seq":529,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa07-1da8-74b2-80f8-d1d8ab136333","at":1769426329000000000,"seq":530,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,29 @@
+{"v":1,"id":"019d5291-19f4-79af-923a-a4117358457d","at":1775206734324000000,"seq":1320,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d5291-19f4-7308-919e-458a70b9c216","at":1775206734324000000,"seq":1321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d5291-5f00-7141-afd9-4b44cbd85504","at":1775206752000000000,"seq":1322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d5291-749d-7320-bd74-1797edf0fc0a","at":1775206757533000000,"seq":1323,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d5292-85a5-70c2-8363-539553af3b7a","at":1775206827429000000,"seq":1324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d5292-e5a0-742f-974f-a7ae589d9853","at":1775206852000000000,"seq":1325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5292-fd10-7a76-b83f-162ea645fe29","at":1775206858000000000,"seq":1326,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d5293-1480-7fd0-8087-1f3cdfc8d1b9","at":1775206864000000000,"seq":1327,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d5293-1c50-7175-b294-b25d1c4d1fcb","at":1775206866000000000,"seq":1328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d5297-6308-700d-829f-8407e203688d","at":1775207146248000000,"seq":1329,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d5297-6308-7544-80a4-7121f606c113","at":1775207146248000000,"seq":1330,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d5297-7980-727b-99d6-d2a7e7aba278","at":1775207152000000000,"seq":1331,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d5297-df10-7279-959c-9e05f63eb070","at":1775207178000000000,"seq":1332,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d5298-0620-7ee3-99a2-a7f3441d4aaf","at":1775207188000000000,"seq":1333,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d529c-4180-7dc4-bc6d-c3b692bc40ea","at":1775207465344000000,"seq":1334,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d529c-4180-7dc9-8cfa-20838f512341","at":1775207465344000000,"seq":1335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d529c-47f8-7d15-ae42-6116e36be2f8","at":1775207467000000000,"seq":1336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d529c-6b20-72d9-b71a-c9e29e805bfb","at":1775207476000000000,"seq":1337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52ae-8703-7199-ba29-0dc53c9f8b97","at":1775208662787000000,"seq":1338,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d52ae-c270-7f5e-b4f9-ee59614eb83b","at":1775208678000000000,"seq":1339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d52ae-ce28-7f73-9a58-33fb3d4cd909","at":1775208681000000000,"seq":1340,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52ba-99eb-7a7d-b061-128230fc4837","at":1775209454059000000,"seq":1341,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d52bb-0af8-7f93-ae94-f69c7c6150d5","at":1775209483000000000,"seq":1342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52bb-4978-7e92-adf9-c87a13f4fc2e","at":1775209499000000000,"seq":1343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52bb-4beb-701d-b8a0-b52d278ae56c","at":1775209499627000000,"seq":1344,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this month - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d52bc-28d4-7f5e-9c0d-8afe52840a0c","at":1775209556180000000,"seq":1345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d52bc-a520-7757-aa2e-f374a1b1eb82","at":1775209588000000000,"seq":1346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d52bd-1738-711e-9517-e229f8e80280","at":1775209617208000000,"seq":1347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d52bd-4548-73dc-b5ad-faacfe9ba6da","at":1775209629000000000,"seq":1348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

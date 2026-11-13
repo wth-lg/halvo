@@ -1,0 +1,22 @@
+{"v":1,"id":"019bbb68-bbc3-7aa5-955f-f3526019960e","at":1768375761859000000,"seq":163,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbb68-bbc3-7949-8648-f75eaf3eb75b","at":1768375761859000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bbb68-fad0-706d-8e00-8b1cd0701724","at":1768375778000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbb68-fad0-72af-ad61-72f88747d29e","at":1768375778000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bbb83-9f4f-70be-b887-a757b0cff524","at":1768377524047000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bbb83-e188-7094-9bf1-a98149a3cfc8","at":1768377541000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbb84-2008-71ef-9d27-97f5671b8bd3","at":1768377557000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbb84-4718-740c-b3b7-ac40b0d98da1","at":1768377567000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bbb84-8121-7045-9aae-f9b82e12692c","at":1768377581857000000,"seq":171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bbb84-8598-77d2-a57c-e2874c770884","at":1768377583000000000,"seq":172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bbb84-c800-72c5-86ac-939d33a92b1f","at":1768377600000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bbb84-d3b8-78a8-9c41-c43f15cc1f58","at":1768377603000000000,"seq":174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bbb9c-c6c7-7783-ad2f-5cc0cdddebee","at":1768379172551000000,"seq":175,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bbb9c-c6c7-7786-8dd0-d3d106144b60","at":1768379172551000000,"seq":176,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bbb9d-5910-76aa-92e1-9889c89e529d","at":1768379210000000000,"seq":177,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bbb9d-8408-7649-957d-45cb1bff3060","at":1768379221000000000,"seq":178,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bbb9f-e9e1-7a17-a786-5dc12850ad6a","at":1768379378145000000,"seq":179,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbb9f-e9e1-7da1-b17b-afc299e302e7","at":1768379378145000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bbb9f-f120-7039-ae44-5604e6561ace","at":1768379380000000000,"seq":181,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bbba0-3388-7da4-8efe-cc578bb7af04","at":1768379397000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbba0-3770-71c2-a07b-f94afd3ddc4a","at":1768379398000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbba0-3f40-76c9-a7ea-55ca8f42c116","at":1768379400000000000,"seq":184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

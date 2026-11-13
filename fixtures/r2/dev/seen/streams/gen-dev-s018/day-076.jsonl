@@ -1,0 +1,19 @@
+{"v":1,"id":"019cfb2c-519b-7cb8-9810-870e190d89bb","at":1773740511643000000,"seq":931,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfb2c-519b-7c7e-9754-45ffa6eeacd3","at":1773740511643000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cfb2c-5ad0-7dbb-828f-0e91b5f37154","at":1773740514000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb2c-85c8-7145-bb08-b0cd7b9f9073","at":1773740525000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cfb2c-9950-73ae-aa6c-452a06b031b0","at":1773740530000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb32-94c6-7ea0-9f92-7e9202b1a20b","at":1773740922054000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cfb32-fabd-71ba-bff5-871c7c940315","at":1773740948157000000,"seq":937,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cfb33-4070-740e-80a6-720e66134c1f","at":1773740966000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cfb33-414c-7d06-bfa2-f64751bbe2ae","at":1773740966220000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cfb33-4c28-7e1b-bbdb-3296953e46d3","at":1773740969000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfb33-5fb0-7f5b-b12e-bf82acdd835a","at":1773740974000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb33-6f50-75e4-8491-b3eac3c61f1f","at":1773740978000000000,"seq":942,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfb33-7338-76d6-8437-d2983c9e5bfa","at":1773740979000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cfb33-dfad-713c-b5f0-606d818b8501","at":1773741006765000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cfb33-f808-7a90-916b-d884356aad4e","at":1773741013000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb34-2300-7924-9165-50bc86acba5b","at":1773741024000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cfb43-9f5c-7b4b-8bb8-76b4077076a5","at":1773742038876000000,"seq":947,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cfb44-3448-7dea-8e10-d8deacbd3861","at":1773742077000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfb44-4fa0-709d-bab8-56db0ec7ebff","at":1773742084000000000,"seq":949,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

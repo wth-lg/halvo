@@ -1,0 +1,23 @@
+{"v":1,"id":"019ba6df-b1f0-7d75-9f2b-81753609dd10","at":1768031236592000000,"seq":162,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba6df-b1f0-7de6-840f-57ca6d3dc2ae","at":1768031236592000000,"seq":163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ba6df-bb58-7b59-aed8-e3d6a3d1b580","at":1768031239000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e0-1918-7ef3-ac70-7e1553cd7f4e","at":1768031263000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e2-a87b-75a4-ac59-4ca2fcdd87e0","at":1768031430779000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e2-a958-7fa8-b6b2-2916368ae6e2","at":1768031431000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e2-f778-718a-930a-335249d66338","at":1768031451000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e3-0330-7bd6-a6d8-ac7b6f6dfb2b","at":1768031454000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ba6e3-1cbe-7eef-a354-ff688c65a312","at":1768031460542000000,"seq":170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e3-5920-74ff-bb24-3690f4da85d0","at":1768031476000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e3-677e-7492-a6d0-46e0110f5ba4","at":1768031479678000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e3-8be8-7206-9a05-891d87252775","at":1768031489000000000,"seq":173,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba6e3-9f70-70ca-99e5-b45378b2a5a6","at":1768031494000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6e4-14a0-72b4-82d5-9e0942960be0","at":1768031524000000000,"seq":175,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba6e4-2bd3-7835-97ae-8edde5a71471","at":1768031529939000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ba6e4-4b50-7088-bc13-9018bcdffa8c","at":1768031538000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba6e4-5708-7745-9d4f-5187c41f765a","at":1768031541000000000,"seq":178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba6f1-e74b-722f-a802-4fb2c6075178","at":1768032429899000000,"seq":179,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba6f1-e74b-7e34-85ac-7e2c46e9d494","at":1768032429899000000,"seq":180,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba6f2-0ec0-728e-9f41-ef37732f7616","at":1768032440000000000,"seq":181,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ba6f2-1e60-74a6-994d-c9304fa7049d","at":1768032444000000000,"seq":182,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ba6f2-2248-76c9-a14f-2108060e3668","at":1768032445000000000,"seq":183,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6f2-5ce0-7a60-9df6-5ff377db4029","at":1768032460000000000,"seq":184,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

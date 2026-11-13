@@ -1,0 +1,10 @@
+{"v":1,"id":"019d4854-5cb3-78bc-a4bb-5826b7c52aed","at":1775034981555000000,"seq":1398,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4854-5cb3-761d-b8b0-ff29a822f68f","at":1775034981555000000,"seq":1399,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4854-db70-76c0-915f-ed9dcc3f455d","at":1775035014000000000,"seq":1400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d485d-7384-7bca-91d2-a77196017356","at":1775035577220000000,"seq":1401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d485d-95d0-7a7a-a7d8-c1487191f388","at":1775035586000000000,"seq":1402,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d485d-a570-70a5-879c-822fb45d2ecb","at":1775035590000000000,"seq":1403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d485d-e008-7046-949a-2aa4cc58025d","at":1775035605000000000,"seq":1404,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d485d-ed4b-7378-8cca-333b6718110c","at":1775035608395000000,"seq":1405,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d485d-efa8-7994-80f0-86e98f0f3a31","at":1775035609000000000,"seq":1406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d485e-2e28-78bc-b0d5-6648ce7ac968","at":1775035625000000000,"seq":1407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

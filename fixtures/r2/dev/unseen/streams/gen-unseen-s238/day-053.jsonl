@@ -1,0 +1,32 @@
+{"v":1,"id":"019c8468-8f2b-7921-bc6e-d958742785f5","at":1771747970859000000,"seq":627,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8468-8f2b-7bc2-9cd1-f04f56db6dfb","at":1771747970859000000,"seq":628,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8468-93a0-7332-bfb8-3b060c300847","at":1771747972000000000,"seq":629,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8468-ab10-7290-aeaf-20d0a0f426c8","at":1771747978000000000,"seq":630,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c8468-ce38-7412-9abf-ddf06aa1a7c9","at":1771747987000000000,"seq":631,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c8468-d220-7377-9c43-cf1571046f0e","at":1771747988000000000,"seq":632,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8468-fdde-7936-8a34-fca088221f1a","at":1771747999198000000,"seq":633,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c8469-33c8-7875-882a-532c2e45fedc","at":1771748013000000000,"seq":634,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c8469-5ec0-75bf-abb4-0be7e7b2ae23","at":1771748024000000000,"seq":635,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c846c-c589-70d6-9289-520cd43e3a45","at":1771748246921000000,"seq":636,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c846c-e130-7e70-b556-fb9f6f220f95","at":1771748254000000000,"seq":637,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c846c-e518-7d6a-9f00-d01f7fb6d317","at":1771748255000000000,"seq":638,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c846d-94e0-79bd-a827-8870cbd11685","at":1771748300000000000,"seq":639,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c8472-17ee-7f9c-b918-59b5f84826b2","at":1771748595694000000,"seq":640,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8472-17ee-7ebf-88c9-1539a1747b52","at":1771748595694000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8472-6358-7167-add8-b4bf0b6843dd","at":1771748615000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8472-6f10-7dd3-9ad9-fdc73f13f929","at":1771748618000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c8472-9df0-72da-a7ab-d82d83851c7f","at":1771748630000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8474-a237-71dc-9fcf-4afb39f951d6","at":1771748762167000000,"seq":645,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c8474-d840-73c7-841c-f33268ec73cf","at":1771748776000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8475-12d8-7e23-b2c5-c915a4ee41b3","at":1771748791000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8475-2da1-784f-8efa-c0e71cbfbee8","at":1771748797857000000,"seq":648,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c8475-5540-7a7e-9697-334dafc20164","at":1771748808000000000,"seq":649,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8475-7c50-7a29-a866-379794150218","at":1771748818000000000,"seq":650,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c8475-8038-7ce8-a77f-915dd448e2c9","at":1771748819000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8475-9048-7199-a1f7-a52290994016","at":1771748823112000000,"seq":652,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c8475-97a8-7edc-b95a-f1a298dbf429","at":1771748825000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8475-af18-7887-93ae-255f3447e656","at":1771748831000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c8475-fd38-7a5a-91a8-dbc2174220a0","at":1771748851000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8476-0ba2-73b7-90e4-9a965df53a4c","at":1771748854690000000,"seq":656,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c8476-0cd8-704e-9b11-ea8587c95794","at":1771748855000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8476-33e8-7e1f-a4c9-d567a48d031d","at":1771748865000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,32 @@
+{"v":1,"id":"019cebff-d4f2-7298-bea3-a181ca2f6123","at":1773485937906000000,"seq":935,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cebff-d4f2-7a09-b0fe-1fd0b96349ff","at":1773485937906000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cebff-f490-759c-8589-cff274d598ac","at":1773485946000000000,"seq":937,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cec00-0818-7e64-8391-d0e757391ba2","at":1773485951000000000,"seq":938,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cec00-2370-78c4-8aa7-e005a0cce2cc","at":1773485958000000000,"seq":939,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cec00-29b2-7558-bd6f-97d850d9756f","at":1773485959602000000,"seq":940,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cec00-36f8-729e-ad07-469f1ebcfd02","at":1773485963000000000,"seq":941,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cec00-5638-7cee-a3f9-4fb7230fe799","at":1773485971000000000,"seq":942,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cec00-5a20-7ae6-b24b-23763598fd3c","at":1773485972000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cec00-5a20-7c56-b0af-98735ae5270b","at":1773485972000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cec00-6da8-7bd3-a92b-398507e1577a","at":1773485977000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cec11-aab4-79c4-90dd-ce9c0f03917f","at":1773487106740000000,"seq":946,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cec11-c328-7b76-958e-e72ae3e63ca7","at":1773487113000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cec12-0978-7964-9aa4-82bf0c7656ae","at":1773487131000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cec1b-26f8-70f3-94de-5241e2d7409e","at":1773487728376000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cec1b-7f58-7d44-81cb-65f7cf7163ce","at":1773487751000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cec1b-8728-7f97-aa4c-945a6fac75c5","at":1773487753000000000,"seq":951,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cec1b-fc58-7dda-8ee1-c2022dfec77c","at":1773487783000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cec1c-0fe0-7e0a-83c8-ba09aaa1c786","at":1773487788000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cec30-6396-74ef-a964-2aa5342c1445","at":1773489120150000000,"seq":954,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cec30-7688-720b-b73d-cb3e0135e2c5","at":1773489125000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cec39-2440-7cc9-963a-86d49215ba65","at":1773489693760000000,"seq":956,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cec39-30e8-7dfd-846d-3f3e410efc11","at":1773489697000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cec39-b5b8-70b6-ad96-3ac1a05e5555","at":1773489731000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cec39-d110-7d70-afb0-d7935a2ee44b","at":1773489738000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cec39-dc7a-7289-972e-ef5e193016b2","at":1773489740922000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cec3a-69fb-7677-bd7f-467e1bc8cd36","at":1773489777147000000,"seq":961,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cec3b-4040-7fb3-9a3f-0328d28e7985","at":1773489832000000000,"seq":962,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cec3b-5f80-7a03-b015-fb9f1588c12b","at":1773489840000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cec3b-6323-74fd-a2f7-03ca59a05698","at":1773489840931000000,"seq":964,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cec3b-8690-727f-8598-2d6b61a20840","at":1773489850000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cec3b-9630-7228-b31b-a38a467c4132","at":1773489854000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

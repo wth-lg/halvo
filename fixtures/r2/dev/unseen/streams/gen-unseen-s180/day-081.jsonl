@@ -1,0 +1,13 @@
+{"v":1,"id":"019d14b8-a0ea-782b-8753-4ed7bc00d35d","at":1774169137386000000,"seq":1148,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14b8-a0ea-75e5-b9ac-243187add822","at":1774169137386000000,"seq":1149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d14b8-af08-73bd-9418-884913883af8","at":1774169141000000000,"seq":1150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14b8-da00-7796-8152-b3fb7968dabe","at":1774169152000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14b8-e5b8-70f8-a117-7ff792bd9008","at":1774169155000000000,"seq":1152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d14b9-00d4-7f1d-8cda-5d5654544122","at":1774169161940000000,"seq":1153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d14b9-9968-7dde-8d64-8ed543b3dba6","at":1774169201000000000,"seq":1154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d14b9-d400-7c1f-917c-0e0ce3af728c","at":1774169216000000000,"seq":1155,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d14b9-eb70-7e60-958b-cf6df128bfdb","at":1774169222000000000,"seq":1156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d14d0-263a-7bd5-a3f1-1bb5a8306321","at":1774170678842000000,"seq":1157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d14d0-8498-7759-a90a-3be96a3fbaa4","at":1774170703000000000,"seq":1158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d14d0-aba8-7d1d-98a9-3462a694f26c","at":1774170713000000000,"seq":1159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d14dc-244d-7a10-a821-f09ce8da54b3","at":1774171464781000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}

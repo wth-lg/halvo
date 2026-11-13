@@ -1,0 +1,38 @@
+{"v":1,"id":"019d3892-3f31-75f3-9fca-d9036012b5f6","at":1774770601777000000,"seq":1175,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3892-3f31-726f-90ce-2a2e026b537e","at":1774770601777000000,"seq":1176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d3892-6720-79ed-8497-7d3f00cdd921","at":1774770612000000000,"seq":1177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3892-dc50-7e7d-b4ff-d54b1f9bec34","at":1774770642000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d3893-2a70-73d3-8fef-fd5724d1ae41","at":1774770662000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3893-31a4-7c31-b4fb-8b253ff5dc15","at":1774770663844000000,"seq":1180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d3893-a637-7d19-92e2-ea1cbdc63ed4","at":1774770693687000000,"seq":1181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d3893-e360-7c1e-851c-b7b1a4e886c9","at":1774770709344000000,"seq":1182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d3893-f590-7b50-ac49-03b4d7bfb5d6","at":1774770714000000000,"seq":1183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3894-1ca0-7619-b28a-7e20954f6ce6","at":1774770724000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d38a7-88aa-79b6-b0b3-35b8ff4bc9d1","at":1774771996842000000,"seq":1185,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d38a7-88aa-75dc-aec6-3840adf008fa","at":1774771996842000000,"seq":1186,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d38a7-98e8-70f0-980f-9811f70332fc","at":1774772001000000000,"seq":1187,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d38a7-c7c8-79df-8e94-daddd4feaac5","at":1774772013000000000,"seq":1188,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d38a8-44c8-74c8-957f-a4b5f3b8eb20","at":1774772045000000000,"seq":1189,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d38a8-5850-7ba3-9e03-532b6bb0345b","at":1774772050000000000,"seq":1190,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38a8-6408-7d8b-92e7-9774bb88e4a3","at":1774772053000000000,"seq":1191,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38b6-5d3d-7506-8a66-4c904ae0ac88","at":1774772968765000000,"seq":1192,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d38b6-5d3d-7ca4-a74d-238c20f17710","at":1774772968765000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d38b6-6dc8-7d84-8926-212462be02c1","at":1774772973000000000,"seq":1194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d38b7-2560-7428-8bab-f44c9a0182e1","at":1774773020000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38b7-4888-719a-a67d-dca40680c490","at":1774773029000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38b7-5c10-7c70-ac98-a6fb03988631","at":1774773034000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d38c9-8cdd-7b10-9aca-f9b29c691fdc","at":1774774226141000000,"seq":1198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d38c9-e628-78a4-b8dd-c2bbc8136ed0","at":1774774249000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ca-6328-75e7-b08c-08ad8eca2740","at":1774774281000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ca-9004-7aa4-b03a-7bde0f3ce4ab","at":1774774292484000000,"seq":1201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d38ca-99d8-7b0a-bc04-9450a1145c64","at":1774774295000000000,"seq":1202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d38ca-c0e8-7aa3-ba0d-c286169e5f1f","at":1774774305000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d38ca-e7f8-785d-808e-9ab64767aac7","at":1774774315000000000,"seq":1204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d38cb-49a0-7a0b-8258-d805ce236535","at":1774774340000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38cb-4a63-7bba-b918-a839c84e71bd","at":1774774340195000000,"seq":1206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d38cb-5d28-75c2-9b36-7a313ce9fa04","at":1774774345000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d38cb-7880-7f30-8662-430888fe6c04","at":1774774352000000000,"seq":1208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38cb-f49a-7227-8a60-3b099eb32547","at":1774774383770000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d38d2-8872-7fd8-8761-acfa57d22cc4","at":1774774814834000000,"seq":1210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d38d2-94d0-7014-a0e9-3ad885302b23","at":1774774818000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d38d2-cb80-7431-98bb-f2de689d1b17","at":1774774832000000000,"seq":1212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

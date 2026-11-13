@@ -1,0 +1,42 @@
+{"v":1,"id":"019c230b-c027-796a-932f-67d4e9a65921","at":1770114498599000000,"seq":398,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c230b-c027-70ac-84c6-0c89eb55661c","at":1770114498599000000,"seq":399,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c230c-1b90-79c7-ad98-6e296e5ed645","at":1770114522000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c230c-20e7-7117-ab0f-1ff7a8aaee22","at":1770114523367000000,"seq":401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c230c-2748-7464-934a-d8a2e842c22a","at":1770114525000000000,"seq":402,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c230c-3ad0-786e-93a0-d48aee09419f","at":1770114530000000000,"seq":403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c230c-6d98-78cb-9e6e-094466f20492","at":1770114543000000000,"seq":404,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c230c-7d38-7c21-b386-cdba6f71458a","at":1770114547000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c230c-bbb8-761c-92cc-16ea6c0e2069","at":1770114563000000000,"seq":406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c230d-053c-7f75-b8c3-5a09360c2d46","at":1770114581820000000,"seq":407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c230d-67ac-7fec-b72a-d34b8b997062","at":1770114607020000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c230d-86d8-766b-9e9e-6b3190e53aa4","at":1770114615000000000,"seq":409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c230d-8ea8-7b42-90ad-c9d27229fc57","at":1770114617000000000,"seq":410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c230d-ade8-7ba7-8f7e-7f352b140e6f","at":1770114625000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c2325-67a5-7ff1-96a5-f922b14cf23e","at":1770116179877000000,"seq":412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c2325-f4b0-7c17-9d67-f827c25c45b5","at":1770116215984000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c2325-fc90-7736-9d58-c6b9a90e2731","at":1770116218000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2326-8d18-796c-93ec-d94829130a3c","at":1770116255000000000,"seq":415,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2326-a870-793b-a702-accdb1d22dc3","at":1770116262000000000,"seq":416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2326-ac77-7d41-a204-e76e16e2e695","at":1770116263031000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c2326-b040-7c2e-be95-037f52a5cef6","at":1770116264000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c2326-bfe0-74b2-befe-f16d5b9a91df","at":1770116268000000000,"seq":419,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2326-cf80-7f03-8d10-aee03dfd1f33","at":1770116272000000000,"seq":420,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2326-f1df-79cb-a36f-773a1842f68a","at":1770116280799000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c2327-7390-7494-a980-8cb8eb7d2b92","at":1770116314000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c2327-a270-7159-8aef-c5b63a949288","at":1770116326000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2340-1b0d-792f-84a0-27918c0b52db","at":1770117929741000000,"seq":424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c2340-8d58-7043-83fc-496f45c5f8c0","at":1770117959000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c2340-a8b0-798b-a1fb-b53e24e9d2be","at":1770117966000000000,"seq":426,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2340-eb18-70a8-9731-9996faa7e413","at":1770117983000000000,"seq":427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2341-0939-714b-9cd8-0e5ddb14ec34","at":1770117990713000000,"seq":428,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c2341-3168-74a1-9d2f-aef8f7b7992d","at":1770118001000000000,"seq":429,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2341-3938-72e2-9b25-d8c6402684ce","at":1770118003000000000,"seq":430,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2341-50a8-7784-b016-92c495785feb","at":1770118009000000000,"seq":431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c2341-5fa4-7513-83e7-44bc2483ae4e","at":1770118012836000000,"seq":432,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c2341-7ba0-720c-94ad-c4f433bc1269","at":1770118020000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2342-46c0-73ba-9fe0-7eb2eb4d88f4","at":1770118072000000000,"seq":434,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2342-4c2d-79b3-8cd8-ba554ae41cde","at":1770118073389000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c2342-8158-7422-8321-504b627bbd44","at":1770118087000000000,"seq":436,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2342-8928-76a5-ab61-8730900c4e43","at":1770118089000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c2342-98c8-7472-9551-0d1daab13d26","at":1770118093000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2342-ead0-78d4-a4c1-1e3117c971fd","at":1770118114000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

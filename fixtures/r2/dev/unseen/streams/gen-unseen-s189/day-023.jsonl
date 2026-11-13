@@ -1,0 +1,16 @@
+{"v":1,"id":"019bea5f-c36d-735f-9cf0-38f2c250451f","at":1769163703149000000,"seq":363,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea5f-c36d-709c-a054-5195bedf8c8b","at":1769163703149000000,"seq":364,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bea60-0158-750c-a39f-a7097b62557e","at":1769163719000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea60-1cb0-7434-b11a-1f1bdb4c49cc","at":1769163726000000000,"seq":366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea60-282f-7941-b36e-4de2554d2b43","at":1769163728943000000,"seq":367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"School messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bea60-2868-7a45-bc65-fe205dc40a50","at":1769163729000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea60-6300-7d94-a49b-5b190bb9307f","at":1769163744000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea60-b8f0-70e1-a84d-38223c820901","at":1769163766000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bea60-bc32-73bb-b02e-d437616d5240","at":1769163766834000000,"seq":371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bea60-d060-729a-92e3-62f0742316b5","at":1769163772000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea60-f770-7b43-8887-20b0ceeccef4","at":1769163782000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea60-fbdb-7891-8dca-53f522469bc0","at":1769163783131000000,"seq":374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bea60-ff40-7f92-acd3-6404a5c0c7bc","at":1769163784000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea61-0710-751e-b4cb-e615831ba83b","at":1769163786000000000,"seq":376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bea61-0af8-7563-9ede-35f765192cfc","at":1769163787000000000,"seq":377,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bea61-1a98-7b64-b7b9-c208d6c70d5c","at":1769163791000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

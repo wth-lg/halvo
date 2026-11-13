@@ -1,0 +1,19 @@
+{"v":1,"id":"019b9796-d359-75af-af77-2107ef2515e3","at":1767774802777000000,"seq":98,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9796-d359-7aa9-892f-8407d4d71c2d","at":1767774802777000000,"seq":99,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9796-e7c0-751b-bc9c-6c6596eef035","at":1767774808000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9797-39c8-7f82-91b3-5432983cc372","at":1767774829000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b9797-6418-7058-a72f-650ccbc5dd25","at":1767774839832000000,"seq":102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9797-64c0-7726-9753-f559ab897139","at":1767774840000000000,"seq":103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9797-8400-77a7-bca6-f2e8523ff649","at":1767774848000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9797-8fb8-76b7-9685-0991118f801f","at":1767774851000000000,"seq":105,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9797-9b70-7f43-b2a4-74d82c7a3de8","at":1767774854000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b9797-a728-7f83-8298-3cb4360118e8","at":1767774857000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b97b3-2776-7477-949b-5f66c945dd81","at":1767776659318000000,"seq":108,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b97b3-2776-7152-9404-0b469ad0f1b7","at":1767776659318000000,"seq":109,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b97b3-5130-70f4-b35c-9eddac251bb1","at":1767776670000000000,"seq":110,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b97b3-a338-748c-87b6-8cad4cf72f66","at":1767776691000000000,"seq":111,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b97b3-baa8-7e1b-9545-b9975a7e15cb","at":1767776697000000000,"seq":112,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b97b3-be90-7e37-b754-cc9f8b989387","at":1767776698000000000,"seq":113,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97bd-19d8-7230-ab2e-c68233bdca5c","at":1767777311192000000,"seq":114,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97bd-19d8-73a3-913a-9e3123a541ca","at":1767777311192000000,"seq":115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b97bd-5b80-7dbc-bbed-e787358b3d57","at":1767777328000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

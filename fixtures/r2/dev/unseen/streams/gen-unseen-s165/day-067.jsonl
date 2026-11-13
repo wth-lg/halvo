@@ -1,0 +1,23 @@
+{"v":1,"id":"019cccc9-243e-7ab8-94ac-882a241c35a1","at":1772962260030000000,"seq":962,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cccc9-243e-725e-bd1c-bc22d3ac1026","at":1772962260030000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cccc9-33c0-7d7c-a31b-ed34ad6d6b87","at":1772962264000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cccc9-3b90-732d-b310-599d7db41a47","at":1772962266000000000,"seq":965,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cccc9-9950-7573-b4eb-4c01d9c82268","at":1772962290000000000,"seq":966,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ccce4-3c01-72a0-b0b7-6a7883555a94","at":1772964035585000000,"seq":967,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ccce4-60c8-73f3-af46-a82a089df7c9","at":1772964045000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccce4-7068-7460-a13a-d763b1f66911","at":1772964049000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ccce4-7450-702b-ae76-ac28c6148833","at":1772964050000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ccce4-83f0-7b67-8932-ea023dcd5d69","at":1772964054000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccf9-3020-7222-ba34-c254498fc4c0","at":1772965408800000000,"seq":972,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cccf9-9e48-76b3-9c02-229747e46e22","at":1772965437000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccf9-a230-783c-8501-f2afdffb5e0e","at":1772965438000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccfa-1a41-703c-9afc-691044e3557e","at":1772965468737000000,"seq":975,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cccfa-1b48-7460-a1ca-8f423758f4e6","at":1772965469000000000,"seq":976,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cccfa-784e-7536-9d84-5ef100e2fa75","at":1772965492814000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cccfa-9078-7576-b45b-a12c9029f155","at":1772965499000000000,"seq":978,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cccfa-d2e0-767f-a59e-da04968b5703","at":1772965516000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cccfb-1548-7087-8e5b-2d19b4a86ae8","at":1772965533000000000,"seq":980,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cccfb-5ed5-7d58-a18d-5a38c65ad8ec","at":1772965551829000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cccfb-a9b8-715a-81d8-7ca6fa28d7eb","at":1772965571000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cccfb-cce0-7d7e-b40c-fe7fdc6816d4","at":1772965580000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd14-b708-7e3e-a400-e3d4616d2db9","at":1772967212808000000,"seq":984,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}

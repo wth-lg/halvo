@@ -1,0 +1,32 @@
+{"v":1,"id":"019c0911-4a51-7ebd-aca5-60aa39cf27a8","at":1769678654033000000,"seq":357,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0911-4a51-7f04-b84a-8b19345f4428","at":1769678654033000000,"seq":358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0911-55e8-75f5-9f18-31399d7a7801","at":1769678657000000000,"seq":359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0911-9c38-733a-85c8-141068f126f5","at":1769678675000000000,"seq":360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0911-abd8-7869-804f-9aa5f49222fb","at":1769678679000000000,"seq":361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0911-b790-7163-9653-f65be2e71864","at":1769678682000000000,"seq":362,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c0925-1cb8-7167-a102-2b799ea6b56f","at":1769679953080000000,"seq":363,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0925-2438-73a4-aec1-848b3bfd545b","at":1769679955000000000,"seq":364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c0925-33d8-7bd9-a766-680f7210955b","at":1769679959000000000,"seq":365,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0925-5ae8-7adf-82c1-c83c94459062","at":1769679969000000000,"seq":366,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c093f-9a13-79a2-a85c-2d47c09dfea0","at":1769681689107000000,"seq":367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c093f-d828-71a5-ab0b-856bbaac6e6b","at":1769681705000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c093f-d9c6-785f-810c-46e59788fbbb","at":1769681705414000000,"seq":369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c093f-f768-7d62-93a5-c6b9402080b1","at":1769681713000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0940-35e8-74b1-8808-d2c85a9ed04f","at":1769681729000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0940-4970-7787-8f53-c6f3c15b5fae","at":1769681734000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0940-9a10-77cd-9c3a-b32912a9106d","at":1769681754640000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c0940-bab8-740c-b728-5125388ac090","at":1769681763000000000,"seq":374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0941-4865-7318-8493-990994263ab5","at":1769681799269000000,"seq":375,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c0941-5ae0-7ed2-86d8-3242987d879d","at":1769681804000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c0941-81f0-751b-92bb-65f96f362582","at":1769681814000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0941-85d8-72d7-b4c9-93a62f0017fa","at":1769681815000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0941-8d0c-7237-94ab-90500bbb05ce","at":1769681816844000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c0941-f338-7925-9c82-cb1a58462770","at":1769681843000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c0942-02e2-7dd4-9665-33fbf462f5a9","at":1769681847010000000,"seq":381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c0942-3d70-758e-a4d9-0ec48bb78b6e","at":1769681862000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0942-a6e8-738b-b5d7-52f07ee47240","at":1769681889000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c0958-c39c-7184-a2bb-1a549b5aded6","at":1769683338140000000,"seq":384,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0959-0960-769f-91b1-a17abddd5c8b","at":1769683356000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0959-1130-7448-a318-5960b57d9fa3","at":1769683358000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0959-20d0-78a2-a472-c1980414de23","at":1769683362000000000,"seq":387,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0959-24b8-74c2-8e30-a4a6c688d982","at":1769683363000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

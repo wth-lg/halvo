@@ -1,0 +1,27 @@
+{"v":1,"id":"019d4d40-dc7e-789e-9876-82f9637efa0c","at":1775117589630000000,"seq":1159,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d40-dc7e-721b-a92a-ef7dace66903","at":1775117589630000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d4d40-e1d8-736f-a19c-8130b83ce26e","at":1775117591000000000,"seq":1161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4d41-10b8-7662-807f-b2ef4365e1ea","at":1775117603000000000,"seq":1162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4d41-37c8-7db5-8060-df9b9752ce31","at":1775117613000000000,"seq":1163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d51-064a-730c-931d-b54c09f24919","at":1775118648906000000,"seq":1164,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4d51-064a-79d8-9e72-1d3045915bb3","at":1775118648906000000,"seq":1165,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4d51-4140-7ecb-a4fd-28f3070d4c62","at":1775118664000000000,"seq":1166,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d51-4cf8-70f6-8ce6-6b6ac5810330","at":1775118667000000000,"seq":1167,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d4d51-cde0-7b76-9b21-a08101c22e8f","at":1775118700000000000,"seq":1168,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d57-4c57-7618-86fa-88532d296750","at":1775119060055000000,"seq":1169,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d57-4c57-74a5-8bd9-a0572da1cd84","at":1775119060055000000,"seq":1170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d4d57-6b60-7cf3-8d99-3c1b0ee90efa","at":1775119068000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d57-82d0-780e-a9d2-80e8f385d53e","at":1775119074000000000,"seq":1172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d57-9e28-7604-b530-59dc445de681","at":1775119081000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d4d58-2574-74b9-b779-2c0da95c7cd3","at":1775119115636000000,"seq":1174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d4d58-3680-7bfe-aaf2-6de82a2d1976","at":1775119120000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d4d58-a3e0-756c-88f1-9fb8cc2fe71a","at":1775119148000000000,"seq":1176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d58-bbc8-7558-899b-741cc605fbb5","at":1775119154120000000,"seq":1177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d4d59-1528-790d-b24f-9e81e429aee2","at":1775119177000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d59-24c8-710f-91b9-aa65aeb8af86","at":1775119181000000000,"seq":1179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4d59-8288-7672-8e68-427eba792aae","at":1775119205000000000,"seq":1180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d4d59-8670-774d-aa8f-40997260eab7","at":1775119206000000000,"seq":1181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d59-c76a-7055-84ee-4d9e1eb57b87","at":1775119222634000000,"seq":1182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d4d59-fba0-75f4-8523-b18f89ff3ae8","at":1775119236000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d59-ff88-746e-9e9f-86c6638542f0","at":1775119237000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d4d5a-ab68-76a9-8c52-5efe97b17fe5","at":1775119281000000000,"seq":1185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

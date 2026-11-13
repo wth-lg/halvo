@@ -1,0 +1,17 @@
+{"v":1,"id":"019c996f-2289-721d-a82b-083f70f31c6e","at":1772100723337000000,"seq":732,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c996f-2289-7c4c-bc43-e417ed084fb7","at":1772100723337000000,"seq":733,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c996f-2908-7d37-bf94-3769f6c499b8","at":1772100725000000000,"seq":734,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c996f-6b70-7705-9675-3281cf46e271","at":1772100742000000000,"seq":735,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c996f-7ef8-779c-9fa3-81287c9da306","at":1772100747000000000,"seq":736,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c996f-b990-759e-b8ba-834945b028fa","at":1772100762000000000,"seq":737,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c996f-f040-7d41-8e25-f6af2d355448","at":1772100776000000000,"seq":738,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c9979-4eee-7b53-8d7f-592b2895be5b","at":1772101390062000000,"seq":739,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9979-4eee-724e-90af-deff68ef177c","at":1772101390062000000,"seq":740,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9979-6df0-7055-8ca3-234f7d7d2718","at":1772101398000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c9979-c317-705d-a4d9-dbb329fffaae","at":1772101419799000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9979-df38-7f2b-99c8-8bf915f6b8b5","at":1772101427000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c997a-0e18-7b1c-91d0-70b92d7de4ef","at":1772101439000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c997a-8f00-7f86-858e-0a160e807c8f","at":1772101472000000000,"seq":745,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c997a-b46b-79ca-a6b9-691a34e96627","at":1772101481579000000,"seq":746,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c997a-b610-783d-9629-ab5132e4bd6d","at":1772101482000000000,"seq":747,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c997a-e4f0-72b4-8eaa-5fc79e60629c","at":1772101494000000000,"seq":748,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

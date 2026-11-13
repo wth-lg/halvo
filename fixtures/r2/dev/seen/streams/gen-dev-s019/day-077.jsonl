@@ -1,0 +1,24 @@
+{"v":1,"id":"019d0019-dc84-74fc-b397-d5f5d2bec204","at":1773823188100000000,"seq":1085,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0019-dc84-75ef-9bed-d83fcb79753d","at":1773823188100000000,"seq":1086,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0019-e7d8-7359-b8ec-7bda80a41397","at":1773823191000000000,"seq":1087,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d001a-4598-7373-8c73-5a83a7f4c97f","at":1773823215000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d001a-5538-7d0e-9ba7-834d78d4735c","at":1773823219000000000,"seq":1089,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d001a-5ffe-7e63-ac6c-90d83aceafc8","at":1773823221758000000,"seq":1090,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d001a-93b8-7562-acbe-2d4b931e0508","at":1773823235000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d001a-f178-7cd1-9d07-5e89db328024","at":1773823259000000000,"seq":1092,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d001b-1888-71ef-9635-9c078a6fa7a0","at":1773823269000000000,"seq":1093,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d001b-2c10-7faf-b045-02d7179b2b61","at":1773823274000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d001b-6b23-7d90-960a-505952ea67b4","at":1773823290147000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d001b-c080-7323-ba37-acaea7d226de","at":1773823312000000000,"seq":1096,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d001b-dbd8-726c-9e9c-ecb4a8384b72","at":1773823319000000000,"seq":1097,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d001b-e29e-760f-a2c8-ed31252dc13a","at":1773823320734000000,"seq":1098,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d001c-0ea0-7984-89c1-842b0de7d5f3","at":1773823332000000000,"seq":1099,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d001c-2610-7c00-b781-30c1bf0132a4","at":1773823338000000000,"seq":1100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d001c-7c00-774f-a079-bc9af3d67ac5","at":1773823360000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d001c-a310-70cb-8f15-29afc036127a","at":1773823370000000000,"seq":1102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0024-5742-70bb-9e7e-57370826235f","at":1773823874882000000,"seq":1103,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0024-5742-7427-8138-4a6b4b12c7c6","at":1773823874882000000,"seq":1104,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0029-040f-72e7-9e76-10b0ec22ad60","at":1773824181263000000,"seq":1105,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0029-040f-7d79-b321-c5ade1ccf76f","at":1773824181263000000,"seq":1106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0029-0ad8-7c90-be17-7029be70240a","at":1773824183000000000,"seq":1107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0029-35d0-7278-8fe1-fd4397277482","at":1773824194000000000,"seq":1108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

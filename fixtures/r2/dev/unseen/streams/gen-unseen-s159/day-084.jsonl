@@ -1,0 +1,32 @@
+{"v":1,"id":"019d244b-0914-7972-bf71-090ee4156d08","at":1774430390548000000,"seq":1310,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d244b-0914-7e92-9bf9-d0ec412a6d9e","at":1774430390548000000,"seq":1311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d244b-2a18-7143-bcca-1d8c91f5ce58","at":1774430399000000000,"seq":1312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244b-6bb3-71d1-9aca-20f6163fb984","at":1774430415795000000,"seq":1313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d244b-7838-7dc4-b52f-b38650a63d22","at":1774430419000000000,"seq":1314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244b-9b60-7d71-a31a-e23383314d24","at":1774430428000000000,"seq":1315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d244b-cae9-781a-932e-29669e403c83","at":1774430440169000000,"seq":1316,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d244b-e1b0-783f-a345-cb23d90724e2","at":1774430446000000000,"seq":1317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d244b-f920-7c9d-ac6b-49ba0dd30d96","at":1774430452000000000,"seq":1318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d244c-2030-7739-ad52-cc9c538adab3","at":1774430462000000000,"seq":1319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244c-6cac-7c5d-a436-a13cdd606adc","at":1774430481580000000,"seq":1320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d244c-dbb0-7ade-84c7-d49363832f62","at":1774430510000000000,"seq":1321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d244d-25e8-74e8-aac4-366d9833689e","at":1774430529000000000,"seq":1322,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2454-020b-70a3-bb99-83f1ba19bfd6","at":1774430978571000000,"seq":1323,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2454-020b-7313-b12f-c08a6d67e3dd","at":1774430978571000000,"seq":1324,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2454-2eb0-7ae7-8735-69a5fe9ee9e9","at":1774430990000000000,"seq":1325,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d2454-3298-79d2-b129-e6125374f5cd","at":1774430991000000000,"seq":1326,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d2460-f4bc-746a-80f6-5d3958e98cc6","at":1774431827132000000,"seq":1327,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2460-f4bc-7b23-9304-b349dcb8618f","at":1774431827132000000,"seq":1328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d2460-f820-7005-a241-e85bc3ecd8f6","at":1774431828000000000,"seq":1329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2461-4a28-70cd-b35a-698299060f30","at":1774431849000000000,"seq":1330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d2461-a400-7a71-9515-f96bf73f4be4","at":1774431872000000000,"seq":1331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2461-b09e-7917-a26a-1f3a8b3f752e","at":1774431875230000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d2461-e280-7552-8ab1-7fcae25d3e7a","at":1774431888000000000,"seq":1333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2462-24e8-7d3f-9aa0-5c3e4a3e8151","at":1774431905000000000,"seq":1334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2462-2cb8-7670-8614-3532021a9695","at":1774431907000000000,"seq":1335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d2462-42c2-7407-90d9-801c681a1ced","at":1774431912642000000,"seq":1336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d2462-5b98-7063-beb4-c7ab0c792201","at":1774431919000000000,"seq":1337,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2462-7ad8-710b-8505-0ab44eb0747c","at":1774431927000000000,"seq":1338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2462-82a8-7ed6-8ec3-553e3437d6eb","at":1774431929000000000,"seq":1339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2463-266c-7051-b273-868543326ff3","at":1774431970924000000,"seq":1340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d2463-4dc8-7bef-8747-8319512a8ea7","at":1774431981000000000,"seq":1341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

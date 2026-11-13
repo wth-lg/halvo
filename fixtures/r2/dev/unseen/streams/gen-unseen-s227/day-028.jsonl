@@ -1,0 +1,26 @@
+{"v":1,"id":"019c03ce-2cd1-7124-aa4f-3ba957805e78","at":1769590369489000000,"seq":411,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03ce-2cd1-7571-88a3-cf8e433267d3","at":1769590369489000000,"seq":412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c03ce-5db0-772d-b867-74a3d64cf5da","at":1769590382000000000,"seq":413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03cf-1cb3-7954-b75f-6bc7411f276b","at":1769590430899000000,"seq":414,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c03cf-57b0-70af-92ca-992c19bdb3c4","at":1769590446000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c03cf-5b98-7cf6-825e-af991ad0403a","at":1769590447000000000,"seq":416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c03cf-6c48-7c6d-a589-458fdfbc9b1b","at":1769590451272000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c03cf-82a8-7df7-9a70-89fae1fc2763","at":1769590457000000000,"seq":418,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c03cf-d0c8-72f3-af2c-80113015d9f6","at":1769590477000000000,"seq":419,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c03d0-2e88-7e65-822d-e4b1efcbe977","at":1769590501000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03d0-5954-7c15-8395-fbe51e5f6e2f","at":1769590511956000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c03d0-6150-7477-997f-7a1d42b390cc","at":1769590514000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03d0-ceb0-77e2-841f-24f07dab8f01","at":1769590542000000000,"seq":423,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c03d0-f9a8-797a-9a19-5e4e6f8eb156","at":1769590553000000000,"seq":424,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c03e4-412c-7322-bc67-afbf63717a0a","at":1769591816492000000,"seq":425,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c03e4-6e20-79fd-a0ae-0cf5c6345d42","at":1769591828000000000,"seq":426,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c03e4-81a8-7adb-a9af-a57177d9954d","at":1769591833000000000,"seq":427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03e4-880a-7901-895e-ae1fe5568488","at":1769591834634000000,"seq":428,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c03e4-c7f8-76b4-b24b-731be6c12618","at":1769591851000000000,"seq":429,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c03e4-d9a8-7358-8229-9973db415dfc","at":1769591855528000000,"seq":430,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c03e5-0e48-7b9f-afb5-da6d0d16e5e7","at":1769591869000000000,"seq":431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03e5-25b8-7aad-9843-7aff36d38888","at":1769591875000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03e5-44f8-7c1f-bf24-f86e192f4b4c","at":1769591883000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c03e5-62e6-7469-8aea-c1a0517f5aba","at":1769591890662000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c03e5-77c0-75b5-bcf9-8a72a1fbf3f3","at":1769591896000000000,"seq":435,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c03e5-7ba8-7754-9dc1-3f71a3dd5276","at":1769591897000000000,"seq":436,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

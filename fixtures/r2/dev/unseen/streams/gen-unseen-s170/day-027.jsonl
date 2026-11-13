@@ -1,0 +1,27 @@
+{"v":1,"id":"019bfe61-ff95-7180-8853-8550b569609e","at":1769499393941000000,"seq":265,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfe61-ff95-7f6c-b7c6-07ee4b8d2a17","at":1769499393941000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bfe62-3a68-741f-be04-809f06fb5c7b","at":1769499409000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe62-59a8-75b1-9c6a-f5d6fd0a58f9","at":1769499417000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bfe62-7cd0-7977-8813-156542bf20da","at":1769499426000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe62-9058-7603-a6cd-9b225682440b","at":1769499431000000000,"seq":270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfe7c-b985-7ee4-9087-3a418aa96201","at":1769501145477000000,"seq":271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bfe7c-d6e8-74cd-8f28-1a4953bb3479","at":1769501153000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bfe7d-2508-7305-b78b-298744a10e25","at":1769501173000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe7d-3c78-7698-8ac6-b8b525c05697","at":1769501179000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe7d-43b4-7c11-aac5-974206d0475a","at":1769501180852000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bfe7d-5000-7b1c-858d-036cfdb5532c","at":1769501184000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe7d-6770-779e-83e1-7a921d579a0d","at":1769501190000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe7d-6b58-7afb-9181-e65816a7faa8","at":1769501191000000000,"seq":278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfe7d-6f40-7cd2-a5a3-2a1f2edd74ed","at":1769501192000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bfe93-826d-7f17-9450-7b90b9498f87","at":1769502638701000000,"seq":280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bfe93-8780-7433-ba4e-5d97e052094a","at":1769502640000000000,"seq":281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bfe93-9b08-7331-be71-19586e8bb88d","at":1769502645000000000,"seq":282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe93-ae90-7818-ae16-95088412c2f4","at":1769502650000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe93-c9d1-75c3-ae91-34831491dc8c","at":1769502656977000000,"seq":284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bfe93-d5a0-7259-af35-a42ab47effa4","at":1769502660000000000,"seq":285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfe94-0098-7d9e-81a5-3df62f98ef13","at":1769502671000000000,"seq":286,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfe94-1808-72a3-bc6c-d92f83631dce","at":1769502677000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bfe94-3360-72f6-b033-2e5d17fb2bee","at":1769502684000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe94-3c4f-7f91-81ae-b52991d1feac","at":1769502686287000000,"seq":289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bfe94-4ad0-77fa-ad99-be31f592cf32","at":1769502690000000000,"seq":290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bfe94-71e0-7879-9d6a-e65b02bd6a7e","at":1769502700000000000,"seq":291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

@@ -1,0 +1,20 @@
+{"v":1,"id":"019d33a5-28d1-7cd1-8fcd-659dc56d6cf7","at":1774687955153000000,"seq":1143,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d33a5-28d1-7c3a-ba78-8793577bb891","at":1774687955153000000,"seq":1144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d33a5-3fa8-7b96-a99d-acf5fee280a4","at":1774687961000000000,"seq":1145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33a5-4f48-7869-996b-f08d5c9ec755","at":1774687965000000000,"seq":1146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33a5-627b-7cb2-bda0-ca526f3a88b9","at":1774687969915000000,"seq":1147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d33a5-6e88-737a-b6f7-cb4d780d70e0","at":1774687973000000000,"seq":1148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d33a5-ad08-71ed-a151-8d20a8030ec3","at":1774687989000000000,"seq":1149,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d33a5-c860-70d7-8109-58bfa9e1ec8a","at":1774687996000000000,"seq":1150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33a5-d418-7f9d-bf1b-82d8702a5abe","at":1774687999000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d33bc-af4e-7764-8bc6-bf23ad663eb4","at":1774689496910000000,"seq":1152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d33bd-28c0-7a21-8c26-b9d485e42a31","at":1774689528000000000,"seq":1153,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d33bd-4800-7d88-8bab-ddb591ac7a63","at":1774689536000000000,"seq":1154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d33c5-7d3d-738e-8192-21ea12f16a2d","at":1774690073917000000,"seq":1155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d33c5-e28e-7a70-b50e-6ff134465764","at":1774690099854000000,"seq":1156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d33c6-0e18-7c0f-aee3-10a075b504a8","at":1774690111000000000,"seq":1157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33c6-7b78-75ad-b234-0cc624159a54","at":1774690139000000000,"seq":1158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33c6-b228-7084-9097-93eec869b148","at":1774690153000000000,"seq":1159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d33c6-d938-7d40-bc86-132ddc91145b","at":1774690163000000000,"seq":1160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d33c6-dacc-7377-bd54-e8f5de66a915","at":1774690163404000000,"seq":1161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d33c7-5638-7393-a417-dc8c28dca422","at":1774690195000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

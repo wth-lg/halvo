@@ -1,0 +1,21 @@
+{"v":1,"id":"019bf920-5216-794a-af29-74d9600ad11a","at":1769411203606000000,"seq":476,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf920-5216-713e-a1b3-a409bf1e0132","at":1769411203606000000,"seq":477,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf920-6728-7a83-bf7e-15f09a3aa31c","at":1769411209000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf920-a1c0-7886-af36-0389b3c56cf3","at":1769411224000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bf920-e428-7e4e-881d-bc92ed54f02f","at":1769411241000000000,"seq":480,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf93a-ae6c-7e17-9a34-958a9bb8acbd","at":1769412931180000000,"seq":481,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf946-295f-7871-848e-ce0ab55a7503","at":1769413683551000000,"seq":482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf946-5de8-740b-bcc3-522e7f087fd2","at":1769413697000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf946-8cc8-7cbe-9181-5d02bd03124f","at":1769413709000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bf946-bf90-7bab-bb3c-23f713a3d394","at":1769413722000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf947-01f8-7837-9037-37e470a17795","at":1769413739000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf947-0db0-7765-a608-9aa1433d01f3","at":1769413742000000000,"seq":487,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf957-4245-76ac-9732-d27a03101fa3","at":1769414804037000000,"seq":488,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf957-6d18-7384-b343-d799c9c5e4d0","at":1769414815000000000,"seq":489,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf957-74e8-7b20-b3a5-fdaf3d8e78da","at":1769414817000000000,"seq":490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf957-80a0-7973-b1fc-3966fb44d660","at":1769414820000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf957-8e74-7da2-9b99-fe8861940b1d","at":1769414823540000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf957-a3c8-7e4d-a6dd-5dbcef62284f","at":1769414829000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf957-d690-7cef-97a3-fbbd0abe8f07","at":1769414842000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf957-e630-7381-b698-9e70aaeff1bd","at":1769414846000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bf957-f9b8-7627-b792-ba677a580261","at":1769414851000000000,"seq":496,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

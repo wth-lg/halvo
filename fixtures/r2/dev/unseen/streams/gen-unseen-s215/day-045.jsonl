@@ -1,0 +1,14 @@
+{"v":1,"id":"019c5b6b-7a43-70bf-9abe-b004e70f0ef3","at":1771060296259000000,"seq":570,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b6b-7a43-71aa-a87b-0108489938ae","at":1771060296259000000,"seq":571,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c5b6b-a050-746c-b888-bbb6a02b662f","at":1771060306000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b6b-a438-7b4b-9b17-fdb9fa06f03a","at":1771060307000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b6b-c2cc-7e0b-9ea9-91a46426e8a2","at":1771060314828000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c5b6b-d318-764e-b6a3-f84d52cfacbd","at":1771060319000000000,"seq":575,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5b6c-01f8-785c-a5a0-92cab855e4a4","at":1771060331000000000,"seq":576,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5b6c-1198-7320-8662-d2f687ff9465","at":1771060335000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b6c-2908-79a3-88fe-33591b24fb71","at":1771060341000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b77-41a9-739c-9e38-8823a5150689","at":1771061068201000000,"seq":579,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c5b77-67f0-7ba6-b9d4-26a93c9d61f5","at":1771061078000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b77-7b78-74a0-9d58-209c42b89218","at":1771061083000000000,"seq":581,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5b77-8b18-7645-ac7d-0e6d6cbd995c","at":1771061087000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5b78-2758-7c08-a96e-24b7c2f8146c","at":1771061127000000000,"seq":583,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

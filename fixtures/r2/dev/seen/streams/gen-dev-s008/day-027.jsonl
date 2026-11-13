@@ -1,0 +1,19 @@
+{"v":1,"id":"019bfe9e-e1ef-7007-bd74-96580ec707a9","at":1769503384047000000,"seq":342,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfe9e-e1ef-7b9f-bea6-40da2e33541f","at":1769503384047000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bfe9e-e5a8-7eab-b962-48288f184124","at":1769503385000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe9f-0cb8-7a91-bbf2-9e06519e1ec2","at":1769503395000000000,"seq":345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfeaa-1641-7456-b424-e141387dc541","at":1769504118337000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bfeaa-2c60-71f6-8e71-71cf401388f1","at":1769504124000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeaa-7698-75ed-bf63-8e2e6ba244c3","at":1769504143000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bfeaa-8a20-7d7a-a1aa-b8d63e8539ff","at":1769504148000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeaa-9a33-75f3-a9ff-61def0a1bcc3","at":1769504152115000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bfeaa-b130-7d86-9baa-29222a9debfc","at":1769504158000000000,"seq":351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeaa-cc88-79d1-ae8e-16f667e49385","at":1769504165000000000,"seq":352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeaa-d8b6-784f-a24f-ff846dedd405","at":1769504168118000000,"seq":353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bfeab-ab30-7f66-8306-26397636de1c","at":1769504222000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeab-ba13-705f-8fd8-c779c32bf07a","at":1769504225811000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bfeab-bad0-78a1-8aad-5dfe5c54928d","at":1769504226000000000,"seq":356,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bfeab-c688-70dd-8ffd-af1101f3b9e8","at":1769504229000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bfeab-f950-78e8-a4d2-bda5d600d0a9","at":1769504242000000000,"seq":358,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bfec4-58b5-7cac-8baa-b78cd3da1110","at":1769505839285000000,"seq":359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bfec4-ec08-7fe2-a6c0-581cca552590","at":1769505877000000000,"seq":360,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

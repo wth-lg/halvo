@@ -1,0 +1,47 @@
+{"v":1,"id":"019d1ea7-0806-71f8-a38c-2cf20f68be65","at":1774335756294000000,"seq":1331,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1ea7-0806-7962-89c5-e8bcf3459829","at":1774335756294000000,"seq":1332,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1ea7-1298-733c-b997-393ab4ed36d6","at":1774335759000000000,"seq":1333,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d1ec2-39f1-79f2-806b-e7e7e0ea5b63","at":1774337538545000000,"seq":1334,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1ec2-39f1-7032-8651-8770b2db9e26","at":1774337538545000000,"seq":1335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec2-94e8-750c-8b3b-5d09ee3d515e","at":1774337561832000000,"seq":1336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec2-a918-7dd5-9579-33d0cb5d148a","at":1774337567000000000,"seq":1337,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1ec2-e798-7f1f-9491-8d63d1e71b03","at":1774337583000000000,"seq":1338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec3-1e88-7b44-8f75-d6b1d6847fc5","at":1774337597064000000,"seq":1339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec3-35b8-7f05-aac1-0e4507fdb412","at":1774337603000000000,"seq":1340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d1ec3-5110-77ef-8a9f-5b6b599db498","at":1774337610000000000,"seq":1341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec3-73b4-7a72-99af-1b98aa44c164","at":1774337618868000000,"seq":1342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec3-7ff0-7ecd-9ed0-06c85dd417f3","at":1774337622000000000,"seq":1343,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1ec4-3e1c-7b7c-8a96-eeb64c0ace40","at":1774337670684000000,"seq":1344,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec4-5e98-7d21-bf1f-a95bdd3a1605","at":1774337679000000000,"seq":1345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1ec4-a99b-7cc0-abe6-c851168a359e","at":1774337698203000000,"seq":1346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec4-ef20-79d8-aebd-3c63c85e2b8f","at":1774337716000000000,"seq":1347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec5-0690-76c2-bd73-84aae2e91bae","at":1774337722000000000,"seq":1348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1ec5-1630-7a09-9819-e0c6602b28a1","at":1774337726000000000,"seq":1349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1ec5-2276-7313-94f3-7f36e6dda43b","at":1774337729142000000,"seq":1350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec5-6068-74a1-aeab-ba0967125034","at":1774337745000000000,"seq":1351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec5-a2d0-71cc-94fd-19e4490c5247","at":1774337762000000000,"seq":1352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec5-b658-704a-99c0-970f6a012ddd","at":1774337767000000000,"seq":1353,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1ec5-ca68-7896-9f77-81564f743298","at":1774337772136000000,"seq":1354,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec6-1800-786f-a248-17f0b7676154","at":1774337792000000000,"seq":1355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec6-2f70-7ba0-a825-387c014a6ca7","at":1774337798000000000,"seq":1356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec6-4ac8-7a91-8fd6-b4fb664fd58b","at":1774337805000000000,"seq":1357,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1ed3-60dc-72b5-bf02-342a1ca23e31","at":1774338662620000000,"seq":1358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed3-8580-70fc-b892-ef0bf76b16a1","at":1774338672000000000,"seq":1359,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1ed3-8968-7fb2-b72a-8a1e88ceec27","at":1774338673000000000,"seq":1360,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1ed3-9520-7720-a347-b33235e638f2","at":1774338676000000000,"seq":1361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d1ee9-b6b9-7b8f-8123-337afd31ddd2","at":1774340126393000000,"seq":1362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d1eea-6705-7ce1-adce-c0026a82580e","at":1774340171525000000,"seq":1363,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d1eea-a378-79f9-bf7a-e3641c0631e3","at":1774340187000000000,"seq":1364,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1eea-a760-7872-8529-ff553bb4dc7f","at":1774340188000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eea-d640-7381-8303-132d1888231b","at":1774340200000000000,"seq":1366,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1eea-e5f9-7b8b-889d-5b724906d66e","at":1774340204025000000,"seq":1367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d1eeb-43a0-7790-97c1-f26834d23a48","at":1774340228000000000,"seq":1368,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1eeb-7a50-7960-969f-26747e0faa1f","at":1774340242000000000,"seq":1369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eeb-8dd8-7445-bce7-03f5bea39698","at":1774340247000000000,"seq":1370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d1eeb-a548-70ff-b651-e66e1f66f18f","at":1774340253000000000,"seq":1371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eeb-dbf8-7b39-9af8-3c53e72a0a79","at":1774340267000000000,"seq":1372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1eeb-ecbf-7088-a027-24653c359454","at":1774340271295000000,"seq":1373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d1eec-0ec0-7c9d-8468-daf1adf506ed","at":1774340280000000000,"seq":1374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1eec-12a8-7581-9618-3dd6a2a27210","at":1774340281000000000,"seq":1375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d1eec-2248-78d4-8f0d-b2e338ed0d26","at":1774340285000000000,"seq":1376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1eec-4188-7b94-866b-46ed38592cbb","at":1774340293000000000,"seq":1377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

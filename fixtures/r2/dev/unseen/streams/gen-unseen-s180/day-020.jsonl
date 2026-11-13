@@ -1,0 +1,25 @@
+{"v":1,"id":"019bdab6-7e63-746c-8946-68a501c8ea73","at":1768900951651000000,"seq":289,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdab6-7e63-7fcc-be5e-c16d81501b90","at":1768900951651000000,"seq":290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bdab6-ed20-7f55-a000-00524381550a","at":1768900980000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bdab6-f2d3-733b-8f4b-d08be27fdf63","at":1768900981459000000,"seq":292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bdab7-4310-799e-b738-d125f101e381","at":1768901002000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdab7-6638-7688-abb2-f9613ed0ce82","at":1768901011000000000,"seq":294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bdab7-a8a0-729f-85be-8f146c25d465","at":1768901028000000000,"seq":295,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdac1-83e9-764d-ab02-43ae8e4e7cb9","at":1768901673961000000,"seq":296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdac2-4f30-70d3-ae4e-ec73e61294ac","at":1768901726000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdac2-9292-7858-bde6-912b3a2518ce","at":1768901743250000000,"seq":298,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdac3-58d0-7308-b9bc-2b65045f7648","at":1768901794000000000,"seq":299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdac3-6228-7df7-959d-80197cd1816c","at":1768901796392000000,"seq":300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdac3-9368-77b6-b820-69bfda91fb52","at":1768901809000000000,"seq":301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdac3-d1e8-7c69-bdcf-3069c7a306ef","at":1768901825000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bdac3-dda0-7122-961b-2fe8eee89ef7","at":1768901828000000000,"seq":303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdac3-f8f8-733e-999a-0cfad3b8a307","at":1768901835000000000,"seq":304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdac4-2350-75e9-846b-09a1811a20f6","at":1768901845840000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdac4-52d0-703d-9dc9-f835e78f7586","at":1768901858000000000,"seq":306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdac4-6270-7397-9d1e-4ea2e87f921c","at":1768901862000000000,"seq":307,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdac4-8d68-76eb-9c71-56acf054881c","at":1768901873000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdac4-d7a0-7a84-8dc3-2b93dfc4e6df","at":1768901892000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bdac4-ef10-7f7c-ba88-e21c25d86520","at":1768901898000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdad1-b08e-7764-ba24-eecd6c571cf2","at":1768902733966000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bdad2-0c3d-7007-b9db-1b817d15fe34","at":1768902757437000000,"seq":312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bdad2-7bd0-72c9-b1fc-9fd8b3c3311e","at":1768902786000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

@@ -1,0 +1,16 @@
+{"v":1,"id":"019c50e4-ded9-74cc-ae5e-038cc3a1d021","at":1770883702489000000,"seq":516,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c50e4-ded9-7721-83fa-e5c3345ef10c","at":1770883702489000000,"seq":517,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c50e5-0bd0-7ee4-88ee-183383b324ba","at":1770883714000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c50e5-3ab0-7866-8c15-dfadc6b1c410","at":1770883726000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50fd-c8ef-76f0-a5ee-4a469d2cc38a","at":1770885335279000000,"seq":520,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c50fd-c8ef-7b9f-b636-12775cf46d7d","at":1770885335279000000,"seq":521,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c50fe-6800-7b63-8cb4-a79af7077e21","at":1770885376000000000,"seq":522,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c50fe-92f8-7cff-a566-7f7d49c507e6","at":1770885387000000000,"seq":523,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50fe-96e0-75e5-b59d-eed40ab3fad2","at":1770885388000000000,"seq":524,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50fe-9ac8-7a58-b96a-40f1cbd205a6","at":1770885389000000000,"seq":525,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c5106-cc2e-7334-b9b9-cefab0e66ce9","at":1770885925934000000,"seq":526,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5106-f380-7a67-85d4-d148c67f0193","at":1770885936000000000,"seq":527,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c5107-382a-7b13-bda9-c69c94eeb363","at":1770885953578000000,"seq":528,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5107-7468-71d2-b336-8bf80e7302df","at":1770885969000000000,"seq":529,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5107-9f60-7169-b1f8-48b394459729","at":1770885980000000000,"seq":530,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5108-1878-707c-93ac-89466ffb03c9","at":1770886011000000000,"seq":531,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

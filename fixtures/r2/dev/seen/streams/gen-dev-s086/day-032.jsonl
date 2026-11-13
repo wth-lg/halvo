@@ -1,0 +1,40 @@
+{"v":1,"id":"019c1846-ed45-75a4-99c2-65e9195b557e","at":1769933827397000000,"seq":564,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1846-ed45-7715-a8c9-1e75a5aacafa","at":1769933827397000000,"seq":565,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1847-1a98-74c2-9251-01d55e5ee3e0","at":1769933839000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c184e-8d35-74e1-b950-07ed835e2161","at":1769934327093000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1859-5d13-7ef7-9986-5ad5194a338d","at":1769935035667000000,"seq":568,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c1859-ab0f-70ca-b062-8310e96b1ad6","at":1769935055631000000,"seq":569,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 11 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c1859-b450-7787-9e72-a3fe9df178e2","at":1769935058000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1859-bc20-70c3-9864-9f0e08b123a2","at":1769935060000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1859-eee8-7340-b1d3-54421da12009","at":1769935073000000000,"seq":572,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c185a-0658-7f56-9916-55f6d6e8cca7","at":1769935079000000000,"seq":573,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c185a-1440-7d22-addb-8b09ed1dd23a","at":1769935082560000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c185a-3920-7774-b1c3-40417a14cf6d","at":1769935092000000000,"seq":575,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c185a-6800-7377-a106-c22c8c863edd","at":1769935104000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185a-73b8-7865-a7a3-61700a84b649","at":1769935107000000000,"seq":577,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c185a-9eb0-7837-b6db-42f04814af1d","at":1769935118000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185a-a7f7-79ba-bb10-cd2d0312bebf","at":1769935120375000000,"seq":579,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c185a-e500-7e9d-8514-82fd36ad24ed","at":1769935136000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185b-0ff8-7d0c-8e4b-c0a98fea0cbb","at":1769935147000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185b-3708-740d-9751-817c0a598750","at":1769935157000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c185b-4976-7084-a4fb-a3b108405c2e","at":1769935161718000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c185b-6200-7cdf-b31e-55deb56e4c45","at":1769935168000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185b-7970-76f2-a3f0-edb0377b6a3d","at":1769935174000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c185b-8140-73fe-9a13-7c39b03d7af5","at":1769935176000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185b-b187-7688-b8ae-80d5e349d114","at":1769935188359000000,"seq":587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c185c-15b0-719b-b033-dca7913d75f9","at":1769935214000000000,"seq":588,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c185c-40a8-71cd-8ad4-08b4f5461a2f","at":1769935225000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c185c-92f8-7032-8e72-c78030f2670c","at":1769935246072000000,"seq":590,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c185d-2b08-778d-9e98-baf52d2babbb","at":1769935285000000000,"seq":591,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c185d-61b8-7d0f-975b-e5d4535bca1f","at":1769935299000000000,"seq":592,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185d-7d10-79f7-b37d-22736d2fcf01","at":1769935306000000000,"seq":593,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c185d-9dbc-7993-a1f2-25cd00327dac","at":1769935314364000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c185d-a038-7088-914d-e6c01b308c3a","at":1769935315000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185d-a420-7832-8710-43bf927da7b9","at":1769935316000000000,"seq":596,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c185d-c748-78be-809c-168db3cc8dda","at":1769935325000000000,"seq":597,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c185e-1579-7009-9628-6ae6ff3403cd","at":1769935345017000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c185e-5000-7923-9fd0-78cf81f0b32b","at":1769935360000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c185e-82c8-787b-ae82-77fee2cd4070","at":1769935373000000000,"seq":600,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c186a-3f01-7c6a-afe9-0b5fd932aece","at":1769936142081000000,"seq":601,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c186a-3f01-7c06-8897-6beae67857af","at":1769936142081000000,"seq":602,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c186a-cb50-7ff2-b755-bbe9c84d9a52","at":1769936178000000000,"seq":603,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

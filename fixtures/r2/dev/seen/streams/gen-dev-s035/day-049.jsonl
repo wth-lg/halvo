@@ -1,0 +1,44 @@
+{"v":1,"id":"019c6fce-af7e-71b0-bb11-d8d5ea85a7d0","at":1771402342270000000,"seq":705,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fce-af7e-7d62-83d9-89d5980edc52","at":1771402342270000000,"seq":706,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6fce-fc90-7844-be57-a9b0ce6c7fdd","at":1771402362000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fcf-7d78-7b88-ade0-b866f5b52036","at":1771402395000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe1-d2e6-79df-a740-0f5e76f5e148","at":1771403596518000000,"seq":709,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe2-78d8-7c85-9c45-1876f4c0c21a","at":1771403639000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c6fe2-cb06-77ca-b6d0-30ecad5b8e72","at":1771403660038000000,"seq":711,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe3-3458-7834-bbeb-e7523a775574","at":1771403687000000000,"seq":712,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe3-4bc8-75d0-9eaa-1113a5e4fb39","at":1771403693000000000,"seq":713,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe3-530e-7902-be28-e5a8bcdb0d04","at":1771403694862000000,"seq":714,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe3-76c0-7ae9-a8e2-ca89c2ac6623","at":1771403704000000000,"seq":715,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6fe4-45c8-7f8a-a59d-72c84dfaec7c","at":1771403757000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6fe4-5dab-7bea-8ae6-95080b969e00","at":1771403763115000000,"seq":717,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe4-6508-7d9b-b1c4-d2fec0f7d870","at":1771403765000000000,"seq":718,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe4-6cd8-7e23-ba7a-642c13f1c458","at":1771403767000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe4-70c0-7a4e-92d4-282fec663405","at":1771403768000000000,"seq":720,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6fe4-a770-726b-8f97-e65b8f527fda","at":1771403782000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c6fe4-abb7-7278-91aa-1806c8144f67","at":1771403783095000000,"seq":722,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe4-e5f0-746a-9626-b5385bc8a5dd","at":1771403798000000000,"seq":723,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6fe5-0530-7d8a-b6fa-f4c89cf8ec97","at":1771403806000000000,"seq":724,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe5-14d0-7e82-8620-0767a5e57fcf","at":1771403810000000000,"seq":725,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6fe5-8de8-7792-84f5-05e1d590678a","at":1771403841000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ffb-dc49-7757-bd0b-15304e458f80","at":1771405302857000000,"seq":727,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6ffb-dc49-7b7f-86a2-1d2834047516","at":1771405302857000000,"seq":728,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6ffb-f448-7b0c-89fe-3d4602d05eee","at":1771405309000000000,"seq":729,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ffc-2328-7d7d-b238-9d8ef2bc809b","at":1771405321000000000,"seq":730,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ffc-9088-70ec-bba2-61d3fbec4b4c","at":1771405349000000000,"seq":731,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ffc-9858-7267-a630-563ca0556aa8","at":1771405351000000000,"seq":732,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c7014-abba-73ea-832f-ddcba35decbb","at":1771406928826000000,"seq":733,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7014-abba-720b-bf97-23bd71da3508","at":1771406928826000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c7014-eed0-7fe2-ae08-412a6c36a8d9","at":1771406946000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7014-fe70-7c31-8d21-2ca439286ad3","at":1771406950000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c7015-0640-72ab-90c1-498eb4580333","at":1771406952000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7015-2245-7211-ba10-2da09cc68285","at":1771406959173000000,"seq":738,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c7015-2580-7926-998a-02e1bda5bf43","at":1771406960000000000,"seq":739,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7015-3908-79c9-b2f2-1271ff6d9ac5","at":1771406965000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7015-4c90-719a-8c24-49c7053be0fb","at":1771406970000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7015-a280-7e61-b178-4f4cf34fa4f8","at":1771406992000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7015-a617-799e-aa8a-869d341d127e","at":1771406992919000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c7015-a668-7aa8-8413-4b75d091432e","at":1771406993000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c7015-c990-7555-806b-b1429849ef13","at":1771407002000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7015-d548-7f32-9c71-0a541cf0b9e0","at":1771407005000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7015-d930-7fb2-ba3a-f55b26b27144","at":1771407006000000000,"seq":747,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7015-ee64-75ec-9f60-4d5195b5efa9","at":1771407011428000000,"seq":748,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}

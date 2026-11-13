@@ -1,0 +1,22 @@
+{"v":1,"id":"019d3911-5767-7b6d-b2c4-1b14ed2a5223","at":1774778931047000000,"seq":1182,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3911-5767-7a7c-8f50-3645a2432814","at":1774778931047000000,"seq":1183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3911-8de8-7fc3-a4f7-c7377fd20f84","at":1774778945000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3922-6644-744e-8948-ec3a2d2fc5f0","at":1774780048964000000,"seq":1185,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3922-6644-7c86-bd26-210bf8a552b5","at":1774780048964000000,"seq":1186,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3922-6e38-7590-bee4-02409065225c","at":1774780051000000000,"seq":1187,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3922-7220-7288-9a6d-4c9c1365c090","at":1774780052000000000,"seq":1188,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3922-cbf8-799f-a8de-30db91211639","at":1774780075000000000,"seq":1189,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3935-2d30-7b73-9ded-fe7873d82167","at":1774781279536000000,"seq":1190,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3935-2f00-779a-b1dc-7b44ddd7b6ac","at":1774781280000000000,"seq":1191,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3935-6d80-7dc6-9ea3-97349a302a72","at":1774781296000000000,"seq":1192,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d3935-8108-77c8-b0ac-cff3417f12ad","at":1774781301000000000,"seq":1193,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3935-cf28-748d-85d5-feacd47b39ad","at":1774781321000000000,"seq":1194,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d3940-e1da-7fa4-94e1-f9afc78d19f2","at":1774782046682000000,"seq":1195,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3940-e1da-75c4-8d59-4f5f945e6c31","at":1774782046682000000,"seq":1196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d3940-e700-7e35-b7b0-530b3b740240","at":1774782048000000000,"seq":1197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3941-3520-7c4c-94a1-c8ce1f4e46ef","at":1774782068000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3941-c6e0-7ccc-b8a4-74cc12f5649a","at":1774782105312000000,"seq":1199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d3942-0040-756e-9c18-ae6de95504bd","at":1774782120000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d3942-1f80-7e41-90a3-5a2140cf6b97","at":1774782128000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3942-36f0-7474-a02a-100a040041ed","at":1774782134000000000,"seq":1202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3942-4690-770b-984a-4ca9d6668e5e","at":1774782138000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

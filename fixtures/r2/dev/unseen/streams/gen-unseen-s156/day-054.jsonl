@@ -1,0 +1,10 @@
+{"v":1,"id":"019c8952-b8cc-7c73-aafe-922a068e9938","at":1771830425804000000,"seq":852,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8952-b8cc-74e1-b783-cc10fd319ae6","at":1771830425804000000,"seq":853,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8953-32a8-7434-b037-ce40c19efbe3","at":1771830457000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c8953-7db1-7ac2-97c2-5d4445c2f8bb","at":1771830476209000000,"seq":855,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8954-1538-7ee6-a2a6-571f7caad65e","at":1771830515000000000,"seq":856,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8963-cea4-7afb-ad85-983e2bcfc62c","at":1771831545508000000,"seq":857,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c8963-dc48-70db-a5f0-e61ff907b666","at":1771831549000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8974-fa2d-7fe0-beea-c02885e0a1c9","at":1771832670765000000,"seq":859,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c8975-0ea0-75bf-8b3f-39dd4b615bb1","at":1771832676000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c8975-35b0-7bf7-b0f0-b29cbffca7e6","at":1771832686000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

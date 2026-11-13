@@ -1,0 +1,59 @@
+{"v":1,"id":"019c2d01-0eca-724b-988f-3154211b2147","at":1770281569994000000,"seq":536,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d01-0eca-798a-9b98-973c368d85d8","at":1770281569994000000,"seq":537,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c2d01-9788-7a5b-a0cb-b3d6fb39633e","at":1770281605000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c2d01-ed56-79b0-a429-9093e9d30daf","at":1770281626966000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c2d02-0100-7f62-b772-27794be090e3","at":1770281632000000000,"seq":540,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2d02-3f80-706e-b2ac-d324d15f0d90","at":1770281648000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c2d02-89b8-7e35-aad2-2f7f305850f1","at":1770281667000000000,"seq":542,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d02-f3ef-7ad6-bb49-6778657300f0","at":1770281694191000000,"seq":543,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c2d03-0aa0-7e8a-84e5-40918ee003ea","at":1770281700000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d03-3d68-7dbb-a6d0-3290c83cf012","at":1770281713000000000,"seq":545,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d03-4538-7368-aecb-9ec51e2e8375","at":1770281715000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d03-6478-7e7a-ab45-8fc0ce3e53c9","at":1770281723000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d06-caeb-7c4b-9cb2-cc0cfc466a44","at":1770281945835000000,"seq":548,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c2d07-0240-7597-b583-883b82e6d3a4","at":1770281960000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c2d07-2950-7952-9f60-d4ec5a518639","at":1770281970000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d07-44a8-753d-89d9-e13e8282e52a","at":1770281977000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d07-8d1c-70a5-a02b-ab1dfbeaf5a2","at":1770281995548000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c2d07-dd00-700c-bfca-e9d589dc50e5","at":1770282016000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d08-07f8-73de-b944-6b296751a22c","at":1770282027000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d08-7eb8-7e27-b497-06fb62ccc029","at":1770282057400000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c2d08-9c68-7810-8fc4-b321b342b9da","at":1770282065000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d08-aff0-7164-87f6-3a5694d65877","at":1770282070000000000,"seq":557,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d08-e6a0-7baf-b22c-4d411c824d32","at":1770282084000000000,"seq":558,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2d09-42a3-716b-be25-9d1347e3c690","at":1770282107555000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c2d09-7728-7ff2-b08e-c1c59e329c00","at":1770282121000000000,"seq":560,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2d09-82e0-71a8-9376-c76fa4152c9f","at":1770282124000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c2d13-f35f-7415-995f-263f75f921c2","at":1770282808159000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c2d13-f6a8-71ae-a078-8b13cb2d9325","at":1770282809000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d14-84d7-7980-bcd3-6bba8e98c571","at":1770282845399000000,"seq":564,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c2d14-b610-7350-b661-9d7d44cf3b9f","at":1770282858000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d14-e4f0-77ca-97dd-44913fda8396","at":1770282870000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d14-ff46-705f-bc5d-d19a973fe6d8","at":1770282876742000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c2d15-4a80-7137-9fba-10d67382c60f","at":1770282896000000000,"seq":568,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d15-5250-7586-b8cc-f20f3ef8ce9f","at":1770282898000000000,"seq":569,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d15-7578-7245-bb16-ac69d7939618","at":1770282907000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d15-b3f8-7b52-9c4a-b11bee3075ef","at":1770282923000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d15-bfb0-7b4a-a795-98d39adba862","at":1770282926000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c2d15-fb1e-78ba-998c-e6588458210f","at":1770282941214000000,"seq":573,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c2d16-1988-7906-950a-de7c5b35210d","at":1770282949000000000,"seq":574,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d16-4480-7e95-b212-beeac64f951a","at":1770282960000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d1c-615f-7572-8423-bd1636a506fe","at":1770283360607000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c2d1c-d818-79b3-b8bd-4f4bbf3f6aea","at":1770283391000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d1d-1a80-75b9-a528-df59f1a27403","at":1770283408000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c2d1d-35d8-7384-9758-0e8807eef0ac","at":1770283415000000000,"seq":579,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2d20-0b22-726a-83fd-d0e677468281","at":1770283600674000000,"seq":580,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c2d20-e6f9-7ade-8412-b1c06b31668a","at":1770283656953000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c2d20-eef8-78d8-9221-5a7fd8f4a73c","at":1770283659000000000,"seq":582,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d21-1220-7045-a463-4ba2dd4acbbf","at":1770283668000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d21-50a0-7661-be9a-0420093f5dfa","at":1770283684000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c2d21-6bf8-79de-9bcf-b74a371f5eb9","at":1770283691000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d21-8e83-7da1-8e74-a0c7b03655f8","at":1770283699843000000,"seq":586,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c2d21-9308-7f6f-9cb4-1ed8e3f544c7","at":1770283701000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c2d21-a2a8-796f-98c0-2cd09e979d69","at":1770283705000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d21-dd40-7bd1-9159-d1160011aff3","at":1770283720000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d21-f4b0-7503-941d-4907ca6e06f6","at":1770283726000000000,"seq":590,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d22-3718-75d2-8cf2-91c1d135015d","at":1770283743000000000,"seq":591,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2d22-42c0-7ef7-a2f5-f3316269101f","at":1770283745984000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c2d22-5270-7c75-afe3-63af6aa45b48","at":1770283750000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c2d22-71b0-7c03-a66b-30514a1e4292","at":1770283758000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

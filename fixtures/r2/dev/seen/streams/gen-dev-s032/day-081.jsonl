@@ -1,0 +1,22 @@
+{"v":1,"id":"019d14c9-e6f9-7f26-9885-943e7b825523","at":1774170269433000000,"seq":1247,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14c9-e6f9-70fa-8bc7-a02dce8e2c19","at":1774170269433000000,"seq":1248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d14c9-f100-7f01-b5bd-b9baaf77aa41","at":1774170272000000000,"seq":1249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d14ca-1040-7db4-9a85-c81829df8d7a","at":1774170280000000000,"seq":1250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d14e2-6cab-79fb-8e1a-4f9a5352dce3","at":1774171876523000000,"seq":1251,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d14e2-6cab-7413-ba51-b700a49ed223","at":1774171876523000000,"seq":1252,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d14e2-7658-74e5-8c45-9d8547be4e7a","at":1774171879000000000,"seq":1253,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d14e2-d418-7689-ac51-dca99808c9ad","at":1774171903000000000,"seq":1254,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14e3-0eb0-7e4e-a2a4-ccc6855870f5","at":1774171918000000000,"seq":1255,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f6-3a84-7209-8557-8758491aec10","at":1774173174404000000,"seq":1256,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14f6-3a84-71cc-9d94-6214a0249f72","at":1774173174404000000,"seq":1257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d14f6-6000-78a9-97af-46c03d1bfc93","at":1774173184000000000,"seq":1258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f6-e0e8-72b9-bb98-eee70fe3b4b0","at":1774173217000000000,"seq":1259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d14f6-ea8c-7d2a-8549-87b89aae4ad4","at":1774173219468000000,"seq":1260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d14f7-1f68-7815-a639-1a93100d2d14","at":1774173233000000000,"seq":1261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f7-cf00-7f98-9519-e16744161c09","at":1774173277952000000,"seq":1262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d14f7-f640-74ca-b58a-01aece3fb737","at":1774173288000000000,"seq":1263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f8-2cf0-7eee-ac77-1219d7019933","at":1774173302000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14fc-6ef4-7223-b24d-a2e3d8599a26","at":1774173581044000000,"seq":1265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d14fc-a578-70bf-824b-a2e924afb090","at":1774173595000000000,"seq":1266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14fc-bce8-7568-b640-5e96a09c2864","at":1774173601000000000,"seq":1267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d14fc-e3f8-7518-96b8-6ba2de7ac6c6","at":1774173611000000000,"seq":1268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

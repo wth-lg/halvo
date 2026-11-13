@@ -1,0 +1,38 @@
+{"v":1,"id":"019bf454-9964-7f04-a44d-8cf708f81893","at":1769330743652000000,"seq":379,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf454-9964-7593-bbd4-2bc439381949","at":1769330743652000000,"seq":380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bf455-1e02-7f93-a5c3-1930aa9b07fe","at":1769330777602000000,"seq":381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bf455-8520-7e19-9a93-5639e47e41ac","at":1769330804000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf455-d0f2-7a3b-8315-9240572bf2ee","at":1769330823410000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bf455-e6c8-7454-87ac-650ef6386fda","at":1769330829000000000,"seq":384,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf456-2548-706f-bd49-3dcf2a9cb878","at":1769330845000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf456-4488-7a0b-878c-bc22b0b73f10","at":1769330853000000000,"seq":386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bf467-1bf5-7549-bec9-5089de513d1f","at":1769331956725000000,"seq":387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bf467-3860-7662-aabd-1926f931f165","at":1769331964000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bf467-6f10-7816-8323-1d5e20799971","at":1769331978000000000,"seq":389,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf467-8e50-7b78-94b2-0f0a6a3e36d2","at":1769331986000000000,"seq":390,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf482-3577-7502-aefe-bc1406b5d6d5","at":1769333732727000000,"seq":391,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bf482-3688-741d-8065-c75f36c1cfaf","at":1769333733000000000,"seq":392,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf482-84a8-7f36-9ed0-4d0ebc6b5db5","at":1769333753000000000,"seq":393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf482-bf40-7f56-bb75-472c6837d936","at":1769333768000000000,"seq":394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bf482-ea38-70ef-b5de-addaf02f725e","at":1769333779000000000,"seq":395,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf483-14d2-76a4-9960-0a2c0794020b","at":1769333789906000000,"seq":396,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019bf483-24d0-754d-92d8-c2ab8bb5aa78","at":1769333794000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf483-53b0-7f11-bfd8-ba0bf350865b","at":1769333806000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf483-e438-71da-bd53-8b5b60dd35ee","at":1769333843000000000,"seq":399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf483-f4e4-796e-ab99-0f87f49f02ca","at":1769333847268000000,"seq":400,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019bf484-0760-7656-b741-e922def99079","at":1769333852000000000,"seq":401,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf484-0b48-7440-b3ff-500a5f9a2890","at":1769333853000000000,"seq":402,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf484-70f5-717f-a8da-32eca1d666f8","at":1769333879029000000,"seq":403,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019bf484-8078-7b15-b5ba-344f9ce8f7c9","at":1769333883000000000,"seq":404,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf484-9018-7b87-b810-d1d9ea75beb6","at":1769333887000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bf484-e9f0-7b22-8bee-2378e85bdf1c","at":1769333910000000000,"seq":406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf485-0930-71c6-acf8-483d5998d419","at":1769333918000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf485-3428-7d48-8619-61c7031e2c0f","at":1769333929000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf485-3b7b-726a-ad39-b207a50d78c5","at":1769333930875000000,"seq":409,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019bf485-7a78-7446-a9fd-741069428bb6","at":1769333947000000000,"seq":410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf485-e008-7732-a136-16a2629e636b","at":1769333973000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bf485-eba5-7e59-8ded-70ebfa35daa7","at":1769333975973000000,"seq":412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bf486-0b00-78fc-aece-3c36675729fb","at":1769333984000000000,"seq":413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf486-12d0-772f-928e-128c4a3df219","at":1769333986000000000,"seq":414,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf486-12d0-763e-93ac-18bcd20cc7ce","at":1769333986000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bf486-2e28-7cf3-8ab3-48f50117a89e","at":1769333993000000000,"seq":416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

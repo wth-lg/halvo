@@ -1,0 +1,21 @@
+{"v":1,"id":"019c98f5-8f96-7670-b006-18931cadf954","at":1772092755862000000,"seq":777,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c98f5-8f96-7b4b-9515-a5409523065e","at":1772092755862000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c98f5-a790-769b-abfb-273f92bca711","at":1772092762000000000,"seq":779,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c98f5-bf00-7514-b6dd-8da45e96d768","at":1772092768000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c98f6-2c60-7938-bbfa-37edf9bc5517","at":1772092796000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98f8-5956-760f-9972-0055bed86132","at":1772092938582000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c98f8-d410-7afb-bc3c-47b7066af7e7","at":1772092970000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9906-1c4d-798f-882d-7ec94d74ea19","at":1772093840461000000,"seq":784,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c9906-c21b-70b2-aa8a-aa021cb4e6df","at":1772093882907000000,"seq":785,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c9906-ce30-7031-bd83-2e0d241a9bef","at":1772093886000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9906-ce30-7105-b88e-a884870602cd","at":1772093886000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c9906-fd10-731f-a3bd-61a7c64170e9","at":1772093898000000000,"seq":788,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9907-1480-7357-b962-6bb9cc68c4b9","at":1772093904000000000,"seq":789,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9907-343d-7a7e-bfef-dc4bf2baf623","at":1772093912125000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c9907-4748-76b8-851f-6b9a373dce45","at":1772093917000000000,"seq":791,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9907-4b30-7082-9d31-35abcd00647b","at":1772093918000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9907-97ac-7eca-a3e4-bc5cb52b194d","at":1772093937580000000,"seq":793,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c9907-c830-7d24-8eda-372da5531602","at":1772093950000000000,"seq":794,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9907-e770-7e35-a3f3-49b94060be83","at":1772093958000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9908-02c8-724d-ac1d-2a0fa019ab43","at":1772093965000000000,"seq":796,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9908-58b8-7b3e-b413-e832556ca41a","at":1772093987000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

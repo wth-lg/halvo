@@ -1,0 +1,20 @@
+{"v":1,"id":"019bcad2-19dd-7c0c-a974-a2a71c836208","at":1768634325469000000,"seq":197,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcad2-19dd-7311-bba1-cc5d9b11cf52","at":1768634325469000000,"seq":198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bcad2-8a2e-7649-a067-3b3fc1902fc9","at":1768634354222000000,"seq":199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bcad3-5470-7831-829d-c30dd8f90e91","at":1768634406000000000,"seq":200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcad3-5858-7919-b492-149e1a9c221a","at":1768634407000000000,"seq":201,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcad3-85c2-774d-9030-399ff59bb6f6","at":1768634418626000000,"seq":202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bcad4-65e0-7371-8a82-3889f15c89f5","at":1768634476000000000,"seq":203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcad4-7580-7e36-944b-7aa1ea92e712","at":1768634480000000000,"seq":204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcad4-82a9-702b-92b2-a9ba5b8a84bd","at":1768634483369000000,"seq":205,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcad4-82a9-7b49-8fc7-401dbef47941","at":1768634483369000000,"seq":206,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcad4-f280-7c60-90d5-1f8283566b68","at":1768634512000000000,"seq":207,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bcad5-0dd8-7b98-80d8-7c854baed947","at":1768634519000000000,"seq":208,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bcad5-2960-7911-a90b-dbbf28352154","at":1768634526048000000,"seq":209,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcad5-2960-7672-8be5-b3c7fa36c1fc","at":1768634526048000000,"seq":210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bcad5-5428-749b-940b-76da8b580f92","at":1768634537000000000,"seq":211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcaee-4d02-7bd3-a030-0522db494afe","at":1768636173570000000,"seq":212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bcaee-98e8-7fe9-b16c-80f3bd6f543e","at":1768636193000000000,"seq":213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcaee-df38-777b-b5a9-82dff5af490d","at":1768636211000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcaee-e320-7d47-bed4-a8f823bcb7c6","at":1768636212000000000,"seq":215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bcaef-506f-7e91-b8f7-6b02daaeaeb2","at":1768636239983000000,"seq":216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}

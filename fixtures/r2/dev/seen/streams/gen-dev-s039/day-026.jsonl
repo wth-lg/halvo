@@ -1,0 +1,21 @@
+{"v":1,"id":"019bf9aa-3e45-7712-8aab-d7c45b6a3b34","at":1769420242501000000,"seq":453,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf9aa-3e45-7d55-a008-2516c1ce09ea","at":1769420242501000000,"seq":454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf9aa-4420-731d-81d6-a80bd4bfa36a","at":1769420244000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bf9aa-4fd8-74a4-baa6-1a95b215a1a4","at":1769420247000000000,"seq":456,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf9aa-8e58-70d8-a2c2-51e7b8e4ae2a","at":1769420263000000000,"seq":457,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf9aa-dc78-7656-9c16-cfee74d32595","at":1769420283000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c1-5210-7ced-905d-22b16aff76c5","at":1769421754896000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf9c1-8158-7886-9b55-ce8d889dfa6f","at":1769421767000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c1-b038-7d87-bdee-fce7196e10d3","at":1769421779000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c1-ca07-7109-8842-ec35e0ea7ed8","at":1769421785607000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf9c1-e6e8-70a0-884c-55c969d4d758","at":1769421793000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9d5-30b6-766c-86d4-0bb4c87bda02","at":1769423057078000000,"seq":464,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf9d5-30b6-7fbc-890e-1dd59ceed268","at":1769423057078000000,"seq":465,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf9d5-4fa8-7535-a538-f0ad2782f32c","at":1769423065000000000,"seq":466,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bf9d5-6b00-70dd-a46a-c295f12baa0c","at":1769423072000000000,"seq":467,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bf9d5-72d0-7247-89af-4647c571e2b5","at":1769423074000000000,"seq":468,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9d5-8270-741c-aec4-0bed655143d3","at":1769423078000000000,"seq":469,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9d5-b538-76fb-8b31-21da1b25f09c","at":1769423091000000000,"seq":470,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bf9d6-3f27-7ea3-95ef-12c919d58072","at":1769423126311000000,"seq":471,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bf9d6-49a8-7ee7-99a5-32ef49641010","at":1769423129000000000,"seq":472,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9d6-8828-7710-94a0-50e1f3a6cb73","at":1769423145000000000,"seq":473,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

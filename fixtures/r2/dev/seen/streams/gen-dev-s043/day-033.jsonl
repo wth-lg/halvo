@@ -1,0 +1,15 @@
+{"v":1,"id":"019c1e01-8837-7bef-8f5f-2b7e81117d60","at":1770029942839000000,"seq":638,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1e01-8837-7254-8b0d-417479946ecd","at":1770029942839000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c1e01-9c60-7a0f-a4e2-1e45cdcff3e6","at":1770029948000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e02-854a-71cf-a98c-dd995642d8e5","at":1770030007626000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c1e02-d4e0-7081-ab60-508bed707b55","at":1770030028000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c1e03-53b2-7ecc-8da3-1eaf402c9f80","at":1770030060466000000,"seq":643,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c1e03-7cd8-7c00-8be0-5880a9a85924","at":1770030071000000000,"seq":644,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1e03-8c78-78df-9169-58dc6ed9fcce","at":1770030075000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c1e1e-001d-79bd-964c-777573d9c616","at":1770031808541000000,"seq":646,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1e1e-53f0-73b9-99ad-e96abed14d39","at":1770031830000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c1e1e-6390-7183-857b-266fdde60334","at":1770031834000000000,"seq":648,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1e38-b1ae-7e1d-a8a8-9314f2291537","at":1770033557934000000,"seq":649,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1e38-b5d8-7a04-aa43-f6d488efde56","at":1770033559000000000,"seq":650,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1e39-03f8-760c-9d26-caa0ec9ecdf2","at":1770033579000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c1e39-0fb0-7d23-a54e-7e6df6914839","at":1770033582000000000,"seq":652,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

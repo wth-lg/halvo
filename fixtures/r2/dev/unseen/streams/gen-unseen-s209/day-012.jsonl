@@ -1,0 +1,22 @@
+{"v":1,"id":"019bb1d3-d91d-72c0-b045-8db292224707","at":1768215009565000000,"seq":83,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1d3-d91d-7118-b405-5690fdda931c","at":1768215009565000000,"seq":84,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bb1d4-01e0-75cb-90bb-55c9e4932505","at":1768215020000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1d4-09b0-7173-a674-fd27a13cc639","at":1768215022000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bb1d4-1180-70a6-a7fa-a967c95b97ab","at":1768215024000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1d4-24d5-7f50-aebd-ec11345a30b0","at":1768215028949000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bb1d4-4830-7677-9792-d5a4221264ef","at":1768215038000000000,"seq":89,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bb1d4-53e8-7456-944d-597baf8b405c","at":1768215041000000000,"seq":90,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb1d4-7328-7d91-a53d-7169d6965f30","at":1768215049000000000,"seq":91,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb1e3-b21c-74d0-b4d0-f63f3dfdcd24","at":1768216048156000000,"seq":92,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bb1e4-6530-7354-8e4d-dfbccec17767","at":1768216094000000000,"seq":93,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb1f2-ae39-7d9e-909a-72dd4b1ce781","at":1768217030201000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bb1f2-c8c8-71af-ada2-68b0112513de","at":1768217037000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bb1f3-a3a0-7bfa-b8ea-45a307c265fd","at":1768217093024000000,"seq":96,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bb1f3-b710-7e90-828d-8cfd4d8456e9","at":1768217098000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1f3-f962-70e2-a730-692f4a3ba720","at":1768217114978000000,"seq":98,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bb1f3-fd60-70b6-b130-9538e172ebf7","at":1768217116000000000,"seq":99,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb1f4-3028-730e-b260-2b8806b997d9","at":1768217129000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1f4-3fc8-7907-ba12-ded2d59c6d18","at":1768217133000000000,"seq":101,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb1f4-7b81-7f3f-a3e2-5cc27ae48ed6","at":1768217148289000000,"seq":102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bb1f5-0700-70db-b8b8-96d6fe6c3555","at":1768217184000000000,"seq":103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1f5-0ae8-7437-b242-f01d295386d3","at":1768217185000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

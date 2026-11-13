@@ -1,0 +1,16 @@
+{"v":1,"id":"019bc671-70df-7547-91d9-67fb8dfebf23","at":1768560881887000000,"seq":237,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc671-70df-746a-9a40-127f589f0212","at":1768560881887000000,"seq":238,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc671-9860-79a3-b688-3417474f5505","at":1768560892000000000,"seq":239,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bc671-a030-7115-974f-6e0b8e9b8f23","at":1768560894000000000,"seq":240,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc671-d2f8-7a4c-9fab-f13d92476dd3","at":1768560907000000000,"seq":241,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc67d-b26f-79f5-8a8c-7792bc0076b1","at":1768561685103000000,"seq":242,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc67d-b26f-71c3-b559-4d72cd3a5727","at":1768561685103000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bc67d-b5f0-7e89-a251-8942a66cea67","at":1768561686000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc67d-c590-752d-98ee-0f753cc080f6","at":1768561690000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc67d-f858-747b-8ed4-5fd74004cdc9","at":1768561703000000000,"seq":246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc67e-1798-7259-817b-0050f48485be","at":1768561711000000000,"seq":247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc688-8f2b-7b01-bc97-1b3e7a23dbee","at":1768562396971000000,"seq":248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bc688-9330-7b08-8245-4f4ad74b5ce3","at":1768562398000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc688-d598-7db5-9bac-1c03d705bc54","at":1768562415000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc688-fd01-766f-83d2-f48fd4496e15","at":1768562425089000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bc689-6a08-7176-a9ff-a6da1e15a6c6","at":1768562453000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

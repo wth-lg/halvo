@@ -1,0 +1,9 @@
+{"v":1,"id":"019bc637-68cb-709c-94a0-4e8b99b62c57","at":1768557078731000000,"seq":302,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc637-68cb-7526-ac2b-48863baa2a8d","at":1768557078731000000,"seq":303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bc638-469e-7156-9dad-75634da51396","at":1768557135518000000,"seq":304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bc638-4880-79d6-83e8-9a192e5c6165","at":1768557136000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bc638-f5ea-798d-ab24-5595df7e2970","at":1768557180394000000,"seq":306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bc639-13a0-725e-ba01-e8984dba31ed","at":1768557188000000000,"seq":307,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc639-a040-77df-abcd-f9d5410008b3","at":1768557224000000000,"seq":308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc639-dec0-7e20-bfdf-7d8810588d48","at":1768557240000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc639-efa8-7b55-a650-ab1126b06753","at":1768557244328000000,"seq":310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019d1a2d-b7c6-7122-951c-3d2b37c046b8","at":1774260697030000000,"seq":1199,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1a2d-b7c6-7225-b28c-1260d221a2e7","at":1774260697030000000,"seq":1200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d1a2d-c748-7a23-a6ec-8749c2f38436","at":1774260701000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a2d-cf18-75a2-b526-14dd0fa230e9","at":1774260703000000000,"seq":1202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a2e-40ef-78da-bec5-3bdb9ab1cca3","at":1774260732143000000,"seq":1203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d1a2e-9268-7b9a-951f-37ad2497e290","at":1774260753000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d1a2e-e470-7b6f-bb7b-b066d9d81a8c","at":1774260774000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a2e-e858-7a5f-8639-73ffec6aa652","at":1774260775000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a2f-2446-782c-bca2-53104b0e182c","at":1774260790342000000,"seq":1207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d1a2f-7110-791f-9a8b-d0b65b8e4b09","at":1774260810000000000,"seq":1208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1a2f-9ff0-76a1-8d34-fd99df4441b3","at":1774260822000000000,"seq":1209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d1a2f-a3d8-7370-83bf-d057f1197335","at":1774260823000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a2f-af54-753b-8869-ff59ab757bd6","at":1774260825940000000,"seq":1211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d1a2f-f5e0-7d95-a25e-7bee33271388","at":1774260844000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1a30-1cf0-7693-892b-683394961f60","at":1774260854000000000,"seq":1213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1a30-3848-7edd-a63c-bd8949f49382","at":1774260861000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d1a3d-7d8f-7bda-af6b-4c09429d1112","at":1774261730703000000,"seq":1215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d1a3d-8688-70be-9a98-33c21326fb0a","at":1774261733000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d1a3e-1ee0-73be-9258-3b955134ca1b","at":1774261772000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a3e-36cd-7482-8174-86c92802e7da","at":1774261778125000000,"seq":1218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d1a3e-9410-7494-9ae9-c28581a5e34b","at":1774261802000000000,"seq":1219,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1a3f-2498-739b-ae43-272746e8acc1","at":1774261839000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

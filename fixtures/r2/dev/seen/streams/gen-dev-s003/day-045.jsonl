@@ -1,0 +1,23 @@
+{"v":1,"id":"019c5b75-8190-7927-b852-b4adc7c4c10b","at":1771060953488000000,"seq":652,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b75-8190-7c08-9a69-d94ac7abf802","at":1771060953488000000,"seq":653,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5b75-aaa0-7fd6-84c3-c56c7f0bb09d","at":1771060964000000000,"seq":654,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5b75-c9e0-78c7-9a11-8d4ecb7efdae","at":1771060972000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5b7a-92e2-7c0e-96cd-cb048d6ac469","at":1771061285602000000,"seq":656,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7b-3880-7163-ab02-a7777502eb01","at":1771061328000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7b-4a47-72de-9be3-0a717096306d","at":1771061332551000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7b-8e70-7ae5-b667-82660e819a1b","at":1771061350000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7b-9a28-7b01-9787-437d4cd37b10","at":1771061353000000000,"seq":660,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5b7b-c834-7520-9f1e-fa69eb11b743","at":1771061364788000000,"seq":661,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7b-e460-7ad2-93e5-7b8396cd8eca","at":1771061372000000000,"seq":662,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5b7c-0788-77d6-888e-597a9e5de3f3","at":1771061381000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7c-0b70-71ae-9b27-3c568e7260c7","at":1771061382000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7c-114e-73fa-ab72-40c14f9b667e","at":1771061383502000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7c-2ab0-7a91-9434-dc122eacc159","at":1771061390000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7c-74e8-7b98-99e5-1c74651f883f","at":1771061409000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b81-9077-7dee-890a-6ca4007a4ff6","at":1771061743735000000,"seq":668,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5b81-b4a8-7559-b7ef-f822e748cfc4","at":1771061753000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5b81-bc78-7cc8-89e6-442aa27ecae5","at":1771061755000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b81-cc18-7f09-9aae-49dd7270fe0b","at":1771061759000000000,"seq":671,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5b98-b4af-7a98-9541-5a28775bbf53","at":1771063260335000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5b98-ceb8-70d9-bd93-0bb4bb58738e","at":1771063267000000000,"seq":673,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b99-3448-70d3-ace1-fd2f712afe3a","at":1771063293000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

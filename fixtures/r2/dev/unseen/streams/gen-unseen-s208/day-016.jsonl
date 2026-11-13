@@ -1,0 +1,14 @@
+{"v":1,"id":"019bc639-cf2c-77a2-8217-1b48a4b5bcda","at":1768557236012000000,"seq":334,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc639-cf2c-79eb-819b-01f369bab1fe","at":1768557236012000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bc639-d6f0-77b1-9f04-4de1493a1083","at":1768557238000000000,"seq":336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc63a-28f8-7466-9e5c-130dadd81b6d","at":1768557259000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bc63a-53f0-761a-bcb1-53539bd54928","at":1768557270000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc63a-6390-70c9-8d58-13ff16ef82ed","at":1768557274000000000,"seq":339,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc642-457b-7319-8e75-0d19ef3e74cd","at":1768557790587000000,"seq":340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bc642-6e28-7ad6-8aed-d5c6973e7d5e","at":1768557801000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc642-7dc8-7da5-bbe3-d613fba71b28","at":1768557805000000000,"seq":342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc642-891c-7f59-8c03-f3d60d1b8c4c","at":1768557807900000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bc642-9538-7bb8-b5a8-72dfd9d3ed61","at":1768557811000000000,"seq":344,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc642-a4d8-78cd-9978-39871b188a2c","at":1768557815000000000,"seq":345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc642-c3f2-78b3-90a7-6f45310e1f8b","at":1768557822962000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bc642-db88-739a-ae95-0b9f3b519b9d","at":1768557829000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

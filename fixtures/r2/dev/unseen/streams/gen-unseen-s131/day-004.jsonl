@@ -1,0 +1,13 @@
+{"v":1,"id":"019b8821-8c4c-7a0e-9b12-95b0fe34618f","at":1767515458636000000,"seq":66,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8821-8c4c-79c9-8159-47d36d7ec05a","at":1767515458636000000,"seq":67,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8821-acf8-7e93-8e25-c934a79bbcee","at":1767515467000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b8821-c080-7936-8a52-fe6e24294d32","at":1767515472000000000,"seq":69,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8822-31c8-7de0-bd68-26ac586670b2","at":1767515501000000000,"seq":70,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8822-58d8-7062-b6ce-d0e7a3abac69","at":1767515511000000000,"seq":71,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b882f-1f63-7b13-a1ef-5e4791848b4c","at":1767516348259000000,"seq":72,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b882f-1f63-7915-96df-5ec71889f99b","at":1767516348259000000,"seq":73,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b882f-2e00-7877-8f64-1ac84ae12f2c","at":1767516352000000000,"seq":74,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b882f-31e8-7d32-95e9-e382aabad355","at":1767516353000000000,"seq":75,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b882f-35d0-77bb-a025-7ba8d781c1b8","at":1767516354000000000,"seq":76,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b882f-4d40-781b-b8fa-90e29eae6b6e","at":1767516360000000000,"seq":77,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b882f-60c8-77b2-83ca-518c33e0cda5","at":1767516365000000000,"seq":78,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}

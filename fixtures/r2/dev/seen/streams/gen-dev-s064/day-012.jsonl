@@ -1,0 +1,9 @@
+{"v":1,"id":"019bb19b-e61b-70d0-a70f-d2c2a3dcfb1d","at":1768211342875000000,"seq":140,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb19b-e61b-7165-9396-8cb3777cbd11","at":1768211342875000000,"seq":141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb19c-0da8-7d03-906a-324a4d9cf0aa","at":1768211353000000000,"seq":142,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb19c-1578-71c9-8d9f-42016c5c3405","at":1768211355000000000,"seq":143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb1a4-aedc-766b-a8a0-a604d7d1e6d0","at":1768211918556000000,"seq":144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a4-e748-7726-9dc5-4ac230b94298","at":1768211933000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a5-75a2-7fc8-99ec-487a55b55a27","at":1768211969442000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a5-f8b8-721e-9743-3d51760f6660","at":1768212003000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a6-0858-7beb-af5d-905eb8f13721","at":1768212007000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

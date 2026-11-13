@@ -1,0 +1,86 @@
+{"v":1,"id":"019c93f7-4241-732e-a4ca-9ee98ad5d353","at":1772008981057000000,"seq":818,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c93f7-4241-7970-b08b-a3c2a267b34e","at":1772008981057000000,"seq":819,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c93f7-4dc0-712e-b08b-649c9e3dbd16","at":1772008984000000000,"seq":820,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93f7-5d60-7efe-b804-9657b572b00e","at":1772008988000000000,"seq":821,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c93f7-78b8-78e7-8bb1-d6bd2f7a5d76","at":1772008995000000000,"seq":822,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c93f7-9be0-7dda-b27a-9ab5496d1481","at":1772009004000000000,"seq":823,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c9404-2bd6-7a1e-912a-35e3edae38be","at":1772009827286000000,"seq":824,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9404-2bd6-775c-b4e7-9e93b7c7d35e","at":1772009827286000000,"seq":825,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c9405-34f0-7834-9c96-cdca7034c863","at":1772009895152000000,"seq":826,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c9405-d098-7939-a08b-950250b5b8df","at":1772009935000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c9405-e420-76a2-aa16-70ac479c27b7","at":1772009940000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9405-f19b-7aed-aed5-cb51ff8f61a3","at":1772009943451000000,"seq":829,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c9405-fb90-7070-aa57-a6f08d000063","at":1772009946000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9406-3df8-771c-b5b4-4a793c3c4c13","at":1772009963000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9406-6cd8-765f-9249-99f64b0697ae","at":1772009975000000000,"seq":832,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9406-bd94-7e55-9cca-28b40b0356c7","at":1772009995668000000,"seq":833,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c9406-ce80-7d10-94b9-3fa0a47bff16","at":1772010000000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9407-0918-7482-99ac-bbd898794713","at":1772010015000000000,"seq":835,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9407-2703-755f-92f1-3737785f782b","at":1772010022659000000,"seq":836,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c9407-3be0-7965-86d2-1145176520eb","at":1772010028000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c9407-7a60-7bcb-ad0a-90681cccf413","at":1772010044000000000,"seq":838,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9407-9d88-7dd3-a306-1d00948db734","at":1772010053000000000,"seq":839,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9407-a170-719e-8ae7-6a9e4348e1fd","at":1772010054000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9407-a849-75ba-87d8-2cc030281ad1","at":1772010055753000000,"seq":841,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c9408-16a0-70fa-ab4e-853be7094e5d","at":1772010084000000000,"seq":842,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9408-39c8-7300-b5a1-4d99e07f8d16","at":1772010093000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9408-5908-792e-baba-f579e038e351","at":1772010101000000000,"seq":844,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c9408-64af-79fb-8126-f3cdf0f9d7df","at":1772010103983000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c9408-93a0-7e1a-85d3-81fde98f4951","at":1772010116000000000,"seq":846,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9408-9b70-7e97-9b57-89ea21864922","at":1772010118000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c9416-c123-759c-80f6-6427b1a3b5c9","at":1772011045155000000,"seq":848,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019c9416-d466-77e2-a8a7-67be104aae42","at":1772011050086000000,"seq":849,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9417-4940-776a-a6b7-01d9966df6f2","at":1772011080000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c9417-d7b0-7513-8651-433706df768f","at":1772011116464000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9417-e198-7aaa-9c52-ced95fb06c40","at":1772011119000000000,"seq":852,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9418-4655-7a26-a586-6b96515b8f7a","at":1772011144789000000,"seq":853,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9419-3570-74c1-bf37-8c133abd296f","at":1772011206000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9419-61da-73b5-9d72-26756d1a493c","at":1772011217370000000,"seq":855,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9419-8390-7a0e-aed7-9cef214a8186","at":1772011226000000000,"seq":856,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9419-b380-711b-ba10-8faffac5297a","at":1772011238272000000,"seq":857,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9419-ba40-7e65-8ad3-0a0a1904a1a3","at":1772011240000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c9419-dd68-75c1-9841-b0eaaef8688c","at":1772011249000000000,"seq":859,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c941a-1418-71d6-a8b2-799bdac514bb","at":1772011263000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c941a-4e80-7fe2-a5fa-77ef2ad9c3e6","at":1772011277952000000,"seq":861,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c941b-1f72-75b1-9198-5acc70cfccdc","at":1772011331442000000,"seq":862,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c941b-5850-7ef3-bf92-e51e0bcf15e0","at":1772011346000000000,"seq":863,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c941b-7790-76bf-8fd3-d45803e58191","at":1772011354000000000,"seq":864,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c941b-bde0-7f48-8666-f36907376dee","at":1772011372000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c941c-2e39-706b-a306-0eb154a462bc","at":1772011400761000000,"seq":866,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c941c-5a20-7f18-8842-56173d5d3862","at":1772011412000000000,"seq":867,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c941c-69c0-7091-9f2f-8590969223f7","at":1772011416000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c941c-9c86-75be-9ef6-e66c00a90158","at":1772011428998000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c941d-3cb0-7547-bdb7-9cafaf13ee01","at":1772011470000000000,"seq":870,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c941d-8631-76a6-8ec1-a54f58ec4a07","at":1772011488817000000,"seq":871,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c941d-8eb8-73e7-9531-6013d4f03171","at":1772011491000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c941d-adf8-773a-bcba-c5dcf3d5200e","at":1772011499000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c941d-b5c8-74a6-afbf-e47922ea773a","at":1772011501000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c941e-6435-748f-b0f0-7a39632946d4","at":1772011545653000000,"seq":875,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c941e-a028-7a4c-bbf8-c0ced4c50679","at":1772011561000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c941e-ea60-7cd6-8dee-0feb805377f1","at":1772011580000000000,"seq":877,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c941f-5a8d-7bac-97a9-24d9694ea509","at":1772011608717000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c941f-b580-761e-96cc-458323346f41","at":1772011632000000000,"seq":879,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9420-2ab0-7ebe-94c4-044e408e4e93","at":1772011662000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c9420-3a50-7515-af2e-ab1ced6b2c4e","at":1772011666000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9420-51c0-7f5b-8643-7257b0803223","at":1772011672000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9420-70e8-7440-97e8-b66eedbfe30e","at":1772011679976000000,"seq":883,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9420-80a0-77c0-841c-00b0f92e96d8","at":1772011684000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9420-bbca-7a39-8752-31a9d990e051","at":1772011699146000000,"seq":885,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9420-bf20-7b4d-86bd-775afb1ce770","at":1772011700000000000,"seq":886,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9420-ea18-7eda-873d-6cab265b87c1","at":1772011711000000000,"seq":887,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9420-f1e8-71c9-b999-a8c0985b2bd1","at":1772011713000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c9420-f981-7530-ac87-fb2f897c6139","at":1772011714945000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c9421-0958-7ca6-98f0-a209e7fda8f4","at":1772011719000000000,"seq":890,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9421-1510-7a23-baa4-73d4b4b5186f","at":1772011722000000000,"seq":891,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9421-1510-72fb-967a-dd7346959b83","at":1772011722000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c9421-d973-70df-8d2c-78a97babd425","at":1772011772275000000,"seq":893,"kind":"run_mark","app":null,"p":{"edge":"end"}}
+{"v":1,"id":"019c942c-ba4b-7d67-800d-4a4e1c1d3c82","at":1772012485195000000,"seq":894,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c942d-07a8-7373-bb00-5d428de5f106","at":1772012505000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c942d-4628-7fac-bcbc-82bae2c586f3","at":1772012521000000000,"seq":896,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9436-6047-748a-b59e-6cdd64e93f68","at":1772013117511000000,"seq":897,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9436-6047-7ee0-bee1-d1404ee70904","at":1772013117511000000,"seq":898,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9436-6a00-76f3-b1b9-024c5a34b2fb","at":1772013120000000000,"seq":899,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9436-8558-7e7f-81fb-eeb182352d4d","at":1772013127000000000,"seq":900,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c9436-ac68-7e12-9db4-5891c7e68d64","at":1772013137000000000,"seq":901,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9436-bc08-7fd7-a529-df67190f43e6","at":1772013141000000000,"seq":902,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c9436-c7c0-7a0c-ad6e-6954252e3cfc","at":1772013144000000000,"seq":903,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

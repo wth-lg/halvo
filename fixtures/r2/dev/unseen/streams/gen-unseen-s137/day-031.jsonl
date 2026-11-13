@@ -1,0 +1,22 @@
+{"v":1,"id":"019c1334-a4a4-78bd-b281-8e9420830bec","at":1769848743076000000,"seq":507,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1334-a4a4-79af-a2fb-99bf7bf36595","at":1769848743076000000,"seq":508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1334-cf50-7b84-912f-9f10d3cb6e91","at":1769848754000000000,"seq":509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1335-32d9-78e0-b318-3e2bc03ec510","at":1769848779481000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1335-34e0-74eb-9ef1-169c7e2f8095","at":1769848780000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1335-5420-776f-a5e8-b3d976374d41","at":1769848788000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c1335-aab5-7f3d-954e-ad32b4e8512b","at":1769848810165000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1335-c950-7be5-9bc2-4570cbf2e962","at":1769848818000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1335-cd38-74f4-b1d2-9f5fee27e783","at":1769848819000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c1335-ec78-7105-80b0-a3c964383ccf","at":1769848827000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1336-36b0-7d11-8a04-5a3f40208789","at":1769848846000000000,"seq":517,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1336-6590-7d00-b6cc-e1b06be12af2","at":1769848858000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1336-6a9c-7587-b843-78ec3c267d54","at":1769848859292000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1336-7148-755d-80d7-660a2b6205b9","at":1769848861000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1336-cf08-7d21-854e-f3080213b972","at":1769848885000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1336-d6d8-74fd-ad74-65206d147635","at":1769848887000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c1337-4050-793e-90da-dcbf3a9dcd3a","at":1769848914000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c134e-808e-726c-a18e-cd746423b7b2","at":1769850437774000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c134e-d378-725a-a511-a979c2ad3245","at":1769850459000000000,"seq":525,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c134f-0a28-7881-bc37-e0a996010ee1","at":1769850473000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c134f-0e10-729e-adcf-10978d3767d3","at":1769850474000000000,"seq":527,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c134f-3138-7a16-a4f2-0f1981630d06","at":1769850483000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

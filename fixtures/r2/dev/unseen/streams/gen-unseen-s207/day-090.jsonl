@@ -1,0 +1,29 @@
+{"v":1,"id":"019d430c-00c4-722f-93c6-528314073691","at":1774946353348000000,"seq":1394,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d430c-00c4-7a3c-a4aa-fc57ba85bbfa","at":1774946353348000000,"seq":1395,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d430c-6110-70fa-a731-08c7b1017596","at":1774946378000000000,"seq":1396,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d430c-8820-703e-a04f-cebeffd0486a","at":1774946388000000000,"seq":1397,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d430c-af30-7744-8d3f-3d987a796b93","at":1774946398000000000,"seq":1398,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d430c-da28-7f78-b1c7-978278bcae82","at":1774946409000000000,"seq":1399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4323-466f-785a-b7f8-53c8b643a306","at":1774947878511000000,"seq":1400,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4323-466f-7c9c-be36-3f66c0f152ae","at":1774947878511000000,"seq":1401,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4323-9a60-7ea9-9433-f6e3b8b595ec","at":1774947900000000000,"seq":1402,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d432d-61a5-7f44-9845-ce05d901ad4b","at":1774948540837000000,"seq":1403,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d432d-ac80-70ed-8116-626d2c4e7cf4","at":1774948560000000000,"seq":1404,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d432e-0e76-77b5-8af7-cc686bddfdf4","at":1774948585078000000,"seq":1405,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d432e-0e76-710c-b304-37e96d161e8a","at":1774948585078000000,"seq":1406,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d432e-21b0-7469-a532-76a8061eea5f","at":1774948590000000000,"seq":1407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d432e-5c7a-7d7d-8f24-f52ad0427f45","at":1774948605050000000,"seq":1408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d432e-6800-77c2-b51f-e9d9c0127f0a","at":1774948608000000000,"seq":1409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d432e-6fd0-703c-a774-c43c7506776f","at":1774948610000000000,"seq":1410,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d432e-96e0-743a-829a-c733e25e9561","at":1774948620000000000,"seq":1411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d432e-a059-7249-9da5-a60866e3eb3b","at":1774948622425000000,"seq":1412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d432e-f0b8-7379-8edb-0b25cb9c2c68","at":1774948643000000000,"seq":1413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d432f-0058-71d6-8a33-8f65702e85fd","at":1774948647000000000,"seq":1414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d432f-1bb0-79a7-aa8a-c53875b4132d","at":1774948654000000000,"seq":1415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d432f-2cd8-7b10-8e85-cc9f3d1adf22","at":1774948658392000000,"seq":1416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d432f-3af0-726f-b9d2-b11be890a6c2","at":1774948662000000000,"seq":1417,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d432f-bbd8-72b4-88ee-20fc37fc746b","at":1774948695000000000,"seq":1418,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d432f-e05f-79a2-a56a-00ddb125ef9d","at":1774948704351000000,"seq":1419,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d432f-e05f-7761-ab6f-61a828e21e3f","at":1774948704351000000,"seq":1420,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d432f-e2e8-7516-ad82-35f758b7f3e6","at":1774948705000000000,"seq":1421,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4330-4490-70e1-9274-a31922098720","at":1774948730000000000,"seq":1422,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

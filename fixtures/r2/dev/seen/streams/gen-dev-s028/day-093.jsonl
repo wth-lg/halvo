@@ -1,0 +1,19 @@
+{"v":1,"id":"019d5285-bb5f-7b7e-b8f2-1b5e8d58189c","at":1775205989215000000,"seq":1353,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d5285-bb5f-7558-af99-e3f19c2ab7ce","at":1775205989215000000,"seq":1354,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d5285-f520-79e4-89ec-9bda73197695","at":1775206004000000000,"seq":1355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5286-1848-76f4-adaa-1c1bdbcd7ce5","at":1775206013000000000,"seq":1356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5286-2255-70e0-aa89-9230afc83ab8","at":1775206015573000000,"seq":1357,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d5286-9160-71f6-a89c-454e42d82920","at":1775206044000000000,"seq":1358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d5287-1653-79b7-af88-bcd2cc079c3f","at":1775206078035000000,"seq":1359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d5287-8f48-7b3e-ad14-79021d5a916e","at":1775206109000000000,"seq":1360,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d5288-0090-7d2b-9cca-ff3f85458de7","at":1775206138000000000,"seq":1361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5288-0876-7f62-bc15-ec327998dcc8","at":1775206140022000000,"seq":1362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d5288-eed8-76e6-844c-a68f9da7acf2","at":1775206199000000000,"seq":1363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d5288-f221-779e-84c2-3dd6bffa697b","at":1775206199841000000,"seq":1364,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d5289-1200-7591-8cbd-8e14448c32ff","at":1775206208000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5289-19d0-71aa-a227-65b3e734f62c","at":1775206210000000000,"seq":1366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5289-4682-7667-a319-a5c8610c778d","at":1775206221442000000,"seq":1367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d5289-ae40-77c5-b575-e1630652c8fa","at":1775206248000000000,"seq":1368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5289-b228-7a2f-b8c9-6162933b1126","at":1775206249000000000,"seq":1369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5289-d168-7f71-89a8-f94253a063cc","at":1775206257000000000,"seq":1370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d528a-17b8-7884-bcdc-85587b5740d0","at":1775206275000000000,"seq":1371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

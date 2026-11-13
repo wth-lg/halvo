@@ -1,0 +1,16 @@
+{"v":1,"id":"019cdc88-41bc-7522-956c-8f5382c5bffa","at":1773226443196000000,"seq":1276,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc88-41bc-7bff-8601-e33be08ab766","at":1773226443196000000,"seq":1277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cdc88-73c0-7f5b-97ef-de06a1975ae6","at":1773226456000000000,"seq":1278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc88-c9b0-7689-a26c-a4239013434d","at":1773226478000000000,"seq":1279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc88-f890-704e-bd96-39282797278e","at":1773226490000000000,"seq":1280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdc8f-fe20-7718-8b28-1a697c6c0fb2","at":1773226950176000000,"seq":1281,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc8f-fe20-78af-b394-a868499ce33c","at":1773226950176000000,"seq":1282,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc90-3038-7fa2-bc06-ae987e58c517","at":1773226963000000000,"seq":1283,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cdc90-8240-7519-94c5-0110bd67fa15","at":1773226984000000000,"seq":1284,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc90-8df8-7eb3-9290-e5c6909b3da8","at":1773226987000000000,"seq":1285,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cdc90-a510-7b99-a28d-296ef9c4d3ec","at":1773226992912000000,"seq":1286,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cdc90-ad38-7ce9-9080-b78200fbcb9e","at":1773226995000000000,"seq":1287,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cdc91-3208-72bb-a638-e76e1d6ad4ba","at":1773227029000000000,"seq":1288,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdc91-3208-7fb4-bb2f-8d59e120432b","at":1773227029000000000,"seq":1289,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cdc91-5148-799b-b605-0c641bf0e885","at":1773227037000000000,"seq":1290,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc91-93b0-735a-b857-9bfb2b5f2b0a","at":1773227054000000000,"seq":1291,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

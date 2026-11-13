@@ -1,0 +1,14 @@
+{"v":1,"id":"019c6afa-7239-7c82-adf5-ffb9be2f657c","at":1771321324089000000,"seq":697,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6afa-7239-7e10-aa04-f09851a35b86","at":1771321324089000000,"seq":698,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6afa-79b0-720f-b5cb-06dfc0488df1","at":1771321326000000000,"seq":699,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afa-7d98-79d8-b18d-b326a8abfd24","at":1771321327000000000,"seq":700,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6afa-c3e8-7a06-8fd6-9cd5931b50b5","at":1771321345000000000,"seq":701,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b09-9ade-7e87-a9b5-f06af7f1b897","at":1771322317534000000,"seq":702,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6b09-a098-7e06-b27d-5742569f1343","at":1771322319000000000,"seq":703,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6b09-ead0-7713-b8fe-8152865e5f57","at":1771322338000000000,"seq":704,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b0a-0240-7c90-918d-4f1a387bdab7","at":1771322344000000000,"seq":705,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6b10-2425-70da-84aa-d2edb62b1b82","at":1771322745893000000,"seq":706,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6b10-2425-727c-9af5-fdb8c8480687","at":1771322745893000000,"seq":707,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c6b10-5370-7e66-9a19-3b20ffa8997c","at":1771322758000000000,"seq":708,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6b10-7e68-7cef-9f14-d6ac87675575","at":1771322769000000000,"seq":709,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6b10-9da8-72ff-9826-509d74630192","at":1771322777000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

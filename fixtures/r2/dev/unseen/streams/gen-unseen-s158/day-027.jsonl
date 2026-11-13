@@ -1,0 +1,11 @@
+{"v":1,"id":"019bfeeb-6f3c-78c1-b685-8dd897384ad0","at":1769508400956000000,"seq":483,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfeeb-6f3c-79d3-b3f8-606ccbb2dc38","at":1769508400956000000,"seq":484,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bfeeb-e902-7e15-b674-8360986c2374","at":1769508432130000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bfeec-3e70-7eee-ae74-2e9e1867be6a","at":1769508454000000000,"seq":486,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfeec-4e10-75f4-8835-a32481b39378","at":1769508458000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bfeec-5240-7837-91a6-5e3ba8da64f3","at":1769508459072000000,"seq":488,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bfeec-5db0-7291-8301-509e9878ee7b","at":1769508462000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeec-5db0-7a22-9a02-8d6b9ee69913","at":1769508462000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bfeec-a399-7897-8db5-5c938a0180f4","at":1769508479897000000,"seq":491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bfeec-d6c8-748f-9ce9-04eb5fb8e1da","at":1769508493000000000,"seq":492,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bfeed-3488-7bf1-b463-a5bc24c33724","at":1769508517000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,0 +1,35 @@
+{"v":1,"id":"019c1d8b-7266-7013-b4ca-bd5f83856e2a","at":1770022204006000000,"seq":485,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1d8b-7266-72b0-a9bf-488db5942b93","at":1770022204006000000,"seq":486,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1d8b-dfc0-7173-a5ad-cd13ded2abd4","at":1770022232000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c1d8b-e3a8-7a61-a5b2-c5f3f75ae22f","at":1770022233000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d8b-ef60-788e-a57a-3e7aba1ce546","at":1770022236000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d8b-ef72-7aa4-8b78-27054acc147c","at":1770022236018000000,"seq":490,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1d8b-f730-7ba2-a383-3b7abce911d7","at":1770022238000000000,"seq":491,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1d8c-0ab8-7ef8-83bb-7b83a7f0ebed","at":1770022243000000000,"seq":492,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1d8c-615f-7bb8-988c-0d2629370e7c","at":1770022265183000000,"seq":493,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1d8d-49d4-7a47-8cca-b963e6172ba9","at":1770022324692000000,"seq":494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1d8d-c420-7431-966c-aeca903ec343","at":1770022356000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d8d-d7a8-751c-82d1-9e8dcc340795","at":1770022361000000000,"seq":496,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1d8d-feb8-761a-8f68-3a99cc943606","at":1770022371000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c1d8e-1628-739e-9f18-5398273ef5dc","at":1770022377000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d8e-25c8-7af6-bfba-e0966df73679","at":1770022381000000000,"seq":499,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1da8-394e-7dd0-9398-248c7f2b163e","at":1770024089934000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c1da8-4160-7b38-8840-5616ae30649a","at":1770024092000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da8-5100-7bb9-8ade-dc2277d62016","at":1770024096000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c1da8-8b98-7a4b-b5b8-8dc9129d15b4","at":1770024111000000000,"seq":503,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1da8-b2a8-764f-9f5c-2fda914a13c6","at":1770024121000000000,"seq":504,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dc0-5792-7a52-8bbc-4088fb2e6cb0","at":1770025670546000000,"seq":505,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1dc0-5792-7cec-9398-d3c13dc68dfe","at":1770025670546000000,"seq":506,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1dc0-6510-7534-8be4-94fca9cf2d53","at":1770025674000000000,"seq":507,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c1dd7-0be2-7496-92b3-334555bbe767","at":1770027158498000000,"seq":508,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1dd7-0be2-7f16-8b77-9e46a66ce71a","at":1770027158498000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c1dd7-5428-7612-9654-a9ed33a89188","at":1770027177000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dd7-5810-7ee3-b50b-ee61e46b6f7e","at":1770027178000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1dd7-5bf8-7870-9ec3-d010253e55b4","at":1770027179000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c1ddc-ab4d-7491-8d64-2bd531c8f640","at":1770027526989000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c1ddc-ab58-7989-ba79-0d9d345b3c59","at":1770027527000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1ddd-14d0-75ee-b613-20419aa02478","at":1770027554000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c1ddd-5b6b-769c-99c2-5d054b05f606","at":1770027572075000000,"seq":516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c1ddd-5f08-7bf0-86b4-0ee86739db65","at":1770027573000000000,"seq":517,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1ddd-62f0-7d35-b55d-f551b964f7d9","at":1770027574000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1ddd-6ea8-7ea8-b367-6a09e7d3a0bf","at":1770027577000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,11 @@
+{"v":1,"id":"019c3755-4625-7a9f-9ac8-022998f85ac6","at":1770454861349000000,"seq":580,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3755-4625-7a33-b829-507143d7173a","at":1770454861349000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c3756-572e-7228-8a3b-a64ff5882ae8","at":1770454931246000000,"seq":582,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c3757-1988-7c09-8c16-cf578d58ecf7","at":1770454981000000000,"seq":583,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3757-2c17-774e-a6ec-dc174e9b8d5e","at":1770454985751000000,"seq":584,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c3757-30f8-7d42-8a20-2d8bf346e5d5","at":1770454987000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c3757-4c50-7301-ab7d-abce0afeebe6","at":1770454994000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3757-d92e-7275-86a1-83df77b73efb","at":1770455030062000000,"seq":587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c3757-e4a8-7c57-b605-f5fd7916651c","at":1770455033000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3758-0bb8-7967-aa67-437959735a73","at":1770455043000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3758-1388-74d7-9d82-a5906e6610f2","at":1770455045000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

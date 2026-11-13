@@ -1,0 +1,24 @@
+{"v":1,"id":"019ba1e6-61d9-7a15-876e-a006c5d6af7c","at":1767947788761000000,"seq":230,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1e6-61d9-7a28-9884-1581080df545","at":1767947788761000000,"seq":231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba1e6-c088-73b8-aa9d-4c2d4bd6d4e0","at":1767947813000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1e6-dfb8-7da9-bb8e-a2e0b9fefa35","at":1767947820984000000,"seq":233,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba1e7-4d28-77cf-85b1-95fdd790cb0c","at":1767947849000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ba1e7-5110-7f76-a213-03796552170e","at":1767947850000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba1e7-7c08-7ae6-8445-dda2ce35fe2e","at":1767947861000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f9-0e68-7a40-9853-bd464bb84833","at":1767949012584000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba1f9-c3b8-7dae-9069-985d2f50eb6f","at":1767949059000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f9-ce45-71af-a9ce-f0b43a3e5af8","at":1767949061701000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fa-1d90-7975-8b88-87848b4e502a","at":1767949082000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ba1fa-38e8-73b1-95fc-34eb2d725540","at":1767949089000000000,"seq":241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba20a-5011-78f9-8ba1-6aa06c25bbe3","at":1767950143505000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba20a-7910-735f-92e1-d9dcda2cac5e","at":1767950154000000000,"seq":243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba20a-7cf8-749b-be89-76b12962a9f7","at":1767950155000000000,"seq":244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba220-3786-7ba1-868f-8c2c999bd860","at":1767951579014000000,"seq":245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba220-4718-7b8f-8e47-752271964c9a","at":1767951583000000000,"seq":246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba220-d7a0-70aa-a35c-fd90e8e5c2be","at":1767951620000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ba22b-9a6c-732f-8754-2b1375602fab","at":1767952325228000000,"seq":248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba22b-a158-74ce-9129-5ed79f279ee2","at":1767952327000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ba22b-a928-7a02-921c-429a8a4d2322","at":1767952329000000000,"seq":250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba22b-d038-7bd4-afc4-c2d19010aee9","at":1767952339000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba22b-fb30-7869-8927-e171d3057972","at":1767952350000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba22b-ff18-7cd8-8db7-c7038b9bede6","at":1767952351000000000,"seq":253,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

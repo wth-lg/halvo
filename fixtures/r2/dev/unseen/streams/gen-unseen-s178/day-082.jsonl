@@ -1,0 +1,15 @@
+{"v":1,"id":"019d19d7-197f-7c87-8d43-5c60b7f19bbb","at":1774255020415000000,"seq":1094,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d19d7-197f-70dd-a8d8-85fc7f451775","at":1774255020415000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d19d7-3338-7301-b680-1c0d6072e0fb","at":1774255027000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d19d7-69e8-732b-ad1f-cb4b78087355","at":1774255041000000000,"seq":1097,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d19d7-7d70-7101-892e-0fe135141102","at":1774255046000000000,"seq":1098,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d19ea-9bb5-771e-9a83-950f9b307c50","at":1774256298933000000,"seq":1099,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d19ea-d690-7e85-b73f-e47b75aaff8d","at":1774256314000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d19ea-e630-78a6-b8b6-effe31715a65","at":1774256318000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19eb-0958-701f-aaba-af36bff3825f","at":1774256327000000000,"seq":1102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19f9-9e03-7e2e-8f51-4d327a48d1c3","at":1774257282563000000,"seq":1103,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d19f9-9e03-7924-b53e-fc8e8af57dea","at":1774257282563000000,"seq":1104,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d19f9-a3a0-7234-86c6-bf276172c5ae","at":1774257284000000000,"seq":1105,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d19fd-0933-7e78-b05b-aae4d5be6618","at":1774257506611000000,"seq":1106,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d19fd-0933-717e-b13b-5e688562dedf","at":1774257506611000000,"seq":1107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d19fd-e12a-7422-866a-bcc7ec6a0995","at":1774257561898000000,"seq":1108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}

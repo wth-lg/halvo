@@ -1,0 +1,30 @@
+{"v":1,"id":"019c895a-f1b0-7ddb-82eb-f514374944d4","at":1771830964656000000,"seq":742,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c895a-f1b0-7e0e-941d-6e8398259cf2","at":1771830964656000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c895b-b270-7ba4-b0a5-756a021ad661","at":1771831014000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c895b-ff8d-72c1-8078-73924bea8d91","at":1771831033741000000,"seq":745,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c895c-2f70-7e5b-8204-968c0627142b","at":1771831046000000000,"seq":746,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c895c-3740-7002-a019-f1771e70f42d","at":1771831048000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c895c-3740-7ac0-944b-e5e2c8119741","at":1771831048000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c895c-3758-7bb2-8fed-f166aeae689a","at":1771831048024000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c895c-bbc6-7334-875c-6dda2caa2219","at":1771831081926000000,"seq":750,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c895c-d380-770b-8646-875cba6dd046","at":1771831088000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c895c-f6a8-7f99-a584-c713d891d424","at":1771831097000000000,"seq":752,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c895d-40e0-7c39-8407-ca3474180ba5","at":1771831116000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c895d-6408-7538-823f-3c311b7a7209","at":1771831125000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c895d-8b18-7a79-8f66-412b63a8f58c","at":1771831135000000000,"seq":755,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8978-e183-72ff-882a-02d198927dd1","at":1771832926595000000,"seq":756,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c8979-6bd0-702f-9185-780dbd30d1ee","at":1771832962000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8979-7777-7145-830b-9a7026049600","at":1771832964983000000,"seq":758,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c8979-92e0-7c12-87f2-b8af6fe43e3f","at":1771832972000000000,"seq":759,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8979-9ab0-7f1f-8410-1cff0326946c","at":1771832974000000000,"seq":760,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8979-ae38-7757-b1cd-8f2d0f53d0b5","at":1771832979000000000,"seq":761,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c897a-0bf8-7a89-9666-a7fd7fc562ae","at":1771833003000000000,"seq":762,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c897c-adc0-7fcc-b4eb-adf1323459dc","at":1771833175488000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c897d-4048-7fef-9afa-beb3b771107b","at":1771833213000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c897d-510f-7f3d-998e-cc814caec195","at":1771833217295000000,"seq":765,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c897d-5ba0-74d9-8356-bbda7693dd58","at":1771833220000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c897d-7ae0-7d11-9e9b-f7f3fe178c84","at":1771833228000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c897d-9638-7895-816e-c762378b12fd","at":1771833235000000000,"seq":768,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c897d-9d90-7885-831a-cdb85e063fb9","at":1771833236880000000,"seq":769,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c897d-a9c0-7407-b68a-5b663d72b54c","at":1771833240000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c897e-2e90-7368-ba4a-2c88039ffde4","at":1771833274000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

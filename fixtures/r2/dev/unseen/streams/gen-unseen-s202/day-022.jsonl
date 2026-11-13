@@ -1,0 +1,32 @@
+{"v":1,"id":"019be547-6a72-7b45-900e-49cc7ea286dd","at":1769078221426000000,"seq":301,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be547-6a72-72e5-a04c-5181f9f4f8df","at":1769078221426000000,"seq":302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019be547-8bf0-7ec3-9a9e-32bf4b71c9ae","at":1769078230000000000,"seq":303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be547-bad0-74c6-bc13-19c814308313","at":1769078242000000000,"seq":304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be547-bad0-7355-bcc7-60160c4061d2","at":1769078242000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019be54c-aa3d-7850-9a42-e0f3ffdf97ed","at":1769078565437000000,"seq":306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019be54d-0648-7ba4-826c-33bb56f5faa7","at":1769078589000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be54d-2970-75ca-8547-8c4ac6e67cd8","at":1769078598000000000,"seq":308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be54d-3528-79ff-b719-4c964fcbe644","at":1769078601000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be54d-6408-7739-bd65-5e6a2ee22b16","at":1769078613000000000,"seq":310,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be552-fdcc-7571-9041-40f4feb85c97","at":1769078980044000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019be553-b538-7f2c-93a2-337285429815","at":1769079027000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be555-478f-7efa-acd9-ac2c95323468","at":1769079129999000000,"seq":313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019be555-f08a-7338-aca9-04c3cd4d6f1a","at":1769079173258000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019be556-4190-74b5-a169-229a470372e2","at":1769079194000000000,"seq":315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be556-60d0-75ea-b5ee-334406400e61","at":1769079202000000000,"seq":316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be556-8010-7984-be2e-193b61b822a0","at":1769079210000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be556-aef0-751e-81ad-3b8d597b718a","at":1769079222000000000,"seq":318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be556-b014-75ab-909f-542c937732ba","at":1769079222292000000,"seq":319,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019be556-ddd0-7ba5-b0d7-f1d2c24735f1","at":1769079234000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be556-e5a0-75f4-be79-ed149af34121","at":1769079236000000000,"seq":321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be556-e988-7235-8270-36c7311dfdd0","at":1769079237000000000,"seq":322,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be557-34a9-78a9-b541-c851e74041fc","at":1769079256233000000,"seq":323,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019be558-06b0-794f-b580-32410047aa94","at":1769079310000000000,"seq":324,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be55f-4b2c-775b-9019-8b05ddcae0ac","at":1769079786284000000,"seq":325,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be55f-4b2c-707e-8059-9324158613d4","at":1769079786284000000,"seq":326,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be55f-8890-7cc3-9fad-fef1adb7f8f9","at":1769079802000000000,"seq":327,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019be55f-9c18-7188-ad1d-57dec18b176f","at":1769079807000000000,"seq":328,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019be55f-afa0-736e-961d-b63248f35dd5","at":1769079812000000000,"seq":329,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be55f-de80-7962-a5a7-34c9ea7132ac","at":1769079824000000000,"seq":330,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019be55f-f480-7f6b-9108-dad1f8c03def","at":1769079829632000000,"seq":331,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019be560-4be0-7ab2-a575-5195a2eee17e","at":1769079852000000000,"seq":332,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

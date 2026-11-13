@@ -1,0 +1,15 @@
+{"v":1,"id":"019c7a50-1d4c-7865-95c3-a162840f966b","at":1771578596684000000,"seq":599,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a50-1d4c-7c92-bf70-c18435a800b8","at":1771578596684000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c7a50-4980-7624-a749-8628fa6698d2","at":1771578608000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a50-699f-7758-9795-477a33881af2","at":1771578616223000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c7a50-8418-76fd-9db3-0080c8e65945","at":1771578623000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c7a53-7fdc-74c0-ae78-5b464f142615","at":1771578818524000000,"seq":604,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7a53-b480-7f2b-aae2-d6ec96ab8c14","at":1771578832000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c7a53-bc50-7d41-a00b-95f5f4c5e286","at":1771578834000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a53-d3c0-7d98-b13f-bf57b167f1b0","at":1771578840000000000,"seq":607,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a6f-19cb-75e7-a974-7b7454e26e37","at":1771580627403000000,"seq":608,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a6f-19cb-7108-b44f-1cb4dac551ac","at":1771580627403000000,"seq":609,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a6f-2bc0-735b-86f9-57fb448c6ce0","at":1771580632000000000,"seq":610,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6f-3778-70e9-b859-093bfbafc6a8","at":1771580635000000000,"seq":611,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c7a6f-7210-791d-850d-96e4fdae61b5","at":1771580650000000000,"seq":612,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c7a6f-8598-7ff9-8cbc-f0efe3c0551a","at":1771580655000000000,"seq":613,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

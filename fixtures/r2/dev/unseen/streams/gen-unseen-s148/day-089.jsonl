@@ -1,0 +1,11 @@
+{"v":1,"id":"019d3dfa-e059-7a3c-842f-fe6fc0e244f5","at":1774861344857000000,"seq":1186,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3dfa-e059-7e50-91bc-63a126f1b0e3","at":1774861344857000000,"seq":1187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3dfa-e0e8-7c11-9916-d7241ef34582","at":1774861345000000000,"seq":1188,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3dfb-0fc8-72b4-acd7-110aa068406b","at":1774861357000000000,"seq":1189,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3e0e-1724-7816-ad9a-23744104ac70","at":1774862604068000000,"seq":1190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d3e0e-7888-73c7-987d-d14045693e34","at":1774862629000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e0e-ed81-76aa-a205-f1e922eb3bd0","at":1774862658945000000,"seq":1192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d3e0f-3bd8-7c85-95fd-ce2c1b31dec9","at":1774862679000000000,"seq":1193,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3e0f-4b78-70fc-970f-9faa29b20abe","at":1774862683000000000,"seq":1194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d3e0f-5348-7b02-834d-221ed680addb","at":1774862685000000000,"seq":1195,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3e0f-5b18-78ed-8da8-4ba16f667948","at":1774862687000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

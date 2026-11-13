@@ -1,0 +1,48 @@
+{"v":1,"id":"019ba1eb-9c03-7c76-8171-62b1db22f664","at":1767948131331000000,"seq":165,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1eb-9c03-7a42-b34e-0dfa07eb8b63","at":1767948131331000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ec-0048-7b96-96ab-79a2ca776058","at":1767948157000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ec-0f22-7792-b44a-9ff2719dd78b","at":1767948160802000000,"seq":168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ec-2758-78d7-a70d-90168c3cdad5","at":1767948167000000000,"seq":169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba1ec-5e08-78a0-9f1b-8cf547c3922a","at":1767948181000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba1ec-7190-70bf-9700-249ef26a49d8","at":1767948186000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ec-af3c-7c89-9ba5-37cdc211669d","at":1767948201788000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ec-c398-7734-88d6-a334448a3f07","at":1767948207000000000,"seq":173,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba1ec-e2d8-7fb5-aa45-572f361565c3","at":1767948215000000000,"seq":174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba1ec-e6c0-7156-8b17-e2ba3edbbeeb","at":1767948216000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ec-fe30-7ca2-86d0-0c98ef4382d3","at":1767948222000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ed-1255-7a75-a384-350e42f53f50","at":1767948227157000000,"seq":177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ed-1d70-7a92-9c74-182e2be6d32c","at":1767948230000000000,"seq":178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba1ed-2540-7fe3-8789-9ec59ba7faeb","at":1767948232000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ed-4480-72b0-99d2-3eea70834880","at":1767948240000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ed-75e8-79f2-aebe-efd006fbb864","at":1767948252648000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ed-8eb8-7170-a14e-e938b2568c14","at":1767948259000000000,"seq":182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba1ed-cd38-7c44-8e9c-a046990da4aa","at":1767948275000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ee-1770-74cf-b221-8a70e0b7af55","at":1767948294000000000,"seq":184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba1ee-2b5d-75bc-b1d9-3d4f54deedc9","at":1767948299101000000,"seq":185,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ee-36b0-73f5-8dd7-eb294c24669e","at":1767948302000000000,"seq":186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba1ee-b3b0-747a-8e16-4d67c9e41265","at":1767948334000000000,"seq":187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ee-bf68-7ddc-ba51-ee253b76c320","at":1767948337000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ee-f9b1-7000-bf62-bcce16eb2dd2","at":1767948351921000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ef-3c68-7ef8-a605-f3c6783374ae","at":1767948369000000000,"seq":190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba1ef-57c0-7718-aaaf-8ea48d1e76a9","at":1767948376000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ba1ef-5ba8-74f9-b3f6-ce84a2779070","at":1767948377000000000,"seq":192,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba1ef-6760-71ea-ae5f-81d1a9d1742b","at":1767948380000000000,"seq":193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f0-7089-74eb-9af2-bf09ee195374","at":1767948447881000000,"seq":194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba1f0-8c58-7572-b481-8166ac3ef53d","at":1767948455000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ba1f0-ee00-7d57-8ec5-1be3c99602a4","at":1767948480000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f1-47d8-7f9b-8457-bf067cca64b2","at":1767948503000000000,"seq":197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f1-5a9a-739e-9d96-0ee020ddecc5","at":1767948507802000000,"seq":198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba1f1-72d0-7fce-89ad-94fb94f573ae","at":1767948514000000000,"seq":199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba1f1-b126-76b0-89f3-476edbdd5ccb","at":1767948529958000000,"seq":200,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba1f1-b126-7fb7-8142-98589d092a2e","at":1767948529958000000,"seq":201,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba1f1-dc48-7f32-bac5-64750b651110","at":1767948541000000000,"seq":202,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f1-efd0-7363-83f2-7b5058888a51","at":1767948546000000000,"seq":203,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ba1f2-1ac8-71d3-9fee-36d78ae911fb","at":1767948557000000000,"seq":204,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba1f2-455d-7acb-aa5d-ad74a2fdac26","at":1767948567901000000,"seq":205,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1f2-455d-7919-8da6-83ee57c5b7e4","at":1767948567901000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba1f2-9f98-78de-9dfc-2ee1d5eba9b2","at":1767948591000000000,"seq":207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba1f2-bed8-7c5a-bd67-04885e89a98f","at":1767948599000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ba1f2-f1a0-7f44-b698-63441c63428d","at":1767948612000000000,"seq":209,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba1f3-2468-7185-b340-ab2dc8617f35","at":1767948625000000000,"seq":210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f3-3daf-7165-83da-7555f786369b","at":1767948631471000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba1f3-4f60-7199-84b1-8a50575e4a42","at":1767948636000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019bfe44-7e34-7c8a-a704-a502e387b3a7","at":1769497460276000000,"seq":272,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfe44-7e34-7c5a-84ff-9a2c376cc3ad","at":1769497460276000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bfe44-9c60-7836-8f5e-fa6aae708322","at":1769497468000000000,"seq":274,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfe44-afe8-79d2-8bd0-f21d01f649fb","at":1769497473000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe44-fe08-78f8-8d3b-47ecdeb505d2","at":1769497493000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe45-2130-7e84-9666-18cc95c3170b","at":1769497502000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bfe59-f11a-737b-ac62-924109cbd817","at":1769498865946000000,"seq":278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bfe5a-cd57-7547-9d5d-865f432d0b33","at":1769498922327000000,"seq":279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bfe5a-dbb0-72d6-9824-b65dde212660","at":1769498926000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bfe5b-67c9-7f68-a333-75cb57c7d883","at":1769498961865000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bfe5c-23d0-798d-b477-6c6d872fe64e","at":1769499010000000000,"seq":282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe66-bc5e-7786-86a3-5f383474e077","at":1769499704414000000,"seq":283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bfe67-2438-7516-bdc8-b9c7ea2387ad","at":1769499731000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe67-5ec0-7c66-aa94-3e9026b4fa72","at":1769499745984000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bfe67-9198-7e52-baae-92a20b6cddad","at":1769499759000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bfe67-b0d8-79b3-82da-e0866d43ecc4","at":1769499767000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe67-d018-7ba8-99a9-a8b919caccff","at":1769499775000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe7a-9a2a-7ff5-be4a-66f102825b52","at":1769501006378000000,"seq":289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bfe7a-b408-7afd-9316-99f88cf7bb20","at":1769501013000000000,"seq":290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bfe7a-d348-77f2-8271-fc9f836b71c7","at":1769501021000000000,"seq":291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bfe7a-e6d0-7344-9eab-fd26687a65aa","at":1769501026000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe7a-eab8-7027-8201-b9f4f2b05f79","at":1769501027000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

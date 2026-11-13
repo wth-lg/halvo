@@ -1,0 +1,15 @@
+{"v":1,"id":"019c2787-cf1d-71a8-867d-4f52d852c11a","at":1770189737757000000,"seq":669,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2787-cf1d-7bf0-b39c-135c0edcb7f0","at":1770189737757000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c2787-dfb0-7363-9576-f08e7b550a19","at":1770189742000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2788-2dd0-76ad-97ec-11d25904fa5b","at":1770189762000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2788-6644-71d3-8108-27bde717daf0","at":1770189776452000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c2788-7038-7f17-a593-8a4b890e5c25","at":1770189779000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c2788-7420-7207-bb2e-7ea8f6de0577","at":1770189780000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2788-c240-7f6e-8386-35c93857d1b1","at":1770189800000000000,"seq":676,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2789-0540-7f6c-bd46-dbb47c5934c9","at":1770189817152000000,"seq":677,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c2789-0890-7127-bf81-17528a64f1ea","at":1770189818000000000,"seq":678,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2789-2fa0-7663-b2d0-078c29703668","at":1770189828000000000,"seq":679,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2789-6268-70ae-a3d8-74480c056277","at":1770189841000000000,"seq":680,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c279d-7672-7acb-907b-76da4cf54e51","at":1770191156850000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c279d-f020-702b-a2c8-d68cef5d31a1","at":1770191188000000000,"seq":682,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c279e-26d0-72ec-8c5c-0c7c6a924059","at":1770191202000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

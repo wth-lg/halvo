@@ -1,0 +1,9 @@
+{"v":1,"id":"019c8ef9-25db-71ce-86be-64acef7898f4","at":1771925218779000000,"seq":734,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8ef9-25db-76c3-bb9b-c969f0f80a61","at":1771925218779000000,"seq":735,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c8ef9-bb28-7912-b68c-e2a031fbc9ac","at":1771925257000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef9-e962-77cd-836b-c02b1b0c426b","at":1771925268834000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c8efa-3ff8-7ebb-9fd7-3ada769d5bd0","at":1771925291000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c8efa-6978-7d1e-8f09-8d1e67e4f6c8","at":1771925301624000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c8efa-6af0-7eba-9495-f84e6a24ead1","at":1771925302000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c8efa-a588-7a80-b162-4b58909afdb9","at":1771925317000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efa-b51c-7b9d-8c27-bd2880989fa1","at":1771925320988000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}

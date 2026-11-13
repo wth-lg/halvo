@@ -1,0 +1,21 @@
+{"v":1,"id":"019d33ae-fce1-70c3-91ae-428d35fa3e7a","at":1774688599265000000,"seq":1346,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d33ae-fce1-73eb-88d9-46367cd50b0d","at":1774688599265000000,"seq":1347,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d33af-2ea0-794e-92e7-63a8dae4f121","at":1774688612000000000,"seq":1348,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d33af-80a8-751e-9c9f-8d98cfb14569","at":1774688633000000000,"seq":1349,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d33b3-438a-7cfa-aae3-135d2941add2","at":1774688879498000000,"seq":1350,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d33b3-438a-7bff-bae7-5d152f79b580","at":1774688879498000000,"seq":1351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d33b3-4968-7a84-8330-c0845c610762","at":1774688881000000000,"seq":1352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d33b3-bab0-7beb-9179-775d970ebcc8","at":1774688910000000000,"seq":1353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33b3-c0ed-7e61-8af2-bbc19cd9976e","at":1774688911597000000,"seq":1354,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d33b3-d220-7888-9115-5ad859b74dc2","at":1774688916000000000,"seq":1355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33b4-2810-7da9-95b0-2ba7216d6eb0","at":1774688938000000000,"seq":1356,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d33b4-4368-773f-8ded-56dbf7a549c4","at":1774688945000000000,"seq":1357,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d33b4-963a-73e2-ab6a-5254a30e080e","at":1774688966202000000,"seq":1358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d33b4-e390-76d6-8d15-eaeca4cc9396","at":1774688986000000000,"seq":1359,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d33b5-1270-758a-b784-43e7df024f35","at":1774688998000000000,"seq":1360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33b5-1658-7d32-be52-65889824d592","at":1774688999000000000,"seq":1361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d33b5-1a40-7505-9a9f-856fa5f736d3","at":1774689000000000000,"seq":1362,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d33b5-4d08-70e4-abb6-e32cc82ea1ba","at":1774689013000000000,"seq":1363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33bf-5ed4-7c4b-af43-23868d1b67a6","at":1774689672916000000,"seq":1364,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d33bf-5ed4-7ac8-af4e-0d11d8070ee5","at":1774689672916000000,"seq":1365,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d33bf-8250-78ce-9794-a7bea4cf2aaf","at":1774689682000000000,"seq":1366,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}

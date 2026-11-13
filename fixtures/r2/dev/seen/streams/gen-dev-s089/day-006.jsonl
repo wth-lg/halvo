@@ -1,0 +1,32 @@
+{"v":1,"id":"019b92f2-4e39-72a2-9344-846bdc83f30a","at":1767696911929000000,"seq":15,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b92f2-4e39-7768-a6ed-583d5cbbb5d3","at":1767696911929000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b92f2-90e8-7760-a60d-8d4e2734eb11","at":1767696929000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92f2-cb80-701e-a128-65873dbde90c","at":1767696944000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92f2-da54-7213-b1cb-dc806cdaf898","at":1767696947796000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b92f2-fa60-7f84-9071-c3008292bda2","at":1767696956000000000,"seq":20,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b92f3-4880-7c09-8e2d-6c25d90a8d2c","at":1767696976000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b92f3-bc45-7c70-bdce-630162a53ab7","at":1767697005637000000,"seq":22,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b92f4-5b44-7cfa-994a-becd6287dd4e","at":1767697046340000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b92f4-7d18-7eac-9ad9-85cd57e56adf","at":1767697055000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92f4-8100-7fd7-8869-5081fefa0851","at":1767697056000000000,"seq":25,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b92f4-88d0-7fe0-b42b-0f1b3daf99eb","at":1767697058000000000,"seq":26,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9308-b2ff-74d2-93de-833cecaec7c5","at":1767698379519000000,"seq":27,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b9308-c098-7392-ac21-5ecf049a21dd","at":1767698383000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9309-6c78-79b9-ad83-2376a6b0fdc9","at":1767698427000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9309-b54d-7040-881a-1afd3f479290","at":1767698445645000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9309-d9d8-7bc8-9269-9042b8dd6472","at":1767698455000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b930a-3f68-7949-8c0a-439276cf4a1c","at":1767698481000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b930a-423f-7270-9c7e-db6eac8ba3c2","at":1767698481727000000,"seq":33,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b930b-3673-77d5-b1b1-60588b3c1c99","at":1767698544243000000,"seq":34,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b930b-4520-7b51-b719-258d6c9d35f9","at":1767698548000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b930c-0675-7a94-a0f8-13f9341d2390","at":1767698597493000000,"seq":36,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b930c-a0c8-7856-8062-9214864f1f9d","at":1767698637000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b930c-ac80-758a-923a-411f2a139921","at":1767698640000000000,"seq":38,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b930c-bc20-7dbf-94af-2d29855f7756","at":1767698644000000000,"seq":39,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b930c-e330-773a-ae13-c4ec37630bc0","at":1767698654000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b930d-03fd-753c-95fb-689742c5faca","at":1767698662397000000,"seq":41,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b930d-0a40-7bad-ac05-e2e5745c7741","at":1767698664000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b930d-19e0-70c5-9432-a83c8c8a7d4c","at":1767698668000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b930d-19e0-7a07-9f07-671f44bf7da3","at":1767698668000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b930d-2d68-785b-be37-86fd23bb1fcb","at":1767698673000000000,"seq":45,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b930d-3538-791f-8d00-c25c690b6bc0","at":1767698675000000000,"seq":46,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

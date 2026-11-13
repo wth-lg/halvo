@@ -1,0 +1,20 @@
+{"v":1,"id":"019d5247-51a2-7852-9f6f-daa97d370b9c","at":1775201898914000000,"seq":1379,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d5247-51a2-7fc0-b640-d4aeabbf09b1","at":1775201898914000000,"seq":1380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d5247-88a8-7b4a-b5ef-57b2665cae88","at":1775201913000000000,"seq":1381,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d525b-edaa-7f73-ac75-cd87e1ee19d9","at":1775203249578000000,"seq":1382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d525c-1660-7ebc-bdbf-23de96cd18d3","at":1775203260000000000,"seq":1383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d525c-6868-7919-adc0-76b04a8f36c2","at":1775203281000000000,"seq":1384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d525c-b688-7cd1-abf8-ed0809112afa","at":1775203301000000000,"seq":1385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5278-11ac-741f-8cf9-f887ae8f7122","at":1775205093804000000,"seq":1386,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d5278-3d68-7c1f-bb86-63970675c590","at":1775205105000000000,"seq":1387,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d5289-1e94-75c0-9bc9-f50923d22959","at":1775206211220000000,"seq":1388,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d5289-3528-7bbd-acc9-8e79c2cec0bf","at":1775206217000000000,"seq":1389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5289-5c38-7b52-aad3-eeae1fdf6ee7","at":1775206227000000000,"seq":1390,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5289-8586-7743-893c-89e800b1f04a","at":1775206237574000000,"seq":1391,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d528a-5a20-7bac-8ae0-0700b149849b","at":1775206292000000000,"seq":1392,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d528a-76a2-7111-8140-ea6ae408bf3d","at":1775206299298000000,"seq":1393,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d528a-8900-72a2-b6cc-39cf5f0e8ab7","at":1775206304000000000,"seq":1394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d528a-bbc8-7ebd-a661-d33822bd3800","at":1775206317000000000,"seq":1395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d528b-15a0-7e86-b990-ac55b23a9c18","at":1775206340000000000,"seq":1396,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d528b-1d70-7d0c-9eb1-1310b7e0c02c","at":1775206342000000000,"seq":1397,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d528b-4c50-7afc-9157-683efe6ab513","at":1775206354000000000,"seq":1398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

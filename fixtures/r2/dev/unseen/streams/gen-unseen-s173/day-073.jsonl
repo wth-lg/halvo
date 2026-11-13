@@ -1,0 +1,12 @@
+{"v":1,"id":"019ceb71-bb53-7aa6-bb3d-8ce0662e6b28","at":1773476625235000000,"seq":1099,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb71-bb53-7b6c-ae8c-b365f33dd6f0","at":1773476625235000000,"seq":1100,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ceb71-ca08-75f2-af92-db263cf37394","at":1773476629000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ceb71-ed30-767b-9365-859fbe533941","at":1773476638000000000,"seq":1102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb8b-a757-73c3-bd23-41cc34f540cb","at":1773478324055000000,"seq":1103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ceb8b-be90-7d73-b786-49dcb584bdd0","at":1773478330000000000,"seq":1104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb8b-ca48-78db-b884-59b9aa48e307","at":1773478333000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ceba4-670d-71bb-b4d0-06d1f13406b1","at":1773479945997000000,"seq":1106,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ceba4-670d-7fe3-ac17-5a5a17a6ecf4","at":1773479945997000000,"seq":1107,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ceba4-8e20-71b4-bbf6-1527ba994dad","at":1773479956000000000,"seq":1108,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba4-f3b0-7a05-8802-a97eb193d684","at":1773479982000000000,"seq":1109,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ceba5-4ad6-7945-b857-568c5d9e67b7","at":1773480004310000000,"seq":1110,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}

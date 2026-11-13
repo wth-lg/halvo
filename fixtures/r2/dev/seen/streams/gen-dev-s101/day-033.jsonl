@@ -1,0 +1,21 @@
+{"v":1,"id":"019c1ddb-0f72-777d-bacd-ec3437f10899","at":1770027421554000000,"seq":446,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1ddb-0f72-72f9-ac33-db39352c5b6a","at":1770027421554000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c1ddb-3c28-7408-b8d5-08d7d9841ed1","at":1770027433000000000,"seq":448,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1ddb-4bc8-7448-9dd1-a04255c9d028","at":1770027437000000000,"seq":449,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1ded-0011-7a1d-8121-d99e740e280b","at":1770028597265000000,"seq":450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c1ded-1a60-7dfd-badf-54ebb50b67ff","at":1770028604000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1ded-1a60-794e-b65f-baa90c185a20","at":1770028604000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c1ded-39a0-7b8b-85b2-18a0c8d893e4","at":1770028612000000000,"seq":453,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1ded-6880-79b2-8b40-61770af3c55e","at":1770028624000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1df3-2e0e-7b32-8a89-6d78cb67415f","at":1770029002254000000,"seq":455,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c1df3-e890-7b1e-b37d-dca88a064106","at":1770029050000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1df4-05bb-7244-9ceb-f0a53d180184","at":1770029057467000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c1df4-1388-7e23-b528-89bd9f0e4e91","at":1770029061000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1df4-9e1d-7610-bf84-2b80680755bb","at":1770029096477000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c1df4-b798-783f-814b-c28d4a78f7d4","at":1770029103000000000,"seq":460,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1df4-bb80-7c40-b662-c2296b7d0ada","at":1770029104000000000,"seq":461,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1df4-c350-70e3-bada-2488f963b906","at":1770029106000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1df4-de8b-7ede-bc26-f4d0957d9249","at":1770029112971000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c1df4-e290-7f04-a265-d1fe42e2d2de","at":1770029114000000000,"seq":464,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1df5-0d88-72a6-98b3-a2ba50e7707d","at":1770029125000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c1df5-4438-751a-86fb-94aac64f9f87","at":1770029139000000000,"seq":466,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

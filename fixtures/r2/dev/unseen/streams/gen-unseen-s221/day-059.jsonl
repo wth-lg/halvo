@@ -1,0 +1,31 @@
+{"v":1,"id":"019ca3a6-ef50-7702-ae0d-0ab8b92596fc","at":1772272152400000000,"seq":860,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca3a6-ef50-7a7d-90c5-a502f8bc1026","at":1772272152400000000,"seq":861,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a6-f978-7a5d-8bde-3d63eee17e62","at":1772272155000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ca3a7-b655-74d3-a5e6-42294f5d7f89","at":1772272203349000000,"seq":863,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a7-cc68-7e2f-aae8-f46f90ea655b","at":1772272209000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3a7-f760-70c7-9931-01e8b5b016b0","at":1772272220000000000,"seq":865,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3bf-02f5-7f48-b033-02bd69537a6a","at":1772273730293000000,"seq":866,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca3bf-24f8-79d9-93b2-ac182b6b6922","at":1772273739000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3bf-86a0-74f6-aa9d-51e70f9d5827","at":1772273764000000000,"seq":868,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca3bf-a9c8-77ed-a995-372d12abe40e","at":1772273773000000000,"seq":869,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3bf-bd50-7fcb-a5dc-109dfcfb7cf9","at":1772273778000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3bf-c138-79da-b746-323f9f7ae246","at":1772273779000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ca3d7-1b33-7db7-a91d-c043b1ad6922","at":1772275309363000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ca3d7-67e8-7cfa-8b0a-135c5ecfd1b1","at":1772275329000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ca3d7-8b10-715b-b319-f4dee81163be","at":1772275338000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3d7-a07b-79f9-876e-579a45eec233","at":1772275343483000000,"seq":875,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ca3d7-ae38-7de1-8d68-db4565dbea9c","at":1772275347000000000,"seq":876,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3d8-1b98-707e-9bf7-22c681f67c49","at":1772275375000000000,"seq":877,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3d8-8ce0-7c0b-89e7-35768d0b4f0b","at":1772275404000000000,"seq":878,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca3d8-a67e-7073-91d2-6fe7ec599826","at":1772275410558000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ca3d9-0210-7f2f-8838-487877a3a942","at":1772275434000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca3d9-1598-7091-8bc5-55f92306a2c3","at":1772275439000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3d9-3b70-7959-a789-9b1a261219e9","at":1772275448688000000,"seq":882,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ca3d9-6f70-782c-8abf-f9bf9775d9db","at":1772275462000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3d9-6f70-7c64-8db3-709aa546dd8a","at":1772275462000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ca3db-94f4-78a1-990c-74ddd5a83e1f","at":1772275602676000000,"seq":885,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca3db-cce8-7f90-8e1d-f073d9de3f0d","at":1772275617000000000,"seq":886,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca3db-d0d0-74e2-9b75-7e436179e962","at":1772275618000000000,"seq":887,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca3ed-36bd-70cd-9343-c99d3552e027","at":1772276758205000000,"seq":888,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca3ed-60e8-7393-83d8-4f6c4bb5f478","at":1772276769000000000,"seq":889,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3ed-6ca0-726f-a6d9-d5c75e2558d3","at":1772276772000000000,"seq":890,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

@@ -1,0 +1,24 @@
+{"v":1,"id":"019cbd99-9714-72fe-9204-81cc8b2499e0","at":1772707485460000000,"seq":904,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd99-9714-7f87-b9d0-28e9afcdf79d","at":1772707485460000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cbd9a-93f7-7d1a-bd31-9a9e948fad1d","at":1772707550199000000,"seq":906,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cbd9a-e538-7219-86a0-96b06a672e3b","at":1772707571000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd9b-3358-7452-b7bb-c680da28814b","at":1772707591000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd9b-94cc-77de-acfb-3fee786705af","at":1772707615948000000,"seq":909,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cbd9b-a0b8-766a-8227-380bdf33ff92","at":1772707619000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cbd9b-fa90-7ab3-87c4-7d8c3a6792ee","at":1772707642000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd9c-91f4-7013-9a5a-a9fa6ecb0600","at":1772707680756000000,"seq":912,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cbd9c-a288-7f93-b32f-d1c4da1fdf32","at":1772707685000000000,"seq":913,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd9c-f878-7a1c-955d-27ff358051fb","at":1772707707000000000,"seq":914,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cbd9d-7845-70f2-baa5-c5af2886a81d","at":1772707739717000000,"seq":915,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cbd9d-b010-7548-84e8-39af64b0bd84","at":1772707754000000000,"seq":916,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd9d-def0-7572-84ac-86cbea4524dd","at":1772707766000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd9e-5fd8-7aa9-9916-1da45efb50c5","at":1772707799000000000,"seq":918,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd9e-6d1d-7f25-b5d4-c0c3343d9085","at":1772707802397000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cbd9e-7b30-7ad2-ba78-dce86ae62b7a","at":1772707806000000000,"seq":920,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cbd9e-adf8-7e11-9acb-2d651eb02539","at":1772707819000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbdac-15e6-727c-b295-d6c3793c4907","at":1772708697574000000,"seq":922,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cbdac-2f00-7bba-bce5-c312f7caa82b","at":1772708704000000000,"seq":923,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cbdac-7168-7029-9097-d8903d347d87","at":1772708721000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cbdac-9878-7bf8-8fe0-62dc98f63417","at":1772708731000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cbdac-a048-7ea3-8300-5c53a8a696b1","at":1772708733000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbdac-bf88-7fd7-98d1-3bc2508220d2","at":1772708741000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

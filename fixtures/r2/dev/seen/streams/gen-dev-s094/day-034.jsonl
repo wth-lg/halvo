@@ -1,0 +1,39 @@
+{"v":1,"id":"019c2321-bba3-76b9-8edc-90ea50f2062a","at":1770115939235000000,"seq":579,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2321-bba3-7e55-9689-4eb2e83e0e99","at":1770115939235000000,"seq":580,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2322-0108-7c33-9d1d-0f445571220f","at":1770115957000000000,"seq":581,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c2322-1490-7204-9909-47455fdd94f5","at":1770115962000000000,"seq":582,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c2322-7e08-721b-ad67-b60288c92a84","at":1770115989000000000,"seq":583,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c232f-2a31-7281-8c85-916826e8b650","at":1770116819505000000,"seq":584,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c232f-2a31-76be-a58a-c142e84ef337","at":1770116819505000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c232f-4f48-75c7-afe4-b81a78b591cd","at":1770116829000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c232f-e7c8-70da-a21d-43cb33ef9975","at":1770116868040000000,"seq":587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c2330-2df0-7276-b6d4-039a4e51cbdd","at":1770116886000000000,"seq":588,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2330-39a8-7897-ab90-070217639975","at":1770116889000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2330-9c13-76f1-a027-d13869216379","at":1770116914195000000,"seq":590,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c2330-b6a8-7e14-a1d1-c0f30c0a8bcd","at":1770116921000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2330-e970-786a-b7c1-4b8805beb403","at":1770116934000000000,"seq":592,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c2330-f140-7d4c-ad71-412736209080","at":1770116936000000000,"seq":593,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2331-0ebb-7436-9b55-5471a2de4ee1","at":1770116943547000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c2331-5ea0-796d-820b-7f3b4093dbff","at":1770116964000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2331-8998-7e9e-9e81-da04a224d2f6","at":1770116975000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c2331-a8d8-7a3f-8975-92bca52447ac","at":1770116983000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c234a-e144-75d2-afa4-e28b1f373186","at":1770118635844000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c234b-2c18-7a00-9dd6-1de0f0d37605","at":1770118655000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c234b-9978-75eb-8761-970f533809e5","at":1770118683000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c234b-9c51-7b66-b6ec-b23bccaf4096","at":1770118683729000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c234b-ad00-78da-a3ca-de1ae752163c","at":1770118688000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c234b-dfc8-75b9-92ff-62666fefaf5f","at":1770118701000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c234c-35b8-7400-b738-030677715e10","at":1770118723000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c234c-3c17-74b0-9a5a-740d45ff9664","at":1770118724631000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c234c-4d28-7236-a6ee-45a8cf43875d","at":1770118729000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c234c-6c68-7ad5-bfa2-1295b243901a","at":1770118737000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c234c-9378-7de0-8c74-72b16d1a9840","at":1770118747000000000,"seq":608,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c234c-b6a0-744c-9451-a2fa637dd006","at":1770118756000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c234c-ce10-7ca0-be49-3124d6beac2f","at":1770118762000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c234c-f953-7fab-acff-48e9dbc2d8a7","at":1770118773075000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c234d-8d78-74a5-b29e-7ed5c35ac6e2","at":1770118811000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c234d-b895-75cc-bfc6-e52575bb9d89","at":1770118822037000000,"seq":613,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c234d-f308-7b3b-8fab-3ef853159d6a","at":1770118837000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c234d-fec0-74bf-9ae9-9d1ad503d903","at":1770118840000000000,"seq":615,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c234e-01da-7bcf-8fea-5786e10b722b","at":1770118840794000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c234e-9330-7960-97da-d13118e36f97","at":1770118878000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

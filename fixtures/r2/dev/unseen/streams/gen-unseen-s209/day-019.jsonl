@@ -1,0 +1,24 @@
+{"v":1,"id":"019bd5e5-0703-793f-bb8a-c84da00d7da8","at":1768820115203000000,"seq":171,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd5e5-0703-79e2-b744-8887a4df3e74","at":1768820115203000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd5e5-7398-7e49-8382-a033b6569c06","at":1768820143000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5e5-8b08-7bcb-87f4-72b5bb756a80","at":1768820149000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5e5-cf7f-7d40-b4bd-6a70866833b0","at":1768820166527000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd5e5-f098-7e9f-a9a7-bf9d353d3d5d","at":1768820175000000000,"seq":176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd5e5-f480-7a5c-9814-b5dc45606cfd","at":1768820176000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5e5-f868-7798-aeca-30e03a1e4915","at":1768820177000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5e6-0fd8-7856-8606-2873261489a2","at":1768820183000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bd5e6-1302-7982-9151-c9963facda16","at":1768820183810000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd5e6-17a8-7fb9-b3eb-69b94c01abd4","at":1768820185000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5e6-70a4-7787-a1e1-b5d294cdc318","at":1768820207780000000,"seq":182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd5e6-c770-758e-9a96-d97d14a6699e","at":1768820230000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5e7-09d8-7ce8-a159-bbff6108e767","at":1768820247000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5f6-b37e-7556-bed5-0f8e53fc64ae","at":1768821273470000000,"seq":185,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd5f6-b37e-70ea-a688-c4735f91bd10","at":1768821273470000000,"seq":186,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd5f7-2ac0-7adc-b870-71156e366bd6","at":1768821304000000000,"seq":187,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5f7-55b8-7161-8820-a4c668931fa2","at":1768821315000000000,"seq":188,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bd5f7-7cc8-7a1b-8f1d-60362438e2b1","at":1768821325000000000,"seq":189,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5f7-ab63-770f-9635-a85458d36cf7","at":1768821336931000000,"seq":190,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bd5f8-28a8-71ba-a3f0-a0b9d5f9d439","at":1768821369000000000,"seq":191,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5f8-6b10-7215-9980-c3e91b7d00c1","at":1768821386000000000,"seq":192,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bd5f8-9220-71b4-934b-9c7637f4f9e3","at":1768821396000000000,"seq":193,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd5f8-9220-7af7-9103-643cba0f5ab6","at":1768821396000000000,"seq":194,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}

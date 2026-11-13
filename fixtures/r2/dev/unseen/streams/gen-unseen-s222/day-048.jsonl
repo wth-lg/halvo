@@ -1,0 +1,9 @@
+{"v":1,"id":"019c6b1d-6023-762a-81a0-c7aaff4b1ec9","at":1771323613219000000,"seq":660,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6b1d-6023-7477-a5ed-e63a259181d0","at":1771323613219000000,"seq":661,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c6b1e-2d79-7693-9bb6-9a5eb02c2e0a","at":1771323665785000000,"seq":662,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c6b1e-5948-7a1d-9740-18d482a065f6","at":1771323677000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b1e-5d30-7924-9ebb-4597fd8cf8eb","at":1771323678000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6b1e-68e8-7586-b945-e8a417942b1e","at":1771323681000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c6b1e-6cd0-76d7-9aed-808d8c7b130f","at":1771323682000000000,"seq":666,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6b1e-6dd9-7002-a1b0-0604edf01e8e","at":1771323682265000000,"seq":667,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c6b1e-97c8-768f-9f7a-016e0c677fe9","at":1771323693000000000,"seq":668,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,0 +1,35 @@
+{"v":1,"id":"019be555-f9b4-7ea5-bb81-930c3a22b781","at":1769079175604000000,"seq":295,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be555-f9b4-753d-b830-6619c2d9abff","at":1769079175604000000,"seq":296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be555-ff28-70fe-89af-da16270320eb","at":1769079177000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be556-1698-7aba-a611-f4e37df13140","at":1769079183000000000,"seq":298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be556-2250-7c5c-abcd-ed9fb57f99bf","at":1769079186000000000,"seq":299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be556-4578-755e-a41a-51ab193852f3","at":1769079195000000000,"seq":300,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be560-c875-7fd7-b1b8-4f787f9db555","at":1769079883893000000,"seq":301,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be560-c875-71f3-9c03-b291371eb3f3","at":1769079883893000000,"seq":302,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be561-5198-75bd-90bc-e971222384f6","at":1769079919000000000,"seq":303,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019be56c-154b-70e1-944f-a93e29d48091","at":1769080624459000000,"seq":304,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be56c-154b-7b10-b3dc-61d2bc7678d8","at":1769080624459000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019be56c-2af0-7831-8840-12f2980c0bf6","at":1769080630000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be56c-547e-7f77-92c1-d7b6444f0b9b","at":1769080640638000000,"seq":307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019be56c-7528-75a0-ab63-bdc7e7dcec3a","at":1769080649000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019be56c-e4fe-700d-b677-3cf5a12b4afd","at":1769080677630000000,"seq":309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019be56c-f9f8-75af-a585-07aa71eb19e9","at":1769080683000000000,"seq":310,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be56d-1550-77ae-be04-e9c20f07897f","at":1769080690000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be56d-24f0-7ea3-a3bd-99b65131378b","at":1769080694000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be56d-5f88-78bb-9d02-5e9f50c1f444","at":1769080709000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019be56d-9e08-7f1b-a2fe-a0130b880a2c","at":1769080725000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be56d-a1b2-7850-b418-3983463426a4","at":1769080725938000000,"seq":315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019be56d-ada8-7636-a78b-4c109eeae3d3","at":1769080729000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be56e-7108-7c1b-b711-792bf87c9ae6","at":1769080779016000000,"seq":317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019be56e-74e0-7b14-a33b-68273256c911","at":1769080780000000000,"seq":318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be56e-7cb0-7e64-8222-b54f9d13c901","at":1769080782000000000,"seq":319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be56e-b748-7194-9510-94c82442adc7","at":1769080797000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be56e-bf18-7b04-9095-3ed3238aced5","at":1769080799000000000,"seq":321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be56e-c3e6-7cb1-927a-f54c22ff641f","at":1769080800230000000,"seq":322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019be56e-da70-7e94-82a8-12c7de94c979","at":1769080806000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be56f-18f0-7e17-bd21-b3c063286862","at":1769080822000000000,"seq":324,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be56f-4090-71a4-b6fe-589620982c68","at":1769080832144000000,"seq":325,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019be56f-4fa0-7b3e-bf8e-fa30e381a92e","at":1769080836000000000,"seq":326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019be56f-6af8-7c9f-b095-868ad38ed970","at":1769080843000000000,"seq":327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be56f-6ee0-7441-a631-6e37b9e31733","at":1769080844000000000,"seq":328,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be56f-99d8-784e-b804-5f13a96ee860","at":1769080855000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,17 @@
+{"v":1,"id":"019d297e-31fc-76fe-88ec-24afd72a1635","at":1774517629436000000,"seq":1005,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d297e-31fc-707b-b699-ef5f74f974f3","at":1774517629436000000,"seq":1006,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d297e-43d0-794f-ba02-26e1f6781ca3","at":1774517634000000000,"seq":1007,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d297e-8250-7893-aeb4-19216184e51a","at":1774517650000000000,"seq":1008,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d297e-9469-7109-8c5b-b19cbfb364d3","at":1774517654633000000,"seq":1009,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d297e-9469-7986-8409-6f67e6f01c2f","at":1774517654633000000,"seq":1010,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d297f-12d8-7597-a4c1-d08caeba1fd7","at":1774517687000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d297f-3218-7661-87d9-f3e2d3d36604","at":1774517695000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d297f-35ea-7ad3-bfdd-20859992ae36","at":1774517695978000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d297f-3600-7d66-98c0-e764b4d6df2c","at":1774517696000000000,"seq":1014,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d297f-b300-7bb3-a306-a93230e4979d","at":1774517728000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d297f-b5bd-7ea8-b630-44a7d8fdd990","at":1774517728701000000,"seq":1016,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d297f-e5c8-721b-b5f2-48466b2dfcfc","at":1774517741000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2980-2060-7311-b945-2776734f9901","at":1774517756000000000,"seq":1018,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2980-2123-7c4a-8faa-36a9dec6ffb9","at":1774517756195000000,"seq":1019,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2980-2123-7968-8127-5edadb361280","at":1774517756195000000,"seq":1020,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2980-6e80-7158-9133-a629055b377b","at":1774517776000000000,"seq":1021,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}

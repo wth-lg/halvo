@@ -1,0 +1,20 @@
+{"v":1,"id":"019d059f-38be-7c76-99b2-db2f7ad63e96","at":1773915814078000000,"seq":1166,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d059f-38be-7972-b49d-ed9656ea969d","at":1773915814078000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d059f-8353-70a2-93d7-7eea28ad5910","at":1773915833171000000,"seq":1168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d059f-9a18-7d40-8e62-2201bea850ca","at":1773915839000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d05a0-0b60-772e-9b82-bddaec01b1b2","at":1773915868000000000,"seq":1170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d05a0-3658-70c2-9cb1-fb87335304c9","at":1773915879000000000,"seq":1171,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d05a0-4b4d-77af-a8c7-eb2aebf2792e","at":1773915884365000000,"seq":1172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d05a0-8090-7598-ab35-ac122c5056b6","at":1773915898000000000,"seq":1173,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d05a0-da68-7270-8828-5c826ebc6e6b","at":1773915921000000000,"seq":1174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d05a1-557d-7d3c-8684-1b80141de999","at":1773915952509000000,"seq":1175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d05a1-6708-7bfa-b3b2-85e77fda93ae","at":1773915957000000000,"seq":1176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d05a1-fb78-77a8-bdea-202ea51d439f","at":1773915995000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d05a2-4998-7759-88d2-f3ba9f4bbf86","at":1773916015000000000,"seq":1178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d05a2-4c92-7b0c-a7bf-56717b7092ab","at":1773916015762000000,"seq":1179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d05a4-b831-7c25-a322-0324740970e8","at":1773916174385000000,"seq":1180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d05ba-9eb6-728f-a121-8af622762a3d","at":1773917609654000000,"seq":1181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d05ba-b398-72fd-bc4c-4992059c1e79","at":1773917615000000000,"seq":1182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d05ba-d2d8-7f0a-a023-878e6a2e80ee","at":1773917623000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05ba-daa8-75cd-a6c3-f403fe0eb9aa","at":1773917625000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05ba-ea48-7ccd-b19d-e3e880e7819a","at":1773917629000000000,"seq":1185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

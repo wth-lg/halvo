@@ -1,0 +1,26 @@
+{"v":1,"id":"019d42eb-d6cf-7222-8525-2360cd422ef4","at":1774944245455000000,"seq":1185,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42eb-d6cf-7d74-a68d-8d758e1c21f3","at":1774944245455000000,"seq":1186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d42eb-d8f0-75a0-835c-1037b641317c","at":1774944246000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ec-3e80-795f-a1b6-2f3d08ee2d9d","at":1774944272000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d42ec-80f6-709d-a74b-20c7e4155839","at":1774944289014000000,"seq":1189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d42ec-d6d8-7272-b342-1e06ef96b143","at":1774944311000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d42ec-ea60-7fc0-aecc-a497858874f7","at":1774944316000000000,"seq":1191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42ed-09a0-767d-84cd-4c724f56b5db","at":1774944324000000000,"seq":1192,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d42ed-2f3b-7d16-9f2c-5bafd8af373e","at":1774944333627000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d42ed-c131-7333-b624-8cc6da0d1755","at":1774944370993000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d42ee-9040-788d-ad49-eb2d186f9620","at":1774944424000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ee-9428-77a8-a104-910f3d8e8bb6","at":1774944425000000000,"seq":1196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d42ee-bf20-7b32-9e39-bf29264a1fce","at":1774944436000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d42f8-b425-7464-8a80-a05c9ed427f1","at":1774945088549000000,"seq":1198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d42f8-c970-7832-b1d8-3fc65023f8d8","at":1774945094000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f9-07f0-7f1d-b41f-f91213b36799","at":1774945110000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f9-17e5-7ca0-811d-32fac9003a5d","at":1774945114085000000,"seq":1201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d42f9-2f00-7098-a708-009bdb03d2b4","at":1774945120000000000,"seq":1202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d42f9-6998-7489-83ce-c84614fcf81b","at":1774945135000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d42f9-8cc0-7c8d-9c4f-08b0864ebf56","at":1774945144000000000,"seq":1204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d42f9-a5a7-7b11-86a1-38eabb515de4","at":1774945150375000000,"seq":1205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d42fa-6b68-7f33-bbb6-34009490660a","at":1774945201000000000,"seq":1206,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42fa-84c9-7957-9f34-48be505a7e84","at":1774945207497000000,"seq":1207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d42fa-b1b8-7e69-ba86-a562319c5e51","at":1774945219000000000,"seq":1208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42fa-cd10-7376-8778-8ec2596b7fc3","at":1774945226000000000,"seq":1209,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d42fa-ec50-72f3-931b-6274240d98e8","at":1774945234000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

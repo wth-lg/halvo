@@ -1,0 +1,9 @@
+{"v":1,"id":"019cb301-6a3d-77f6-9869-209295c180b0","at":1772529740349000000,"seq":865,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb301-6a3d-7c08-9535-e4b171924e3e","at":1772529740349000000,"seq":866,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb301-8438-7161-828c-54226fda40fc","at":1772529747000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb301-bed0-74a1-8bcb-9666d1b5093c","at":1772529762000000000,"seq":868,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb314-7fa1-7da0-bddb-56705173aa77","at":1772530991009000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cb314-f4c8-790a-be62-333ec528b7e0","at":1772531021000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb315-70ff-724d-97c3-e8822c8c654f","at":1772531052799000000,"seq":871,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cb315-bc00-7e26-92a4-4699b545b325","at":1772531072000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb316-1da8-7dfc-b07d-9153362889d0","at":1772531097000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

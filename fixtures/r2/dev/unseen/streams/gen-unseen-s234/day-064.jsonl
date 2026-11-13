@@ -1,0 +1,12 @@
+{"v":1,"id":"019cbcea-ec40-7096-9ea2-604feae263cd","at":1772696038464000000,"seq":823,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbcea-ec40-73e7-ba0a-b5591236558a","at":1772696038464000000,"seq":824,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbceb-4c18-7881-b9ea-17bf13260dcc","at":1772696063000000000,"seq":825,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cbceb-b1a8-7368-8a18-c8c3828a3884","at":1772696089000000000,"seq":826,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cbd05-4bca-72fc-9674-25321f014520","at":1772697766858000000,"seq":827,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd05-4bca-7fbf-a618-1cdf6e8c44de","at":1772697766858000000,"seq":828,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cbd05-5428-7c55-b9d6-5f112fd82173","at":1772697769000000000,"seq":829,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd05-7b38-7d45-adaf-84b95bb2558d","at":1772697779000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd05-e4b0-7b3f-b526-f89b3db74589","at":1772697806000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cbd06-023e-7c84-802d-6199a1a923ed","at":1772697813566000000,"seq":832,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cbd06-6980-7fda-a298-94b8566bc878","at":1772697840000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd06-cb28-79b7-ba7b-c3ef387f7f1d","at":1772697865000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

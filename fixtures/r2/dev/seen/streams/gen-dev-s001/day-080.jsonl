@@ -1,0 +1,19 @@
+{"v":1,"id":"019d0ff3-040d-7018-ab0f-c377d80e4e3b","at":1774089077773000000,"seq":1326,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0ff3-040d-74f9-a5c1-ec3b7610ee0f","at":1774089077773000000,"seq":1327,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff3-33d0-7b52-9d80-6705e1fbb30f","at":1774089090000000000,"seq":1328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ff3-37b8-75df-bec3-bc4f66d34c4c","at":1774089091000000000,"seq":1329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d0ff3-3b63-7630-a552-e955845fb204","at":1774089091939000000,"seq":1330,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff3-5ae0-75d2-92c5-aba24ddf6c69","at":1774089100000000000,"seq":1331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ff3-9190-7809-a9a3-b080e96aba7a","at":1774089114000000000,"seq":1332,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d0ff3-a146-7190-8f50-2d6411dbe4ac","at":1774089118022000000,"seq":1333,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff3-f720-7e4d-a57e-6f4b3d6e6db1","at":1774089140000000000,"seq":1334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0ff4-02d8-7b7b-8e14-fd34152cc2a4","at":1774089143000000000,"seq":1335,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0ff4-185b-752a-99f7-d09d8e878909","at":1774089148507000000,"seq":1336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff4-a1a0-7e8c-8c88-06fca5fe4821","at":1774089183648000000,"seq":1337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff4-cdf8-73f0-a9df-464c356cb970","at":1774089195000000000,"seq":1338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0ff4-d5c8-70d8-9d45-456f852aa4c6","at":1774089197000000000,"seq":1339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ff4-d9b0-7012-a9ab-4230df879965","at":1774089198000000000,"seq":1340,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0ff5-1448-7212-beef-82f2e6ca6a01","at":1774089213000000000,"seq":1341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d0ff5-23e8-75c0-8547-966854998739","at":1774089217000000000,"seq":1342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ff5-34f0-73ab-91b1-41ff2cae71bd","at":1774089221360000000,"seq":1343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff5-56b0-7c68-87ef-dce3367d077a","at":1774089230000000000,"seq":1344,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

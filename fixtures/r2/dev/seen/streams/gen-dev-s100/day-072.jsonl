@@ -1,0 +1,23 @@
+{"v":1,"id":"019ce6b3-167b-774f-9b99-5a55f25b3764","at":1773397022331000000,"seq":1045,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6b3-167b-7530-bdc2-689728449bc6","at":1773397022331000000,"seq":1046,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b3-47f8-7943-a989-2820ea8a61af","at":1773397035000000000,"seq":1047,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6b3-642d-7c7e-9618-9bb01a9c5f59","at":1773397042221000000,"seq":1048,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b3-9a00-7cdb-82ab-8b11c66bc09e","at":1773397056000000000,"seq":1049,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6b3-9de8-725d-9147-d9c7144a9f08","at":1773397057000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6b3-d4ac-7184-bb13-f0a2d3312659","at":1773397071020000000,"seq":1051,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b4-2a88-7251-825e-c47c6aadc5dd","at":1773397093000000000,"seq":1052,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ce6b4-3e10-7b75-8054-3d9e491432ea","at":1773397098000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6b4-6cf0-79d5-bcda-85f80009f090","at":1773397110000000000,"seq":1054,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce6b4-a788-7454-b6ed-ff5e12fe63bf","at":1773397125000000000,"seq":1055,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce6b4-bef8-73d6-bd21-7f0c0e4cc9a9","at":1773397131000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6b4-dec4-7633-a6bd-b146dbb1dfd7","at":1773397139140000000,"seq":1057,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b5-3428-7b89-9220-2eb3ecfac81f","at":1773397161000000000,"seq":1058,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6b5-b510-7f27-a773-5496dd4e35fc","at":1773397194000000000,"seq":1059,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6b5-c898-704d-9a6b-181475f612fa","at":1773397199000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ce6b5-ec1d-77c9-a1a4-69835172879c","at":1773397208093000000,"seq":1061,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b6-0330-7c07-aa5a-f025b8aed342","at":1773397214000000000,"seq":1062,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6b6-2bd1-707f-a54c-79e1f92e3c3a","at":1773397224401000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b6-4980-75bf-98b3-c166c8160747","at":1773397232000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ce6b6-68c0-7ce0-973e-6b704e877d52","at":1773397240000000000,"seq":1065,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6b6-77ff-7f8c-8d32-ca88962dd3f2","at":1773397243903000000,"seq":1066,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b6-af10-7905-a935-b7ecde56a208","at":1773397258000000000,"seq":1067,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

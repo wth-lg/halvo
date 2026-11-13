@@ -1,0 +1,11 @@
+{"v":1,"id":"019b92b2-51db-7b1e-9607-72f52b47676a","at":1767692718555000000,"seq":99,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b92b2-51db-7994-bd89-940940883da5","at":1767692718555000000,"seq":100,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b92b2-b928-73f8-bad9-cf948e10a440","at":1767692745000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92b2-c4e0-75b7-92e2-059d73cf513c","at":1767692748000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92b2-efd8-7584-8c23-a368f8b19868","at":1767692759000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b92ba-97f7-7a4b-ae1e-245627b4602e","at":1767693260791000000,"seq":104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b92ba-cf78-780b-95d4-dcaef1c028ad","at":1767693275000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b92ba-d748-7f44-9c65-d2d2b3e7521f","at":1767693277000000000,"seq":106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b92bb-19b0-7515-8326-6000d5a91312","at":1767693294000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b92bb-95a9-7883-8f8e-37b9b0630c43","at":1767693325737000000,"seq":108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b92bb-b9d8-7183-be17-1cc4ace7ea61","at":1767693335000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

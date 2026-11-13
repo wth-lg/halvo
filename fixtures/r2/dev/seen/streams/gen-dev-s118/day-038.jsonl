@@ -1,0 +1,23 @@
+{"v":1,"id":"019c3778-ab7c-7a8f-aa22-4c08c9814894","at":1770457181052000000,"seq":534,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3778-ab7c-7234-ac59-afc8070acc3a","at":1770457181052000000,"seq":535,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3778-bed0-7439-866f-f12d6e32dd09","at":1770457186000000000,"seq":536,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3778-f580-7005-8fc0-73de129ad949","at":1770457200000000000,"seq":537,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3779-4788-7058-9572-9909b5de9ded","at":1770457221000000000,"seq":538,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c3779-4f58-7913-afc3-d304be8f2286","at":1770457223000000000,"seq":539,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c3779-a930-7307-a76f-fcc620fa4855","at":1770457246000000000,"seq":540,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c3783-ada0-7356-a0d3-ef70170d8658","at":1770457902496000000,"seq":541,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3783-ada0-7bf4-a24d-f7422bced901","at":1770457902496000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3784-8288-7cdd-9004-f4ba443d77be","at":1770457957000000000,"seq":543,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3784-a998-7eb6-8492-0a7ad44b2d19","at":1770457967000000000,"seq":544,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3794-8dde-7bad-90ad-ab50e5aa774a","at":1770459008478000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3794-f578-7742-b6e6-5b3f9a572fd9","at":1770459035000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3795-204d-7f88-a42b-98fb7e519e90","at":1770459045965000000,"seq":547,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3796-12a0-702d-9ad9-43b644aa511f","at":1770459108000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c3796-1302-7b82-9e95-635e21576b0b","at":1770459108098000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3796-1a70-7fa6-9d0e-449bd3c1dd92","at":1770459110000000000,"seq":550,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3796-5cd8-71de-adc1-a85315b0a8a6","at":1770459127000000000,"seq":551,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3796-7830-7056-8fa6-46ae56469201","at":1770459134000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c3796-7c18-703c-96f4-abe71a39ff17","at":1770459135000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3796-d049-7f3d-b4c0-e11734e31088","at":1770459156553000000,"seq":554,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3796-ddc0-7a53-a5af-46809c62e800","at":1770459160000000000,"seq":555,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3796-f918-75d6-b796-df29b8b1c49e","at":1770459167000000000,"seq":556,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

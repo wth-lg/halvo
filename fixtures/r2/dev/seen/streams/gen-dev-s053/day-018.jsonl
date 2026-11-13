@@ -1,0 +1,22 @@
+{"v":1,"id":"019bd0c2-c67b-7dae-a3b7-22717a4624c7","at":1768733984379000000,"seq":335,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd0c2-c67b-7bf0-9b5d-87b06e7f0537","at":1768733984379000000,"seq":336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bd0c2-e058-721a-9b76-9f4db3d83f6d","at":1768733991000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bd0c3-8e2f-7206-bd9b-e9c3d555a1e2","at":1768734035503000000,"seq":338,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bd0c3-9bd8-793d-af13-1dbb4bfefb18","at":1768734039000000000,"seq":339,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd0c3-b730-71c1-b9de-458687feeae9","at":1768734046000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c3-cea0-71f7-94d7-115214885267","at":1768734052000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c4-18d8-7c62-a23c-09a1e400ab31","at":1768734071000000000,"seq":342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bd0c4-2593-710a-9f71-f0a593c4cbea","at":1768734074259000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bd0c4-43d0-7cfe-8bad-086aa81c6df0","at":1768734082000000000,"seq":344,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd0c4-91f0-76af-bc5e-aec58b385b87","at":1768734102000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd0c4-fa3e-79ff-a61f-cb227330d096","at":1768734128702000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bd0c4-fb68-7d02-a214-1b5de74e8461","at":1768734129000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c5-45a0-7663-b347-8d91f47d5893","at":1768734148000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0c5-7098-7f96-a19d-2e80aa875f0f","at":1768734159000000000,"seq":349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd0d7-df1d-754e-93df-c53aa09f49a4","at":1768735366941000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bd0d8-1220-7889-a4ef-832377cd199b","at":1768735380000000000,"seq":351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0d8-d74c-7b81-8d1b-033f6b6a5c28","at":1768735430476000000,"seq":352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bd0d9-0068-7088-9c09-4edc7ead57d1","at":1768735441000000000,"seq":353,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd0d9-0c20-7d3f-b5e4-3742cb41f85a","at":1768735444000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0d9-3718-7624-b61e-b1ed1afd30fa","at":1768735455000000000,"seq":355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd0d9-5e28-7e25-b524-344cd63d7c93","at":1768735465000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

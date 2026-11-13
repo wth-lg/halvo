@@ -1,0 +1,27 @@
+{"v":1,"id":"019ba754-d5e9-7501-a51d-77038eb3c5c6","at":1768038913513000000,"seq":101,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba754-d5e9-7315-a493-c03b36ceb8a1","at":1768038913513000000,"seq":102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ba755-3d60-7cab-a844-88f367674f2e","at":1768038940000000000,"seq":103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba755-6c40-74f6-9a17-1a7fb2491514","at":1768038952000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba755-7e5c-71fe-b454-c342b1db14c5","at":1768038956636000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ba755-8f68-753c-92f1-678f03fd2b34","at":1768038961000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba770-93ae-754a-9a21-e8dc2936457b","at":1768040731566000000,"seq":107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019ba770-bc70-73ba-9f2d-358bf2896fa7","at":1768040742000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba770-faf0-7d45-a46e-60fcc8621820","at":1768040758000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba771-32bb-7e64-b5e1-91fe704b96f4","at":1768040772283000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019ba771-6080-784f-ae68-4620de833106","at":1768040784000000000,"seq":111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba771-6468-72f6-96a4-91336a641d4e","at":1768040785000000000,"seq":112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba771-6c38-7caa-9b31-429077426383","at":1768040787000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ba771-8540-772b-9b02-38b5e73cab6d","at":1768040793408000000,"seq":114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019ba771-8f60-7d94-b2a3-41e31e8fb63f","at":1768040796000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba771-f108-7733-a191-4d3edce97120","at":1768040821000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ba771-f587-7efb-8784-3c4685ee6c72","at":1768040822151000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019ba772-00a8-7e37-a005-e71dd73bb7a5","at":1768040825000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba772-0490-7968-88b2-2f8fb4caf7b1","at":1768040826000000000,"seq":119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba772-3758-7554-bef5-95d8247b4f36","at":1768040839000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ba784-e53f-7bd2-a5be-0b9fdde82090","at":1768042063167000000,"seq":121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ba785-4258-77b4-9fac-4c69f5731580","at":1768042087000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba785-7908-7ad7-afd4-4fbcdd0f7880","at":1768042101000000000,"seq":123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba785-c248-75cb-9cf8-adfb8da4a90b","at":1768042119752000000,"seq":124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ba786-01c0-7082-b123-a31758609c20","at":1768042136000000000,"seq":125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba786-30a0-7b6f-a154-790a75dd28f3","at":1768042148000000000,"seq":126,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba786-82a8-7560-8982-19f79fee41ca","at":1768042169000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

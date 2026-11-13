@@ -1,0 +1,13 @@
+{"v":1,"id":"019d33ce-0f73-74da-8273-8c82823af17a","at":1774690635635000000,"seq":1319,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d33ce-0f73-7117-a6f0-a465bec00f7e","at":1774690635635000000,"seq":1320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d33ce-18b0-73b7-9838-7a4c6c18feb6","at":1774690638000000000,"seq":1321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33ce-8508-7f34-91ed-daada888aac0","at":1774690665736000000,"seq":1322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d33ce-a550-740b-afe0-3771baf97202","at":1774690674000000000,"seq":1323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d33ce-ad20-7bc5-b265-46384115ff1d","at":1774690676000000000,"seq":1324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33ce-b4f0-7b34-9d7d-f05d8799e5fa","at":1774690678000000000,"seq":1325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d33dc-d8c9-745e-931b-a308e2a3711e","at":1774691604681000000,"seq":1326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d33dd-2828-7063-9959-769cbff51cfe","at":1774691625000000000,"seq":1327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d33dd-2edd-77d8-a4be-48444173d3fa","at":1774691626717000000,"seq":1328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d33dd-6e78-74da-98b0-27de4288b5ff","at":1774691643000000000,"seq":1329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33dd-7260-727a-b768-370040d048ad","at":1774691644000000000,"seq":1330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d33dd-9588-780d-9cb6-2b25c8363a62","at":1774691653000000000,"seq":1331,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

@@ -1,0 +1,34 @@
+{"v":1,"id":"019b7e4c-fb0f-7e47-9bb0-962b940287b6","at":1767350532879000000,"seq":13,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e4c-fb0f-7ccb-8d35-570befd15de7","at":1767350532879000000,"seq":14,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7e4d-9472-7120-8264-77427960f4c9","at":1767350572146000000,"seq":15,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7e4d-b320-78fe-b277-fe04eed264d8","at":1767350580000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e4d-baf0-725c-b5aa-01235cd670b2","at":1767350582000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e66-878c-7afb-b6ce-9aa8e480a935","at":1767352207244000000,"seq":18,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7e66-878c-7c76-bab8-b2d6ca3b193b","at":1767352207244000000,"seq":19,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7e66-a5d8-7a6a-a1af-02fa9376398f","at":1767352215000000000,"seq":20,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e66-d8a0-7238-a42b-4481ce1db283","at":1767352228000000000,"seq":21,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b7e68-fd15-7e17-9494-abe1667b467e","at":1767352368405000000,"seq":22,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e68-fd15-776e-a78b-bd63cb95b7ba","at":1767352368405000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7e69-b56d-7343-93bb-ccac63a08b42","at":1767352415597000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7e69-de10-7404-aac6-7eaf7f8e5ae3","at":1767352426000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e69-edb0-7379-831d-1419193c2efc","at":1767352430000000000,"seq":26,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e6a-3400-7798-94ef-46ebce78f13e","at":1767352448000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b7e6a-5b10-708b-8e3a-0ce44e95b16b","at":1767352458000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e80-6963-7326-9459-5a0a9694d7bf","at":1767353903459000000,"seq":29,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b7e80-6b80-7da5-94af-0b9de32cbcb8","at":1767353904000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e80-fc08-71a8-8586-602f2ebf0547","at":1767353941000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e81-30e3-7d18-a06b-ec042a5b38e8","at":1767353954531000000,"seq":32,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b7e81-6580-798a-b0ad-d62b690c494d","at":1767353968000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e81-cb10-7fab-a9ea-c86e4d88f732","at":1767353994000000000,"seq":34,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e81-f99c-7b70-8808-1193e1b1c990","at":1767354005916000000,"seq":35,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b7e82-6368-7c23-be1a-e6c5386a923d","at":1767354033000000000,"seq":36,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e82-7ec0-7ec9-bc31-986f4f61201d","at":1767354040000000000,"seq":37,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e82-9630-79a6-a7ae-32c48eda6d18","at":1767354046000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b7e82-dff3-73ab-ae80-03747aad4f43","at":1767354064883000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b7e83-1718-71a8-b07c-5e08e390f756","at":1767354079000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e83-cac8-76ab-b987-8d20056ad3f0","at":1767354125000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7e92-8505-78ec-af46-5b8c03c2e4da","at":1767355090181000000,"seq":42,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7e92-a778-7176-b805-d1f664cb19c5","at":1767355099000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e92-e9e0-7344-af45-90181e6939af","at":1767355116000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7e93-14d8-7b77-b727-b5be9f1868c9","at":1767355127000000000,"seq":45,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e93-7298-78ec-95fa-4cd648a8309b","at":1767355151000000000,"seq":46,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

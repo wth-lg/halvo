@@ -1,0 +1,56 @@
+{"v":1,"id":"019d0567-5408-7bed-a5cb-d88b64773446","at":1773912151048000000,"seq":1108,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0567-5408-7e27-bbdb-14a95122d70c","at":1773912151048000000,"seq":1109,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0567-6760-7161-872f-818942df84b3","at":1773912156000000000,"seq":1110,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0568-0788-72de-b8c3-13fc4ae3b416","at":1773912197000000000,"seq":1111,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0568-1ef8-7151-95db-281ffac0dc49","at":1773912203000000000,"seq":1112,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d0568-4220-772e-b786-514e601b031e","at":1773912212000000000,"seq":1113,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d0568-4a13-72e3-b005-174220ae20f5","at":1773912214035000000,"seq":1114,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d0568-b750-73cd-a1f6-5703296647de","at":1773912242000000000,"seq":1115,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d057e-a0b0-7b31-a4e0-bdffea7dea6c","at":1773913678000000000,"seq":1116,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d057e-a0b0-7111-baf8-9d765b7686af","at":1773913678000000000,"seq":1117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d057f-8ef8-7c53-8bea-c62c1c92e354","at":1773913739000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d057f-b02a-7222-8c65-afb348e301c5","at":1773913747498000000,"seq":1119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0580-0bf8-73ce-8180-394469d5e58c","at":1773913771000000000,"seq":1120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0580-3308-7e97-93f3-ec2d87738df4","at":1773913781000000000,"seq":1121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0580-61e8-728a-85be-88e946d1babf","at":1773913793000000000,"seq":1122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0591-b1b7-740e-9e22-e5943b1d8850","at":1773914927543000000,"seq":1123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d0591-c320-7220-9d2f-5f429b08c2b3","at":1773914932000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0591-f5e8-7a6e-8807-5f063789e895","at":1773914945000000000,"seq":1125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0592-0fb0-7b52-ad31-0af5c4fd1784","at":1773914951600000000,"seq":1126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d0592-8670-7c80-a80f-1a03f1212442","at":1773914982000000000,"seq":1127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d0592-ad80-7ace-8960-8cb887878aff","at":1773914992000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0592-c942-7d66-9d32-2ddf4652295e","at":1773914999106000000,"seq":1129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d0592-fba0-75ee-967a-faacaf30e73d","at":1773915012000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d0593-0370-777e-a79d-30fcd01f5b60","at":1773915014000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0593-0b40-7128-8f6f-b3723f403f8c","at":1773915016000000000,"seq":1132,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0593-31bd-7be1-8df5-41cebd9562f9","at":1773915025853000000,"seq":1133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d0593-93f8-77fe-ba6f-4d8694239c7f","at":1773915051000000000,"seq":1134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0593-f5a0-7baf-b6f4-c23dcbb5b7eb","at":1773915076000000000,"seq":1135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0594-0eff-7b11-8486-83a81bc41847","at":1773915082495000000,"seq":1136,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d0594-14e0-7991-b5f5-e3bafabad178","at":1773915084000000000,"seq":1137,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0594-5748-799a-85ce-376f2c60c0a2","at":1773915101000000000,"seq":1138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0594-6300-7e3e-bb95-e13d83fa6f70","at":1773915104000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d0594-c197-7ead-ab63-66babec24a8d","at":1773915128215000000,"seq":1140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d0594-ebb8-789b-92f8-a05354811c1d","at":1773915139000000000,"seq":1141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0595-41a8-7ade-9e36-59906f19be71","at":1773915161000000000,"seq":1142,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0595-5d00-708d-b19e-e921d46ce112","at":1773915168000000000,"seq":1143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0595-7470-713c-b85b-c351256780c5","at":1773915174000000000,"seq":1144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0595-854c-737e-b04d-3cc0bc977e55","at":1773915178316000000,"seq":1145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d0595-93b0-7690-b899-bb1ca60d1b44","at":1773915182000000000,"seq":1146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0595-bac0-795e-baad-ed3f5d79f055","at":1773915192000000000,"seq":1147,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0596-2050-7258-91ea-dac7cb0afb18","at":1773915218000000000,"seq":1148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d05b1-2a54-7377-93c9-8aaf6b311e5c","at":1773916990036000000,"seq":1149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d05b1-fec6-774a-95b6-469f0f84edd4","at":1773917044422000000,"seq":1150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d05b2-08d8-7e61-809c-262c45e899cd","at":1773917047000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d05b2-6e68-77fb-a1f8-96dd83b6715b","at":1773917073000000000,"seq":1152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b2-7250-78bc-90e3-fedeb36f0a39","at":1773917074000000000,"seq":1153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b2-a3cc-7caf-aa2f-48cb410a0873","at":1773917086668000000,"seq":1154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d05b2-b0d0-701d-bb18-5f5fdcdb48b2","at":1773917090000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b2-bc88-7c52-ba34-1f2780d176b6","at":1773917093000000000,"seq":1156,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d05b2-c070-7a36-ad84-d071be9f6cf3","at":1773917094000000000,"seq":1157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b2-c458-783c-88a9-9f0eaf9fb601","at":1773917095000000000,"seq":1158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d05b2-f6c2-7e84-bd79-9dd87a4541a9","at":1773917107906000000,"seq":1159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d05b2-fb08-7f7b-8c45-f4780cc63706","at":1773917109000000000,"seq":1160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d05b2-fef0-7a20-a67c-a929c7659da8","at":1773917110000000000,"seq":1161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d05b3-2218-78b8-81ac-4193488531ca","at":1773917119000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05c3-9171-76ac-b7ee-6893ed82a147","at":1773918196081000000,"seq":1163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}

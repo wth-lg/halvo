@@ -1,0 +1,16 @@
+{"v":1,"id":"019bac71-85db-7361-98c0-e37328cb9594","at":1768124679643000000,"seq":102,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac71-85db-760f-b80f-ec311e8ed00f","at":1768124679643000000,"seq":103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bac71-8b28-778c-9468-785302b17f2a","at":1768124681000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac71-b238-73d8-96c4-9301e0acf538","at":1768124691000000000,"seq":105,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac71-bdf0-7063-b8f6-3ac40cfc5dff","at":1768124694000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac71-d948-7d68-8a93-cc40e012bae4","at":1768124701000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac8a-ef00-7c94-a847-042881c59d21","at":1768126344960000000,"seq":108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bac8b-4130-721e-a020-343bd05f8e06","at":1768126366000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019baca4-a649-78b9-8177-e16d73a5121b","at":1768128030281000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019baca4-ad00-7fa2-9938-151cbc4d5402","at":1768128032000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019baca4-c088-71bb-8a35-01934d624102","at":1768128037000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019baca5-00bc-7577-811f-228db78e1adc","at":1768128053436000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019baca5-0ea8-7f86-99bd-ff8d976876f6","at":1768128057000000000,"seq":114,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019baca5-a700-7bbb-be53-e180e70b608f","at":1768128096000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019baca5-aae8-7850-897f-781c6ef3563c","at":1768128097000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019baca5-aed0-725a-8834-1c0c6bbad69d","at":1768128098000000000,"seq":117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

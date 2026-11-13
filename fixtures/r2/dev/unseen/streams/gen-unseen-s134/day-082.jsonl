@@ -1,0 +1,33 @@
+{"v":1,"id":"019d1a36-2bf4-71bc-84e7-e15934cf10ca","at":1774261251060000000,"seq":1148,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1a36-2bf4-7bbb-ab71-562b1787e387","at":1774261251060000000,"seq":1149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1a36-3770-7cc4-8600-7b6f29c5fa03","at":1774261254000000000,"seq":1150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d1a36-6650-789e-8f29-193ed0095028","at":1774261266000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a36-db80-7bf2-881f-3b81d029795b","at":1774261296000000000,"seq":1152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a37-2f95-7e5b-82e0-195bbb368cc5","at":1774261317525000000,"seq":1153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1a37-73d8-798c-b5db-462ee2fb5b81","at":1774261335000000000,"seq":1154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1a37-77c0-76e9-adaa-dbf5603af8e5","at":1774261336000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d1a37-a2b8-7073-b637-b948d52442d2","at":1774261347000000000,"seq":1156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a37-ad7a-7802-b472-3c67305fd79d","at":1774261349754000000,"seq":1157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1a38-0c30-7c60-8da1-de597adad5c4","at":1774261374000000000,"seq":1158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1a38-4e98-7956-9bb9-69b53be2d3df","at":1774261391000000000,"seq":1159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d1a38-60a3-7823-9184-b5aa78908b9a","at":1774261395619000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1a38-6dd8-782c-b1bd-54a6f09543c3","at":1774261399000000000,"seq":1161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1a38-7990-7fe8-956f-f9b7013624fb","at":1774261402000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a38-98d0-792a-b8a1-948ccafbaa13","at":1774261410000000000,"seq":1163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1a38-b428-797a-aa1a-a37d5d3e40e7","at":1774261417000000000,"seq":1164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d1a38-e6f0-7d9a-92a1-b7e58cf876d3","at":1774261430000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a3a-3a43-7e6d-a503-7de8abc0e23e","at":1774261516867000000,"seq":1166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1a3a-61d8-771e-81ff-08880576d2c1","at":1774261527000000000,"seq":1167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1a3a-a828-751b-b342-199ba9fe83ba","at":1774261545000000000,"seq":1168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1a3a-ac10-72d0-beae-5fc17c1012c6","at":1774261546000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a44-de13-77e7-9468-dc874b64f825","at":1774262214163000000,"seq":1170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d1a45-a890-74cc-95a3-e90b02959137","at":1774262266000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a45-da36-732b-9fe7-9ea01784cb66","at":1774262278710000000,"seq":1172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d1a46-4ca0-737a-ab53-ae8b0f7494f0","at":1774262308000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a46-7f68-7205-ae06-35ba8ba57b36","at":1774262321000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a46-cfbc-761c-bdaf-340f9f8a7b51","at":1774262341564000000,"seq":1175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d1a47-3700-7077-9ce9-b86962f2c9c2","at":1774262368000000000,"seq":1176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a47-5640-7211-94bb-f5802ba9456e","at":1774262376000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1a47-8cf0-72dd-bfa9-0526de6f1843","at":1774262390000000000,"seq":1178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1a47-cbfd-7230-8ec7-0ec058702936","at":1774262406141000000,"seq":1179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d1a48-09f0-7bf6-8439-6a2af5568152","at":1774262422000000000,"seq":1180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

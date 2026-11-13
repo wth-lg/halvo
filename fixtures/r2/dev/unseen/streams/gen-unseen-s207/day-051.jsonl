@@ -1,0 +1,13 @@
+{"v":1,"id":"019c79dd-ced2-7a29-9454-545cec53960f","at":1771571105490000000,"seq":796,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c79dd-ced2-72d3-b008-7fb0db7bc2d3","at":1771571105490000000,"seq":797,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c79dd-ffb0-7eb6-834e-7fb82baccc17","at":1771571118000000000,"seq":798,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c79de-0398-7832-bf15-f23b16e1fcdb","at":1771571119000000000,"seq":799,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c79de-0f50-7713-b405-8138862443a4","at":1771571122000000000,"seq":800,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c79de-1b08-7aa2-aa6c-43a778d3c699","at":1771571125000000000,"seq":801,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c79e7-8612-730a-8fc6-1f4708a8e68a","at":1771571742226000000,"seq":802,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c79e7-cf68-724b-b6f9-f713c872c5b7","at":1771571761000000000,"seq":803,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c79e8-5820-74d6-b70b-62313d527b08","at":1771571796000000000,"seq":804,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c79e8-6d4d-788a-9886-026cc024660d","at":1771571801421000000,"seq":805,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c79e8-8ae8-709f-bdbe-9a48270da062","at":1771571809000000000,"seq":806,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c79e8-9a88-7363-99e5-85f17da40804","at":1771571813000000000,"seq":807,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c79e8-b1f8-71db-a555-d42f972ca4d2","at":1771571819000000000,"seq":808,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

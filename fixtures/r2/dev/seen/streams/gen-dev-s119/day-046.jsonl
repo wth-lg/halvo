@@ -1,0 +1,9 @@
+{"v":1,"id":"019c6057-6325-75d2-b53c-1c396042d788","at":1771142865701000000,"seq":748,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6057-6325-746e-85a7-51173245b2e2","at":1771142865701000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6057-73f0-782c-b11e-9dfe3db5c06a","at":1771142870000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c6057-a6b8-731e-8d04-66513548ce50","at":1771142883000000000,"seq":751,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c606d-0401-7348-a82b-7ba73873a7d2","at":1771144283137000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c606d-5968-7382-9112-03b94da9a066","at":1771144305000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c6072-5efd-76cb-b006-31e17c0b5974","at":1771144634109000000,"seq":754,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6072-5efd-77c9-a22d-1b682eee3382","at":1771144634109000000,"seq":755,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6072-c038-748e-8349-6a1f12e30332","at":1771144659000000000,"seq":756,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

@@ -1,0 +1,14 @@
+{"v":1,"id":"019d2410-d6c7-7e67-8f33-62dc759a1196","at":1774426576583000000,"seq":1077,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2410-d6c7-7bd3-96c2-d120008f9712","at":1774426576583000000,"seq":1078,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2410-efd8-7e26-98a0-d988446f0744","at":1774426583000000000,"seq":1079,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d2411-0360-79a2-9a4b-6315000d4e5d","at":1774426588000000000,"seq":1080,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d2411-0f18-7a30-bae9-65e07bd142b4","at":1774426591000000000,"seq":1081,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d242a-d2df-7d1b-b256-9787a5f52476","at":1774428279519000000,"seq":1082,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d242a-d2df-74e5-bb05-e6771aff8d68","at":1774428279519000000,"seq":1083,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d242a-dc90-7c85-bf1b-cf196e2f424f","at":1774428282000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d242b-03a0-7251-ab0f-7101ebf94354","at":1774428292000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d242b-4608-7ceb-90d5-52723b38952c","at":1774428309000000000,"seq":1086,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2434-be99-78d5-847f-832ba2ccb0a2","at":1774428929689000000,"seq":1087,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2434-be99-7098-a83d-0e62043b9b0c","at":1774428929689000000,"seq":1088,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2434-d740-77c5-a26f-74cd3f2fdce3","at":1774428936000000000,"seq":1089,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2435-2560-7837-bf98-da1a31306751","at":1774428956000000000,"seq":1090,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

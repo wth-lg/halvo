@@ -1,0 +1,25 @@
+{"v":1,"id":"019c08c7-68c4-79e0-94db-e26f8ec84202","at":1769673812164000000,"seq":440,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08c7-68c4-7c86-a542-5e25ea2e1078","at":1769673812164000000,"seq":441,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c08c7-6ff0-7e4e-9b09-ef464b7915c3","at":1769673814000000000,"seq":442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08c7-8378-79cc-a523-718ff23a80ff","at":1769673819000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c7-9318-78e2-b168-579540098625","at":1769673823000000000,"seq":444,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08c7-9ae8-75e5-b5f1-923fda6e6e4d","at":1769673825000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c08d5-a845-7e5f-becd-75a99ee8c149","at":1769674745925000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c08d5-bc18-744e-83e7-3015669b8daf","at":1769674751000000000,"seq":447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d6-78d0-74b2-b170-a5a45a3f7733","at":1769674799312000000,"seq":448,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c08d6-b7b6-7fec-a7e4-d5d73db808df","at":1769674815414000000,"seq":449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c08d6-f0b0-77a4-bddf-7190acfc0de2","at":1769674830000000000,"seq":450,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d7-25fd-7b13-9a93-6dbcc5b52b07","at":1769674843645000000,"seq":451,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c08d7-2b48-7b2f-9bb3-fd738f7121db","at":1769674845000000000,"seq":452,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c08d7-42b8-7b49-a7a8-e3606c53be9c","at":1769674851000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c08d7-46a0-7cbf-8327-9c68161b4242","at":1769674852000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d7-5640-7e84-b4af-05779efffafa","at":1769674856000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c08d7-61f8-7256-8b7a-9b7db0f1e5e8","at":1769674859000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f1-d5a5-7371-aeba-fb847cfee13b","at":1769676592549000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c08f2-0a30-7538-b409-c394988ae316","at":1769676606000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f2-48b0-74ce-b23e-2c944c9adeae","at":1769676622000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f2-4df9-730f-8341-9d71ea3e4cf5","at":1769676623353000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c08f2-f878-7e2a-af53-bda7a4017f55","at":1769676667000000000,"seq":461,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08fa-bcc3-78f7-935d-eab60387f2bb","at":1769677176003000000,"seq":462,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c08fa-bcc3-7bec-a446-3a200030a5de","at":1769677176003000000,"seq":463,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c08fa-ef88-7d35-a64b-ff40af7803b3","at":1769677189000000000,"seq":464,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

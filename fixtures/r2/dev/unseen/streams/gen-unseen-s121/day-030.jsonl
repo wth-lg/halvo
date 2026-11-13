@@ -1,0 +1,18 @@
+{"v":1,"id":"019c0e06-9d61-7dec-8296-fc00e33449b7","at":1769761840481000000,"seq":357,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e06-9d61-7efd-b869-b3b29b8c4a1c","at":1769761840481000000,"seq":358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c0e06-a350-752e-82a6-ea521567d174","at":1769761842000000000,"seq":359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c0e1b-0257-7740-bb4a-c671a7d114c2","at":1769763177047000000,"seq":360,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c0e1b-0610-7aad-8e72-bf1f11277718","at":1769763178000000000,"seq":361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c0e1b-2550-787a-afc2-9796a1346871","at":1769763186000000000,"seq":362,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e1b-3cc0-7cd9-82b9-99508e24791b","at":1769763192000000000,"seq":363,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0e20-f5fc-7823-bbb3-e9acf6ec8d58","at":1769763567100000000,"seq":364,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c0e21-0150-7381-a298-9d7c3e181796","at":1769763570000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e21-2fac-7d37-a7ba-1ca87330341c","at":1769763581868000000,"seq":366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c0e21-a560-7558-8ed4-541a408e256e","at":1769763612000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c0e22-0241-7975-b43c-e6ae681fbd1a","at":1769763635777000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c0e22-64c8-7c59-aac6-133bba1c0e15","at":1769763661000000000,"seq":369,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e22-8408-79bf-9226-acc5bb3f9b9d","at":1769763669000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c0e22-b2e8-78af-b714-8872dc51a340","at":1769763681000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e22-d9f8-7b9b-9279-e1822678ecde","at":1769763691000000000,"seq":372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e23-0e29-71fe-b668-79c05fb5a70d","at":1769763704361000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c0e23-81f0-7836-a3ab-4320b54e8e3f","at":1769763734000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

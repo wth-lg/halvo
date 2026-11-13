@@ -1,0 +1,18 @@
+{"v":1,"id":"019cd19d-8e44-7570-910a-89d64443081c","at":1773043289668000000,"seq":1023,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd19d-8e44-75fc-8917-5e15cad90911","at":1773043289668000000,"seq":1024,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd19d-a318-77cb-88b7-9465eaae9668","at":1773043295000000000,"seq":1025,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cd19d-ce10-7607-85ea-4d9db5b73bc0","at":1773043306000000000,"seq":1026,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd19d-ce10-7e18-80bc-ef3797ebfa1a","at":1773043306000000000,"seq":1027,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cd1b3-0254-7d0b-939d-f1b6e28c8fe2","at":1773044695636000000,"seq":1028,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cd1b3-3a70-7e06-961e-a4ce96a74ea4","at":1773044710000000000,"seq":1029,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1b3-6d38-7ebf-926d-d065be1b5210","at":1773044723000000000,"seq":1030,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cd1b3-7120-7de1-9883-21e2a7632c37","at":1773044724000000000,"seq":1031,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cd1c6-f399-73ed-a455-1220db6c7f55","at":1773046002585000000,"seq":1032,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd1c6-f399-746a-8788-5b62fb14fa40","at":1773046002585000000,"seq":1033,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cd1c7-1090-7817-adfc-d00dd740d13e","at":1773046010000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cd1c7-6680-7164-941e-b53267c59b4b","at":1773046032000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1c7-969d-7152-ada6-22e9737b0b79","at":1773046044317000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cd1c7-9948-7bda-a4ff-b5f5233496a7","at":1773046045000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1c7-c828-74bc-b198-c993288c5deb","at":1773046057000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1c8-025e-7246-8bae-a347d5161ab4","at":1773046071902000000,"seq":1039,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cd1c8-25e8-7666-a21f-a78e4d863be8","at":1773046081000000000,"seq":1040,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

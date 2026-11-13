@@ -1,0 +1,19 @@
+{"v":1,"id":"019c31e1-b839-7ca5-b984-498e62c4b99a","at":1770363402297000000,"seq":501,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c31e1-b839-7979-94b0-f0d9cc44bf0b","at":1770363402297000000,"seq":502,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c31e1-f978-728e-b2dc-7f4a0356c419","at":1770363419000000000,"seq":503,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c31e2-14d0-7fba-aebd-f0fb76f9ddcf","at":1770363426000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c31f5-dd08-7d30-b657-0ba0916b52f3","at":1770364722440000000,"seq":505,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c31f5-dd08-7ff1-92f1-0f8c0db993fc","at":1770364722440000000,"seq":506,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c31f5-e320-7104-9be3-2267ed73a966","at":1770364724000000000,"seq":507,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3209-7b8a-7724-abd2-83ddc88d3a6c","at":1770366008202000000,"seq":508,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3209-7b8a-769f-907b-03a84906e860","at":1770366008202000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c3209-b940-7b3d-a669-6eabececd96c","at":1770366024000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3209-c8e0-7678-b638-a3df155b56b9","at":1770366028000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c3209-e820-728b-9694-15351ebe688b","at":1770366036000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3209-ec73-7fbb-9ac4-270d8f511865","at":1770366037107000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c320a-0760-77af-92d5-f526e796cd6f","at":1770366044000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c320a-1700-7098-bd6c-044b0181ee4e","at":1770366048000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c320a-97e8-79fe-8c12-092d4edc0596","at":1770366081000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3211-fd84-7728-b8a2-f41848e8a6ec","at":1770366565764000000,"seq":517,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c3212-2198-72d9-8061-d0ac474c69e8","at":1770366575000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3212-44c0-7140-9915-29314862a71b","at":1770366584000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

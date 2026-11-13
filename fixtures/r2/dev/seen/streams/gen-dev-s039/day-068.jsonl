@@ -1,0 +1,19 @@
+{"v":1,"id":"019cd1db-6ec5-7f92-b438-ddf785ccc794","at":1773047344837000000,"seq":865,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd1db-6ec5-716d-8e2c-f40f0d1ca3d9","at":1773047344837000000,"seq":866,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd1dc-07c0-7bc0-b9fb-b32f17f34fb6","at":1773047384000000000,"seq":867,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd1dc-55e0-717a-a9e5-535293393015","at":1773047404000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1f7-52a7-7bf3-b674-c5fb84f4c675","at":1773049172647000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cd1f7-ade0-7006-9e7b-cfd8903c5b4c","at":1773049196000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1f7-beb7-7a05-90f1-7eb90de90139","at":1773049200311000000,"seq":871,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cd1f7-cd20-7947-b6fc-128202874245","at":1773049204000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1f7-ec60-7b7c-83e7-ea9a73efa9e2","at":1773049212000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1f7-f430-7d9f-812c-fafeb758f731","at":1773049214000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cd1f8-3e68-74a4-870a-c457c1914450","at":1773049233000000000,"seq":875,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd1f8-7130-73d5-a7aa-521bf1b17c90","at":1773049246000000000,"seq":876,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd1f8-78bf-738d-9d8d-5493b0f67844","at":1773049247935000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cd1f9-10bf-721c-b61b-6f621bea481d","at":1773049286847000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cd1f9-ce07-7909-a48a-071720e356ac","at":1773049335303000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cd1f9-fbb8-7436-b538-26fddaeb0cc1","at":1773049347000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd1fa-673b-7668-b15a-8fb23cae8421","at":1773049374523000000,"seq":881,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cd1fa-af68-764c-b7cf-4a458afdc560","at":1773049393000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1fb-4ba8-71e9-bffa-a3c58f831680","at":1773049433000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

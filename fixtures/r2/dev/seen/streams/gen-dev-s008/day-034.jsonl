@@ -1,0 +1,45 @@
+{"v":1,"id":"019c22ad-183e-76e4-abac-2f556e5c6afa","at":1770108295230000000,"seq":430,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22ad-183e-71bd-94c6-e68921505454","at":1770108295230000000,"seq":431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c22ad-6960-761b-9227-36a82c41bb32","at":1770108316000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ad-c720-7f30-bf5e-5a84eb0d3af1","at":1770108340000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ae-19d7-74d1-be7f-7035f316240e","at":1770108361175000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c22ae-3c50-71be-8f90-02c1572e6a21","at":1770108370000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c22ae-4fd8-7039-bb42-fb0cf2bb52a5","at":1770108375000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ae-5f78-76dc-b01d-7ac493649da3","at":1770108379000000000,"seq":437,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c22ae-c477-705c-9e77-d67550c2b590","at":1770108404855000000,"seq":438,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c22ae-ccd8-7ac8-9447-1109b757b8a5","at":1770108407000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22af-1af8-7c45-bd29-90c4e5533df3","at":1770108427000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22af-3268-7b64-bf5d-e573469a585b","at":1770108433000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c22af-49d8-77ee-9652-38532b5ad352","at":1770108439000000000,"seq":442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c22af-9d30-7996-a1ed-fd5ffb5875f9","at":1770108460336000000,"seq":443,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c22af-ab80-7aec-9f43-d4d8d37dfde1","at":1770108464000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22af-e230-7310-b3e4-682b63f07d51","at":1770108478000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22c0-ee8a-78cf-9f4e-ffd3e709c49a","at":1770109595274000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c22c1-5ec0-7526-8bc3-c986e4b2754a","at":1770109624000000000,"seq":447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c22c1-a8f8-7f0e-b90b-b8c13c67a022","at":1770109643000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c22cb-fbf9-7238-a2d5-5eee42373380","at":1770110319609000000,"seq":449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c22cb-fd80-7e0a-9cfc-ac22896e9266","at":1770110320000000000,"seq":450,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cc-1108-76d5-8abb-fa0d97832624","at":1770110325000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cc-3bab-7472-99ab-bd19b6907edd","at":1770110335915000000,"seq":452,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c22cc-5370-7ce6-b1f6-5d5c32052682","at":1770110342000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cc-5b40-7c39-8896-32a95fa2a012","at":1770110344000000000,"seq":454,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c22cc-d298-7f68-9a5f-d6c7cdab37e9","at":1770110374552000000,"seq":455,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c22cc-d840-7076-9091-451f4b622fc7","at":1770110376000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cc-e7e0-7ce5-9729-16522251db3f","at":1770110380000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cd-45a0-78df-b97e-4d66f03b2c55","at":1770110404000000000,"seq":458,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22cd-68c8-706d-956c-233f451c76cf","at":1770110413000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c22cd-6d48-7db2-8f48-8cabbe5ce971","at":1770110414152000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c22cd-8fd8-7bb3-a135-524b09e575c9","at":1770110423000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c22cd-ca70-7b6e-8393-47f566bcde79","at":1770110438000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ce-2448-7867-8dd8-ffb7bce814f2","at":1770110461000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ce-6a98-7443-a0a9-48df78f17296","at":1770110479000000000,"seq":464,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c22ce-74c7-7c48-91bc-0335be896b8a","at":1770110481607000000,"seq":465,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c22ce-a918-75f4-9844-29f66653f52b","at":1770110495000000000,"seq":466,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22ce-ef68-7a35-b7ad-209d58147b8f","at":1770110513000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cf-02f0-7592-9d94-b4199603d173","at":1770110518000000000,"seq":468,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c22cf-5110-7578-9e41-89ecb250cb87","at":1770110538000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cf-5a18-7422-8d44-e317f7558919","at":1770110540312000000,"seq":470,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c22cf-6880-70dd-8670-f87926e67018","at":1770110544000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cf-7438-7f87-b0e7-d10ec82e9343","at":1770110547000000000,"seq":472,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22cf-9b48-7c83-80c9-78a72726bf1f","at":1770110557000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cf-ba88-79ac-9d15-0331a32487a0","at":1770110565000000000,"seq":474,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

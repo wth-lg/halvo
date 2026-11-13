@@ -1,0 +1,14 @@
+{"v":1,"id":"019c5644-b37a-78e4-ad38-e6e310f37618","at":1770973868922000000,"seq":580,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5644-b37a-7c42-9f56-d62c5f284753","at":1770973868922000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c5645-34b0-7373-b961-4ea52859b98a","at":1770973902000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5645-3c80-70f5-8241-d97fd1561aa7","at":1770973904000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c564e-8199-7169-80e8-87c6afd5430a","at":1770974511513000000,"seq":584,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c564e-a2c0-7cbd-95e6-fc9d9e332f6f","at":1770974520000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c564e-c5e8-7a83-98cc-b0c9a79c3180","at":1770974529000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c564e-ddd2-7005-bc9c-172ae56d0f42","at":1770974535122000000,"seq":587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c564e-e140-729e-94f4-45259be92805","at":1770974536000000000,"seq":588,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c564e-e910-7ccf-bca0-7cbd27b73190","at":1770974538000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c564f-17f0-7ac3-bfa9-c740459f2126","at":1770974550000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c5661-075d-7bca-93e5-5954d98bf311","at":1770975725405000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c5662-0567-70eb-b54a-7035fcc8e9e0","at":1770975790439000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c5662-7110-77c8-9475-839902c458fa","at":1770975818000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

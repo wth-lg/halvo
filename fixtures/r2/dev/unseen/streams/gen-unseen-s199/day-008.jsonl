@@ -1,0 +1,18 @@
+{"v":1,"id":"019b9ceb-3bfd-7e73-a4eb-812095b20c2b","at":1767864220669000000,"seq":114,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9ceb-3bfd-79ea-b503-92c0334f1ae5","at":1767864220669000000,"seq":115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b9ceb-5c88-73c7-ba37-c9ac57c01190","at":1767864229000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9ceb-9ef0-7a30-aba8-b0318c1065f3","at":1767864246000000000,"seq":117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b9ceb-d5a0-7557-b2c8-6302b28bf094","at":1767864260000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9ceb-e3cc-72bf-a203-3ceda91302a4","at":1767864263628000000,"seq":119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019b9cec-3b30-7570-b63a-3b7c56a0b5ac","at":1767864286000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cec-f120-7760-9f61-1303452f4e6a","at":1767864332576000000,"seq":121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019b9ced-5470-722f-9bbe-fe231f1545a6","at":1767864358000000000,"seq":122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9ced-5cb5-7801-8fbc-d4cb15e8d32f","at":1767864360117000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b9ced-a290-7d9b-b74d-1119fc6d6390","at":1767864378000000000,"seq":124,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cee-2760-7199-9cda-938c1a8bb9c4","at":1767864412000000000,"seq":125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9cee-2b48-7169-a231-aedfae65a512","at":1767864413000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b9d00-9d32-79c2-afcb-11ce5ef25162","at":1767865621810000000,"seq":127,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9d00-9d32-7a37-9e68-45803e76b2bb","at":1767865621810000000,"seq":128,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9d01-1af0-7a45-889f-81dd67e764c2","at":1767865654000000000,"seq":129,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d01-26a8-7eaa-bb4a-71661a03b707","at":1767865657000000000,"seq":130,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d01-6140-737b-b508-bdc07956b885","at":1767865672000000000,"seq":131,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

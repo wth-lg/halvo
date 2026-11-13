@@ -1,0 +1,28 @@
+{"v":1,"id":"019cd21b-edd5-7def-8207-61bef2912292","at":1773051571669000000,"seq":979,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd21b-edd5-79e9-8e61-02afe713b8a7","at":1773051571669000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cd21c-7008-7cd7-9735-e49a596fcf57","at":1773051605000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cd21c-c14b-7780-b06d-db127c645e4a","at":1773051625803000000,"seq":982,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cd21c-c5f8-74b6-9f04-5faf2aa7d544","at":1773051627000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd21c-e538-71f4-9cec-0075c5df9a20","at":1773051635000000000,"seq":984,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd21d-6a08-7647-bc6a-e5bcc90c41c2","at":1773051669000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd21d-762c-732f-a6e7-1b5c9e8f09db","at":1773051672108000000,"seq":986,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd21d-762c-70b3-a256-5d1a84660da9","at":1773051672108000000,"seq":987,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd21d-d768-78e1-a81e-6fcc64030843","at":1773051697000000000,"seq":988,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd21d-efd4-7945-806d-e581777c2662","at":1773051703252000000,"seq":989,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd21d-efd4-72e2-aa31-4aad5d7a7689","at":1773051703252000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cd21d-f2c0-7ab5-8599-28092d10e677","at":1773051704000000000,"seq":991,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd21d-fa90-785f-9b52-280c37214628","at":1773051706000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cd21e-1200-7c98-9688-82f64ae940b9","at":1773051712000000000,"seq":993,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd21e-15e8-7fe4-b2fd-fee8bf15582d","at":1773051713000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd21e-19d0-75c8-9466-77a7d1d6e308","at":1773051714000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd21e-2810-74d4-89cf-74da53e30102","at":1773051717648000000,"seq":996,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cd21e-2d58-7005-978c-157d8ad34828","at":1773051719000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd21e-6408-7d4f-bb37-7944d1bb943f","at":1773051733000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd234-b083-75dc-b584-ba75e258fff6","at":1773053194371000000,"seq":999,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd234-c680-746b-b285-09fed25255d4","at":1773053200000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cd234-e9a8-7595-ab56-a16d9c0ce789","at":1773053209000000000,"seq":1001,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd238-944b-70b1-a248-0ed0d82a4992","at":1773053449291000000,"seq":1002,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cd238-be20-72da-b507-e48b59364674","at":1773053460000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd239-17f8-755a-a298-0fb042b83425","at":1773053483000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cd239-23b0-7394-81a6-dbd0dc52d3a6","at":1773053486000000000,"seq":1005,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd239-4ea8-7d68-8280-331cf9f143c5","at":1773053497000000000,"seq":1006,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

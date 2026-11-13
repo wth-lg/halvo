@@ -1,0 +1,50 @@
+{"v":1,"id":"019be4b3-0ccd-7ea3-a4cc-4b74327b38bc","at":1769068498125000000,"seq":223,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be4b3-0ccd-7b5a-a614-56559f355a6e","at":1769068498125000000,"seq":224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be4b3-1808-77fb-8535-7bb8c6fa149b","at":1769068501000000000,"seq":225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b3-4ad0-7207-a27e-5c53a5733336","at":1769068514000000000,"seq":226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4be-5104-785d-815c-fe78bb332570","at":1769069236484000000,"seq":227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019be4be-dee0-7cb8-9b74-a167d30a567d","at":1769069272800000000,"seq":228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be4be-eb60-7f42-8543-a2e8d01440ec","at":1769069276000000000,"seq":229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4bf-9358-77c5-a222-3430ca9d1635","at":1769069319000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4bf-a2f8-7e95-8849-9d152e3b5eb5","at":1769069323000000000,"seq":231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019be4bf-d8cd-767f-8222-3f3abce57543","at":1769069336781000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019be4c0-52c0-74ab-93d8-5d1d096725a6","at":1769069368000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be4c0-a0e0-7f3d-a5a5-066ff7c068e4","at":1769069388000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019be4c0-d3a8-71c3-87e4-889021f68ff9","at":1769069401000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4c0-dcbe-7cb5-80bf-b8c5df617baf","at":1769069403326000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019be4c0-f6d0-7743-85cd-bc8993b01e39","at":1769069410000000000,"seq":237,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be4c1-0288-7e41-956f-af6a7c8adbee","at":1769069413000000000,"seq":238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4c1-1610-7bc3-a03f-309c38e34728","at":1769069418000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c1-a8cf-79b2-8f0c-714baf776f78","at":1769069455567000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019be4c1-b638-7569-b57f-3740d9d80b50","at":1769069459000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019be4c1-ba20-7c45-a0f7-306030ec60c6","at":1769069460000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be4c2-0070-7b20-b589-adec2c923e65","at":1769069478000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c2-0233-746a-bfaf-02340dda8979","at":1769069478451000000,"seq":244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019be4c2-3ef0-72b9-9c0f-01cbd3c99ba8","at":1769069494000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c2-4aa8-7ed5-9010-b2322cc19e05","at":1769069497000000000,"seq":246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4c2-5a48-7a86-9fe7-97fa7296b4ec","at":1769069501000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c2-ac50-79fd-8e0c-258691647096","at":1769069522000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4d7-e30d-7282-87ab-a145dc0e9e28","at":1769070912269000000,"seq":249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4d7-f588-756e-b9ae-f1fccb702c7a","at":1769070917000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d8-0140-7d57-94e2-163bd55ca9bf","at":1769070920000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019be4d8-40b2-71c2-a3d7-b4e596efa38c","at":1769070936242000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4d8-c61d-77d8-93f5-56d7f9bb391c","at":1769070970397000000,"seq":253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4d8-d430-7100-9370-f3d51cab4001","at":1769070974000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d8-eba0-7f92-a33f-caa7c8d8f8e0","at":1769070980000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d9-1e68-713c-bf76-665cfea757bc","at":1769070993000000000,"seq":256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4d9-8c3b-7fd2-93bd-130e2a5a327b","at":1769071021115000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4d9-baa8-7a36-af44-be0ff6219701","at":1769071033000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019be4da-08c8-7379-b6dd-da9a82469e5c","at":1769071053000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be4da-1868-7f5d-add0-4b4e3f9874ba","at":1769071057000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4da-2fd8-7fce-8411-89b3fb13eb6f","at":1769071063000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4da-37a8-703f-b16e-c81b2018a05f","at":1769071065000000000,"seq":262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4da-41da-757d-a86e-0656c4b40459","at":1769071067610000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4da-8d98-7923-a682-8181dcdd176a","at":1769071087000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019be4da-9568-7821-8fc9-c7e29026e65e","at":1769071089000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4da-b4a8-764f-827e-1284bcb9c51c","at":1769071097000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4da-c950-79f9-9cbc-fd8762b88117","at":1769071102288000000,"seq":267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4db-4918-7e50-867d-dc3d06635e69","at":1769071135000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be4ee-d5ec-703a-8cff-6dc7261d903b","at":1769072416236000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be4ef-3e78-7647-b6e1-d7ba084766df","at":1769072443000000000,"seq":270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4ef-59d0-77ea-ba4d-09cea9ad1ad3","at":1769072450000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ef-84c8-7e33-8e97-04a06849e6da","at":1769072461000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

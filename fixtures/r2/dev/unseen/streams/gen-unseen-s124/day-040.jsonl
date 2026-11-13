@@ -1,0 +1,20 @@
+{"v":1,"id":"019c41a9-9e07-7e22-a8f2-599b164d8e2e","at":1770628161031000000,"seq":555,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41a9-9e07-7f14-bb9b-f5913b87d806","at":1770628161031000000,"seq":556,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c41a9-e820-7fab-838b-aa9bed8c4f29","at":1770628180000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c41aa-2a88-7bcd-ba4a-cb0d4fc58641","at":1770628197000000000,"seq":558,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c41bc-6167-7bbc-94f3-78f5ec27f10d","at":1770629390695000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c41bc-7238-73e6-86d4-e81288d92174","at":1770629395000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41bc-a2bd-7b59-98ec-ca980b4be880","at":1770629407421000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c41bc-b888-795c-82f5-5692bac8e196","at":1770629413000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41bc-c828-7f67-b07c-c9e299f3fa31","at":1770629417000000000,"seq":563,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c41bc-d3e0-756e-993a-7f13ab9e8d3e","at":1770629420000000000,"seq":564,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c41bc-dbb0-7b12-b4c9-d118b190078e","at":1770629422000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c41bc-f320-716d-8556-170ab3e70153","at":1770629428000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41bd-410b-7f4e-b6a1-0d2cf64deee0","at":1770629447947000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c41be-3432-7b41-b489-21aeb0316780","at":1770629510194000000,"seq":568,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c41be-8d48-77a9-b6e1-f412c6034688","at":1770629533000000000,"seq":569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c41be-eb08-79f4-9239-e7ab35271430","at":1770629557000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41be-eef0-74c7-8f9f-9cd3adce80b5","at":1770629558000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41bf-03c2-7368-8a15-8db268f06977","at":1770629563330000000,"seq":572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c41bf-6fd8-743e-b793-68f7396af5aa","at":1770629591000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41bf-d568-73c1-9f15-11728572a02c","at":1770629617000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

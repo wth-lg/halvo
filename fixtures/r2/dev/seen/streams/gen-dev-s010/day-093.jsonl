@@ -1,0 +1,32 @@
+{"v":1,"id":"019d52af-f837-789a-a2ec-436063956249","at":1775208757303000000,"seq":1423,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52af-f837-7b3a-9cb8-e972ce4e45c1","at":1775208757303000000,"seq":1424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d52b2-63fa-75c8-acd1-9bb5d5d46505","at":1775208915962000000,"seq":1425,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d52b2-6bf0-7784-b18c-7e42293a1e31","at":1775208918000000000,"seq":1426,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b2-7f78-7c3f-bb3d-a11a3460ffba","at":1775208923000000000,"seq":1427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d52c7-3112-7e29-9984-0e6f2c395aa7","at":1775210279186000000,"seq":1428,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52c7-3112-78e9-9c5b-32339c951065","at":1775210279186000000,"seq":1429,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52c7-3828-709e-a9ae-a03256edbd9d","at":1775210281000000000,"seq":1430,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d52c7-5768-72c4-8476-0a9138c5b8ad","at":1775210289000000000,"seq":1431,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d52c7-8648-7274-851d-1107be128ea4","at":1775210301000000000,"seq":1432,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52c7-a970-74c2-bf95-1c1853d3a02a","at":1775210310000000000,"seq":1433,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52c7-ff93-7598-9ae1-720dc337dc16","at":1775210332051000000,"seq":1434,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d52c8-1ab8-7a4e-8c26-538715d3b3e3","at":1775210339000000000,"seq":1435,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d52c8-4998-70b0-a495-8f9d060530dc","at":1775210351000000000,"seq":1436,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d52cc-74d8-751f-83e0-ff006934c59f","at":1775210624216000000,"seq":1437,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52cc-74d8-7aca-b455-b0038d73a2d3","at":1775210624216000000,"seq":1438,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d52cc-d5a8-729c-820e-b7dea0356129","at":1775210649000000000,"seq":1439,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52cd-1040-7bc7-a824-59cd5e0380e4","at":1775210664000000000,"seq":1440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d52cd-1428-7a06-9d9d-20c41933ec2b","at":1775210665000000000,"seq":1441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52cd-2f80-70ec-81cc-3e3723b5a76c","at":1775210672000000000,"seq":1442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52cd-46f0-7ed7-bfd0-10d938e9cb3b","at":1775210678000000000,"seq":1443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e2-0109-7cb8-9570-caa39a01cb71","at":1775212036361000000,"seq":1444,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d52e2-5590-7e2e-b987-303419876c56","at":1775212058000000000,"seq":1445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e3-114c-7109-966f-86ec7963bc85","at":1775212106060000000,"seq":1446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d52e3-3ff0-79f6-ab54-cef8decd35fa","at":1775212118000000000,"seq":1447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d52e3-4f90-77e5-89ff-6c123d3195bc","at":1775212122000000000,"seq":1448,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52e3-5dda-7d67-9317-79f96a87dc36","at":1775212125658000000,"seq":1449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d52e3-b520-783e-8d4d-8e97eb320c90","at":1775212148000000000,"seq":1450,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d52e3-c8a8-7726-9c0f-6e9ad0c51677","at":1775212153000000000,"seq":1451,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d52e3-eb55-7a92-902f-80c94dc2bbfc","at":1775212161877000000,"seq":1452,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d52e4-12e0-7792-b5e9-e15ee685907f","at":1775212172000000000,"seq":1453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e4-68d0-7cf8-97a8-2b77a190551f","at":1775212194000000000,"seq":1454,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

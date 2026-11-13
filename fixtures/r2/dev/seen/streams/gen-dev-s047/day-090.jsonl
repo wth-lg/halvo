@@ -1,0 +1,22 @@
+{"v":1,"id":"019d4383-4911-7bba-93a6-eb12cc5fa5b7","at":1774954170641000000,"seq":1302,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4383-4911-7302-944b-20afb7a71228","at":1774954170641000000,"seq":1303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4383-5248-7c66-87cf-9abbd36ff165","at":1774954173000000000,"seq":1304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4383-90c8-7416-956e-39bf18655e1d","at":1774954189000000000,"seq":1305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d4383-9c80-718f-a7f8-3e5f93a69968","at":1774954192000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4383-a450-7429-a965-e80ef97571e8","at":1774954194000000000,"seq":1307,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4383-bbc0-7ef2-99a0-7b6b6633e356","at":1774954200000000000,"seq":1308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d438e-9bf5-7492-9a73-973996d493d2","at":1774954912757000000,"seq":1309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d438f-1218-7b79-9362-a585c535d5c0","at":1774954943000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d438f-6420-7e21-9182-655766900952","at":1774954964000000000,"seq":1311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d438f-6f8a-7823-99c1-13021094724d","at":1774954966922000000,"seq":1312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d438f-96e8-7287-9891-4cc617d4cdc6","at":1774954977000000000,"seq":1313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4390-5c6d-7643-b04f-1a433465f3f9","at":1774955027565000000,"seq":1314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d4390-5e20-7d97-a7c4-f5c9d1a65fb0","at":1774955028000000000,"seq":1315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4390-cbac-7254-beaf-bce0ee89b415","at":1774955056044000000,"seq":1316,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d4390-df08-73c3-a7c6-ebfacea68a2f","at":1774955061000000000,"seq":1317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4391-3cc8-779a-830d-a37e38bb27c8","at":1774955085000000000,"seq":1318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4398-b6d1-7bd0-9fe2-619a8eb37d19","at":1774955574993000000,"seq":1319,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4399-9580-73ee-b86c-3572bac07ad0","at":1774955632000000000,"seq":1320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d43a2-0795-7dab-922c-19136632e63a","at":1774956185493000000,"seq":1321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d43a2-1d18-74c7-aae6-7ed07a9b4f36","at":1774956191000000000,"seq":1322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d43a2-24e8-732d-973b-5e036474efaf","at":1774956193000000000,"seq":1323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

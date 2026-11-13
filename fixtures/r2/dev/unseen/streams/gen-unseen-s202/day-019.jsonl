@@ -1,0 +1,15 @@
+{"v":1,"id":"019bd541-c678-766d-919b-09ff73708311","at":1768809416312000000,"seq":257,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd541-c678-70c0-9703-7e0c88d0afc9","at":1768809416312000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bd542-1748-7218-9162-3d3f0c968d1f","at":1768809437000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd542-4df8-7a7e-a197-72b6ba826f8d","at":1768809451000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd542-8eff-73e6-b64f-9ede7b875fb4","at":1768809467647000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bd542-9060-7dba-8bc8-2b7434ca09cc","at":1768809468000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd542-cee0-79c5-868b-48f6b7fc9ed7","at":1768809484000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd559-3867-75ba-a2c4-071497d2e06d","at":1768810952807000000,"seq":264,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd559-3867-74b4-97db-e4557dbb8679","at":1768810952807000000,"seq":265,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd559-4cb0-7ce1-9031-6384b03dda0f","at":1768810958000000000,"seq":266,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bd559-6808-7066-b50b-0cf656361992","at":1768810965000000000,"seq":267,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd572-3720-7c8c-947c-2ee801c6f748","at":1768812590880000000,"seq":268,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bd572-52f0-79e6-b632-be96c77e10c1","at":1768812598000000000,"seq":269,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bd572-56d8-75fb-a95e-7b75a2c5ad8e","at":1768812599000000000,"seq":270,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bd572-5ea8-7f33-b4ee-ecba98e320f6","at":1768812601000000000,"seq":271,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

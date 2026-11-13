@@ -1,0 +1,46 @@
+{"v":1,"id":"019c2d2a-548b-7005-b0d7-1bbe4bc154d6","at":1770284274827000000,"seq":455,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d2a-548b-71cb-a218-32eb2e0e76fe","at":1770284274827000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2d2a-ab28-7173-971e-4949bf52176b","at":1770284297000000000,"seq":457,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d2a-c680-78bd-b1d5-43ec7c4c5b71","at":1770284304000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d33-020f-75f1-ac81-03a239a5a7ec","at":1770284843535000000,"seq":459,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2d33-020f-7890-b967-9552dd902438","at":1770284843535000000,"seq":460,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2d33-1f38-78e2-82a5-a4eb48b7d1fa","at":1770284851000000000,"seq":461,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c2d33-1f38-786e-9919-c4597a699bf8","at":1770284851000000000,"seq":462,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c2d33-3a90-7c12-8a19-aa2c3188d063","at":1770284858000000000,"seq":463,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d33-4260-75e0-af09-59b1d4e6c7be","at":1770284860000000000,"seq":464,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d33-80e0-7e4a-8ec6-d597fb367102","at":1770284876000000000,"seq":465,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c2d43-9e7c-7415-877a-9b828fd1b47a","at":1770285932156000000,"seq":466,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d43-9e7c-7df8-94cd-2778a1777d78","at":1770285932156000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c2d44-6786-76bf-9178-c3256e1f2076","at":1770285983622000000,"seq":468,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c2d44-e9e8-7238-b4c3-1f1cf8f8de6b","at":1770286017000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d44-fe41-7498-aeaa-eb037ccea3dd","at":1770286022209000000,"seq":470,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d45-d461-7d5a-8b44-ef730f718539","at":1770286077025000000,"seq":471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d46-9942-7e18-89d9-37ba2b0299ae","at":1770286127426000000,"seq":472,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d46-ed88-7ade-9058-49db24c07e0c","at":1770286149000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d46-fa9a-7750-8641-80e7d7f9a882","at":1770286152346000000,"seq":474,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d47-2c08-74fd-a556-d5c6dfe9efec","at":1770286165000000000,"seq":475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d47-2ff0-7a8b-b00b-ea34a5d652f1","at":1770286166000000000,"seq":476,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d47-4f30-70fc-bf62-6e2be39ab10a","at":1770286174000000000,"seq":477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c2d47-5700-7c03-ad13-0e287e5a0950","at":1770286176000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d47-65b9-7558-8790-14f6c6df9602","at":1770286179769000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d47-6e70-7cf9-a228-2827971a24a8","at":1770286182000000000,"seq":480,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2d47-89c8-7a56-b7d5-047bf2dc1421","at":1770286189000000000,"seq":481,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d47-a138-7646-8200-e7a676ff2b28","at":1770286195000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d48-2220-758f-a818-59d03e9b7380","at":1770286228000000000,"seq":483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d48-29f0-7832-a232-0c71adb9d48d","at":1770286230000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c2d48-3b8f-7fd9-b2c0-ae38e4802a19","at":1770286234511000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d48-8f80-784d-98d3-639d04ef17c8","at":1770286256000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c2d48-9750-75e6-a0b5-a1c7b15e01a3","at":1770286258000000000,"seq":487,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d48-f128-76f0-ad29-61ebae6f3f8c","at":1770286281000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d48-f510-7b90-9d63-437f308adfd9","at":1770286282000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d48-f8f8-7131-ae45-fe3219b007e7","at":1770286283000000000,"seq":490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d49-1aca-77fb-a61c-68f087939e48","at":1770286291658000000,"seq":491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c2d49-2bc0-77ad-89ab-eff00c68bd92","at":1770286296000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d49-3390-70a0-92bd-c8929b75a482","at":1770286298000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d49-4b00-7a27-97ad-369ad505ab5d","at":1770286304000000000,"seq":494,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d49-4ee8-788a-b3de-41bc33417da2","at":1770286305000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c2d49-5989-7374-b399-da191e1605a6","at":1770286307721000000,"seq":496,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c2d49-5aa0-74fe-9e6c-3bb7cad1b0cd","at":1770286308000000000,"seq":497,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d4a-1238-7b61-93d9-7bcb5837ed38","at":1770286355000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c2d4a-1df0-7ef9-9ffb-0beeb941dbe4","at":1770286358000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d4a-29a8-787c-9000-27b340d440a0","at":1770286361000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

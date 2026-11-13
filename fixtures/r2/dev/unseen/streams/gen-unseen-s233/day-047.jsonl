@@ -1,0 +1,14 @@
+{"v":1,"id":"019c658f-a6c2-777a-a90e-1520b06f8109","at":1771230439106000000,"seq":684,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c658f-a6c2-7b1b-bda5-619a27538655","at":1771230439106000000,"seq":685,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c6590-13b8-7601-9898-4caeaba2f49c","at":1771230467000000000,"seq":686,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c6590-1b88-73ca-b20a-4d3ce981b7fc","at":1771230469000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6590-223f-7ff7-b6e6-fb2e7002a028","at":1771230470719000000,"seq":688,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c6590-36e0-7fd8-b243-f86b5ed3680f","at":1771230476000000000,"seq":689,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6590-5df0-777f-baa0-22fa27598710","at":1771230486000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6590-ded8-7216-92b0-302dcdf0e5f9","at":1771230519000000000,"seq":691,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c6591-1ec7-7c5a-82c8-2a73f709fd15","at":1771230535367000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c6591-2140-77f2-bbf2-5b36ddf38b49","at":1771230536000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6591-30e0-7e60-8e07-c2ca209d2bc6","at":1771230540000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6591-57f0-74d0-a42e-c59b6bfe040f","at":1771230550000000000,"seq":695,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6591-9288-7ee4-9862-2ac1d084b3a6","at":1771230565000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c6591-9c51-701d-ab83-647211ea7399","at":1771230567505000000,"seq":697,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}

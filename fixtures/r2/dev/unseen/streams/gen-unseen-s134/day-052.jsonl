@@ -1,0 +1,21 @@
+{"v":1,"id":"019c7f87-e280-764c-a953-c1d9e212919e","at":1771666137728000000,"seq":706,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f87-e280-7199-8d12-d97ae36a2bd7","at":1771666137728000000,"seq":707,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7f88-2210-7713-937a-0eab7fdc3d3e","at":1771666154000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7f88-84e7-7a5a-b4ce-127576dd48fc","at":1771666179303000000,"seq":709,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this month - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7f88-9f10-7729-aa91-aa690d6ee40a","at":1771666186000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f88-b680-77eb-83b0-cc9be4d33f95","at":1771666192000000000,"seq":711,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f89-04a0-7f75-a1ec-4aada79d396c","at":1771666212000000000,"seq":712,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f89-0e3b-7d34-acfa-546edebea10f","at":1771666214459000000,"seq":713,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7f89-4320-7b4e-8f0b-935f5c61d68b","at":1771666228000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f89-db78-7229-a77e-37a82765b8e7","at":1771666267000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f89-e0f6-7e61-93cb-66365a75899f","at":1771666268406000000,"seq":716,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7f89-ef00-7496-a36b-8f70a8afa203","at":1771666272000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f8a-6fe8-7545-b1b7-d75d9cd574a6","at":1771666305000000000,"seq":718,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f8a-77b8-766d-81f3-504ef7848f4a","at":1771666307000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f8a-8370-7fca-af2c-369351d546d3","at":1771666310000000000,"seq":720,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f98-3469-7053-8966-d0e70bf7ea0a","at":1771667207273000000,"seq":721,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c7f98-9cd0-7a30-8d5d-0ac7fe970102","at":1771667234000000000,"seq":722,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c7f98-f6a8-7572-8f25-84ac9da644b5","at":1771667257000000000,"seq":723,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f99-0032-775a-bb49-287a5fab10c5","at":1771667259442000000,"seq":724,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c7f99-4c98-7352-adca-a37ce0d5ab01","at":1771667279000000000,"seq":725,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f99-8348-7716-979f-fbae14ce3500","at":1771667293000000000,"seq":726,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

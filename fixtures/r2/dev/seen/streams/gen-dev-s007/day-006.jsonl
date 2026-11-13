@@ -1,0 +1,41 @@
+{"v":1,"id":"019b927c-fdf3-77b3-9600-cc3909a68a45","at":1767689223667000000,"seq":68,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b927c-fdf3-7a84-8546-9c609690b50d","at":1767689223667000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b927c-ff40-742e-a05a-0d5dfdc70d14","at":1767689224000000000,"seq":70,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b927d-5530-7f51-934b-83c02061574c","at":1767689246000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b927d-5efa-7abd-8161-335613bce54a","at":1767689248506000000,"seq":72,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b927d-dde8-7ebc-9822-a1cfd58cfd68","at":1767689281000000000,"seq":73,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b927e-1c68-735b-8bfe-95939362f536","at":1767689297000000000,"seq":74,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b927e-6024-7c2e-8f03-f396d856d844","at":1767689314340000000,"seq":75,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b927e-62b8-7f99-9e51-3db22337c43a","at":1767689315000000000,"seq":76,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b927e-6a88-79ec-a534-67ff892d14d3","at":1767689317000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b927e-d801-72d6-b66e-20801da4b3b8","at":1767689345025000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b927f-83c8-7d32-b25d-99244d8ba244","at":1767689389000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b927f-87b0-7fd0-b695-8279db5d296e","at":1767689390000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b927f-e23a-77c2-989d-fe18b28e35b5","at":1767689413178000000,"seq":81,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b927f-f510-700b-bed2-17cdb042d9d9","at":1767689418000000000,"seq":82,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9280-0c80-7a3a-8d9e-9dace55375b1","at":1767689424000000000,"seq":83,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9280-3778-78fb-b8fa-4c3150b44df9","at":1767689435000000000,"seq":84,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9280-6e28-7c36-a679-f8fbdb2bc340","at":1767689449000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b9280-711c-7c9d-9756-a72a59e591c7","at":1767689449756000000,"seq":86,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b9280-75f8-7014-a030-284cbc2bd0cc","at":1767689451000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9280-c030-729f-baa3-c874edadb109","at":1767689470000000000,"seq":88,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b928f-576a-7239-884d-8d74f7f18c81","at":1767690426218000000,"seq":89,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b928f-5e60-76ef-9813-17dc6f34515c","at":1767690428000000000,"seq":90,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b928f-79b8-7ee2-ab20-cbd6121156a5","at":1767690435000000000,"seq":91,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b928f-8188-7587-b378-30ca270f506a","at":1767690437000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b928f-9510-7e41-8a4d-14ad4168909a","at":1767690442000000000,"seq":93,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b92a0-644a-72a3-b8df-41af096372e5","at":1767691543626000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b92a0-7d30-7e88-8b0e-6f0d223be208","at":1767691550000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92a0-e002-798b-93b6-34ace8632801","at":1767691575298000000,"seq":96,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b92a1-30e0-776d-bc9f-5b1262322de7","at":1767691596000000000,"seq":97,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b92a1-57f0-7e5d-b3a8-a2434dc80fc0","at":1767691606000000000,"seq":98,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92a1-9e40-716a-a75b-92a853ec82d4","at":1767691624000000000,"seq":99,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92a1-b5b0-7ea0-b8e1-c6ff44ba8f2c","at":1767691630000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b92a1-b612-788b-8848-424714231ab4","at":1767691630098000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b92a2-03d0-73e2-b020-b37f52a73fc9","at":1767691650000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92a2-1f28-7748-9448-a8ab283c36b3","at":1767691657000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b92a2-26f8-76d8-816c-a5092223864a","at":1767691659000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92a2-2f79-7a02-98b1-77637d57a996","at":1767691661177000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b92a2-6d48-7f11-a0bb-109cd7f2a367","at":1767691677000000000,"seq":106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b92a2-8c88-748d-96fd-91a3f1e50486","at":1767691685000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b92ae-9330-799a-aea0-738cb35c6ac9","at":1767692473136000000,"seq":108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}

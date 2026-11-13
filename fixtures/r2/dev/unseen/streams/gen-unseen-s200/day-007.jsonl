@@ -1,0 +1,22 @@
+{"v":1,"id":"019b9766-43b9-790b-876e-51495402aa4e","at":1767771620281000000,"seq":113,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9766-43b9-754b-ab9b-f6c94f92c36d","at":1767771620281000000,"seq":114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b9766-5628-7169-b7e3-818d576a4496","at":1767771625000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9766-7d38-7213-ac0e-2c36d47ec51c","at":1767771635000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9766-8059-7518-a0ff-15b45fca2c2c","at":1767771635801000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b9766-ac18-7074-965c-086f2497e06a","at":1767771647000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b9766-d710-7d59-bdf9-54268c864b20","at":1767771658000000000,"seq":119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9766-ea98-757d-a9dd-01edcee15a2d","at":1767771663000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9767-7738-7f6c-9e17-8dbc7ba9a4de","at":1767771699000000000,"seq":121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9767-7bb5-73a8-ba9d-2ca4250a1269","at":1767771700149000000,"seq":122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b9767-b9a0-7466-8648-a9ecdbedd845","at":1767771716000000000,"seq":123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b9767-c940-7c78-9848-6c911c9e4d31","at":1767771720000000000,"seq":124,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9767-d110-7462-96ee-9e25a6c867d3","at":1767771722000000000,"seq":125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9768-4b13-7bcd-812c-a67bd6a35fb2","at":1767771753235000000,"seq":126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b9768-55e0-7c04-8c40-d4e26a5151f6","at":1767771756000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9768-7cf0-773f-b281-2f8bc7a5ba14","at":1767771766000000000,"seq":128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9768-9460-75bb-a58f-83fb719ce53d","at":1767771772000000000,"seq":129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9768-a400-76a9-bb4c-5001aebca66b","at":1767771776000000000,"seq":130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b977c-1276-7aa5-9d84-503aee8e411d","at":1767773049462000000,"seq":131,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b977c-37b8-7f05-b83c-bcb95f3f07bd","at":1767773059000000000,"seq":132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977c-c840-7c0c-97e7-6982f81e442b","at":1767773096000000000,"seq":133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977c-f720-7966-961a-2c6a99deedba","at":1767773108000000000,"seq":134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,34 @@
+{"v":1,"id":"019c1db4-c642-7199-b145-6591ef650f77","at":1770024912450000000,"seq":542,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1db4-c642-772d-9c57-80c13086c65d","at":1770024912450000000,"seq":543,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1db4-f748-7640-8232-ba124577f1c2","at":1770024925000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db5-0ad0-77f4-95bd-5382fe44e2d8","at":1770024930000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db5-12a0-78be-8c5f-c19aca555b07","at":1770024932000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c1dcc-5b7a-7c53-990b-d7a0c307eff3","at":1770026457978000000,"seq":547,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1dcc-9df8-71d8-a509-3aa457b4c6d8","at":1770026475000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dcc-b180-70cc-912a-759edf61d421","at":1770026480000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c1ddb-3138-7e18-a9b4-09421c1d150d","at":1770027430200000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1ddb-47e0-77eb-aa9d-bcb240b78393","at":1770027436000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1ddb-7e90-7036-91aa-f13f2da04e68","at":1770027450000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c1ddb-9315-70c8-bf93-6f0cb1f8765a","at":1770027455253000000,"seq":553,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1ddb-a5a0-7ed2-a07b-b2e30a94f221","at":1770027460000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1ddb-c4e0-76fc-98c6-ac71039615ce","at":1770027468000000000,"seq":555,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1ddc-0b30-724c-ae5f-469ef240928f","at":1770027486000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1ddc-8060-74a6-8814-f982c23aa0ab","at":1770027516000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c1ddc-8830-7701-93f8-f954e3ceafa6","at":1770027518000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1ddc-9911-7238-af15-be82bf808ce6","at":1770027522321000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1ddc-b710-74f0-a04a-4f53b173ea95","at":1770027530000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c1ddd-2858-7ff5-ad9a-306af67317b5","at":1770027559000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1ddd-2d2d-7ec3-a870-4de331a9dab4","at":1770027560237000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1ddd-3fc8-765e-930d-c1e3c9db231b","at":1770027565000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c1ddd-5b20-73b3-bbe0-93a9888be315","at":1770027572000000000,"seq":564,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1ddd-dc08-7799-9782-0ecf3681a587","at":1770027605000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dde-0ae8-7e98-8f78-d9b62ade221b","at":1770027617000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dde-3781-7c6f-b60a-f3076fbb0418","at":1770027628417000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1dde-60d8-7f8a-879d-aefc1419df0f","at":1770027639000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dde-7460-7a21-a08a-68b5b9e82622","at":1770027644000000000,"seq":569,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1dde-87e8-745b-af66-decbb62f0ad9","at":1770027649000000000,"seq":570,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1dde-971d-7194-a0c7-bc568fabead9","at":1770027652893000000,"seq":571,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1df7-5ad9-761a-b0dd-69afda0583a5","at":1770029275865000000,"seq":572,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1df7-5ad9-7b91-969f-0bd0eeab17b6","at":1770029275865000000,"seq":573,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1df7-95f8-782c-a2d3-1f6a8ab13b5e","at":1770029291000000000,"seq":574,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1df7-a1b0-7f92-a6b4-6574acb73f1a","at":1770029294000000000,"seq":575,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

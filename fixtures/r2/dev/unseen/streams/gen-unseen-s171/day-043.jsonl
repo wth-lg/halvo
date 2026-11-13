@@ -1,0 +1,43 @@
+{"v":1,"id":"019c5144-1868-7824-9991-7ec398b07fdc","at":1770889943144000000,"seq":529,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5144-1868-73b2-86ee-b925493a512a","at":1770889943144000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5144-1bc0-7567-a746-fdfdcbac8be0","at":1770889944000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5144-5a40-7fe0-8a46-608fbe4307bc","at":1770889960000000000,"seq":532,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5144-65f8-79e6-86cf-df485a9fd587","at":1770889963000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c5144-ce07-7ecd-82d0-65a24c297a70","at":1770889989639000000,"seq":534,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5144-cf70-7ce5-8f56-b2e2c08a629d","at":1770889990000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5144-d740-72b0-acfe-3f77abcfdde7","at":1770889992000000000,"seq":536,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5144-fe50-78a6-b7ff-16f2ce0b66c0","at":1770890002000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5145-0b2b-7c06-8106-b9566284984c","at":1770890005291000000,"seq":538,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5145-c970-75e5-b2ba-81f5b6d15160","at":1770890054000000000,"seq":539,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5145-ded5-75b0-8fc7-81fedcd1a0b6","at":1770890059477000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5145-ec98-74a6-bfa0-171312eb3c10","at":1770890063000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c5146-72ab-7b78-b934-d66a647ef6d3","at":1770890097323000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5146-88d8-77b2-b52e-37cbf04c4fc8","at":1770890103000000000,"seq":543,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5146-ee68-7520-9960-ae7618f19719","at":1770890129000000000,"seq":544,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5147-396d-7311-830c-80747e9b5e74","at":1770890148205000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5155-3ae2-74c2-9218-21845ad2bf69","at":1770891066082000000,"seq":546,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c5155-59d0-7614-b349-117d850f1835","at":1770891074000000000,"seq":547,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5155-5db8-7e6a-a7fa-50b0634f3a2e","at":1770891075000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c5155-61a0-71f9-90cb-7f29a66a8ec1","at":1770891076000000000,"seq":549,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5155-88b0-7b23-a326-14765360d2a7","at":1770891086000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c516d-22c4-7007-a6f6-b578562b0703","at":1770892632772000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c516d-8550-7f32-af3b-07ebcde3a4b5","at":1770892658000000000,"seq":552,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c516d-98d8-75b0-81e1-963456c29e60","at":1770892663000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c516d-b430-76a2-9cba-9d8382119061","at":1770892670000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c516e-0e08-7015-a6ea-2a69353d2356","at":1770892693000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c5182-60f2-7c53-895b-2af098971b40","at":1770894024946000000,"seq":556,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c5183-00ed-7842-8239-e704ae118989","at":1770894065901000000,"seq":557,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c5183-14d8-760b-9447-f50eae0f4eb6","at":1770894071000000000,"seq":558,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5183-43b8-7552-b5a3-72903ffca215","at":1770894083000000000,"seq":559,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5183-8a08-7e0a-bb7a-2a3615f8f6d6","at":1770894101000000000,"seq":560,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5183-b525-7504-90e8-bfeeb5e2d3ae","at":1770894112037000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c5183-ebfd-7d9f-8513-34ee0491bcc1","at":1770894126077000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c5184-1e78-735f-ba7d-410a25fcd4a8","at":1770894139000000000,"seq":563,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5184-2260-7e07-aa44-8d089a29086b","at":1770894140000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5184-2a30-77f7-b91c-da2fdac25bb7","at":1770894142000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5184-3db8-7441-ba6b-3ea43d36219d","at":1770894147000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c5186-0d5c-72d1-9852-c65e0c58276b","at":1770894265692000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c5186-0e90-7ba7-8f3b-76c9ebae1340","at":1770894266000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5186-2dd0-70db-aba9-6bdee7c00680","at":1770894274000000000,"seq":569,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5186-4928-76f3-82bf-fa8042184628","at":1770894281000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5186-9b30-7c64-9814-12ce51d7ce18","at":1770894302000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

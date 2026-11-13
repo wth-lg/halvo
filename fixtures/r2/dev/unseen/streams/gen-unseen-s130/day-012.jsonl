@@ -1,0 +1,21 @@
+{"v":1,"id":"019bb1dc-8cea-7b30-80a5-221de6fd1d38","at":1768215579882000000,"seq":212,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1dc-8cea-7b4c-af3e-e8ed9b448efe","at":1768215579882000000,"seq":213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bb1dc-9d00-76bc-b9b9-439e3752b960","at":1768215584000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bb1dc-bc40-70f4-9d65-30c85e1e000f","at":1768215592000000000,"seq":215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1dc-d5e9-741d-8183-4bac4a72b243","at":1768215598569000000,"seq":216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bb1dc-eb20-706c-8462-aaf0830cd7e9","at":1768215604000000000,"seq":217,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb1dc-fea8-7a34-8b55-5d46d920608e","at":1768215609000000000,"seq":218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1dd-0a60-7517-985f-a3522e8c3a22","at":1768215612000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1dd-2495-75e9-b2e2-9e3f715166ff","at":1768215618709000000,"seq":220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bb1dd-4cc8-70dc-ab25-7159d084d192","at":1768215629000000000,"seq":221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb1dd-ecf0-799f-a6ec-b573f6dd066c","at":1768215670000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bb1e1-1c2b-78b9-a504-913279f6010e","at":1768215878699000000,"seq":223,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb1e1-1c2b-7bc2-8d5c-ea28c47fa981","at":1768215878699000000,"seq":224,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb1e1-a52f-7dfc-875e-80b8e38b5c21","at":1768215913775000000,"seq":225,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb1e2-4638-7c11-b7e3-398c8afd4f6c","at":1768215955000000000,"seq":226,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bb1e2-4e08-7517-9ef5-78b0bf6f53c8","at":1768215957000000000,"seq":227,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bb1e2-7130-7048-92bb-aa790d7ab40f","at":1768215966000000000,"seq":228,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1f3-ded5-7fe6-b2c2-6755b233a4b0","at":1768217108181000000,"seq":229,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1f3-ded5-77e7-b13e-a3553ed217a8","at":1768217108181000000,"seq":230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb1f4-5350-7ea8-b052-83787803aad8","at":1768217138000000000,"seq":231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb1f4-8230-7384-96e7-0bd7208ae0e3","at":1768217150000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

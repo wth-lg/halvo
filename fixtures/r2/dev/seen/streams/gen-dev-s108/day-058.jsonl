@@ -1,0 +1,8 @@
+{"v":1,"id":"019c9dfb-3b28-71e8-bf98-35a59545cd5d","at":1772177013544000000,"seq":1092,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9dfb-3b28-7fa6-8e10-55c20b8c4c38","at":1772177013544000000,"seq":1093,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c9dfb-8340-72b6-9b40-c41c63e69a25","at":1772177032000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9dfb-fc50-738c-8f57-d94462530034","at":1772177062992000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c9dfc-1f80-7949-8e55-05030d878043","at":1772177072000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9dfc-2f20-7e34-8832-8fef59eacd9a","at":1772177076000000000,"seq":1097,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e0b-5915-7c23-8d3b-43dc3c7377db","at":1772178069781000000,"seq":1098,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9e0b-9870-79d9-9cea-082dfa8e1816","at":1772178086000000000,"seq":1099,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,23 @@
+{"v":1,"id":"019c4b81-462d-7031-95c2-7a1fefab1dae","at":1770793289261000000,"seq":606,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4b81-462d-7957-870d-1a71ab7a4e2b","at":1770793289261000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4b81-6850-76e9-bb45-34f95b42e89a","at":1770793298000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b82-556c-7d87-bdf5-049c922f17ae","at":1770793358700000000,"seq":609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4b83-21b8-7b44-b8b7-f31a17a9eadf","at":1770793411000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b83-3d10-7ad6-927c-a1da02c3a97d","at":1770793418000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b83-53dc-7692-9d86-3745cee03a00","at":1770793423836000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4b83-8360-72d6-bb75-087063cb542a","at":1770793436000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b83-8748-74a9-9ab5-88ab814be0d7","at":1770793437000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4b83-9300-7017-9684-f0f2ef52322b","at":1770793440000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b83-abb9-7990-acf9-61670197ca18","at":1770793446329000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4b84-4a98-73c5-b883-32bff7f02547","at":1770793487000000000,"seq":617,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4b84-6a71-7b43-8cc9-654095f79234","at":1770793495153000000,"seq":618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4b84-8148-727f-bbbb-c2f52790208e","at":1770793501000000000,"seq":619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c4b84-a088-7a4b-9128-30da8d9f9886","at":1770793509000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4b84-cb80-7c05-91e3-3271f06f2127","at":1770793520000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b85-2940-7f8e-b8de-6e39b51db0f1","at":1770793544000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b85-2a21-7ac3-8d0f-0512fbea8ab1","at":1770793544225000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4b85-4498-798b-a023-6cb51b24746a","at":1770793551000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c4b9c-01f3-743a-8e23-ae2f41eea008","at":1770795041267000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4b9c-3b80-77ac-bed6-0f7fc307acf1","at":1770795056000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c4b9c-b498-7641-a4fb-9e67b9c1347b","at":1770795087000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4b9c-e760-7b68-9a11-e1e422a733b7","at":1770795100000000000,"seq":628,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

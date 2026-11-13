@@ -1,0 +1,24 @@
+{"v":1,"id":"019c2780-7ba2-7e80-81db-b5ff14560af2","at":1770189257634000000,"seq":434,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2780-7ba2-7bcb-a374-f4f9be83a068","at":1770189257634000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2780-84e0-7d2e-8736-d33a8f45ad1a","at":1770189260000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2780-a808-7455-a49f-1a06abd28a6d","at":1770189269000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c278f-363c-7e40-9c43-931553267425","at":1770190222908000000,"seq":438,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c278f-9840-7689-92ba-fd62db903691","at":1770190248000000000,"seq":439,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c278f-fdd0-756b-be18-43a19a45dad4","at":1770190274000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c2792-585a-7779-aeb6-3b13649e0e50","at":1770190428250000000,"seq":441,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c2792-7e70-706f-8ec5-ca13c98bb05c","at":1770190438000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2792-9d6a-7b54-b785-b19b3973ca5e","at":1770190445930000000,"seq":443,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c2792-a580-7bd7-aee0-9b21e4339e0a","at":1770190448000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2792-c0d8-782b-9a09-4b54227fb470","at":1770190455000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2793-803b-7c46-8b85-5fd60b1e0dd3","at":1770190503995000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c2793-b308-7a28-99cd-b96cc0d7191c","at":1770190517000000000,"seq":447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c2793-d630-7856-8904-c9ea5a3450aa","at":1770190526000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2794-5ee8-7ac9-a7d0-cd6dd3f536df","at":1770190561000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2794-8d0c-7649-ae63-2a92c1fcc7d2","at":1770190572812000000,"seq":450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c2794-9d68-79b2-a5f1-6da36ff0a755","at":1770190577000000000,"seq":451,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2794-bca8-7fa6-ba3e-b7d36b9b7cc1","at":1770190585000000000,"seq":452,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c279f-6cfa-7e96-8249-38b25d12a575","at":1770191285498000000,"seq":453,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c279f-8a48-7572-94e8-720212255f3e","at":1770191293000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c279f-9600-746f-b833-f14121150e5a","at":1770191296000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c279f-a988-7a08-acf4-85f4372906ab","at":1770191301000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c279f-e420-7e39-a1e8-dafe0781a9f1","at":1770191316000000000,"seq":457,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

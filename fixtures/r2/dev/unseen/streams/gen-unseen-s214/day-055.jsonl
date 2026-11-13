@@ -1,0 +1,21 @@
+{"v":1,"id":"019c8f3f-591f-7986-91ac-632b75a23828","at":1771929819423000000,"seq":628,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8f3f-591f-7a5d-96f4-7bbbb135c2a9","at":1771929819423000000,"seq":629,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8f3f-6ee8-7557-98bd-2fa0830c9e38","at":1771929825000000000,"seq":630,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f45-0e5e-713d-a29c-b26b9960d7c7","at":1771930193502000000,"seq":631,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8f45-0e5e-76cb-82f4-5e28000731f5","at":1771930193502000000,"seq":632,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8f45-75e0-783c-947f-ceb77bf0877e","at":1771930220000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f45-ac90-79fc-ba7e-7de851cdc5ba","at":1771930234000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f45-b867-7304-b4a4-885a26255787","at":1771930237031000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c8f45-f2e0-7838-a723-c997c091eac9","at":1771930252000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c8f46-1220-71b3-95af-204f96ab71e4","at":1771930260000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f46-1608-7c04-80c6-a1f99c2d37a0","at":1771930261000000000,"seq":638,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8f46-513f-782b-98ac-6e1bdfe67e41","at":1771930276159000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8f46-9ad8-753d-b5de-bc26e5ededec","at":1771930295000000000,"seq":640,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8f46-e128-7ab6-a4f9-d7087f01a470","at":1771930313000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c8f47-5970-7dbd-80d6-165770fcc6bc","at":1771930343792000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8f47-71b0-713e-bac1-edd6c144a669","at":1771930350000000000,"seq":643,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8f47-94d8-7e23-9712-f1a7ea060a24","at":1771930359000000000,"seq":644,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8f47-a860-7a1e-860b-a3275d29da6d","at":1771930364000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f47-c08a-779c-bd79-3885403a145b","at":1771930370186000000,"seq":646,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8f47-d740-7279-904a-2ba8a21f612e","at":1771930376000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f47-fe50-7678-95e2-5cc0131fff61","at":1771930386000000000,"seq":648,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

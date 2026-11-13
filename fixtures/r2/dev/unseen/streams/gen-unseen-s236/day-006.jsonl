@@ -1,0 +1,13 @@
+{"v":1,"id":"019b92f3-f462-7f8c-9b20-103798793567","at":1767697020002000000,"seq":92,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b92f3-f462-746f-a0ee-8227c7439293","at":1767697020002000000,"seq":93,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b92f4-6de9-7e7b-8b9b-177009b534fe","at":1767697051113000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b92f4-7930-73fb-807b-b78106ace98c","at":1767697054000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92f4-9c58-76e8-a4e3-97925d91d623","at":1767697063000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b92f5-2368-7536-a33e-da24240a3992","at":1767697097576000000,"seq":97,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b92f5-2ce0-7da7-b77d-c04b8cee073f","at":1767697100000000000,"seq":98,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b92f5-6390-7eaa-a6f8-de0db5034a2e","at":1767697114000000000,"seq":99,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92f5-7682-7437-becc-ce34f5d13632","at":1767697118850000000,"seq":100,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b92f5-82d0-7c8c-9103-4b85b4f87e92","at":1767697122000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92f5-b1b0-7a58-a343-80e6156c7333","at":1767697134000000000,"seq":102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b92f5-bd68-7057-a2a8-2a5d9fc3d137","at":1767697137000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b92f5-ec48-7047-b82e-ae31e953cdc0","at":1767697149000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,10 @@
+{"v":1,"id":"019d2941-d10b-7ea7-aeec-98a181fb4ac7","at":1774513672459000000,"seq":1183,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2941-d10b-778a-9097-45d39df7b9f0","at":1774513672459000000,"seq":1184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d2953-1cb0-7d72-ad8d-d56384aa8316","at":1774514805936000000,"seq":1185,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2953-1cb0-7812-a100-374520a07de2","at":1774514805936000000,"seq":1186,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2953-28a8-7152-a333-0e1f2123a571","at":1774514809000000000,"seq":1187,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2953-e54b-778f-a4f6-a3406e9178d0","at":1774514857291000000,"seq":1188,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2954-0f20-7bba-ac97-9169574b8aca","at":1774514868000000000,"seq":1189,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d2960-51a4-78fc-a108-82c0205d5a51","at":1774515671460000000,"seq":1190,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2960-9240-7148-879f-5fd808b4408e","at":1774515688000000000,"seq":1191,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d2961-1ee0-766c-9359-853fad5b039f","at":1774515724000000000,"seq":1192,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}

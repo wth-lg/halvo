@@ -1,0 +1,43 @@
+{"v":1,"id":"019bf423-4722-796b-8248-9fddf15bda2b","at":1769327511330000000,"seq":320,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf423-4722-7ab6-92d6-110e7ddfdf8b","at":1769327511330000000,"seq":321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf423-6130-778b-8a66-6fd9040d729c","at":1769327518000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bf423-98db-729e-b23e-3cd0e9d2d9b1","at":1769327532251000000,"seq":323,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf423-caa8-74ec-ab00-0ca8b5cfdceb","at":1769327545000000000,"seq":324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bf423-ce90-7285-b2f8-17c67e6b1cec","at":1769327546000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf423-d8a2-7372-b5be-12c799363f99","at":1769327548578000000,"seq":326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf423-f5a0-7b65-a046-1e72a1c85916","at":1769327556000000000,"seq":327,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf424-95c8-7ed8-87a3-310e5f39b16f","at":1769327597000000000,"seq":328,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf424-a4a9-7e53-8aab-73175583aece","at":1769327600809000000,"seq":329,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf424-b8f0-78bc-9430-65f42f5f231d","at":1769327606000000000,"seq":330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bf424-e3c0-7f91-b484-38957a7e7534","at":1769327616960000000,"seq":331,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf425-afd1-70ab-9cc3-4d41fef9505f","at":1769327669201000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf425-dde8-7d2a-a0fb-c88d35684283","at":1769327681000000000,"seq":333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf426-04f8-75a6-8f32-1de8fe5278d9","at":1769327691000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf426-4760-7481-9dec-1ccdaf83dc38","at":1769327708000000000,"seq":335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf437-4093-7c1f-8f7a-fd6e8757e956","at":1769328820371000000,"seq":336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bf437-a4b0-7e94-8c3c-3ca66b536666","at":1769328846000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf437-d778-7ebc-a5c4-c8df8e07c11c","at":1769328859000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf437-fe88-75c2-a20b-e6e63c042371","at":1769328869000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bf438-224e-7de4-af49-88bdabccda30","at":1769328878158000000,"seq":340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bf438-c5c0-7889-964d-560ba4873b46","at":1769328920000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf438-f46f-7418-b759-2f088ec6b027","at":1769328931951000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bf439-2f38-7275-9f58-85032bb34da3","at":1769328947000000000,"seq":343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bf439-8140-7007-abdd-4b3ba01602b3","at":1769328968000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf439-c3de-70fa-88f4-137cc54ce6b3","at":1769328985054000000,"seq":345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bf43a-9698-749b-b04e-cb513d2b1614","at":1769329039000000000,"seq":346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf44e-32d0-70b7-a200-43b837495080","at":1769330324176000000,"seq":347,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf44e-32d0-7327-b517-86693b10d280","at":1769330324176000000,"seq":348,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf44e-41c0-7031-8f7c-64cad5697dfa","at":1769330328000000000,"seq":349,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf44e-6cb8-7e6a-afad-39cdaaa9d632","at":1769330339000000000,"seq":350,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bf44e-7488-726d-a1d1-f3dc0dd70708","at":1769330341000000000,"seq":351,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bf44e-a368-72be-adb1-d7a756e66fdf","at":1769330353000000000,"seq":352,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bf453-7236-7df2-935d-e21092f60f54","at":1769330668086000000,"seq":353,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf453-7236-72e5-93a9-429d96899a9c","at":1769330668086000000,"seq":354,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf453-d388-78c3-9698-53f760bc6636","at":1769330693000000000,"seq":355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf454-1dc0-7797-849e-c9ad8f1ccf74","at":1769330712000000000,"seq":356,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf454-21a8-72e1-acf0-cc8931ade837","at":1769330713000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf454-6028-7ad8-8fa9-348dd7bd8390","at":1769330729000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf468-5ecc-76af-95cc-6ffffb034d67","at":1769332039372000000,"seq":359,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf468-5ecc-73ca-86b1-db607804ee1a","at":1769332039372000000,"seq":360,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf468-6910-79a3-a91e-933924541ed6","at":1769332042000000000,"seq":361,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bf468-e610-778c-b69b-640c3e3fd3b3","at":1769332074000000000,"seq":362,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

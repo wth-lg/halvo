@@ -1,0 +1,20 @@
+{"v":1,"id":"019c93ae-0d38-77ca-ae3d-3ac99f160d9c","at":1772004183352000000,"seq":452,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c93ae-0d38-7e62-882f-d5234686f52c","at":1772004183352000000,"seq":453,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c93ae-59f8-7d8a-8a24-c73fd5387c0b","at":1772004203000000000,"seq":454,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c93ae-b3d0-7253-86b7-2987ddcbd8b8","at":1772004226000000000,"seq":455,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c93ae-ee68-7ba2-a892-08159ccee594","at":1772004241000000000,"seq":456,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c93b9-e99c-76e8-ae3e-1ac2954cb8fe","at":1772004960668000000,"seq":457,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c93b9-e99c-7b4e-8a9b-5f375523bff8","at":1772004960668000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c93ba-0640-73c5-8979-9c42db6a1632","at":1772004968000000000,"seq":459,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c93ba-6fb8-7eed-8218-f75452b45d99","at":1772004995000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93ba-73a0-766a-bce7-830066eaf747","at":1772004996000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93ba-7b70-777c-b29c-aa8598d9962f","at":1772004998000000000,"seq":462,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c93c6-2d5b-7d31-87ad-f04b9c98484d","at":1772005764443000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c93c6-75d8-725f-b598-7680ea5819d0","at":1772005783000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93c6-7da8-7b92-8794-306a6b21317c","at":1772005785000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c93d3-fd91-7ead-8b2b-c8cbbf59f2ac","at":1772006669713000000,"seq":466,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c93d4-1a08-7ba8-9a1c-6bbeac179fa9","at":1772006677000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93d4-8380-7e9d-acc6-107f6f5d6fc8","at":1772006704000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93d4-bd86-715d-b780-09527c96bb60","at":1772006718854000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c93d4-f4c8-7957-b7a5-6878a433d15c","at":1772006733000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93d5-2b78-7c53-91b1-9ee584d2181b","at":1772006747000000000,"seq":471,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

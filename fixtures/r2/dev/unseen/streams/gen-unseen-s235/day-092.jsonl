@@ -1,0 +1,12 @@
+{"v":1,"id":"019d4d11-37c7-7fa7-bc91-f399d162f121","at":1775114467271000000,"seq":1351,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d11-37c7-703f-a422-2ec4076cd3a0","at":1775114467271000000,"seq":1352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d4d12-4881-77b1-99ea-d1db436cb406","at":1775114537089000000,"seq":1353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview this week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d4d12-7708-745c-bdd3-98820c16f18a","at":1775114549000000000,"seq":1354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4d12-82c0-7004-9a62-b840d5de320e","at":1775114552000000000,"seq":1355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4d12-b970-7597-9119-022db2fc9b24","at":1775114566000000000,"seq":1356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d12-ff29-7197-8853-6c4f71dd3095","at":1775114583849000000,"seq":1357,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d4d12-ffc0-7112-85c6-b0cfdd1465c8","at":1775114584000000000,"seq":1358,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4d13-26d0-7d85-9aeb-f6a003f69ea4","at":1775114594000000000,"seq":1359,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4d13-4610-75d2-9364-ac742646781e","at":1775114602000000000,"seq":1360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d13-493d-7fdb-b00b-ce981b75f13d","at":1775114602813000000,"seq":1361,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d4d13-7108-7751-8630-e14c5b14298c","at":1775114613000000000,"seq":1362,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

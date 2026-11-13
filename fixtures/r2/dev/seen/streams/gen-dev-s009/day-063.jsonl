@@ -1,0 +1,18 @@
+{"v":1,"id":"019cb854-28b0-75c1-a46d-0a305b49ddcb","at":1772619049136000000,"seq":1162,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb854-28b0-7835-80a8-f9e4eb16eb90","at":1772619049136000000,"seq":1163,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb854-4380-75cb-8a8e-b8bf2921f1f2","at":1772619056000000000,"seq":1164,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cb854-4768-7e8b-90e9-020e02316fa5","at":1772619057000000000,"seq":1165,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cb854-5af0-7364-89ba-46a25f91ce4c","at":1772619062000000000,"seq":1166,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cb854-704a-7dce-b123-743ba11c5f61","at":1772619067466000000,"seq":1167,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cb854-7648-78d2-bee7-31fa5120ee36","at":1772619069000000000,"seq":1168,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cb854-9970-7ce9-8324-9f96e7d4ceb1","at":1772619078000000000,"seq":1169,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb854-9d58-7635-a952-c61a5dc37d03","at":1772619079000000000,"seq":1170,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb85d-4a28-796f-a801-36811489ec9f","at":1772619647528000000,"seq":1171,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb85d-4a28-7550-85c1-4160df1fb013","at":1772619647528000000,"seq":1172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb85d-6b40-7d95-b999-c6f4767e0f42","at":1772619656000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb85d-c130-7364-af7b-6815ec96aade","at":1772619678000000000,"seq":1174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb85d-c518-767d-95ba-8daa6e212610","at":1772619679000000000,"seq":1175,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb863-48cd-7f25-bf84-3142827eb882","at":1772620040397000000,"seq":1176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb863-9d30-7910-95c9-aa349db5d426","at":1772620062000000000,"seq":1177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb863-c440-790f-87b3-af869a63bc59","at":1772620072000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cb863-d7c8-7a34-80e9-3abf584e28e8","at":1772620077000000000,"seq":1179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,24 @@
+{"v":1,"id":"019c0dce-9f2d-71c4-810b-8bfeb0276f32","at":1769758170925000000,"seq":452,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0dce-9f2d-7b4b-811c-4b747d140a2e","at":1769758170925000000,"seq":453,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0dce-d240-7cdc-a749-6553fd3d51af","at":1769758184000000000,"seq":454,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c0dce-d628-7ef6-bc3e-a24705d9c2e5","at":1769758185000000000,"seq":455,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c0dce-ddf8-7a47-8161-3de623bc4dff","at":1769758187000000000,"seq":456,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0de0-5ffa-77b0-a085-5a3979972843","at":1769759334394000000,"seq":457,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0de0-5ffa-7b8c-9bf3-e8ea8b5ce884","at":1769759334394000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c0de0-6e10-78d7-ae7e-739551db65e5","at":1769759338000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0de0-f2e0-7bc3-acc9-67856b92d916","at":1769759372000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c0de0-f6c8-76af-a01c-5ea9cfc66973","at":1769759373000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0de1-087e-7da7-9f52-518ca841edeb","at":1769759377534000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c0de1-2d78-79cc-b291-84bd7a9179f3","at":1769759387000000000,"seq":463,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0de1-4100-76b9-8470-4c22f1d531f2","at":1769759392000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c0de1-6810-79ce-a7fa-05cd8088fbeb","at":1769759402000000000,"seq":465,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0de1-8368-7c7a-b30b-46047523ccb0","at":1769759409000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0de1-f5c5-79c3-8b0e-926da1f0e362","at":1769759438277000000,"seq":467,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0de1-f5c5-7d84-8cf9-d7d277b8afcb","at":1769759438277000000,"seq":468,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0de2-2f48-79d1-8bd0-1e94181110ec","at":1769759453000000000,"seq":469,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c0de2-3330-7afd-b915-a9e492b1b1a7","at":1769759454000000000,"seq":470,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0de2-69e0-77c6-87ae-a5f9a272ac24","at":1769759468000000000,"seq":471,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c0de2-ac48-702a-a7f6-e1d269e92d73","at":1769759485000000000,"seq":472,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0de2-b19e-702c-bce5-3fa0c0c42dd5","at":1769759486366000000,"seq":473,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0de2-b19e-7dfa-80b1-ab1c68d62dc1","at":1769759486366000000,"seq":474,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c0de3-6f98-7584-8f4c-06fadd0e9cf8","at":1769759535000000000,"seq":475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

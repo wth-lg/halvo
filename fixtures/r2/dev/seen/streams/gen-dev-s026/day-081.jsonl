@@ -1,0 +1,10 @@
+{"v":1,"id":"019d146f-e977-70a2-a9c0-87fb8879e02a","at":1774164371831000000,"seq":991,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d146f-e977-7afa-9a39-16dc91771035","at":1774164371831000000,"seq":992,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d1470-d8ff-7515-abca-7b1740260fb3","at":1774164433151000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d1471-3240-7b0e-b377-87bced314551","at":1774164456000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1471-6508-7b86-a3f0-4aa52156408c","at":1774164469000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1471-70c0-783e-a235-8ba026605d35","at":1774164472000000000,"seq":996,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1471-97d0-7f8c-9d80-21d7647a9809","at":1774164482000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d1471-9be4-7766-9827-ee10177b3438","at":1774164483044000000,"seq":998,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d1471-a770-732a-8fef-a9fd9922c44b","at":1774164486000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1472-2858-7ada-abfb-78d8a9b896a6","at":1774164519000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

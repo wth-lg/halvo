@@ -1,0 +1,12 @@
+{"v":1,"id":"019ca338-f082-74d9-8c1f-c03aabda29e0","at":1772264943746000000,"seq":849,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca338-f082-7141-a5f8-25614abf8f28","at":1772264943746000000,"seq":850,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ca338-f950-73f1-a3c4-9f4e7d659143","at":1772264946000000000,"seq":851,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ca339-c80f-795d-8c83-0f854ae8d9a0","at":1772264998927000000,"seq":852,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ca33a-2a00-7c8d-8bd4-5a8236401d8a","at":1772265024000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ca34e-ba6b-7c63-8dea-41448cbdbf1e","at":1772266371691000000,"seq":854,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca34e-ba6b-78de-be3f-b1a7dfff399e","at":1772266371691000000,"seq":855,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca34f-8aa8-76cd-96be-cc63d9f55496","at":1772266425000000000,"seq":856,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca34f-8e90-7a72-8c59-c5b229ed10c4","at":1772266426000000000,"seq":857,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ca35f-4b19-7b5f-839d-5e384c79ba87","at":1772267457305000000,"seq":858,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca35f-4b19-78c8-8375-50d05eb1060a","at":1772267457305000000,"seq":859,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca35f-9808-7ab8-a86a-5c54a11e06ee","at":1772267477000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

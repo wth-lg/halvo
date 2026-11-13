@@ -1,0 +1,14 @@
+{"v":1,"id":"019c9e92-f529-777c-b94a-8120b21ac9cb","at":1772186957097000000,"seq":794,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e92-f529-7b48-a933-8113c7918a72","at":1772186957097000000,"seq":795,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9e93-0080-7bd3-9ed1-62f4150fe0fe","at":1772186960000000000,"seq":796,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e93-0850-75c6-8e7c-65fc248c5a1e","at":1772186962000000000,"seq":797,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9e93-2b78-7834-833b-34880cae944d","at":1772186971000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c9e98-0b8a-797f-9dc3-02b2b9947c13","at":1772187290506000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c9e98-9e54-76eb-8e3c-7d2bd4fe930f","at":1772187328084000000,"seq":800,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c9e99-51b0-7f0a-b38e-7468ecf35ce6","at":1772187374000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e99-74d4-72a3-93be-fce2d16ff255","at":1772187382996000000,"seq":802,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c9e99-74d8-74d0-8f59-a83ca4783a2f","at":1772187383000000000,"seq":803,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e99-8090-7639-b560-cabc8ec61842","at":1772187386000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e99-9030-78c6-9aca-7420a5cffa4d","at":1772187390000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e99-b358-7f76-becb-a3730f78ce0e","at":1772187399000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c9e99-d298-73b5-af6a-cecb5ee4a860","at":1772187407000000000,"seq":807,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

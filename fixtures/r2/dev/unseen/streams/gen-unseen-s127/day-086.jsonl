@@ -1,0 +1,14 @@
+{"v":1,"id":"019d2e6c-5e16-7923-b736-f5b32fb2862e","at":1774600347158000000,"seq":1231,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2e6c-5e16-78e1-99e3-9d29e89b7b00","at":1774600347158000000,"seq":1232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d2e6c-6548-7f39-9d3a-730af5dd0082","at":1774600349000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e6c-d690-7db9-81eb-4232df166b2d","at":1774600378000000000,"seq":1234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e6d-1aa8-7672-82ba-49b7e3d0c82b","at":1774600395432000000,"seq":1235,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d2e6d-8270-72b3-8e43-a5e8de4fd98e","at":1774600422000000000,"seq":1236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2e6d-c4d8-735c-ae06-7b3d2bcf7106","at":1774600439000000000,"seq":1237,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2e6d-c8c0-73ad-9cf8-1b0fb868d353","at":1774600440000000000,"seq":1238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d2e6d-e3a3-7b6d-9b18-d90b89803cb4","at":1774600446883000000,"seq":1239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d2e6e-8e95-77df-9ee7-9770acfd9858","at":1774600490645000000,"seq":1240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d2e6e-9f98-7a51-9d4f-0c05b3d6c514","at":1774600495000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d2e6e-a768-79be-921b-0896852c28c6","at":1774600497000000000,"seq":1242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e6e-e9d0-77a9-94fa-e4798f296f45","at":1774600514000000000,"seq":1243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2e6f-10e0-7342-a47d-66f11e8b20dc","at":1774600524000000000,"seq":1244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

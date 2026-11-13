@@ -1,0 +1,27 @@
+{"v":1,"id":"019d1517-77ca-7c68-b922-34d8459fbd82","at":1774175352778000000,"seq":988,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1517-77ca-77b5-b66f-9d7bc8539a8c","at":1774175352778000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d1517-cab0-7574-9b54-27e7bf8360a2","at":1774175374000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d1518-1100-7007-bd1b-fb0ec010826a","at":1774175392000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1518-7f91-7afa-90ba-5d72d9838a35","at":1774175420305000000,"seq":992,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d1518-a958-7f92-aec6-02b8d8af8352","at":1774175431000000000,"seq":993,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d1519-3c96-7de1-abf4-e2fe0b26aed0","at":1774175468694000000,"seq":994,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d1519-4598-707a-9d40-8a91f011cd11","at":1774175471000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1519-64d8-7e67-afb4-265a5c6c00d4","at":1774175479000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d1519-cf86-731f-9811-13b087c5987a","at":1774175506310000000,"seq":997,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d151a-0cd0-728f-8675-30f0582f43ae","at":1774175522000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d151a-2058-7f0a-8f03-bf14a941be7b","at":1774175527000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d151a-2c10-7a4b-a1ad-48aad578665e","at":1774175530000000000,"seq":1000,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d151a-3bb0-737d-8338-f6aea7487f65","at":1774175534000000000,"seq":1001,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1527-ff53-7210-a233-a4994f4fea5c","at":1774176436051000000,"seq":1002,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d1528-1690-7d07-aeb2-494d0de0f347","at":1774176442000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1528-4958-7c11-9024-f75ccbb8a9fc","at":1774176455000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1528-822b-747f-9c79-0279c6afa682","at":1774176469547000000,"seq":1005,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d1529-37a0-7f9b-85ca-f6c3f649aff0","at":1774176516000000000,"seq":1006,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1529-3b88-7bda-9c37-fb3b82306f05","at":1774176517000000000,"seq":1007,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1529-6831-7ced-ac00-449a86ec4d7f","at":1774176528433000000,"seq":1008,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d1529-85c0-7ccb-a798-555c32e56c80","at":1774176536000000000,"seq":1009,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d1529-8d90-744e-9405-4b37bf0181dd","at":1774176538000000000,"seq":1010,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1529-9948-7cf7-b09c-9fe4cf00f6cb","at":1774176541000000000,"seq":1011,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1529-ac45-7e00-a767-74adaf712aae","at":1774176545861000000,"seq":1012,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d1529-e380-7d78-a80e-7df689a9680e","at":1774176560000000000,"seq":1013,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1529-f708-7138-9d2c-2efbf1c196ac","at":1774176565000000000,"seq":1014,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

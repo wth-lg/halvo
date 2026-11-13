@@ -1,0 +1,13 @@
+{"v":1,"id":"019d243f-fb0d-7851-b430-5241569c9a05","at":1774429666061000000,"seq":1086,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d243f-fb0d-77f1-bb67-10d3a182cf0b","at":1774429666061000000,"seq":1087,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d244a-12d6-7783-976f-9409d2b5f10f","at":1774430327510000000,"seq":1088,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d244a-18a8-7167-aec5-bf3e29eae908","at":1774430329000000000,"seq":1089,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244a-18a8-752c-bafa-fd5f0b4c75ca","at":1774430329000000000,"seq":1090,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d244a-3400-73d4-b835-5138750182c5","at":1774430336000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244a-5a9d-7452-820a-199987972a2f","at":1774430345885000000,"seq":1092,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d244a-7280-7d6f-8531-1b53e55445bf","at":1774430352000000000,"seq":1093,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d244a-a930-70b9-ac5a-5070861b8090","at":1774430366000000000,"seq":1094,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d244a-dbf8-7df6-b84e-66885f339a69","at":1774430379000000000,"seq":1095,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2459-c748-7f1b-9822-2a7f1bd96c9a","at":1774431356744000000,"seq":1096,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2459-cc30-75df-8a84-f679649347d7","at":1774431358000000000,"seq":1097,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d245a-1e38-77a7-8a60-ab42d7e3106c","at":1774431379000000000,"seq":1098,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

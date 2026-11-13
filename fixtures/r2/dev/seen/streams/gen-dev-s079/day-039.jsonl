@@ -1,0 +1,12 @@
+{"v":1,"id":"019c3c66-74f8-7361-917e-010b65233e3f","at":1770539873528000000,"seq":550,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c66-74f8-7779-81bc-fc37259a41f6","at":1770539873528000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3c66-f3d0-7c47-9b8d-d7ceafa5391c","at":1770539906000000000,"seq":552,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3c66-fba0-79ee-9a99-e64ff0101e10","at":1770539908000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c3c81-fed6-74b8-9512-029ae6fbe0fc","at":1770541678294000000,"seq":554,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c3c82-2c90-71f3-ac88-837ecd914883","at":1770541690000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c3c82-6ef8-7fa1-a98b-06897f3a5ddb","at":1770541707000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c82-e913-7f90-8b77-19b6197496df","at":1770541738259000000,"seq":557,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c3c82-ff80-75e1-a65d-8881498ae0f7","at":1770541744000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c83-6510-7dce-8dd0-c2f9164f82f2","at":1770541770000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3c83-6ce0-7e84-930b-be5ed688ce4f","at":1770541772000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c83-70c8-7ca7-a053-097c5f9292c9","at":1770541773000000000,"seq":561,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

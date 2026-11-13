@@ -1,0 +1,12 @@
+{"v":1,"id":"019bd5a4-7341-727a-866d-ec893e553036","at":1768815883073000000,"seq":478,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd5a4-7341-7951-a4dc-3aa7f97c0cea","at":1768815883073000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bd5a4-7eb0-7ef2-99a9-f60de77d50fa","at":1768815886000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5a4-b948-7018-a7c9-9ed77caabc01","at":1768815901000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bd5a4-ec10-745f-8a7a-6a63ce0ea522","at":1768815914000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5a4-f653-7918-af47-d47acc615c28","at":1768815916627000000,"seq":483,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bd5a5-1ed8-7e45-bc8a-0c840c571fc3","at":1768815927000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5a5-9408-705a-bbfc-d68d43632725","at":1768815957000000000,"seq":485,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd5a5-a3a8-76f5-9f80-30ce00565d04","at":1768815961000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5a5-bad8-797e-9892-8680a0e0f932","at":1768815966936000000,"seq":487,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bd5a5-de40-7080-b888-a6f1077e3481","at":1768815976000000000,"seq":488,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd5a6-1108-7801-9630-9f5ad5729cc4","at":1768815989000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

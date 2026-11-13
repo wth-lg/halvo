@@ -1,0 +1,21 @@
+{"v":1,"id":"019c8f1b-ebfb-751f-bea9-de8addc918d5","at":1771927497723000000,"seq":891,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8f1b-ebfb-7c7b-98a6-3063c173db6b","at":1771927497723000000,"seq":892,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c8f1c-3d52-7d95-9860-d29a80b421b5","at":1771927518546000000,"seq":893,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c8f1c-4300-78f0-892f-5747f8c5edbf","at":1771927520000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f1c-bc18-780a-bf07-3cbcd99b3828","at":1771927551000000000,"seq":895,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8f1c-fa98-7070-ae10-faee406c7fd2","at":1771927567000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f1d-01d0-75cd-adec-14572263500e","at":1771927568848000000,"seq":897,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c8f1d-2978-723a-9f65-0ef1aa24d18f","at":1771927579000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f1d-4ca0-7250-935a-5d1040e70684","at":1771927588000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f1d-7798-780c-b205-f1fa6cfeb30a","at":1771927599000000000,"seq":900,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c8f2c-1cd2-7133-94b4-a2f9478bdc2f","at":1771928558802000000,"seq":901,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8f2c-7f40-7751-9b6f-dac4e7454951","at":1771928584000000000,"seq":902,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8f2c-8710-7586-b171-f2f809ecb2aa","at":1771928586000000000,"seq":903,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f2c-8af8-7043-8502-77ade1112183","at":1771928587000000000,"seq":904,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8f2c-a268-7a88-9f70-2357d364cb36","at":1771928593000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c8f2c-a650-7d56-8df7-badc857d4cd2","at":1771928594000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f35-2bda-7d30-8dc6-5ba710e5f402","at":1771929152474000000,"seq":907,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8f35-4d28-7fdc-aa7b-fa043d416079","at":1771929161000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c8f35-58e0-7594-97ab-6b89b6d6e210","at":1771929164000000000,"seq":909,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8f35-7c08-7f92-b122-86e197d82c2b","at":1771929173000000000,"seq":910,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8f35-9760-7403-b30f-b0421296dda3","at":1771929180000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

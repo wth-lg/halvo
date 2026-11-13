@@ -1,0 +1,11 @@
+{"v":1,"id":"019b9241-2ec9-7a53-888f-ab34f905fb53","at":1767685304009000000,"seq":84,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9241-2ec9-79df-863f-fc6c775db4f4","at":1767685304009000000,"seq":85,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b9241-4248-7e8b-99ef-4804924ab4bf","at":1767685309000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9242-0598-786d-b882-38483df437ba","at":1767685359000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9242-180f-7985-9456-224b12455ef1","at":1767685363727000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b9242-28c0-7ba1-b3d1-896d9aff9423","at":1767685368000000000,"seq":89,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9242-5f70-7990-b428-3e5d0498c16f","at":1767685382000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9242-a1d8-73c2-83db-8250a83afd18","at":1767685399000000000,"seq":91,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9242-a1d8-7caf-b39c-f428e1e39801","at":1767685399000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b9242-a1e2-7db7-9fe6-2e93b89c8bcc","at":1767685399010000000,"seq":93,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b9242-f7c8-7966-b655-c0bf3d7c5486","at":1767685421000000000,"seq":94,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

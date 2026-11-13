@@ -1,0 +1,42 @@
+{"v":1,"id":"019cd6e9-900e-717d-af9b-b93b62505c80","at":1773132156942000000,"seq":1025,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6e9-900e-7570-812e-5699af469277","at":1773132156942000000,"seq":1026,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cd6ea-6b35-7aff-bec9-94388529692d","at":1773132213045000000,"seq":1027,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 11 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cd6ea-7e90-75f8-9702-1a9885f2c990","at":1773132218000000000,"seq":1028,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd6ea-7e90-7c11-ac0e-96499297bc36","at":1773132218000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cd6ea-a988-74d8-adc4-c0e85dc73b79","at":1773132229000000000,"seq":1030,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd6ea-cebc-7ca0-80b9-9210e5d64538","at":1773132238524000000,"seq":1031,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cd6ea-d480-7ce8-b66e-80853b826b9e","at":1773132240000000000,"seq":1032,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd6eb-0360-7779-8f10-4aa27f3db588","at":1773132252000000000,"seq":1033,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd6eb-22a0-7aac-8f62-f67c23002a7e","at":1773132260000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6eb-4d98-74ca-812f-cce8cd664185","at":1773132271000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6eb-7880-71b9-a0da-e434e3ffd7a9","at":1773132281984000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cd6eb-93e8-77fa-9a69-8fe75828802d","at":1773132289000000000,"seq":1037,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd6eb-af40-7e60-a65c-62e507af38a5","at":1773132296000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6eb-c6b0-73d4-ba0d-4c53c7fe47df","at":1773132302000000000,"seq":1039,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd6ec-0a55-7518-b91e-87250bf36d21","at":1773132319317000000,"seq":1040,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cd6ec-4798-79b2-826e-f8235a5a91a2","at":1773132335000000000,"seq":1041,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd6ec-f760-7eb4-9422-e2dca7b3b190","at":1773132380000000000,"seq":1042,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f5-0770-7b13-9d36-c46e460c3258","at":1773132908400000000,"seq":1043,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f5-34c0-7de7-93d3-86ffd5eb0919","at":1773132920000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f5-3c90-71f1-ac59-dce765decc7d","at":1773132922000000000,"seq":1045,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd6f5-4c30-726a-b1c8-453ce3d99aac","at":1773132926000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd6f5-5018-7ce4-8937-7a265279d935","at":1773132927000000000,"seq":1047,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd70c-f1e5-7dd5-8767-26ad5d539794","at":1773134475749000000,"seq":1048,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd70c-f2e0-7088-b8fb-ed0451c0e6b3","at":1773134476000000000,"seq":1049,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd70d-19f0-7d85-956b-ee136a15a48b","at":1773134486000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd70d-4cb8-7d54-a566-48313295b00f","at":1773134499000000000,"seq":1051,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd71e-6212-7fcc-80b2-c26f7b3cb301","at":1773135618578000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd71e-6f70-7623-9eb2-e1cc61337f0a","at":1773135622000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd71e-7358-71bd-ac1a-3be148b688d8","at":1773135623000000000,"seq":1054,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd71e-7b28-774b-b21f-d1941f37d0bb","at":1773135625000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd728-bf8b-7d5e-ac84-9a773ee86661","at":1773136297867000000,"seq":1056,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cd728-e338-7aca-8562-c5548c42c33d","at":1773136307000000000,"seq":1057,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd728-fe90-7d7e-a227-d71395e77278","at":1773136314000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cd729-776a-74f7-8668-d75289a83c3e","at":1773136344938000000,"seq":1059,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cd729-9ad0-77a9-9cbc-565bc7918aca","at":1773136354000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd729-b240-7ba1-bbbc-45cdcbf5cba6","at":1773136360000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cd729-e508-7528-a336-2247357a70fc","at":1773136373000000000,"seq":1062,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd729-e7a9-7fc5-9e4e-e0ed78c8b803","at":1773136373673000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cd72a-2f40-73e1-ba2d-5bf64049b75e","at":1773136392000000000,"seq":1064,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd72a-4e80-73bc-b58e-1b637d28b8d2","at":1773136400000000000,"seq":1065,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd72a-90e8-7344-8d39-9272466fbdec","at":1773136417000000000,"seq":1066,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

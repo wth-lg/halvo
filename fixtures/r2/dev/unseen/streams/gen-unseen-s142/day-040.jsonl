@@ -1,0 +1,13 @@
+{"v":1,"id":"019c414a-d6cd-750d-9f03-b087cdd95721","at":1770621949645000000,"seq":542,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c414a-d6cd-7c61-a6af-1c7555654e64","at":1770621949645000000,"seq":543,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c414b-0710-7c50-ae92-21c23f8e7dbb","at":1770621962000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c414b-3dc0-7e94-90f1-6927d5e2b3fb","at":1770621976000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c414b-6864-76b3-a02b-b7816174f565","at":1770621986916000000,"seq":546,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c414b-b2f0-741c-ab38-af33d790e8ae","at":1770622006000000000,"seq":547,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c414b-d618-7e0a-b110-9ff3616c1117","at":1770622015000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c414c-08e0-738e-9452-a1b02c7f0a92","at":1770622028000000000,"seq":549,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c414c-2ff0-7723-baa8-0e07a3ec7f8b","at":1770622038000000000,"seq":550,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c415b-135b-734c-b543-47287a21e6e3","at":1770623013723000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c415b-2fc8-73f5-86d1-b990a6934ab4","at":1770623021000000000,"seq":552,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c415b-3f68-7ceb-aef8-10fa4401616f","at":1770623025000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c415b-5ac0-74d8-ac92-e4a2a069b538","at":1770623032000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

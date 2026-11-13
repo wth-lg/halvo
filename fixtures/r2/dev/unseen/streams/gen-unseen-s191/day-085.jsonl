@@ -1,0 +1,65 @@
+{"v":1,"id":"019d294c-ae99-7fb4-9959-af56ef05e9d8","at":1774514384537000000,"seq":1004,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d294c-ae99-7ee9-b31e-ab7469251743","at":1774514384537000000,"seq":1005,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d294c-f2d0-7542-aa74-acf6c14f08b8","at":1774514402000000000,"seq":1006,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d294d-0e28-70bf-85e9-d516a573f5e9","at":1774514409000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d294d-5090-7665-8ed6-da4ee47e93bd","at":1774514426000000000,"seq":1008,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2963-c17d-7662-8565-277974a8924b","at":1774515896701000000,"seq":1009,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d2964-4390-7e1a-ac15-943376c00a31","at":1774515930000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2964-6aa0-7b2a-a18b-b57b4bc553fa","at":1774515940000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2964-807e-7af0-9399-e6f768277bf5","at":1774515945598000000,"seq":1012,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d2964-cc48-7489-b22f-69abd9599e94","at":1774515965000000000,"seq":1013,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d2964-e7d2-7be5-ac32-0745586ff992","at":1774515972050000000,"seq":1014,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d2964-ff10-73f2-bd1d-55714989c848","at":1774515978000000000,"seq":1015,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2965-1680-7571-8934-9934378a7e85","at":1774515984000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2965-39a8-790a-b863-026d6173ad39","at":1774515993000000000,"seq":1017,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2966-e01a-7938-aac2-193d53505a8e","at":1774516101146000000,"seq":1018,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2966-e01a-75a8-bace-03a694240fdd","at":1774516101146000000,"seq":1019,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2966-f310-7d91-8c82-ada6ae0a506a","at":1774516106000000000,"seq":1020,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d2967-0a80-7ae2-bd51-8dde0b06608e","at":1774516112000000000,"seq":1021,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2967-19b2-7770-980a-54b3c35c346c","at":1774516115890000000,"seq":1022,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2967-4130-73b7-9d95-1c89fa15e8dd","at":1774516126000000000,"seq":1023,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d2967-50d0-726d-963b-a1ff0b297be0","at":1774516130000000000,"seq":1024,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d2967-8780-79f6-8cd2-a1b20ae5ff72","at":1774516144000000000,"seq":1025,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d2967-aaa8-7b35-aff5-ec9243cacfea","at":1774516153000000000,"seq":1026,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2967-cc1a-7db3-815e-16a8b67e2b04","at":1774516161562000000,"seq":1027,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2968-1bf0-75f1-83cb-a69d7d8c4bc7","at":1774516182000000000,"seq":1028,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2968-c848-7b80-8222-afd54703e435","at":1774516226120000000,"seq":1029,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2969-21a8-79ea-a724-fbf472c4e7b8","at":1774516249000000000,"seq":1030,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2969-3148-7fc8-a88c-8d9a9ba8b4cd","at":1774516253000000000,"seq":1031,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d2969-8738-7554-8e18-eb70ebbbda56","at":1774516275000000000,"seq":1032,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d2980-70e8-70f8-a60b-09f4186d41f6","at":1774517776616000000,"seq":1033,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2980-70e8-7c8b-baf6-9d9860fa8464","at":1774517776616000000,"seq":1034,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d2980-7268-7046-83ee-a2bef522ef01","at":1774517777000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2980-8208-7408-ab1e-d3a27238e4a6","at":1774517781000000000,"seq":1036,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2980-9978-759d-9835-69b6869401b2","at":1774517787000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d298e-1161-7b28-8a7f-d5c9e060c2e5","at":1774518669665000000,"seq":1038,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d298e-1161-7bcd-b46a-14dc364e74df","at":1774518669665000000,"seq":1039,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d298e-2638-7f7f-87a7-96c8876020eb","at":1774518675000000000,"seq":1040,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d298e-31f0-7aec-8002-436c0e66904e","at":1774518678000000000,"seq":1041,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d298e-7c28-7dbb-ab3e-0e6c69f4262f","at":1774518697000000000,"seq":1042,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d298e-c278-740f-af05-7376440f0196","at":1774518715000000000,"seq":1043,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2998-0cee-79c0-b33f-3ccb3a8d438b","at":1774519323886000000,"seq":1044,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2998-0cee-76da-9085-e2e199f0e7e1","at":1774519323886000000,"seq":1045,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d2998-1d00-70d4-842b-674d179a4047","at":1774519328000000000,"seq":1046,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d2998-a046-7d6f-8900-1de9f026b02e","at":1774519361606000000,"seq":1047,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d2998-d880-722d-b5e3-5a8aad0a5a4e","at":1774519376000000000,"seq":1048,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2999-8cd4-7c39-bf66-e8e2fd6e51a5","at":1774519422164000000,"seq":1049,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d2999-9fb8-7989-8f37-19343006b47a","at":1774519427000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2999-e608-74e4-95d4-95d8a24be16a","at":1774519445000000000,"seq":1051,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d299a-14e1-7db9-bed6-6bfa9f15ac19","at":1774519456993000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d299a-47b0-7f0f-b1af-9d2e0e1a3c0d","at":1774519470000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d299a-4b98-77d8-b988-232d50948cdf","at":1774519471000000000,"seq":1054,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d299a-5750-7624-a343-7cf6eed0360c","at":1774519474000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d299a-a570-779c-91ae-923e2be5ef29","at":1774519494000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d29aa-ab14-7150-8601-29a820119fc9","at":1774520544020000000,"seq":1057,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d29ab-84de-79f4-8c50-04aa215af1a8","at":1774520599774000000,"seq":1058,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview this week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d29ab-9178-704c-b35d-6d302f4113ed","at":1774520603000000000,"seq":1059,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d29ab-bdcf-71db-8139-f092326b2963","at":1774520614351000000,"seq":1060,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d29ab-d7c8-7b5c-8389-ae88c788c4b5","at":1774520621000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ab-f708-73cc-a2e2-cce92ef4425a","at":1774520629000000000,"seq":1062,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d29ab-fed8-75cd-ac6e-6d4be1a9ea7c","at":1774520631000000000,"seq":1063,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d29ac-5c98-78cf-848d-79c194425619","at":1774520655000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ac-6468-7bf0-8773-705c528bd0d9","at":1774520657000000000,"seq":1065,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d29ac-871d-7bf7-afaa-61724ba8f45a","at":1774520665885000000,"seq":1066,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d29ad-0c60-7980-aed0-c70ffe6a18c6","at":1774520700000000000,"seq":1067,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d29ad-2f88-7aa2-87a6-228db8c77ca1","at":1774520709000000000,"seq":1068,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

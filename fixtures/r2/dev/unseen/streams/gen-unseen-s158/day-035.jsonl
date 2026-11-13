@@ -1,0 +1,5 @@
+{"v":1,"id":"019c2785-5750-7691-82e6-e318d19f8cc8","at":1770189576016000000,"seq":578,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2785-5750-7bc3-896f-ede630525bca","at":1770189576016000000,"seq":579,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2785-b8e8-77cf-8a99-f8f0218d2429","at":1770189601000000000,"seq":580,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2785-dc10-7b54-bf4e-0003489fb886","at":1770189610000000000,"seq":581,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2786-35e8-78ea-84ff-a762e351b55f","at":1770189633000000000,"seq":582,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

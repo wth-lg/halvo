@@ -1,0 +1,21 @@
+{"v":1,"id":"019c0e07-e984-78f7-a207-a269e9bd1ade","at":1769761925508000000,"seq":586,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e07-e984-7f76-8582-31325b1d5d95","at":1769761925508000000,"seq":587,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e08-6c58-7b7f-abbd-49fed9eaafec","at":1769761959000000000,"seq":588,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c0e08-b690-78fd-a3ba-42dce36e8da3","at":1769761978000000000,"seq":589,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c0e08-c0b2-7f19-8edf-d37852963330","at":1769761980594000000,"seq":590,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c0e12-2e66-73ac-8546-8be0c697f127","at":1769762598502000000,"seq":591,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e12-2e66-78eb-8473-8431d8a28d63","at":1769762598502000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c0e12-4f98-7756-835f-4ed3427de039","at":1769762607000000000,"seq":593,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e12-5768-7879-81f1-8e01ce108844","at":1769762609000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e12-5b50-7d99-aa2b-4ab2e5376bed","at":1769762610000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c0e2a-50f7-75af-8167-72792ad00a93","at":1769764180215000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c0e2a-ec60-708f-a6c7-d077c95bc838","at":1769764220000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c0e2a-ef07-7622-9e4d-0b04c27cde9f","at":1769764220679000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c0e2a-ffe8-7fc2-a866-8f8b5a23c92f","at":1769764225000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e2b-e660-74a6-85fa-942b35dbc793","at":1769764284000000000,"seq":600,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e2b-f430-7720-a75f-21ef7dd6e022","at":1769764287536000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c0e2b-fdd0-7a64-b534-bda46a871703","at":1769764290000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e2c-fe12-7c40-8efa-66c2c10b1a70","at":1769764355602000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c0e2d-5590-75bc-b9fa-08f992046ca1","at":1769764378000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e2d-78b8-7478-8bae-6e0b08db356e","at":1769764387000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e2d-fd88-74b6-920d-f2f88d836a07","at":1769764421000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

@@ -1,0 +1,16 @@
+{"v":1,"id":"019c79f3-b749-7426-b43a-9ff79713eae9","at":1771572541257000000,"seq":730,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c79f3-b749-771f-8322-874a68f4b3f7","at":1771572541257000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c79f3-c200-7767-bf0d-efc4d8bdae59","at":1771572544000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c79f3-f0e0-77f4-a624-55aaae4ca424","at":1771572556000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c79f8-2ff3-7f1d-a15c-22c5b99e2afc","at":1771572834291000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c79f8-4640-77a7-b60b-2b39780e7911","at":1771572840000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c79f8-7138-7b92-a39d-33a7a138d2ee","at":1771572851000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a13-14b5-75db-9970-f1a408f47a0d","at":1771574596789000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7a13-6f60-7031-8d4a-3a7d0eaf6e07","at":1771574620000000000,"seq":738,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a13-7f00-7372-9857-539201261742","at":1771574624000000000,"seq":739,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7a13-8ea0-732d-9214-c6f3088009ff","at":1771574628000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a26-af2b-75c6-86c2-ce3174bd7b72","at":1771575881515000000,"seq":741,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c7a27-2a28-77fe-b85c-52e20b0e593d","at":1771575913000000000,"seq":742,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a27-6f02-76e9-ad32-465583ab5826","at":1771575930626000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c7a27-9788-7c27-bc91-beed2b09b0d1","at":1771575941000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a27-ca50-7290-9376-53084ba25155","at":1771575954000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

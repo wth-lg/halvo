@@ -1,0 +1,23 @@
+{"v":1,"id":"019c7a66-e5ad-7cfa-abec-6510c18bd13e","at":1771580089773000000,"seq":752,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a66-e5ad-728c-ac79-f1362f9257cf","at":1771580089773000000,"seq":753,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a66-ea78-724f-a875-f739902b2cca","at":1771580091000000000,"seq":754,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a67-28f8-7603-a211-bb6c64290cbb","at":1771580107000000000,"seq":755,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c7a67-30c8-7afb-8bcc-ae85f36b1ec9","at":1771580109000000000,"seq":756,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6e-5832-78e6-be7c-c02fd8223d08","at":1771580577842000000,"seq":757,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a6e-5832-71f7-8c35-563132945789","at":1771580577842000000,"seq":758,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c7a6e-be60-726a-89b4-f0bbd1341d65","at":1771580604000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6e-f510-73d6-971f-6c237942b70f","at":1771580618000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6f-54ab-711a-a4df-5364d8afa2b7","at":1771580642475000000,"seq":761,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c7a6f-6270-77be-a6a6-6250087e1075","at":1771580646000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a6f-79e0-7615-90a0-394331de9931","at":1771580652000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6f-aca8-73ef-92b7-6649c2d7fe04","at":1771580665000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6f-c418-73a9-8c1c-238952235220","at":1771580671000000000,"seq":765,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a6f-e984-739a-bc27-f1f0d078b937","at":1771580680580000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c7a70-6c10-7779-ba4e-729db7bea8ca","at":1771580714000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a70-8768-78ce-91d8-3d6d66cca792","at":1771580721000000000,"seq":768,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a70-b260-73d9-8309-fb9af1101b37","at":1771580732000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a70-c5de-73e4-b5f5-38d756e0b501","at":1771580736990000000,"seq":770,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c7a84-d46c-7023-aca2-b53256ea4f11","at":1771582051436000000,"seq":771,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a85-24c0-78f8-9b39-382a4e6b3189","at":1771582072000000000,"seq":772,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a85-47e8-7433-b15c-31b4228f5bef","at":1771582081000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a85-7ab0-7c22-9325-ec0b6d317caa","at":1771582094000000000,"seq":774,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

@@ -1,0 +1,17 @@
+{"v":1,"id":"019d5272-3a36-7994-a270-e2d83398fc22","at":1775204710966000000,"seq":1324,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d5272-3a36-7657-ad23-f007ad31988e","at":1775204710966000000,"seq":1325,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d5272-74f0-7329-a9de-d527c0f73c52","at":1775204726000000000,"seq":1326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d5278-5b9f-7db1-bc75-f5636967f042","at":1775205112735000000,"seq":1327,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d5278-a2f8-7a0f-a55c-c571a5eabfe8","at":1775205131000000000,"seq":1328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d5279-20da-77f5-9c7b-270b906ca596","at":1775205163226000000,"seq":1329,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d5279-9140-788a-b690-35db12081825","at":1775205192000000000,"seq":1330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5279-bc38-7c50-8cc1-37be3e270dd5","at":1775205203000000000,"seq":1331,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d5279-c7f0-749c-b7f7-33885060c9c1","at":1775205206000000000,"seq":1332,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5279-c867-7e7b-86d9-b4176b4b8446","at":1775205206119000000,"seq":1333,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d5279-fab8-7163-a65b-9dd1299c5cfe","at":1775205219000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d527a-0288-79b8-bbc2-d05011f4b61b","at":1775205221000000000,"seq":1335,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d527a-8b40-7bac-ade9-99ebb3635912","at":1775205256000000000,"seq":1336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d527a-c43a-7f5f-a7c3-9a908fb17031","at":1775205270586000000,"seq":1337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d527a-c5d8-7aa2-b93b-2d3baf8062e7","at":1775205271000000000,"seq":1338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d527a-f0d0-74a8-91a1-169e6d588554","at":1775205282000000000,"seq":1339,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d527a-f8a0-7e20-956c-f7fb45e716cf","at":1775205284000000000,"seq":1340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

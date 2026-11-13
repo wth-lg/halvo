@@ -1,0 +1,22 @@
+{"v":1,"id":"019c08d7-432d-75c7-997d-79a0cdac2847","at":1769674851117000000,"seq":398,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08d7-432d-7b5d-882c-58d365b002e1","at":1769674851117000000,"seq":399,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c08d7-bbd0-78b7-b3dd-a97ee239d218","at":1769674882000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d7-c1e1-7a79-8a38-865729ffb5a7","at":1769674883553000000,"seq":401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c08d7-c3a0-7443-bb4c-b0aa5fc46514","at":1769674884000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c08d8-2160-7734-9aff-89dac16afd07","at":1769674908000000000,"seq":403,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08d8-2b62-79f9-b24b-6b019c315ef2","at":1769674910562000000,"seq":404,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c08d8-3100-7e1d-b4eb-4fcef69c72fc","at":1769674912000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d8-7368-79d0-b593-fa87fe852133","at":1769674929000000000,"seq":406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08d8-92a8-7fa9-8a62-0ecb442f2cce","at":1769674937000000000,"seq":407,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c08d8-b6be-7dfe-b07f-fafd0538ca32","at":1769674946238000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c08d9-4658-7803-97e2-e6ffd15188ee","at":1769674983000000000,"seq":409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c08d9-5210-7d31-80f9-bd9e808b47b0","at":1769674986000000000,"seq":410,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d9-935e-7e13-9b6b-608965bbc546","at":1769675002718000000,"seq":411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c08d9-e298-7513-9c97-0e5197d68417","at":1769675023000000000,"seq":412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08da-05c0-74a2-a0a4-4c4a341d144f","at":1769675032000000000,"seq":413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08da-34a0-7aab-9e91-b3c3768dc4c9","at":1769675044000000000,"seq":414,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08da-6b50-73dc-8e22-163c0c9a2e40","at":1769675058000000000,"seq":415,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c08ee-a34a-7868-b043-d7365e40e69f","at":1769676383050000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c08ef-1078-71bf-bc01-4a1a38b85aa2","at":1769676411000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08ef-4340-749c-ba27-5e0718ec435f","at":1769676424000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c08ef-acb8-7a06-976e-7182c59204e6","at":1769676451000000000,"seq":419,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

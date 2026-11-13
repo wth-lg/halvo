@@ -1,0 +1,19 @@
+{"v":1,"id":"019b97c0-bd7d-780f-a8c6-841e3ecdedd8","at":1767777549693000000,"seq":53,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97c0-bd7d-7e9f-9625-88741e59d38e","at":1767777549693000000,"seq":54,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b97c0-d620-7694-b3bb-6523ae37aec8","at":1767777556000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c1-37c8-798f-a033-4281f2e06e55","at":1767777581000000000,"seq":56,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b97c1-62c0-771b-99fe-1a1da05803ef","at":1767777592000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c5-0216-7c53-83d7-d5d005a3ac56","at":1767777829398000000,"seq":58,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b97c5-0858-7a64-9872-f612e5ea8db4","at":1767777831000000000,"seq":59,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c5-b243-79ce-a08b-39258e06e853","at":1767777874499000000,"seq":60,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b97c5-bc08-7649-a9ab-70477b8c1b87","at":1767777877000000000,"seq":61,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c5-bff0-7502-9336-27242f3e717f","at":1767777878000000000,"seq":62,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c5-db48-7fce-ac68-3f14aa68e5ed","at":1767777885000000000,"seq":63,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b97c6-11f8-78e7-896a-bc1e68a8a3df","at":1767777899000000000,"seq":64,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b97c6-2580-70e2-b940-5c34792fcdc9","at":1767777904000000000,"seq":65,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b97c6-3d2b-7ec6-bf59-1853038c3214","at":1767777910059000000,"seq":66,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b97c6-9e98-7af8-9053-9af06a2f630d","at":1767777935000000000,"seq":67,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b97c6-d548-72a9-a59b-3cb48100c8e0","at":1767777949000000000,"seq":68,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b97d6-cfd2-7202-b48c-1ac04a3a5966","at":1767778996178000000,"seq":69,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b97d6-cfd2-7318-b761-7635345cbaa2","at":1767778996178000000,"seq":70,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b97d6-dad8-7f10-a65d-febe89eb9653","at":1767778999000000000,"seq":71,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,17 @@
+{"v":1,"id":"019c3730-162c-7197-8a11-42b41edf071a","at":1770452424236000000,"seq":543,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3730-162c-728a-bc82-d7fa9f168b18","at":1770452424236000000,"seq":544,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3730-5b90-70fc-91d7-7e2d11fe9943","at":1770452442000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3730-ccd8-7ed7-b81a-6263a1bc4d6b","at":1770452471000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3739-68cd-76a3-ab2d-738e7c0cffa2","at":1770453035213000000,"seq":547,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c3739-9ac0-714a-ba88-b13105bb3306","at":1770453048000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3739-a678-759a-a5dc-70e8de3caf00","at":1770453051000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3739-bc24-74ff-8aa0-25d3b35e97a3","at":1770453056548000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c3739-bde8-7316-abfa-c757c0b16279","at":1770453057000000000,"seq":551,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3739-e4f8-7f7e-affc-86153213e018","at":1770453067000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c3739-e8e0-7608-9faf-19a4fc1520e9","at":1770453068000000000,"seq":553,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c373d-5bd6-74e9-a023-38b811b0753c","at":1770453294038000000,"seq":554,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c373d-6380-7318-84b7-54faf8f1f8f6","at":1770453296000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c373d-b1a0-70e4-b52d-5fa741798c7a","at":1770453316000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c373d-b588-73ae-86dc-eb43ded01760","at":1770453317000000000,"seq":557,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c373d-ccf8-7206-b99d-43d5022d2ac8","at":1770453323000000000,"seq":558,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c373e-03a8-77ac-98f8-7c1a6796cbd6","at":1770453337000000000,"seq":559,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

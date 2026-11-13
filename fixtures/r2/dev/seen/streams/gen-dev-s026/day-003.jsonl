@@ -1,0 +1,33 @@
+{"v":1,"id":"019b82f9-80ac-7b2b-90b5-65c46dc4f293","at":1767428948140000000,"seq":20,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b82f9-80ac-7d9d-ac18-521721539d2c","at":1767428948140000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b82f9-a730-7e27-8a66-2611858f01d6","at":1767428958000000000,"seq":22,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b82f9-b2e8-7134-8c82-0ef399685919","at":1767428961000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82f9-bab8-7ce2-910e-fe309f5570dc","at":1767428963000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8305-74b7-7223-80d2-71ada2e95f09","at":1767429731511000000,"seq":25,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8305-74b7-7034-ab06-aa03bcc3e457","at":1767429731511000000,"seq":26,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8305-99c8-7356-9751-85a713dc4a20","at":1767429741000000000,"seq":27,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b8305-ad50-7bb0-8d6f-f2d14bda173f","at":1767429746000000000,"seq":28,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b8305-af1a-7915-9fc9-30be87996585","at":1767429746458000000,"seq":29,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8305-af1a-7f98-b53f-04a2ce22c571","at":1767429746458000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b8305-d460-7548-8563-b4e712791cfd","at":1767429756000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8305-eaf2-757f-ae5e-94f6f21e8d0e","at":1767429761778000000,"seq":32,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b8306-d4ff-7502-b849-94abf7297bc1","at":1767429821695000000,"seq":33,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8306-d4ff-76d3-b708-9bb92916a7d8","at":1767429821695000000,"seq":34,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8306-da18-72f8-8053-618a727f5309","at":1767429823000000000,"seq":35,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b8306-de00-7034-8a03-d59dd7b3ee64","at":1767429824000000000,"seq":36,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8306-e9b8-7f97-b481-55b2ec2a01b0","at":1767429827000000000,"seq":37,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8317-5dec-737b-99b1-0e511041ac63","at":1767430905324000000,"seq":38,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8317-5dec-7321-985e-6e7433a800b0","at":1767430905324000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b8317-7be8-7be1-ade8-7c3eadb75ca8","at":1767430913000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8317-e579-713c-8fae-3e981b3734b0","at":1767430940025000000,"seq":41,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b8318-4320-7c40-a5c9-9c3aaff4ac75","at":1767430964000000000,"seq":42,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8318-8588-7459-8751-be80b0ca3d69","at":1767430981000000000,"seq":43,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8318-8ba6-7ee8-8f74-200aad641a29","at":1767430982566000000,"seq":44,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b8318-c408-78c3-9935-dadff06ca66d","at":1767430997000000000,"seq":45,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8318-ef00-7db8-a698-a5d4d2475351","at":1767431008000000000,"seq":46,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b8319-38ec-7278-a2d8-85fc2a221ac9","at":1767431026924000000,"seq":47,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b8319-3938-775e-b5a5-36ade1c69c6e","at":1767431027000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8319-3d20-70c8-965f-7f17c44a2e46","at":1767431028000000000,"seq":49,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8319-48d8-7bc3-a2a7-0fd2e1f11a16","at":1767431031000000000,"seq":50,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b8319-50a8-7776-adf8-ecae809af9cb","at":1767431033000000000,"seq":51,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8319-6c00-76a1-88aa-81df0d488d67","at":1767431040000000000,"seq":52,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

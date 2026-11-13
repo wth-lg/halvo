@@ -1,0 +1,20 @@
+{"v":1,"id":"019c4bcf-562a-7c1d-aff1-f9c1921601af","at":1770798405162000000,"seq":660,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4bcf-562a-73e2-beae-6bd91e542ba5","at":1770798405162000000,"seq":661,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bcf-5d58-7de1-ac51-3a467b8364e3","at":1770798407000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bcf-8468-767f-8d9c-61a9ef17666c","at":1770798417000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bcf-8c38-7e29-adc3-133b89ba34b4","at":1770798419000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c4bcf-a72f-7bb5-b299-312dff1498ca","at":1770798425903000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bcf-f998-74be-8104-de8efed10382","at":1770798447000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c4bd0-18d8-7ad0-b409-592eb0a5a4f2","at":1770798455000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd0-195b-7684-b1b2-0d41de0bc35f","at":1770798455131000000,"seq":668,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd1-07a2-7cc3-8ca5-d65e332fc37c","at":1770798516130000000,"seq":669,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd1-2278-7fa5-8813-7bbd55bd7d6d","at":1770798523000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd1-3218-7263-a16d-52cb52b381ac","at":1770798527000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c4bd1-5540-714d-971b-f3dc068744a3","at":1770798536000000000,"seq":672,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4bd2-0f34-7da1-8c4f-a2a20d701a72","at":1770798583604000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd2-a918-7300-862a-c703b132e358","at":1770798623000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4bd2-c470-72bf-9d4c-a6d68cd3615d","at":1770798630000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4bd3-113f-719d-8ea2-2c216a8e6ee2","at":1770798649663000000,"seq":676,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd3-1a60-7dd2-a6ea-503984e3a893","at":1770798652000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd3-2de8-7244-8ecd-6be2d4ce7954","at":1770798657000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c4bd3-6498-7980-94e5-2be920a762dd","at":1770798671000000000,"seq":679,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

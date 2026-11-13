@@ -1,0 +1,17 @@
+{"v":1,"id":"019bf45e-2a26-7d2e-a930-c660ebe41051","at":1769331370534000000,"seq":524,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf45e-2a26-7fd9-833a-1611476810ee","at":1769331370534000000,"seq":525,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf45e-4368-7d81-8075-dd2369abc412","at":1769331377000000000,"seq":526,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf45e-62a8-7566-93fd-e168b31d70e8","at":1769331385000000000,"seq":527,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bf45e-62a8-71e5-b4f3-bc5f17f0c1bf","at":1769331385000000000,"seq":528,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bf470-197b-796c-897b-13cb87a41dc9","at":1769332545915000000,"seq":529,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf470-197b-75cb-b244-dd7fd1c4b64e","at":1769332545915000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf471-18f2-7231-8899-d4ee28aba8f8","at":1769332611314000000,"seq":531,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf471-42b0-7a45-913f-855fa9094042","at":1769332622000000000,"seq":532,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf480-37b5-77db-9e3e-a9940e57fd20","at":1769333602229000000,"seq":533,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf480-37b5-72a4-9520-de1a93b82603","at":1769333602229000000,"seq":534,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf480-3ab8-740a-b478-019e33c74fa1","at":1769333603000000000,"seq":535,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bf480-a430-713e-9b4d-74f2a9d95386","at":1769333630000000000,"seq":536,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf486-7b0c-7695-8a9f-46ef2567bcd4","at":1769334012684000000,"seq":537,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf486-7b0c-7c20-aaa7-8abbf6f9ab77","at":1769334012684000000,"seq":538,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf486-93b8-7fd5-9663-ecb4ff647509","at":1769334019000000000,"seq":539,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf486-e9a8-7f2e-ab99-805df407a369","at":1769334041000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

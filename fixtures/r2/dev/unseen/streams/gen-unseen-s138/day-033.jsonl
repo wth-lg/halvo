@@ -1,0 +1,28 @@
+{"v":1,"id":"019c1dd6-b60f-71f4-afbf-659db5e4ff43","at":1770027136527000000,"seq":529,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1dd6-b60f-72d8-ba2a-80e7366bd4bc","at":1770027136527000000,"seq":530,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1dd7-15a8-7986-ae84-f9fe92e3d7c0","at":1770027161000000000,"seq":531,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dd7-1990-739d-973d-5a0444e10880","at":1770027162000000000,"seq":532,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c1dd7-2d18-7f94-94a0-480e18959577","at":1770027167000000000,"seq":533,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dd7-7750-79fc-a4a6-35cc2ab83b50","at":1770027186000000000,"seq":534,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1dd7-b368-77f1-ae15-b6ab91fbdcac","at":1770027201384000000,"seq":535,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c1dd7-c958-714c-80fb-ba5fa5c18083","at":1770027207000000000,"seq":536,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c1dd7-cd40-7141-8a3d-7b577711a2f3","at":1770027208000000000,"seq":537,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c1dd7-dce0-76c0-b685-b60f029c65b6","at":1770027212000000000,"seq":538,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dd7-e898-741b-a2c2-eeafaf1f5112","at":1770027215000000000,"seq":539,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dd8-4658-765d-aad0-3a4263ff3507","at":1770027239000000000,"seq":540,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1ddd-3587-7661-a043-108876f908b9","at":1770027562375000000,"seq":541,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1ddd-3587-7e8c-946e-9d2d54f4602f","at":1770027562375000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1ddd-43b0-7563-b94f-db7d2daab890","at":1770027566000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1ddd-4798-7283-a347-0b952c2a0579","at":1770027567000000000,"seq":544,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1ddd-dff0-72a2-89ab-7409ed82ea97","at":1770027606000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c1df1-0bf0-7dee-91a3-85571fe8163d","at":1770028862448000000,"seq":546,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1df1-48b0-7e59-a93a-18f9e5a00b16","at":1770028878000000000,"seq":547,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c1df1-5468-7c69-9b5e-d1c1c00321ab","at":1770028881000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1df1-6408-759f-95d9-bee67add718d","at":1770028885000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dfa-ef17-7bda-bbd1-1ac0bf7a7706","at":1770029510423000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c1dfb-0cb0-7623-9bbe-05988951c159","at":1770029518000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dfb-9904-7a09-8652-5e84f0d0b43a","at":1770029553924000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c1dfb-a8f0-79d4-b0a5-274df818208c","at":1770029558000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dfb-dfa0-776f-a220-3627f91ba888","at":1770029572000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e0d-2a28-7ba6-be07-56425e31d316","at":1770030705192000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1e0d-5078-702f-a679-124d25c85338","at":1770030715000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

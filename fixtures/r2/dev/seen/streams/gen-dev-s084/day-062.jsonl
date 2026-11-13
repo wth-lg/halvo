@@ -1,0 +1,17 @@
+{"v":1,"id":"019cb303-81c6-7731-bb7d-c070243aab47","at":1772529877446000000,"seq":943,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb303-81c6-70b1-bc23-f42a381675ea","at":1772529877446000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cb303-a330-757d-b78b-c6118d7db262","at":1772529886000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cb303-baa0-76ca-9dcc-7f40b939712f","at":1772529892000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb304-00f0-799e-80d4-f721f331f86f","at":1772529910000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb304-2799-7175-8d48-56d4cb6795c9","at":1772529919897000000,"seq":948,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cb304-2be8-73f3-a85c-68447b3233b7","at":1772529921000000000,"seq":949,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb304-7a08-732e-b265-b224a3b78bda","at":1772529941000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb304-a4dd-755c-a83c-6c311813b03e","at":1772529951965000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cb304-c440-7437-89be-5a24d3b7b8ac","at":1772529960000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cb304-cff8-72b2-90ba-0c825d3f1f0c","at":1772529963000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb305-0e78-7a4f-ab7a-fc0f83a0b16c","at":1772529979000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb305-2db8-7061-ad27-5f7e575622bc","at":1772529987000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb305-944c-77d0-9ca7-95913985fbcc","at":1772530013260000000,"seq":956,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cb306-1430-7352-aecd-e39d11d60ca1","at":1772530046000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb308-a784-700e-9d42-2f0760601557","at":1772530214788000000,"seq":958,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb309-3cc8-7252-891d-b8cfbb79dcab","at":1772530253000000000,"seq":959,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

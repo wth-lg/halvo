@@ -1,0 +1,10 @@
+{"v":1,"id":"019cb87f-65ff-71e5-b9d5-660e88715f5c","at":1772621882879000000,"seq":884,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb87f-65ff-74ca-a767-1e73a2e177aa","at":1772621882879000000,"seq":885,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cb880-1640-7419-9bc4-19e524e82014","at":1772621928000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cb880-17ed-741d-bace-517490984943","at":1772621928429000000,"seq":887,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cb881-1428-7020-b563-40aee6386229","at":1772621993000000000,"seq":888,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb881-1bf8-743c-9d90-0d5ddb00a7df","at":1772621995000000000,"seq":889,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb898-4183-7e83-b137-02a4bbd1dde4","at":1772623511939000000,"seq":890,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb898-4183-71a8-80e2-87f1b94e4b4e","at":1772623511939000000,"seq":891,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb898-8bf8-7092-8a74-eb642ca44946","at":1772623531000000000,"seq":892,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb898-e5d0-7cf9-8eab-f7e02591ad01","at":1772623554000000000,"seq":893,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

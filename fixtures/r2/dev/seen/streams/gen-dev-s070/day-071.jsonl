@@ -1,0 +1,21 @@
+{"v":1,"id":"019ce11e-d752-75cf-80d7-0df498201d86","at":1773303420754000000,"seq":1038,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce11e-d752-79e3-92aa-e5cc7091afe0","at":1773303420754000000,"seq":1039,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce11e-e400-797e-a4e3-b0edd1ccf159","at":1773303424000000000,"seq":1040,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019ce11e-e7e8-734c-996e-46f6978de4ed","at":1773303425000000000,"seq":1041,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ce131-22a1-71c9-a0c3-cb81f748866d","at":1773304619681000000,"seq":1042,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ce131-3380-71a4-a0d1-70cfd2990593","at":1773304624000000000,"seq":1043,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ce131-a4c8-7f09-9a1b-25d8241cd805","at":1773304653000000000,"seq":1044,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce132-1610-70e1-8120-e5184ecad7db","at":1773304682000000000,"seq":1045,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce132-18c8-75d2-b2f1-e31fea83d5df","at":1773304682696000000,"seq":1046,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ce132-1de0-7da0-8196-61eb1367fb2f","at":1773304684000000000,"seq":1047,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce132-77b8-78d1-97a3-63f601f767dc","at":1773304707000000000,"seq":1048,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce132-8370-7d5e-a8b9-74c9394bc47a","at":1773304710000000000,"seq":1049,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce132-8e16-793a-ae16-6922b0978b42","at":1773304712726000000,"seq":1050,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ce132-be08-7732-9b15-c819f38a3f5c","at":1773304725000000000,"seq":1051,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce143-e254-7170-b18c-84e68641853d","at":1773305848404000000,"seq":1052,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce143-e254-7340-b9c5-7b70e85aa63f","at":1773305848404000000,"seq":1053,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce143-f830-7e33-96b7-9673cf212ff9","at":1773305854000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce144-0000-7055-9de3-703e0f63c84a","at":1773305856000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce144-07d0-75cf-afbd-c66fcd47fe15","at":1773305858000000000,"seq":1056,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce144-2710-7fe0-b5ae-4961f8c82c42","at":1773305866000000000,"seq":1057,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce144-36b0-7519-84aa-4c03f1860766","at":1773305870000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

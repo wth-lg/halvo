@@ -1,0 +1,25 @@
+{"v":1,"id":"019bb15a-9de0-7d95-bcfa-5c7c197c8e40","at":1768207064544000000,"seq":103,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb15a-9de0-7b96-bcc7-9d16fe959061","at":1768207064544000000,"seq":104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bb15b-0920-75b9-990d-f032cbf014a2","at":1768207092000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15b-2860-7a94-8380-1b568ddf7a67","at":1768207100000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bb15b-51c6-7d05-bf73-ddcb70b04e27","at":1768207110598000000,"seq":107,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb15b-51c6-7e50-806f-b97303b9c224","at":1768207110598000000,"seq":108,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb15b-ec80-7953-aded-9039f5ea4d8c","at":1768207150208000000,"seq":109,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb15b-ec80-7676-8433-637f697c9bee","at":1768207150208000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bb15c-5528-7f35-9164-88a2f33ec772","at":1768207177000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bb15c-d25e-753c-a92c-c2b6994e2226","at":1768207209054000000,"seq":112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bb15d-1490-7683-a5e4-b77dcf396a18","at":1768207226000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15d-33d0-79fa-a6e6-b0d950c44120","at":1768207234000000000,"seq":114,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb15d-a130-7c66-b721-a27b65f5ff41","at":1768207262000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb15d-a900-73c9-bf42-7a1577f5af5b","at":1768207264000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15d-ab62-711c-9f8e-039090eb0dc8","at":1768207264610000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bb15d-cc28-7d38-bfa4-fbafca5f0e6c","at":1768207273000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15d-d3f8-7290-82a0-7b7276391aac","at":1768207275000000000,"seq":119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb15d-dbc8-7def-aae3-c29cba823680","at":1768207277000000000,"seq":120,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb167-b87a-75d6-95ee-46c9ea3d28ed","at":1768207923322000000,"seq":121,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb167-b87a-7aad-8013-f6d429e5e422","at":1768207923322000000,"seq":122,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb168-14f8-7a27-8edc-7cd93f18fbc0","at":1768207947000000000,"seq":123,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb168-24d2-7d9b-9ca3-f5843bfd244c","at":1768207951058000000,"seq":124,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb168-7a88-71db-8405-3d82459eba13","at":1768207973000000000,"seq":125,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bb168-7e70-7dd1-a308-140819945241","at":1768207974000000000,"seq":126,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb168-91f8-7a7f-9596-d18fa436846d","at":1768207979000000000,"seq":127,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

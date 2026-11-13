@@ -1,0 +1,13 @@
+{"v":1,"id":"019bacab-10bc-7a2a-8e92-518bb25b1aa0","at":1768128450748000000,"seq":94,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bacab-10bc-723d-b1df-8eef53a90e27","at":1768128450748000000,"seq":95,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bacab-7360-7c91-89ed-6bc6637a0cf9","at":1768128476000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bacac-1c65-72e9-aec3-628b40ccc71e","at":1768128519269000000,"seq":97,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bacac-7148-777b-ac8f-cd26c87e9937","at":1768128541000000000,"seq":98,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bacac-b3b0-752e-beb0-1c353adccb31","at":1768128558000000000,"seq":99,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bacac-f618-76b2-a4be-08acfb3dc0d3","at":1768128575000000000,"seq":100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bacad-0d88-797d-8a2d-3a3b50733537","at":1768128581000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bacad-1151-7e7c-b806-d28b9d974222","at":1768128581969000000,"seq":102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bacad-4050-719a-957a-4b913bc492ce","at":1768128594000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bacad-4c08-7f5e-a5a6-7ee915096a34","at":1768128597000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bacad-7318-782f-91de-766301994807","at":1768128607000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bacad-7700-78f5-9329-63f9ba5bf4ec","at":1768128608000000000,"seq":106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

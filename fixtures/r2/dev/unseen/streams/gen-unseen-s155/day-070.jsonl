@@ -1,0 +1,36 @@
+{"v":1,"id":"019cdbb9-5cd4-7348-b3ca-90d898d7d62c","at":1773212884180000000,"seq":984,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdbb9-5cd4-7953-a137-12b6ea3f8160","at":1773212884180000000,"seq":985,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cdbb9-cd68-7e1c-b62c-0cc08125029b","at":1773212913000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbba-4298-7684-a842-f76eaf74b6cf","at":1773212943000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbba-66da-788c-bcdf-aa9ef73a3016","at":1773212952282000000,"seq":988,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cdbba-7d30-71d3-9587-78d65d6958b2","at":1773212958000000000,"seq":989,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cdbba-8500-7a85-b7ed-dceee84bb1b2","at":1773212960000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbba-fe18-7960-ad40-6c87662b78e0","at":1773212991000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbbb-2af7-7514-aedc-fde66b793858","at":1773213002487000000,"seq":992,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cdbbb-6b78-7cdf-bc7b-bc1f2435dde2","at":1773213019000000000,"seq":993,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbbc-0f88-7d2f-b469-ac19c7e41002","at":1773213061000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbbc-2231-7597-9073-c18d047f4c4c","at":1773213065777000000,"seq":995,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement May - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cdbbc-2310-78cb-bc43-35c343311ced","at":1773213066000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbbc-3698-770a-89ff-73c60bf50285","at":1773213071000000000,"seq":997,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdbbc-4e08-7787-8b62-71bc1ada51f8","at":1773213077000000000,"seq":998,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdbbc-a3f8-7982-a111-ec8b383e4b83","at":1773213099000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbbc-f9e8-7c74-a2b5-1191ab9b63c1","at":1773213121000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cdbbd-001c-70b6-b91c-70aecac45273","at":1773213122588000000,"seq":1001,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cdbbd-20f8-7c0e-b12e-fadf9065b182","at":1773213131000000000,"seq":1002,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdbbd-4bf0-7a0e-9f25-9facda684d0a","at":1773213142000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbbd-c8f0-710e-9763-1249569bf1b1","at":1773213174000000000,"seq":1004,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdbbd-ffa0-708e-98ee-64751cc02a9c","at":1773213188000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbbe-006b-70d6-af64-72e18f34c29c","at":1773213188203000000,"seq":1006,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cdbbe-0f40-7bf3-b022-1795a0ef1377","at":1773213192000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbbe-5978-79c9-93ca-b31f1a87cf76","at":1773213211000000000,"seq":1008,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdbbe-8088-7ad4-97d5-083b9aabcad7","at":1773213221000000000,"seq":1009,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cdbbe-9449-7462-b349-195d7e887e59","at":1773213226057000000,"seq":1010,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cdbbe-e230-730c-b7bf-b02a5d010cc8","at":1773213246000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cdbbf-9ac5-7dd6-89fe-1f25f936aab6","at":1773213293253000000,"seq":1012,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cdbbf-c4c0-70e3-a81f-04652064550e","at":1773213304000000000,"seq":1013,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cdbc7-1bbe-7b36-bf46-63bf7f0b0e56","at":1773213785022000000,"seq":1014,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdbc7-1bbe-7826-a86c-43212940f98e","at":1773213785022000000,"seq":1015,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdbc7-3ae8-7719-9b06-cdb86389a261","at":1773213793000000000,"seq":1016,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cdbc7-46a0-7a19-96b8-0917a2eeafd6","at":1773213796000000000,"seq":1017,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbc7-8908-74e9-94ba-5104ff8ed417","at":1773213813000000000,"seq":1018,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cdbc7-9c90-7454-9634-9e0f05caf120","at":1773213818000000000,"seq":1019,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

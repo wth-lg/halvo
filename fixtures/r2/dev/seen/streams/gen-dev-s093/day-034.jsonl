@@ -1,0 +1,13 @@
+{"v":1,"id":"019c228a-4987-7ac6-a3f0-94d3c46dc2e3","at":1770106014087000000,"seq":499,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c228a-4987-77a1-a9b3-3a23df5f3766","at":1770106014087000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c228a-9750-78d1-81b4-23dee0786818","at":1770106034000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c228a-9b38-727b-9c11-d32d27ad02d6","at":1770106035000000000,"seq":502,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c228a-ed40-7e34-a6ea-a852fd8a842e","at":1770106056000000000,"seq":503,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c229f-9973-76de-9806-1cb2c8721c6d","at":1770107410803000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c229f-c918-769c-975a-bdc4c1cc2bba","at":1770107423000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c229f-f7f8-7b83-80ac-24b314aeeb90","at":1770107435000000000,"seq":506,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c22a0-26d8-7101-85ef-ad27fdfa1678","at":1770107447000000000,"seq":507,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c22a4-b03c-71a4-88f0-2c45110c15f6","at":1770107744316000000,"seq":508,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c22a4-b03c-7304-a355-9648ad544469","at":1770107744316000000,"seq":509,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c22a4-ce40-7064-908b-e83205c92b16","at":1770107752000000000,"seq":510,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c22a5-0108-7e79-a7fb-8c04a1a0907d","at":1770107765000000000,"seq":511,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

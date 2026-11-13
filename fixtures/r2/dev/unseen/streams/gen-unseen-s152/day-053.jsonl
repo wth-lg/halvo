@@ -1,0 +1,31 @@
+{"v":1,"id":"019c8435-5a51-7313-a74b-26db6e32209f","at":1771744614993000000,"seq":844,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8435-5a51-77f0-b603-e5f1d234a3b7","at":1771744614993000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c8435-7d80-751d-9a77-1e4e6716842a","at":1771744624000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8435-8168-7a1e-ae4b-6a00a53fd70f","at":1771744625000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8435-8550-73bf-9ab1-fe7b987c8f31","at":1771744626000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8435-ac60-77b0-97a6-631e9f65a680","at":1771744636000000000,"seq":849,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c844d-13a3-7d17-9063-f3fc74e78009","at":1771746169763000000,"seq":850,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c844d-2818-7f9f-b992-c675d342aed4","at":1771746175000000000,"seq":851,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c844d-6698-7cc9-ae88-8aec1ffb6c9d","at":1771746191000000000,"seq":852,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c844d-85d8-7deb-9fd6-a052e5c1bde9","at":1771746199000000000,"seq":853,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8461-b598-7d8b-88bc-bb5cd6f4eaac","at":1771747521944000000,"seq":854,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8462-61b0-779e-bec9-ef506e685810","at":1771747566000000000,"seq":855,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8462-6507-7f8e-90cc-368f92ce3a87","at":1771747566855000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8462-9860-7d62-ad62-2caed939de9e","at":1771747580000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8463-1560-7f05-990b-897363ba4f39","at":1771747612000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8463-1d30-7821-9175-59ef3b812e8d","at":1771747614000000000,"seq":859,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8463-36e0-7d7f-a890-f8697b24ba3b","at":1771747620576000000,"seq":860,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8463-4c10-7e34-b18e-ea385125f8b7","at":1771747626000000000,"seq":861,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8463-7ed8-7cf6-b24c-1af8352d32ef","at":1771747639000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c8463-e292-73e4-8eae-54884fedbd39","at":1771747664530000000,"seq":863,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8463-f408-7b7c-a7ad-2a209039df24","at":1771747669000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8464-03a8-7ab5-ba44-e7a8dbf44048","at":1771747673000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8464-1348-7215-8550-25ca564a661b","at":1771747677000000000,"seq":866,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8464-8c60-7ef1-86a4-8e14f54ca11f","at":1771747708000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c846a-d61b-7081-a8da-5b965be3074f","at":1771748120091000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c846b-4320-7d31-a445-98f01dcc0157","at":1771748148000000000,"seq":869,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c846b-b080-7724-930e-f1b06864df5e","at":1771748176000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c846f-b4ce-7983-b536-37439c2009ec","at":1771748439246000000,"seq":871,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c846f-bf90-7a85-9492-cf52030cd71f","at":1771748442000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c8470-7bc2-7460-8211-145b94eb5a76","at":1771748490178000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c8471-03c8-7cc4-890d-876745dc78a1","at":1771748525000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

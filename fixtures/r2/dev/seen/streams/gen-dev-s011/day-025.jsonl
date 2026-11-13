@@ -1,0 +1,13 @@
+{"v":1,"id":"019bf48e-1f7f-7241-a6f6-adf024561fce","at":1769334513535000000,"seq":313,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf48e-1f7f-70a9-8646-ac3beac4e16a","at":1769334513535000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf48e-9f78-7ddd-808d-a3fbd784b1fb","at":1769334546296000000,"seq":315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf48e-aa08-7477-82e5-496e2fd39ab6","at":1769334549000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bf48f-2af0-70df-b932-885a4e43d597","at":1769334582000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf493-8db3-7c9b-87f3-0e4154d5ece1","at":1769334869427000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bf493-a378-7bab-a20c-625e40e7238d","at":1769334875000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bf493-d07b-7ce4-9612-c86c37dad888","at":1769334886523000000,"seq":320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bf493-edb0-7d19-8d92-d05703031a10","at":1769334894000000000,"seq":321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf494-0908-7b8e-a3aa-6b3f73ab2888","at":1769334901000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf494-3fb8-77ed-be44-76175e1eef97","at":1769334915000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bf49a-7af0-7a53-9da3-e609a36e53fc","at":1769335323376000000,"seq":324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf49a-b410-7c6e-b0bf-64d5f9d38fef","at":1769335338000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

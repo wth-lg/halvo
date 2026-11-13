@@ -1,0 +1,41 @@
+{"v":1,"id":"019c74d3-3938-7a8f-91be-1437c30ed9a0","at":1771486525752000000,"seq":521,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c74d3-3938-7354-ad75-13a0b50f472f","at":1771486525752000000,"seq":522,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c74d3-97f1-786b-903e-7d7f59a7ca50","at":1771486550001000000,"seq":523,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c74d3-a3a8-75fc-a9f9-3816f311fc61","at":1771486553000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74d3-c2e8-76f0-a7ed-7884c7dcaa2d","at":1771486561000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74d4-0168-763b-b01a-38ec560e40db","at":1771486577000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c74d4-2645-7ad3-be64-1f66b9db6192","at":1771486586437000000,"seq":527,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c74d5-1f96-73fe-970f-1082f30b0b55","at":1771486650262000000,"seq":528,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c74d6-2153-7380-b3a7-eb329dd9f5fd","at":1771486716243000000,"seq":529,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c74d6-7a38-7896-8a76-32582684ea2d","at":1771486739000000000,"seq":530,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c74d6-9978-7aef-845d-ec3c3654d8e1","at":1771486747000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74d6-f27a-72dc-a890-e626aa4308d6","at":1771486769786000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c74d7-0ac0-7eec-a223-1976b8385fc7","at":1771486776000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74d7-3d88-7aec-82f4-bc4a2f01dbaf","at":1771486789000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c74d7-4d28-79ae-a369-605de502f460","at":1771486793000000000,"seq":535,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c74d7-7820-7eeb-a57d-655a964a018d","at":1771486804000000000,"seq":536,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74d7-7ff0-7aa3-8686-b3084d7c7aa7","at":1771486806000000000,"seq":537,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c74d7-b70d-7f9b-9bcb-a08d32250d2d","at":1771486820109000000,"seq":538,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c74d8-1460-76ea-9880-b9aaf20686bd","at":1771486844000000000,"seq":539,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c74d8-33a0-7f6e-b4b0-44a325dc1978","at":1771486852000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c74d8-52e0-7944-a790-1aad4bc19e55","at":1771486860000000000,"seq":541,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c74d8-9930-7c7a-bdcc-65153bf48a27","at":1771486878000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74d8-a620-7f87-bdfa-118a5e93767a","at":1771486881312000000,"seq":543,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c74d8-b488-7307-a833-2dce061fd67c","at":1771486885000000000,"seq":544,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c74d8-c040-7ff5-8d0a-10ff18d74b26","at":1771486888000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c74e6-f647-77ee-b910-360760fac5fd","at":1771487819335000000,"seq":546,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c74e6-fcc8-7a62-bac8-5dbb0b6e3a29","at":1771487821000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c74e7-3b48-71ef-b96a-60de4cea5c45","at":1771487837000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c74e7-5a88-715e-8a51-e6280e16e7a9","at":1771487845000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74e7-5e70-74ac-a260-2ac346567d6d","at":1771487846000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74f5-c787-7f7f-ab33-20b63a2fa8a7","at":1771488790407000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c74f6-94f8-7459-9159-f87964abccbb","at":1771488843000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c74f6-98e0-73a2-93c5-565e5fe84e9b","at":1771488844000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74f6-a498-7c82-ad87-79c893377060","at":1771488847000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c74f6-b050-79fe-a083-c01436478926","at":1771488850000000000,"seq":555,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7507-2759-7c80-bee3-07aba3aa9a03","at":1771489929049000000,"seq":556,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7507-bb98-7ca5-9e5b-db8acbf2369e","at":1771489967000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7507-c368-7bb6-bfc9-79a3524cbac8","at":1771489969000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7507-cb38-7b97-9f4d-c2664b6dd07c","at":1771489971000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7508-05d0-76c9-b550-46d503fd0905","at":1771489986000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c7508-1570-7783-a0f4-f41765f706c2","at":1771489990000000000,"seq":561,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

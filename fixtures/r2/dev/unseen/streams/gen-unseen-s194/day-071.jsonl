@@ -1,0 +1,33 @@
+{"v":1,"id":"019ce177-5ad0-7dde-a9b8-cb0211548cb7","at":1773309221584000000,"seq":1029,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce177-5ad0-7929-b861-c0f625811821","at":1773309221584000000,"seq":1030,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019ce177-8b50-77fc-a1da-d7649a27e3a4","at":1773309234000000000,"seq":1031,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce177-cdb8-7dd0-abaa-f808297b236d","at":1773309251000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ce177-d970-745b-af16-fcee6acaab63","at":1773309254000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce178-6b9e-7696-b77e-a5e0b0908cc8","at":1773309291422000000,"seq":1034,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019ce178-b048-74fe-ae95-75f8373ce602","at":1773309309000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ce179-507b-7768-94ac-65ad4d44a6db","at":1773309350011000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019ce179-5840-7a32-a803-c599475a8592","at":1773309352000000000,"seq":1037,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce179-abf3-76df-b66d-e525f7bbe3ce","at":1773309373427000000,"seq":1038,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019ce179-c5a0-7c0a-b849-56b5e78b5798","at":1773309380000000000,"seq":1039,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce179-c988-7222-b5e5-f5b78a87d65c","at":1773309381000000000,"seq":1040,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce179-d540-77c2-a946-6325b5dfd26e","at":1773309384000000000,"seq":1041,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce17d-3317-7fb2-aa5f-d9f4bfe738f0","at":1773309604631000000,"seq":1042,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce17d-6f20-74ec-bd8f-e024cb144d9c","at":1773309620000000000,"seq":1043,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce17d-a9b8-7bef-b754-7c4eaeb8c6ab","at":1773309635000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ce17d-ef69-7d83-a512-8affacc2c22a","at":1773309652841000000,"seq":1045,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce17e-51b0-7570-92be-eb69bab19559","at":1773309678000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce17e-5d68-73d2-a3b7-7371f69915c0","at":1773309681000000000,"seq":1047,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ce17e-b25f-7ca1-92ea-21c248de399a","at":1773309702751000000,"seq":1048,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce17e-da68-7772-9acb-faea251a966b","at":1773309713000000000,"seq":1049,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce17e-f9a8-7a6d-be3a-339ed6209f98","at":1773309721000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce17f-18e8-7544-a19f-043c77a70857","at":1773309729000000000,"seq":1051,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce17f-3d7d-7956-8fd9-db93d2a84680","at":1773309738365000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce17f-47c8-749a-b315-afa96e83db33","at":1773309741000000000,"seq":1053,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce17f-8a30-7d03-a600-b1e3863912e8","at":1773309758000000000,"seq":1054,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce17f-d080-7661-896f-8c9696c1996c","at":1773309776000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ce17f-f7ce-75b9-a009-4cbf1c775d8f","at":1773309786062000000,"seq":1056,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce180-9f88-7e35-aace-ff2cc8140546","at":1773309829000000000,"seq":1057,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce18c-64db-7ec5-9a9f-fc22f965819c","at":1773310600411000000,"seq":1058,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce18c-9220-7216-a74b-8855ed6e6ced","at":1773310612000000000,"seq":1059,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce18c-ebf8-7249-a22c-79d5f4c771c5","at":1773310635000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce18d-2a78-7dc2-a1ed-c8f9b44f1553","at":1773310651000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

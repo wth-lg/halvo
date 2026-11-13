@@ -1,0 +1,19 @@
+{"v":1,"id":"019cf0dc-8701-75e3-9c12-cbe0e9fefb66","at":1773567510273000000,"seq":1056,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf0dc-8701-7f75-98c7-177010cf4a5d","at":1773567510273000000,"seq":1057,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cf0dc-c088-7d06-b503-bc91517aba59","at":1773567525000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0dd-02f0-79e1-b0ec-26b89b93d35a","at":1773567542000000000,"seq":1059,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf0dd-30f3-7484-bc6d-09f1d579d343","at":1773567553779000000,"seq":1060,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cf0dd-fb15-76fa-a8ff-5d7dbcf97260","at":1773567605525000000,"seq":1061,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cf0de-0c90-77e3-b4e1-5566607ac400","at":1773567610000000000,"seq":1062,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf0de-c040-7de1-be4f-7ccdea2a4069","at":1773567656000000000,"seq":1063,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf0de-c580-7f11-b6e1-4be283fed0ab","at":1773567657344000000,"seq":1064,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cf0de-d7b0-7b06-8905-0c1028552977","at":1773567662000000000,"seq":1065,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0f0-f822-7895-a6d1-ed07d802551f","at":1773568849954000000,"seq":1066,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cf0f0-fc38-7624-b3f6-cde13a2f4b31","at":1773568851000000000,"seq":1067,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf0f1-0fc0-7d6b-8864-8fac9599b176","at":1773568856000000000,"seq":1068,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0f1-3ea0-7985-9607-21b799f81d2f","at":1773568868000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cf0f1-4a58-751f-ad1b-f936529b2cfd","at":1773568871000000000,"seq":1070,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf101-3bd2-74e0-a013-09e1ed8a85ab","at":1773569915858000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cf101-5ba0-752d-af6c-ed27719ac399","at":1773569924000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf101-fbc8-7aa0-9121-c7d055000bc6","at":1773569965000000000,"seq":1073,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cf102-0780-7376-9606-5db5004932ac","at":1773569968000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

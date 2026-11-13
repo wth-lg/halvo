@@ -1,0 +1,20 @@
+{"v":1,"id":"019cc29f-9aee-7112-8aaa-ddfd0e581e03","at":1772791765742000000,"seq":1010,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc29f-9aee-71c5-92ec-d72eb9b8284b","at":1772791765742000000,"seq":1011,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc29f-bb30-7fdc-aab1-5f832af0aeb0","at":1772791774000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cc29f-f5c8-7d48-93f8-315849b79e59","at":1772791789000000000,"seq":1013,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc2ad-72db-7551-8977-81ada3b112e5","at":1772792672987000000,"seq":1014,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc2ad-8a58-7a87-acf9-3ad77b714381","at":1772792679000000000,"seq":1015,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc2ad-a998-77f1-9a72-db4536501a02","at":1772792687000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2ad-b550-766c-a0bd-02be0524926b","at":1772792690000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2bb-6559-7e12-98d9-919d599240f4","at":1772793587033000000,"seq":1018,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cc2bb-9be8-71f7-89c7-35decf0d2198","at":1772793601000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cc2bb-9fd0-7594-b11e-c8db3bec7edf","at":1772793602000000000,"seq":1020,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2bb-b740-789c-b7b3-d7fc15ca5a31","at":1772793608000000000,"seq":1021,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2bb-df62-76b3-a3b4-a2e500e6a41e","at":1772793618274000000,"seq":1022,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cc2bb-e620-7de4-8057-a5b10a5493a9","at":1772793620000000000,"seq":1023,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc2bb-ea08-7648-8fde-e8af3b3e47cf","at":1772793621000000000,"seq":1024,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cc2bb-f5c0-7dc5-92c7-0521f48f6309","at":1772793624000000000,"seq":1025,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2bc-0560-77c1-b147-9399c7df48f6","at":1772793628000000000,"seq":1026,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc2d2-41f3-70f2-91a1-9fd549edb08d","at":1772795085299000000,"seq":1027,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc2d2-41f3-719d-a282-8112fef0e9d5","at":1772795085299000000,"seq":1028,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc2d2-5838-7ebc-a100-58081f55c865","at":1772795091000000000,"seq":1029,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,18 @@
+{"v":1,"id":"019d0f8b-ab5e-7a9b-88bd-08a3ef321725","at":1774082304862000000,"seq":1121,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0f8b-ab5e-7c91-a166-2bb4590a1056","at":1774082304862000000,"seq":1122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d0f8c-2500-7726-a147-b5e95e07c689","at":1774082336000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f8c-65ea-72a1-a594-a185442de743","at":1774082352618000000,"seq":1124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d0f8c-6f38-77ec-87ba-a9b602d8583d","at":1774082355000000000,"seq":1125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f8c-f020-70cc-8d6a-98777c458811","at":1774082388000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f8d-0790-70a9-8493-49ea6f9632b0","at":1774082394000000000,"seq":1127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0f8d-1304-7f0f-a000-6d5395663b28","at":1774082396932000000,"seq":1128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d0f8d-26d0-7702-bbe5-5d130b166915","at":1774082402000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d0f8d-970d-70cf-ad4b-7b33814a87d9","at":1774082430733000000,"seq":1130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d0f8d-9fe8-7d71-838f-c851c8b441b9","at":1774082433000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0f8e-3458-75a1-8a5f-5f2a87973111","at":1774082471000000000,"seq":1132,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0fa6-61be-7a69-8942-d9bff9e14ca1","at":1774084055486000000,"seq":1133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa7-0b92-7f1b-a1c5-8048926c90f5","at":1774084098962000000,"seq":1134,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa7-0fa0-74ce-ac41-602a82464632","at":1774084100000000000,"seq":1135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0fa7-2af8-7dde-8c16-1a89df66484a","at":1774084107000000000,"seq":1136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0fa7-5dc0-7865-95d7-eb305c26138b","at":1774084120000000000,"seq":1137,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0fa7-9088-771b-9684-925214069a95","at":1774084133000000000,"seq":1138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

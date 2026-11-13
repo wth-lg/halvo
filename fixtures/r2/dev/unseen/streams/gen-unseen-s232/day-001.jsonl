@@ -1,0 +1,18 @@
+{"v":1,"id":"019b78ee-c358-7b02-898f-6e66c95df638","at":1767260472152000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b78ee-c358-793e-9c53-6acf1652d98f","at":1767260472152000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b78ee-ce78-75c4-a05a-ea9128af03ff","at":1767260475000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ef-4be1-73b1-ab0a-dbe40c20dfe9","at":1767260507105000000,"seq":3,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b78ef-5348-7278-8d88-8c4d4a4e3edd","at":1767260509000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b790a-e8b7-71fd-96b3-d6aa22eca0b2","at":1767262316727000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b790a-f580-7d6f-a213-3f28353c4742","at":1767262320000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b790b-a548-7813-bb2c-b0d90d5909d6","at":1767262365000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b790b-cc58-76d8-b356-e66048be8346","at":1767262375000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b790b-e59a-7eda-9ed2-00fe38097066","at":1767262381466000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b790b-f750-7080-a997-c03131456e77","at":1767262386000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b790c-4958-74e0-94b7-ab46fa5dd0af","at":1767262407000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b790c-60c8-7ece-b8c9-4adb046b5493","at":1767262413000000000,"seq":12,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b790c-8b27-7973-8e43-1806c9989658","at":1767262423847000000,"seq":13,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b790c-8bc0-779d-8e76-6474ce7810dd","at":1767262424000000000,"seq":14,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b790c-ca40-7462-927d-fb3f7f248373","at":1767262440000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b790c-e980-7fb7-90f6-37c52ae38354","at":1767262448000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b790c-ed68-701c-b488-44390de77dd4","at":1767262449000000000,"seq":17,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

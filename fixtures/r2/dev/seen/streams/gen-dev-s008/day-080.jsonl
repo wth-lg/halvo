@@ -1,0 +1,30 @@
+{"v":1,"id":"019d0f9e-5f21-7ea8-8d39-de0034811f3a","at":1774083530529000000,"seq":1042,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0f9e-5f21-7e57-81f7-35af3934a09b","at":1774083530529000000,"seq":1043,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0f9e-6cb0-73f5-b65a-5f395d53e079","at":1774083534000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f9e-9b90-7fac-842a-69fddd374fe7","at":1774083546000000000,"seq":1045,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0f9e-b300-70d0-81d7-6097522f342a","at":1774083552000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0f9e-c2a0-77c4-a84f-594127446531","at":1774083556000000000,"seq":1047,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fa5-673e-74b3-b120-6c84671f8e5b","at":1774083991358000000,"seq":1048,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa6-5e09-7823-95da-cd65d4e148b4","at":1774084054537000000,"seq":1049,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa7-2ee0-781c-bd82-ac9c7445e92f","at":1774084108000000000,"seq":1050,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0fa7-4ee2-73b1-8a47-943c940c8b5b","at":1774084116194000000,"seq":1051,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa7-5208-76a8-a33b-bb21c00f1fba","at":1774084117000000000,"seq":1052,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d0fa7-c350-7536-bc5c-83a0bc61efd9","at":1774084146000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fa8-01d0-72fb-9f04-190edcf61c10","at":1774084162000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fa8-22dd-795c-9ef1-2ace99180eb2","at":1774084170461000000,"seq":1055,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa8-4ff0-73a4-927c-adbbc6528260","at":1774084182000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d0fa8-5ba8-7e46-9250-b9787775f03a","at":1774084185000000000,"seq":1057,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0fa8-5f90-7ea9-b4f3-b4f1b6d02ce8","at":1774084186000000000,"seq":1058,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0fa8-d54b-7344-bdb7-14428b555bba","at":1774084216139000000,"seq":1059,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa8-f400-7459-9fc0-bcfb010e0350","at":1774084224000000000,"seq":1060,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0fa8-f7e8-7c6c-a3ff-94f56688b2ce","at":1774084225000000000,"seq":1061,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0fa9-1eba-7425-ade2-137360a9371a","at":1774084234938000000,"seq":1062,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa9-3a50-74a6-8b6f-3f3d6e622856","at":1774084242000000000,"seq":1063,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fa9-a115-772b-b6d7-3598bf880c8f","at":1774084268309000000,"seq":1064,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa9-a3c8-75a4-872c-ec3076f7a305","at":1774084269000000000,"seq":1065,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d0fa9-e630-7bc0-af01-9364cbb1c07b","at":1774084286000000000,"seq":1066,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0faa-4fa8-77de-bad5-b96968e8c819","at":1774084313000000000,"seq":1067,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0faa-8912-7a1d-8325-806b9b656758","at":1774084327698000000,"seq":1068,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d0faa-b920-7584-8fbd-c1129a392fd7","at":1774084340000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0faa-e800-70a6-b291-13b12e1e170f","at":1774084352000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d0faa-f3b8-7b1a-ab4f-410865359e2c","at":1774084355000000000,"seq":1071,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

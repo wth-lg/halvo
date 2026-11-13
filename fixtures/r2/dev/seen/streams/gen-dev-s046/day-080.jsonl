@@ -1,0 +1,11 @@
+{"v":1,"id":"019d0f74-8c22-73b9-a7cf-ffb4fba0dd4c","at":1774080789538000000,"seq":982,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0f74-8c22-7b8c-9a26-a02375f7829f","at":1774080789538000000,"seq":983,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d0f75-3a0f-7998-ba7f-1ed29dc44ebb","at":1774080834063000000,"seq":984,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d0f75-bab8-78e2-832a-e4355f9eb04a","at":1774080867000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d0f76-1a07-7e9a-9e17-862794a2b481","at":1774080891399000000,"seq":986,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d0f76-2fe8-7fd8-a2e8-bbdc1ed00e64","at":1774080897000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f76-3ba0-7ad0-a040-7c49609fb3b6","at":1774080900000000000,"seq":988,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f76-3f88-7ae6-b1fc-371741201409","at":1774080901000000000,"seq":989,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0f76-e60c-75d7-86ef-be2558756b27","at":1774080943628000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d0f76-fef0-7066-9c83-29cc231cf1bd","at":1774080950000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f77-83c0-7c03-bd8d-1710c16b12eb","at":1774080984000000000,"seq":992,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

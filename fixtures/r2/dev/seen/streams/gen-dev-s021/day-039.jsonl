@@ -1,0 +1,6 @@
+{"v":1,"id":"019c3c32-8d79-749d-bb93-78eeb397fb51","at":1770536471929000000,"seq":560,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c32-8d79-7984-b11a-1f00404b0596","at":1770536471929000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c3c32-9d60-7d5f-b9ae-5042baecc530","at":1770536476000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c3c33-98b8-708d-bbb1-2c8a8b2b4c13","at":1770536540344000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c3c33-c258-7240-962d-1bfb643b0187","at":1770536551000000000,"seq":564,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3c33-f138-7f6b-9b28-cd8c0ecf829d","at":1770536563000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,14 @@
+{"v":1,"id":"019b830a-b65f-7bda-ad16-50c11a312548","at":1767430075999000000,"seq":18,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b830a-b65f-7215-b7b4-cba0da9a4afa","at":1767430075999000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b830a-be30-7344-be98-fdf858b017d1","at":1767430078000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b830a-d1b8-7a37-9b4b-e5328ad712bf","at":1767430083000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b830a-f8c8-7ce8-8891-88537b5cc39e","at":1767430093000000000,"seq":22,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8314-31c6-724f-a9d2-bc75fa53c2e8","at":1767430697414000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b8314-3fc8-7ddb-983b-127d9d2d21d9","at":1767430701000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8314-6ac0-7b8b-998d-b1d7b4efbb35","at":1767430712000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8314-6b35-7e27-8265-bdc2b4ad69c4","at":1767430712117000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b8314-b4f8-7ab7-a3f6-35a15f8c2b67","at":1767430731000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8314-f760-789a-aef2-1b9d8ddea2a8","at":1767430748000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b8314-fb48-7303-abfc-e10d9cb5f4b5","at":1767430749000000000,"seq":29,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8315-0d7e-7f63-8a58-3ffbe39dec58","at":1767430753662000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b8315-2258-79e3-b939-3e2dc20dff4e","at":1767430759000000000,"seq":31,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

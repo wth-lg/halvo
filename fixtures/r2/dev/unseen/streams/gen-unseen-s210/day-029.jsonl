@@ -1,0 +1,22 @@
+{"v":1,"id":"019c08bc-ca83-7504-b813-12e60faece07","at":1769673116291000000,"seq":455,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c08bc-ca83-7b90-99db-092fa836a923","at":1769673116291000000,"seq":456,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c08bc-d900-7b5a-82d3-b598b5bcd749","at":1769673120000000000,"seq":457,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c08bd-7540-7019-af88-3914935b584f","at":1769673160000000000,"seq":458,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d1-6a33-7b0e-ba29-9d2e25ca720e","at":1769674467891000000,"seq":459,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08d1-6a33-7b83-8d7d-9fd2346766fb","at":1769674467891000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c08d2-2a08-7777-8db6-130aaa1b0ec6","at":1769674517000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d2-750f-71b7-850c-b0cd9bad747e","at":1769674536207000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c08d2-9380-757e-b2f6-4d05685d3d33","at":1769674544000000000,"seq":463,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08d2-c260-7b33-a243-62e15d28a80e","at":1769674556000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d2-e1a0-7f4a-a9f8-0d21b955c8dc","at":1769674564000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d2-fcf8-729f-92c5-0245a8ca0c30","at":1769674571000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c08d3-114d-75ec-9f45-688cbbd42dbf","at":1769674576205000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c08d3-2fc0-7bbe-9ff2-877219f1550b","at":1769674584000000000,"seq":468,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08d3-33a8-7309-87e2-8be84db0b6bb","at":1769674585000000000,"seq":469,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c08d3-56d0-76c1-b8df-f812f58ab310","at":1769674594000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c08d3-598a-7f33-adc4-6f9058f92486","at":1769674594698000000,"seq":471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c08d3-6a58-7f45-8666-81184088f4b8","at":1769674599000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d3-81c8-76f1-997a-88129c4c1f10","at":1769674605000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c08d3-b878-7243-b9b7-fc16a816fb75","at":1769674619000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d3-d3d0-7770-b1a6-765f2c38d6f7","at":1769674626000000000,"seq":475,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08d3-e758-76b9-8acf-a09e4adf6bd8","at":1769674631000000000,"seq":476,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

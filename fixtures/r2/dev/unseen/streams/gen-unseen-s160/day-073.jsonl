@@ -1,0 +1,7 @@
+{"v":1,"id":"019cebce-12c8-7339-befe-f82a45bb2d5f","at":1773482676936000000,"seq":970,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cebce-12c8-7b23-ab2b-04e9df5e9a96","at":1773482676936000000,"seq":971,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cebce-3630-7d99-a0bd-3ab1f5a9a9b6","at":1773482686000000000,"seq":972,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebce-70c8-78fb-8110-a7314b0dd091","at":1773482701000000000,"seq":973,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cebce-c2d0-7dae-9625-cb3831c2ac70","at":1773482722000000000,"seq":974,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebce-d8a3-707b-a197-d104dbf7f8fd","at":1773482727587000000,"seq":975,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cebce-e210-752e-a167-458917316a04","at":1773482730000000000,"seq":976,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

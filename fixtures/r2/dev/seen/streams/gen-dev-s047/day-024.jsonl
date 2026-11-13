@@ -1,0 +1,24 @@
+{"v":1,"id":"019beee8-a632-7563-9164-9e9109b5387a","at":1769239782962000000,"seq":227,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019beee8-a632-70de-917b-f9f47d07b9a0","at":1769239782962000000,"seq":228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019beee8-b210-71a4-b0e4-e64ba3730df5","at":1769239786000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beee8-c980-7eb2-9ba2-55e144b42d12","at":1769239792000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beee8-c980-751a-8453-d1f80e1b1263","at":1769239792000000000,"seq":231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019beee8-e544-7529-a0ac-37382047004e","at":1769239799108000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019beee9-13b8-754b-beae-5ad576de32e1","at":1769239811000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019beee9-17a0-7087-b071-5107661a46ff","at":1769239812000000000,"seq":234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019beee9-3eb0-7fae-8497-ecf69db90776","at":1769239822000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beee9-7948-78a8-9ee7-7ada08b0aec0","at":1769239837000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019beee9-b038-7018-9ea0-096e87738219","at":1769239851064000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019beee9-b3e0-7d22-b1dc-884335bd934c","at":1769239852000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beee9-bbb0-7edd-9e07-ff5bdd4561a8","at":1769239854000000000,"seq":239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019beee9-d320-7b96-9a4e-6937e24b3b15","at":1769239860000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beee9-d708-7f3a-9d0b-214fbe903e15","at":1769239861000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019beee9-ea90-7fbb-aa5b-ff0a34420e32","at":1769239866000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019beee9-f396-7c4f-bac9-00dd2aeadb9e","at":1769239868310000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019beeea-1d58-70d1-8b0f-30265bfd5218","at":1769239879000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019beeeb-d92b-78de-b8ac-aee2a57cc16b","at":1769239992619000000,"seq":245,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019beeeb-d92b-7532-81f4-a5b8162c1a3f","at":1769239992619000000,"seq":246,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019beeeb-de90-7945-a6aa-1deb4214f3b6","at":1769239994000000000,"seq":247,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019beeeb-f218-73fd-86fb-e8364edf9c04","at":1769239999000000000,"seq":248,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019beeec-b950-7360-9001-317241ee92c4","at":1769240050000000000,"seq":249,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019beeec-ccd8-70a2-ba82-c69269636867","at":1769240055000000000,"seq":250,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

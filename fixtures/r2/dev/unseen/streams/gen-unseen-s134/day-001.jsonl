@@ -1,0 +1,10 @@
+{"v":1,"id":"019b7890-26a6-78de-ab2e-b7b1522f2d15","at":1767254271654000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7890-26a6-7800-b84c-fb8889e04e32","at":1767254271654000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7890-33b8-71cc-b018-82924bd80fce","at":1767254275000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7890-4b28-7a39-a64f-b5d96a20f924","at":1767254281000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b7890-7812-7c40-8904-c716b381f837","at":1767254292498000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7891-3b47-7fbf-8abd-0eabebbdf398","at":1767254342471000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7891-50e0-7fa6-a0e6-22aac4eabc36","at":1767254348000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7891-bf3e-7a7b-89b0-6cb2256725cf","at":1767254376254000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7892-4ec8-7179-99bc-00d57c679157","at":1767254413000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7892-79c0-7189-b551-febc5137362b","at":1767254424000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

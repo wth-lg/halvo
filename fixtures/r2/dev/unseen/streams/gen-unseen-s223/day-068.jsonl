@@ -1,0 +1,33 @@
+{"v":1,"id":"019cd1d0-2254-7f6b-9d38-d77cd652cfd2","at":1773046604372000000,"seq":811,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd1d0-2254-7469-a2ec-b9a637f9e8ab","at":1773046604372000000,"seq":812,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd1d0-24c8-7e65-ba33-90e37332a1bd","at":1773046605000000000,"seq":813,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1d0-3080-7b4e-b21a-4134aef93c1f","at":1773046608000000000,"seq":814,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cd1d0-4bd8-7ae6-b55d-c2c4b00451c1","at":1773046615000000000,"seq":815,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd1d0-53a8-74d6-a3fc-4dd66ee5685b","at":1773046617000000000,"seq":816,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1d0-5e28-72cf-a3d6-66dd693161e3","at":1773046619688000000,"seq":817,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cd1d0-5f60-7e68-b962-9cef8611c893","at":1773046620000000000,"seq":818,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1d0-6348-71f3-af0b-95683c930ff1","at":1773046621000000000,"seq":819,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cd1d0-d490-7448-a488-958722968004","at":1773046650000000000,"seq":820,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1db-a06b-73a0-9aa8-45cf0a2b5e75","at":1773047357547000000,"seq":821,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd1db-a06b-754f-ad43-cd89da6f294f","at":1773047357547000000,"seq":822,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cd1dc-1b48-7bc4-8f75-aae60808c16c","at":1773047389000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1dc-1b48-7bb6-bc09-aace58c86f94","at":1773047389000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cd1dc-5bfb-7f47-9e04-7d3f7159648c","at":1773047405563000000,"seq":825,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cd1dc-7520-7de8-9975-fd37e50bfc8d","at":1773047412000000000,"seq":826,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cd1dc-84c0-7362-bd85-43ea06e0e3a7","at":1773047416000000000,"seq":827,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd1dc-de98-7d92-b7a0-027e651f25a9","at":1773047439000000000,"seq":828,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd1dd-0d78-73f2-af4b-f9d5fcf93393","at":1773047451000000000,"seq":829,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1dd-2be0-7984-85b0-36f0f186d5f6","at":1773047458784000000,"seq":830,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cd1dd-b188-7d61-b22e-5f39aaea423e","at":1773047493000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1dd-b7d3-7cf7-bdeb-7597a8848349","at":1773047494611000000,"seq":832,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd1de-1b00-7944-9895-fda82e3c897f","at":1773047520000000000,"seq":833,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd1de-2275-7e3a-9c75-88275f6d2355","at":1773047521909000000,"seq":834,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cd1de-3e28-700b-92c6-afa0f9b0fae4","at":1773047529000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1de-9030-7f4d-ab92-8fbc84865aeb","at":1773047550000000000,"seq":836,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cd1f3-cb0d-782a-82e4-dcefd3a4e58d","at":1773048941325000000,"seq":837,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd1f3-cb0d-7da5-b1e9-5a7e1cd36255","at":1773048941325000000,"seq":838,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd1f4-0848-7afc-9afd-cd0610da67c6","at":1773048957000000000,"seq":839,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cd1f4-71c0-7d43-8311-96ea99ba4189","at":1773048984000000000,"seq":840,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cd20d-2012-790e-8c8b-6f48f57a6117","at":1773050601490000000,"seq":841,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd20d-2012-731d-9bbd-6c8d588cd72e","at":1773050601490000000,"seq":842,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd20d-25f8-72a5-a499-8054fe1d9bda","at":1773050603000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

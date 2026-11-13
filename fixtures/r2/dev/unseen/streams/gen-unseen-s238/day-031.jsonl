@@ -1,0 +1,11 @@
+{"v":1,"id":"019c1340-e924-7113-924c-82b007f020b6","at":1769849547044000000,"seq":392,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1340-e924-74fa-88ac-83a562cec339","at":1769849547044000000,"seq":393,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1341-1bc0-7a1c-8e1f-edd43d5566d2","at":1769849560000000000,"seq":394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c1341-42d0-7838-9832-b892812bb1a7","at":1769849570000000000,"seq":395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1341-9852-7448-8d09-905524ee59ed","at":1769849591890000000,"seq":396,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1341-c7a0-729c-89fb-85a64d182c8f","at":1769849604000000000,"seq":397,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1341-db28-7d60-91d7-ba2a72e69d44","at":1769849609000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1341-df10-765c-8474-fd9743862f67","at":1769849610000000000,"seq":399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1341-f098-7e09-a9c0-3a4308f31977","at":1769849614488000000,"seq":400,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1342-4c70-7c3f-9000-a84b3162537d","at":1769849638000000000,"seq":401,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c1342-5440-7cb9-a538-6ad7443a1cf7","at":1769849640000000000,"seq":402,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

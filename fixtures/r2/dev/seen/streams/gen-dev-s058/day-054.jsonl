@@ -1,0 +1,54 @@
+{"v":1,"id":"019c89b2-f42a-708a-b6f2-c8b126494446","at":1771836732458000000,"seq":623,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89b2-f42a-7b6e-ad08-266ff5b702d8","at":1771836732458000000,"seq":624,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c89b3-09d0-74da-a7b7-7c996c9b7f3e","at":1771836738000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89b3-5408-7911-88f2-dd428431703d","at":1771836757000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89b3-a432-7fac-b1c8-c023adba0acc","at":1771836777522000000,"seq":627,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c89b3-c938-7620-b01c-3835ff2df4a2","at":1771836787000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89b3-fc2b-751b-8f70-308ef193b7ae","at":1771836800043000000,"seq":629,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c89b4-4e08-7a5a-861d-072bb591b1df","at":1771836821000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89b4-a7e0-7741-8980-21127f29727e","at":1771836844000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89b4-ab9f-75fe-97e3-7e60c7936445","at":1771836844959000000,"seq":632,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c89b4-bb68-77f3-b221-a8c918aeb62e","at":1771836849000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89b4-c720-7b47-b17d-ed7c11e64ac6","at":1771836852000000000,"seq":634,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89b4-d6c0-7d09-8ee0-6db085420f94","at":1771836856000000000,"seq":635,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c89b5-05a0-7886-851f-909c98421789","at":1771836868000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89b5-0d70-7620-b631-013e8dfbe162","at":1771836870000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c89c3-37d4-7fe2-965f-47fd2618fa24","at":1771837798356000000,"seq":638,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c89c3-6168-7107-9ebd-5748e8dc8dc0","at":1771837809000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c3-9c00-7b4e-a3e6-11ad42290964","at":1771837824000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c89c3-b10a-7f2f-80b8-5eb6f9e34a00","at":1771837829386000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c89c3-ea20-7c19-9fa4-a8c6d7c3727c","at":1771837844000000000,"seq":642,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89c3-ea20-7745-8cb9-432b8a12087b","at":1771837844000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c89c3-f5d8-705e-964e-c1507ad78506","at":1771837847000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c3-fda8-7cfe-a814-cbac78657966","at":1771837849000000000,"seq":645,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89c7-c070-7359-ad77-c80d30453bd1","at":1771838095472000000,"seq":646,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c89c7-c280-75bd-8455-0d6524b02c52","at":1771838096000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c7-ce38-7307-a2ec-21604035b244","at":1771838099000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c8-5a6e-733f-8754-54f54923bace","at":1771838134894000000,"seq":649,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 11 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c89c8-6e60-7ab9-aa66-091b20cdf8b8","at":1771838140000000000,"seq":650,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89c8-7a18-76ca-9cae-b6020dd82009","at":1771838143000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c89c8-9570-7045-88a0-e33ad9e38f38","at":1771838150000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c8-ace0-7cc2-b9fa-844f9d540588","at":1771838156000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c8-b434-716c-be15-931058883b2d","at":1771838157876000000,"seq":654,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c89c9-31b0-724d-a6ea-fb9ff27019d5","at":1771838190000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c9-3980-7fe6-b5f8-0e3c90ca4528","at":1771838192000000000,"seq":656,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c89c9-81b7-792d-82cc-4be20a3b258f","at":1771838210487000000,"seq":657,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c89c9-ba68-702b-885b-e9ccd83f8f6b","at":1771838225000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c9-d1d8-76d5-a1dd-54492e089a85","at":1771838231000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c9-edd9-7000-9bfa-3af43b2db67c","at":1771838238169000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c89ca-00b8-7e08-8068-a54b6d5f553b","at":1771838243000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ca-23e0-7bfd-bcc8-4275cf71cd50","at":1771838252000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c89ca-899f-7324-939a-13c1bf60bb02","at":1771838278047000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c89ca-c020-7f94-a93f-01b02a1ebaff","at":1771838292000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c89ca-cbd8-7c1d-98a7-75e72284bb9e","at":1771838295000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ca-d790-7315-a4e0-d4b8a817f14a","at":1771838298000000000,"seq":666,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c89ca-d790-7635-8a8b-ea246606ed27","at":1771838298000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c89da-f2e2-742c-9851-1b9d57588bde","at":1771839353570000000,"seq":668,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c89da-f2e2-703e-a26b-1fb316b1eac6","at":1771839353570000000,"seq":669,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c89db-17b8-7fab-8482-b9d630b9582e","at":1771839363000000000,"seq":670,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c89ed-6194-759d-95ac-cb6296aed8d9","at":1771840561556000000,"seq":671,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c89ed-b170-77b7-a562-39944c8d39d0","at":1771840582000000000,"seq":672,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c89ed-e050-766c-b485-800fc4bb9c7f","at":1771840594000000000,"seq":673,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c89ee-7029-7da3-b383-b1da7400c268","at":1771840630825000000,"seq":674,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c89ee-97e8-7d14-ba4c-06043da0d8f9","at":1771840641000000000,"seq":675,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ee-da50-72e1-8208-0c831d530a71","at":1771840658000000000,"seq":676,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

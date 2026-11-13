@@ -1,0 +1,18 @@
+{"v":1,"id":"019c03bf-1bf3-7481-940a-d45449142213","at":1769589382131000000,"seq":263,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03bf-1bf3-7b9f-88a0-7ccae8932ae1","at":1769589382131000000,"seq":264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c03bf-2728-737e-9a01-0af50b72d897","at":1769589385000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c03bf-4e38-7260-bb0e-e3f304b35596","at":1769589395000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03bf-5608-7e01-89db-ef0e0b1ab87a","at":1769589397000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03bf-6d78-79cc-8448-5151329aa49f","at":1769589403000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c03bf-7160-7db4-8aee-4a2da331065b","at":1769589404000000000,"seq":269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c03d5-e1cd-756e-adc2-2a06e6650659","at":1769590874573000000,"seq":270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c03d6-2db0-7694-ba35-3e17276cecc3","at":1769590894000000000,"seq":271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c03d6-4cf0-7a28-8387-ef5b45da33a8","at":1769590902000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c03d6-6848-7564-8542-2660f0a458ea","at":1769590909000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f0-4190-717b-b850-f0fda00b4880","at":1769592603024000000,"seq":274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c03f0-7ff8-7ae9-b2ee-8d4cd2bd4146","at":1769592619000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f0-8db6-727d-84df-3eec2ebf23de","at":1769592622518000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c03f0-ba90-754f-8607-cf1e72d5caa5","at":1769592634000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f0-ca30-7c67-b101-e4e83422aaa2","at":1769592638000000000,"seq":278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c03f0-e1a0-787e-9768-a20ecab1a2fa","at":1769592644000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c03f1-52e8-7808-98d7-d56b0d551216","at":1769592673000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

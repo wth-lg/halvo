@@ -1,0 +1,77 @@
+{"v":1,"id":"019d4d1b-0633-7108-b497-09610a47b26e","at":1775115109939000000,"seq":1290,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019d4d1b-1417-73e3-b2ff-e069ff303eb8","at":1775115113495000000,"seq":1291,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4d1b-1417-7eb7-9caf-83e150eef7f2","at":1775115113495000000,"seq":1292,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4d1b-4108-744b-881f-666dddbfd272","at":1775115125000000000,"seq":1293,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d1b-73d0-74b7-bd27-09a5da0a8185","at":1775115138000000000,"seq":1294,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4d1c-1c12-741b-8836-b99896b85222","at":1775115181074000000,"seq":1295,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4d1c-5660-7c2d-a5a2-6fc7308fc2d5","at":1775115196000000000,"seq":1296,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d4d1c-ac50-7df8-a362-27351f8f2469","at":1775115218000000000,"seq":1297,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d4d1c-bbf0-753d-8f01-90e5b2d87185","at":1775115222000000000,"seq":1298,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d1c-e300-7efb-a17d-07e87dadaed4","at":1775115232000000000,"seq":1299,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d1c-f67f-7752-98c1-4ca05ff55e60","at":1775115236991000000,"seq":1300,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4d1d-44a8-7966-b79c-9315b634fb58","at":1775115257000000000,"seq":1301,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d4d1d-67d0-7982-ac00-cccdd05b9532","at":1775115266000000000,"seq":1302,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d4d1d-7388-70f3-8388-7ee77b09083b","at":1775115269000000000,"seq":1303,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d1d-9a01-7b7f-b466-cacda55899c6","at":1775115278849000000,"seq":1304,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4d1d-ae20-7e79-8c0d-94a588e21de1","at":1775115284000000000,"seq":1305,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d4d1e-2b20-7053-91fe-64f95de4655c","at":1775115316000000000,"seq":1306,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d4d1e-6dec-7579-8877-daa20481d60a","at":1775115333100000000,"seq":1307,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4d1e-7170-7ce1-b4f5-685be53b788d","at":1775115334000000000,"seq":1308,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d4d1e-7558-7a39-b394-d2e26b3fae98","at":1775115335000000000,"seq":1309,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d1e-8110-7ab4-9eca-4e761899d1a3","at":1775115338000000000,"seq":1310,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d4d1e-8110-7e66-8948-3ba65cb7c7d7","at":1775115338000000000,"seq":1311,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d4d1e-c3a7-70a5-b87d-d1e3eb896229","at":1775115355047000000,"seq":1312,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4d1f-6b70-7ebd-8fd6-bac1d798754d","at":1775115398000000000,"seq":1313,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d4d1f-9280-73e3-92fc-2fb6116290c0","at":1775115408000000000,"seq":1314,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d4d1f-addd-7e1e-acd7-2d58486540af","at":1775115415005000000,"seq":1315,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4d1f-b1c0-7abc-9fe1-2cfb6c8437e3","at":1775115416000000000,"seq":1316,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d1f-c160-7879-9a76-7a138810989c","at":1775115420000000000,"seq":1317,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d4d1f-c548-7e88-b8a0-194c2041843f","at":1775115421000000000,"seq":1318,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d1f-cd18-7f97-be69-4e7198131c24","at":1775115423000000000,"seq":1319,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d4d1f-d8d0-7a7c-86fe-814a8198fac3","at":1775115426000000000,"seq":1320,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d4d1f-eb7a-7412-935b-b81d939cd613","at":1775115430778000000,"seq":1321,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4d20-4e00-732b-bbcc-9e40197b6947","at":1775115456000000000,"seq":1322,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d20-91d2-7840-9b09-6f42ec5d3065","at":1775115473362000000,"seq":1323,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4d20-9450-7cee-9376-8f8c9ad851cd","at":1775115474000000000,"seq":1324,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4d20-cb00-76fe-a2c3-91472a207684","at":1775115488000000000,"seq":1325,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d20-fdc8-78e4-8cd3-3ea238710598","at":1775115501000000000,"seq":1326,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d21-4fd0-7a12-853e-37de1e4500c0","at":1775115522000000000,"seq":1327,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d4d21-763f-7378-a00f-67bd515c449a","at":1775115531839000000,"seq":1328,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4d22-2e78-79bc-9d17-949fa71abe4d","at":1775115579000000000,"seq":1329,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d4d22-8aef-7058-b3e3-fabd601586e6","at":1775115602671000000,"seq":1330,"kind":"run_mark","app":null,"p":{"edge":"end"}}
+{"v":1,"id":"019d4d28-fde9-77a2-8b08-e813227c16f5","at":1775116025321000000,"seq":1331,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d28-fde9-732f-96b6-51e782e06242","at":1775116025321000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d4d29-23b8-7b8f-8724-731a29fdf818","at":1775116035000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d29-46e0-708f-a5f3-2a29de5ac640","at":1775116044000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d29-6365-7805-a1f0-9307343155f2","at":1775116051301000000,"seq":1335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d4d29-a888-77a9-8e76-5f0d069865cf","at":1775116069000000000,"seq":1336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4d2a-4a02-708c-ad1d-3a06346bf869","at":1775116110338000000,"seq":1337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d4d2a-cd80-78d5-85a7-008a7f63d0f6","at":1775116144000000000,"seq":1338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d2a-dd20-7601-975c-e00acc423f3f","at":1775116148000000000,"seq":1339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d4d2a-fcbd-7c6b-a493-9c95a4148dcb","at":1775116156093000000,"seq":1340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d4d2b-b7e0-7b99-b45d-f75039807ce5","at":1775116204000000000,"seq":1341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d46-f6cb-74bd-8999-0149340da7c4","at":1775117989579000000,"seq":1342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4d46-f870-7cbf-a9d3-cbb767309458","at":1775117990000000000,"seq":1343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d47-17b0-7b7d-98c3-0074d3fa08f1","at":1775117998000000000,"seq":1344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d47-17b0-7cc0-877b-0649b661160e","at":1775117998000000000,"seq":1345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d4d47-3887-7b5c-90f7-4f98cd3d99dd","at":1775118006407000000,"seq":1346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4d47-5e00-784b-80ed-2a72c4ed55a0","at":1775118016000000000,"seq":1347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d47-6da0-7557-8411-5e19c96b0724","at":1775118020000000000,"seq":1348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d4d47-7d40-7d05-b0f9-c531527da12a","at":1775118024000000000,"seq":1349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4d47-c457-746b-a244-593e7c1e4f64","at":1775118042199000000,"seq":1350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4d47-fe28-7d40-af53-ca74504f51e6","at":1775118057000000000,"seq":1351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d4d48-05f8-7f96-b71c-e841898ce3fb","at":1775118059000000000,"seq":1352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4d48-1952-7edd-a71e-a6d4414b4c20","at":1775118063954000000,"seq":1353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4d48-4860-7511-806e-79dbd40dfb64","at":1775118076000000000,"seq":1354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4d48-5418-799b-9714-84a9860efb00","at":1775118079000000000,"seq":1355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d48-7f10-760b-adc7-cfd8dd1053a6","at":1775118090000000000,"seq":1356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d4d4a-99d6-73ea-b851-1d56b8bffe5b","at":1775118227926000000,"seq":1357,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d4d4b-1923-7279-b311-7ab76b00d2f8","at":1775118260515000000,"seq":1358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d4d4b-3278-7462-bf53-5f93577d417f","at":1775118267000000000,"seq":1359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d4d4b-3a48-7223-9176-4b72e5afe13d","at":1775118269000000000,"seq":1360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d4b-3e30-7adf-bbd5-99faf37ebfc9","at":1775118270000000000,"seq":1361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4d4b-74f5-71d9-bea7-99bd5e8d9e88","at":1775118284021000000,"seq":1362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d4d4b-a3c0-7a1e-8e66-3181e8a04c6e","at":1775118296000000000,"seq":1363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d4b-af78-7c72-a8fe-9c55e52b9f75","at":1775118299000000000,"seq":1364,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4d4b-bf18-7ffe-90a9-13064839e376","at":1775118303000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d4c-3830-7082-a3bc-699fd5d7f606","at":1775118334000000000,"seq":1366,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

@@ -1,0 +1,41 @@
+{"v":1,"id":"019cf5ba-f3c5-7d31-b31d-53728086ea27","at":1773649195973000000,"seq":1075,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5ba-f3c5-734c-805a-5f2f3603fdab","at":1773649195973000000,"seq":1076,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cf5bb-22c0-7bfa-a4b2-b5d89f88daa9","at":1773649208000000000,"seq":1077,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf5bb-e610-7a75-acb1-890660db8be0","at":1773649258000000000,"seq":1078,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf5bb-f1c8-7479-b0be-eb9f8b07b891","at":1773649261000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cf5c9-c58f-74ee-8780-c67dcc95a468","at":1773650167183000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ca-92ec-7907-8e1e-13c68aed1236","at":1773650219756000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ca-93e0-74b9-9090-03429835f782","at":1773650220000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ca-dd75-71b1-b7ce-6febfb0db832","at":1773650238837000000,"seq":1083,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ca-e9d0-7e63-a77e-8c2e590badf3","at":1773650242000000000,"seq":1084,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf5cb-10e0-7233-bde6-7970d997728d","at":1773650252000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cb-14c8-7df7-8778-e5fb21c491ca","at":1773650253000000000,"seq":1086,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf5cb-18b0-7a4d-94ee-85919a2cb5e9","at":1773650254000000000,"seq":1087,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cb-3512-7b81-b83a-7ddd7f5ca8ef","at":1773650261266000000,"seq":1088,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cb-3fc0-7250-b247-8f6f052e881f","at":1773650264000000000,"seq":1089,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cf5cb-91c8-786d-afd2-43339ac2b770","at":1773650285000000000,"seq":1090,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cb-d0a7-7a25-bdeb-efcfdbba67cf","at":1773650301095000000,"seq":1091,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cc-3da8-74d4-abb1-f27c61e8c81f","at":1773650329000000000,"seq":1092,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf5cc-4960-742a-b5fe-c3912d867fe8","at":1773650332000000000,"seq":1093,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cc-83f8-7aed-9595-e6aa49e84c51","at":1773650347000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cc-93ca-7a8c-8345-4dc327edaf0d","at":1773650351050000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cc-d600-723b-83c4-2a065eea9a8b","at":1773650368000000000,"seq":1096,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf5cd-3b90-76c7-96ec-dc566d9f930c","at":1773650394000000000,"seq":1097,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf5d5-af7f-7bee-acd9-161964f7aae9","at":1773650947967000000,"seq":1098,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cf5d5-b388-7b51-8809-452e9c179c30","at":1773650949000000000,"seq":1099,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5d5-bf40-72e9-8da6-afa0d7a24be1","at":1773650952000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5d5-caf8-7dae-ba1a-757497930ecf","at":1773650955000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf5d5-f34c-7abf-b807-5d8c2639d280","at":1773650965324000000,"seq":1102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cf5d6-24d0-7d61-b3d2-843b585ad194","at":1773650978000000000,"seq":1103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf5d6-5f68-7af6-a01e-849b36c1bcd6","at":1773650993000000000,"seq":1104,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf5d6-7ea8-75ad-b6be-ecc74a224cdd","at":1773651001000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cf5d6-9813-7247-83fb-fd61a4f43894","at":1773651007507000000,"seq":1106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cf5d6-b170-73ac-b291-4ba0e3260520","at":1773651014000000000,"seq":1107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cf5d6-b940-7421-ab2f-b9d27adf230e","at":1773651016000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5d6-ec08-7496-b391-17584526b9e4","at":1773651029000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5d7-3640-79d7-868e-c0effdb7f10a","at":1773651048000000000,"seq":1110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf5d7-8b6e-7fb5-97af-a0c8e6b6cd28","at":1773651069806000000,"seq":1111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cf5d7-9bd0-7824-8dec-70d6aeba09ed","at":1773651074000000000,"seq":1112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf5d7-a3a0-7b0d-9188-4c7d1b08f1a0","at":1773651076000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5d7-af58-71a6-9274-6d9baf51c2a7","at":1773651079000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5d7-d668-764d-94b3-a8eed3b1e8c8","at":1773651089000000000,"seq":1115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

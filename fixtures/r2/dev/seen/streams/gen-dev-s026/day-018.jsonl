@@ -1,0 +1,8 @@
+{"v":1,"id":"019bd010-aa2a-7d37-b79e-e556dfe3b9fa","at":1768722311722000000,"seq":236,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd010-aa2a-7b56-9b75-49e1388063dd","at":1768722311722000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bd010-d250-762c-9873-4fe2905122cf","at":1768722322000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bd010-e66f-7633-aa67-d7b70b6f1b54","at":1768722327151000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bd011-0ce8-78f7-8315-18582a5616c4","at":1768722337000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd011-3fb0-7f41-b5bd-e3070ffa7c17","at":1768722350000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd011-4780-73d8-b80c-dba5b1a2ef57","at":1768722352000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bd011-5338-70ef-a08c-90c1b3492cc0","at":1768722355000000000,"seq":243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

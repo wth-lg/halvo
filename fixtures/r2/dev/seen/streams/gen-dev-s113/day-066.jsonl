@@ -1,0 +1,26 @@
+{"v":1,"id":"019cc796-736e-76f5-a678-ad1d92f2b142","at":1772875051886000000,"seq":976,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc796-736e-79e2-af5f-f78c3a37bfb2","at":1772875051886000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cc796-8380-7d1f-91da-1f4af17ae213","at":1772875056000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cc796-c9d0-74dd-9017-a6bf3e532153","at":1772875074000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc796-d970-74a0-a85b-5866e7a60efe","at":1772875078000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc797-69e2-715d-b046-3c16216fa896","at":1772875114978000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cc797-7998-7a41-8e9e-ea4274d49e17","at":1772875119000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc797-d370-75f8-a610-4dbe433b8d42","at":1772875142000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cc7a4-3477-7f95-acf0-822674ccc789","at":1772875953271000000,"seq":984,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc7a4-b068-7b95-bb0e-324a1dacfb51","at":1772875985000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7a5-2598-78b6-b925-9da3be3e2c58","at":1772876015000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7a5-2661-741c-b989-cc2aa8789595","at":1772876015201000000,"seq":987,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc7a5-f888-7a1e-9f5c-f6107de16eec","at":1772876069000000000,"seq":988,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7a6-23c7-7c50-9f94-8ca9a765a111","at":1772876080071000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc7a6-2f38-7f9d-abeb-975eb440f6c8","at":1772876083000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7a6-7ce6-7f5d-b592-8282886df6ee","at":1772876102886000000,"seq":991,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc7a6-8cf8-755f-b238-c57cf0c97c15","at":1772876107000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cc7a6-b408-7329-8ae1-47883388ff31","at":1772876117000000000,"seq":993,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7b5-e907-760c-bea9-6715e7d13980","at":1772877113607000000,"seq":994,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc7b5-e907-769b-b778-4811958e83ef","at":1772877113607000000,"seq":995,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc7b6-0db8-79fa-a71e-e9bc99726485","at":1772877123000000000,"seq":996,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc7b6-5f92-7a1c-87ea-e84cc3213e45","at":1772877143954000000,"seq":997,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cc7b6-7f00-7e0c-b944-63dcaea84005","at":1772877152000000000,"seq":998,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cc7b6-8ea0-7778-80a7-248f3ddea4d2","at":1772877156000000000,"seq":999,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cc7b6-a9f8-710f-8d46-a3e389131ff8","at":1772877163000000000,"seq":1000,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cc7b6-c168-7ce0-b9b5-a245130ab985","at":1772877169000000000,"seq":1001,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

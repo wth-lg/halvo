@@ -1,0 +1,8 @@
+{"v":1,"id":"019c566b-87c9-7a47-a578-b254a2bc13a2","at":1770976413641000000,"seq":636,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c566b-87c9-746a-a067-e806ff753fac","at":1770976413641000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c566b-98d0-7f67-8175-6b3b57bef676","at":1770976418000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c566b-c58c-7f48-af29-69f98091a9c5","at":1770976429452000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c5675-ccf0-7018-9c89-50704cb58d6b","at":1770977086704000000,"seq":640,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5675-ccf0-7f6b-85b4-4de4c8180bbf","at":1770977086704000000,"seq":641,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5676-2408-77cf-972d-bc6ca8c77470","at":1770977109000000000,"seq":642,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c5676-3f60-796b-839a-c1503903bf30","at":1770977116000000000,"seq":643,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

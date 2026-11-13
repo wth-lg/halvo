@@ -1,0 +1,13 @@
+{"v":1,"id":"019c3795-32ae-7640-8842-0a7d5f6dafe9","at":1770459050670000000,"seq":544,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3795-32ae-708c-a106-7e7ae6072479","at":1770459050670000000,"seq":545,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c379d-3eab-7a27-a00f-ac2ca06abc49","at":1770459578027000000,"seq":546,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c379d-3eab-7118-84c1-ab479fbee1bf","at":1770459578027000000,"seq":547,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c379e-03ad-7534-b563-7fb4e4b99851","at":1770459628461000000,"seq":548,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c379e-1950-79ed-bdea-99e9010ac72e","at":1770459634000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c379e-2120-75ac-b43c-dde9d8834d86","at":1770459636000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c379e-2cd8-749b-abf3-1d0b2e2895bc","at":1770459639000000000,"seq":551,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c37a6-08b1-7dd5-b764-f877d20bd6fe","at":1770460154033000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c37a6-b088-7eb1-951f-11505193a40d","at":1770460197000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c37b3-c4af-7233-9c9b-9a3bdb5646eb","at":1770461054127000000,"seq":554,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c37b3-c4af-7ad6-8cc7-73c4fe4d8847","at":1770461054127000000,"seq":555,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c37b4-4518-7692-8501-8a6b3a4e13ea","at":1770461087000000000,"seq":556,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

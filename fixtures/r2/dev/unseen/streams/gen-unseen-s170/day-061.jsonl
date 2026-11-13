@@ -1,0 +1,19 @@
+{"v":1,"id":"019cadcf-d173-7072-8b46-b89ca404f25e","at":1772442603891000000,"seq":818,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cadcf-d173-7c7e-ab3f-8144d0eb9223","at":1772442603891000000,"seq":819,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cadd0-4328-7053-8d21-ee32a3b1cd47","at":1772442633000000000,"seq":820,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cadd0-ddcb-7d6b-b0d3-39cab227bf5f","at":1772442672587000000,"seq":821,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cadd1-4cc8-7c46-9003-80bbfa611681","at":1772442701000000000,"seq":822,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cadd1-6050-7bed-ad9e-d2c7a790c4e5","at":1772442706000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadd1-e26f-7fb4-99b5-a513bfc70093","at":1772442739311000000,"seq":824,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cadd1-ecf0-7ba1-8401-7274d4e2e664","at":1772442742000000000,"seq":825,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cadd1-f0d8-7ceb-b1eb-602c77fe8596","at":1772442743000000000,"seq":826,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cadd1-f8a8-736d-b4c8-19ed78a955f8","at":1772442745000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cadd2-1018-7062-b9f8-2ee55ed08e79","at":1772442751000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019caddd-d9bd-76d7-8a90-60e08133fcd7","at":1772443523517000000,"seq":829,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cadde-0a80-70be-9e1d-a0d355fbe60a","at":1772443536000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cadee-89df-7442-ae02-040b5ecb1421","at":1772444617183000000,"seq":831,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cadee-94e0-70dd-9473-396e555258df","at":1772444620000000000,"seq":832,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cadee-b420-7dfc-9d49-9b4a5413ee47","at":1772444628000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadee-c7a8-7a4b-845e-fc4061df0451","at":1772444633000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cadee-d748-751e-8fc3-22ba67652f91","at":1772444637000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadee-eeb8-7ccb-9f4c-c4a73d29ee3d","at":1772444643000000000,"seq":836,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

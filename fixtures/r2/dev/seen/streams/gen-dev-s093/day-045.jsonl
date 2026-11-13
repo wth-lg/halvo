@@ -1,0 +1,12 @@
+{"v":1,"id":"019c5b64-be0f-7bc5-9dfe-14e485202b62","at":1771059854863000000,"seq":606,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b64-be0f-7b47-9b92-6b8ad83e9edc","at":1771059854863000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5b65-a128-7f5d-8d01-b1c0c6cd7fc3","at":1771059913000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b73-6b8a-7f94-8771-6b86bf594d82","at":1771060816778000000,"seq":609,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b73-6b8a-7c65-9ace-e404d8f44182","at":1771060816778000000,"seq":610,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b73-83d8-77af-92b8-7fe06e7293b0","at":1771060823000000000,"seq":611,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b73-c640-7a2a-9fc6-6c44c0451095","at":1771060840000000000,"seq":612,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b73-d1f8-7c6f-b5ac-6d8459950a68","at":1771060843000000000,"seq":613,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c5b7a-8093-75e1-bd2e-fb0307c6ef1b","at":1771061280915000000,"seq":614,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b7a-8093-7720-850b-b7347f505903","at":1771061280915000000,"seq":615,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7a-c350-7f25-8d67-abfa94b4cf10","at":1771061298000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7a-fde8-737f-bfcc-8fb42525e7d4","at":1771061313000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

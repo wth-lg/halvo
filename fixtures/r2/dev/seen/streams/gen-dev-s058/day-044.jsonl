@@ -1,0 +1,12 @@
+{"v":1,"id":"019c5615-3f8e-7145-86ec-d2ccde12f268","at":1770970759054000000,"seq":511,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5615-3f8e-78d5-8043-1f832ecbc53d","at":1770970759054000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c5616-21fb-7831-9943-366038c8251c","at":1770970817019000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c5616-2da0-7ac3-bec8-ea591171a519","at":1770970820000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c5617-1ac5-7476-97de-437328723ffb","at":1770970880709000000,"seq":515,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c5617-5e50-7ca1-b224-29b891b2eae3","at":1770970898000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5617-6620-7728-ab54-ed7dad118dc4","at":1770970900000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5617-8d30-7a45-aff0-6c949ccd350e","at":1770970910000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5617-f70c-7829-9139-b0d5e5fcde47","at":1770970937100000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c5618-0260-7ccd-8581-b304d5cf183f","at":1770970940000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5618-19d0-7bd5-946d-98bdd978c371","at":1770970946000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5618-40e0-7a43-ad19-f2b2dabd3fdc","at":1770970956000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

@@ -1,0 +1,53 @@
+{"v":1,"id":"019bc148-729e-73df-8fae-ae61a6d0de9d","at":1768474309278000000,"seq":245,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc148-729e-72e0-9826-a60eed596448","at":1768474309278000000,"seq":246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bc148-ec48-7c2c-8939-40e3b4eab2f4","at":1768474340424000000,"seq":247,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc148-ec48-7919-9fd2-9f37dd3f23d2","at":1768474340424000000,"seq":248,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc149-2920-7bf3-b029-7328a380ad74","at":1768474356000000000,"seq":249,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc149-5030-7a6b-a96c-75f10fbd858f","at":1768474366000000000,"seq":250,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bc149-67a0-78b6-93d2-32d8d3db6390","at":1768474372000000000,"seq":251,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc149-7358-785d-b421-9fafedb08962","at":1768474375000000000,"seq":252,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bc149-90d4-7b60-a981-8fe1dae7b54e","at":1768474382548000000,"seq":253,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc149-90d4-7e01-a7a0-0e5b9ed22d00","at":1768474382548000000,"seq":254,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bc149-b9a8-7cda-bee8-609b292edb4a","at":1768474393000000000,"seq":255,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc149-c948-787d-9891-e84803ec100b","at":1768474397000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc149-d118-7707-8c8d-64da14e259d5","at":1768474399000000000,"seq":257,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc149-d500-78f8-995f-e2904a822535","at":1768474400000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc163-f982-79f6-b56e-6d1373dd46f9","at":1768476113282000000,"seq":259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bc164-0808-7fd9-9273-9897d35da812","at":1768476117000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bc164-65c8-7f7f-a66b-27a7ee5d4cdc","at":1768476141000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc164-7568-7f17-87ba-32ee64f79c84","at":1768476145000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc164-9795-7679-814a-2c449aab32a9","at":1768476153749000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bc165-1978-75ae-a0dd-b55cacb1ebe3","at":1768476187000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bc165-3ca0-7c29-b1d2-3b87b670c2d8","at":1768476196000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc165-4656-78ee-b703-d7d7c57cdaf2","at":1768476198486000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bc165-7350-77c0-88db-35ec518e29ea","at":1768476210000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc165-9e48-7694-9b36-719caf919ebb","at":1768476221000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc165-b1d0-70ab-b0dd-2f772cf343af","at":1768476226000000000,"seq":269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc165-d4f8-72a5-8001-5b0d5af85366","at":1768476235000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bc166-03d8-74b9-b6b5-7a37babf28d6","at":1768476247000000000,"seq":271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc166-efdc-79e8-a074-cf48b0544e40","at":1768476307420000000,"seq":272,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bc167-1160-7163-97b6-17b6f4587a0f","at":1768476316000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc167-8707-7202-a5b3-cf80e3a72e8a","at":1768476346119000000,"seq":274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bc167-ada0-7b0a-82cb-f39953a8fcd9","at":1768476356000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc167-dc80-71f2-8dc3-ed82a3d6471f","at":1768476368000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc167-ec20-7a51-8f6d-c532abdd9a88","at":1768476372000000000,"seq":277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc167-f008-7fbd-af36-2e7cd0837800","at":1768476373000000000,"seq":278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc168-18ed-7f88-ae93-fbda782f9149","at":1768476383469000000,"seq":279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bc168-5d68-7d34-baf9-a52b6d2bebb2","at":1768476401000000000,"seq":280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc168-8478-7a49-9e0a-8ccbe5e3cbf0","at":1768476411000000000,"seq":281,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc168-aa9e-74a7-90aa-74eed5590cc4","at":1768476420766000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bc168-b358-75d3-b1aa-b9d30c014d16","at":1768476423000000000,"seq":283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc168-ceb0-7303-926b-5840bc45d84b","at":1768476430000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc17b-0fd3-71dd-9307-7449d509c74a","at":1768477626323000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bc17b-31b8-78df-a405-7ed8c899bfc7","at":1768477635000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bc17b-4e6c-729c-9cbe-0671c8c8d05c","at":1768477642348000000,"seq":287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bc17b-83c0-76d9-9270-645654b36a53","at":1768477656000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bc17b-c240-7b32-a46b-4156e1099697","at":1768477672000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc17b-e42c-7bec-8288-7e43891cc4dd","at":1768477680684000000,"seq":290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bc17b-e950-7f5c-9b5a-53c1fe23e664","at":1768477682000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bc17c-4ee0-7c52-a861-39a3fe2fd736","at":1768477708000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc17c-9148-766f-a5dc-296d240818b4","at":1768477725000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc17c-9530-73ed-b87a-bba551c199ec","at":1768477726000000000,"seq":294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc17c-a4aa-7d07-974e-2208f753735c","at":1768477729962000000,"seq":295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bc17c-a8b8-7dac-945f-91f1b1218145","at":1768477731000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc17c-c7f8-7b18-94f2-3f1312048e33","at":1768477739000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

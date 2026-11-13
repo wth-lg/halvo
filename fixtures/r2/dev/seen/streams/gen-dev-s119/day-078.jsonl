@@ -1,0 +1,22 @@
+{"v":1,"id":"019d05b4-2293-7aca-ae48-e3d3b1f31d6d","at":1773917184659000000,"seq":1220,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d05b4-2293-7f92-9f30-aa25e45fb396","at":1773917184659000000,"seq":1221,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d05b4-4710-7a84-9530-b87847c141f3","at":1773917194000000000,"seq":1222,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d05b4-7dc0-761c-92f6-304d07e5b965","at":1773917208000000000,"seq":1223,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b5-c865-7053-a222-705e1262c195","at":1773917292645000000,"seq":1224,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d05b5-c865-76e6-8dfe-6b1230d41e2e","at":1773917292645000000,"seq":1225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d05b6-43e7-77ed-b611-7045bd5f05fe","at":1773917324263000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d05b6-8d18-71e3-9612-30319bec8ef6","at":1773917343000000000,"seq":1227,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d05b6-a488-73b9-8a05-7f0a1be36c08","at":1773917349000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b7-0a18-7948-b5f8-90f3e859392b","at":1773917375000000000,"seq":1229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d05b7-3510-7741-899c-1a15e4037782","at":1773917386000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b7-3510-7190-8974-34afcd70a4d3","at":1773917386000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d05b7-4c6a-756e-8810-e56bf9c0d81c","at":1773917391978000000,"seq":1232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d05b7-5068-7737-86b5-ad152e31b424","at":1773917393000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b7-8ee8-74e4-ab49-c847ac1d2406","at":1773917409000000000,"seq":1234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d05b7-cd68-7eb5-b24b-fe043ae90ed7","at":1773917425000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d05b7-e8c0-7ae6-9d70-76baa3a02b19","at":1773917432000000000,"seq":1236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b7-eca8-7cc4-91ad-c10d347c96e4","at":1773917433000000000,"seq":1237,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d05b7-f8cf-737a-b7c6-7c8f402ac60c","at":1773917436111000000,"seq":1238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d05b8-5620-798a-838d-e4b5b4ad4753","at":1773917460000000000,"seq":1239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b8-5df0-785c-9e38-3ee37c684801","at":1773917462000000000,"seq":1240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d05b8-6d90-7df3-a5d3-a9dc2a6a0063","at":1773917466000000000,"seq":1241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

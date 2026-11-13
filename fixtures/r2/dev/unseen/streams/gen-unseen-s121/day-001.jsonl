@@ -1,0 +1,12 @@
+{"v":1,"id":"019b7924-a948-764d-8787-b61861548e7e","at":1767264004424000000,"seq":0,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7924-a948-76ce-bcc6-8fafef3400d6","at":1767264004424000000,"seq":1,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7924-ab88-775b-81e8-9c333b7b16f4","at":1767264005000000000,"seq":2,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7924-e620-7626-a086-4ef69c5fc356","at":1767264020000000000,"seq":3,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b7924-ea08-7cfa-b86b-0c29487df7bf","at":1767264021000000000,"seq":4,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7925-14d7-7147-97f6-6be523d025d6","at":1767264031959000000,"seq":5,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7925-14d7-7500-a7f2-05be3a637996","at":1767264031959000000,"seq":6,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7925-6320-74b1-ae62-9529fb1f53bf","at":1767264052000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7925-b81e-71ab-9886-08316f3a8096","at":1767264073758000000,"seq":8,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7925-b81e-7de6-b4eb-585d19fbd6f3","at":1767264073758000000,"seq":9,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7925-c0e0-7f2d-a12f-e6652add4c01","at":1767264076000000000,"seq":10,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b7926-3de0-701c-b5d8-6247f36065bf","at":1767264108000000000,"seq":11,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

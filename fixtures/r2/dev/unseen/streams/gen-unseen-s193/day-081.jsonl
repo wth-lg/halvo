@@ -1,0 +1,24 @@
+{"v":1,"id":"019d1514-a131-7053-8722-4f8894665e0a","at":1774175166769000000,"seq":954,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1514-a131-7804-a74e-6568fa7d6eb3","at":1774175166769000000,"seq":955,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1514-e098-7f8a-bc19-f9786d56c540","at":1774175183000000000,"seq":956,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d1526-40db-77f6-827b-74111ef3ed9b","at":1774176321755000000,"seq":957,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1526-40db-7f26-9983-a4e47145b312","at":1774176321755000000,"seq":958,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1526-ab48-7888-bd3e-4da865b83b77","at":1774176349000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d1529-eebc-729d-83a3-74fc299859be","at":1774176562876000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d152a-3588-77a9-b0f6-15264e2fb49a","at":1774176581000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d152a-3d58-7718-a1ba-a3a88309c2a6","at":1774176583000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d152a-4140-75cc-8fbb-16ef9f4b8d8b","at":1774176584000000000,"seq":963,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d152a-4910-7807-843b-24e7274ce811","at":1774176586000000000,"seq":964,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d152a-50e0-7d9f-b718-ad940d6b4e33","at":1774176588000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d153a-a7fe-705e-8483-8f25a48aac02","at":1774177658878000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d153a-a878-71b4-b87f-5c03a9b24200","at":1774177659000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d153a-d758-7cc4-bc5c-9898bcf68302","at":1774177671000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d153a-e0c7-7ac1-886d-c5074b184c5b","at":1774177673415000000,"seq":969,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d153b-bad1-764f-a0d2-3d43d4076f2a","at":1774177729233000000,"seq":970,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d153b-bdd0-7948-9acb-7d81713e9ae2","at":1774177730000000000,"seq":971,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d153c-8120-700a-ac0b-f93e52257f22","at":1774177780000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d153c-b4df-730e-89eb-68f8652f42eb","at":1774177793247000000,"seq":973,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d153c-b7d0-7a48-9413-dda3758fbd77","at":1774177794000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d153c-cb58-7084-9b46-8cea6df138e8","at":1774177799000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d153c-dee0-7834-b582-d170037bbd54","at":1774177804000000000,"seq":976,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d153c-e2c8-7d7b-8935-799a6f1229fc","at":1774177805000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,12 @@
+{"v":1,"id":"019c6afe-3f77-707a-8ba3-f05250c3a986","at":1771321573239000000,"seq":855,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6afe-3f77-7e65-8d1c-7619dbc522f2","at":1771321573239000000,"seq":856,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6afe-4a40-7a71-a8e6-647a011b9384","at":1771321576000000000,"seq":857,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afe-a800-7f0c-8257-ac26671daa94","at":1771321600000000000,"seq":858,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afe-cf10-7b8d-a40b-d28e63c8fc84","at":1771321610000000000,"seq":859,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6afe-ea68-7210-8b47-54d2f48871f7","at":1771321617000000000,"seq":860,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6afe-ee50-7e23-a1bd-de6d499b3dad","at":1771321618000000000,"seq":861,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6aff-2276-7bb0-ae50-b50dab596fb8","at":1771321631350000000,"seq":862,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6aff-4058-7a32-bf5d-d85402b6fad7","at":1771321639000000000,"seq":863,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aff-4828-767c-b683-6b43125b8eae","at":1771321641000000000,"seq":864,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6aff-9648-7a26-9f09-7021b0d3f52d","at":1771321661000000000,"seq":865,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6aff-a200-7bb7-bb63-e914f1325ab7","at":1771321664000000000,"seq":866,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

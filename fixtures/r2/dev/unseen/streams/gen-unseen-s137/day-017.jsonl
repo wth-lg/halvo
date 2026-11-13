@@ -1,0 +1,33 @@
+{"v":1,"id":"019bcb54-0057-7d0a-ba25-2f79e3958803","at":1768642838615000000,"seq":210,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb54-0057-799d-b8ab-431193176854","at":1768642838615000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bcb54-e468-7d30-a54e-b57d67a577bd","at":1768642897000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bcb54-f14e-7660-9fdb-da893410cef2","at":1768642900302000000,"seq":213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bcb55-1730-7750-ab9d-d2a34aefc23f","at":1768642910000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bcb55-4de0-74e7-9802-6c242dbd8244","at":1768642924000000000,"seq":215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb55-8490-70a5-be5d-0c6463c330b1","at":1768642938000000000,"seq":216,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb55-8878-790b-8baf-bb3668cf9e71","at":1768642939000000000,"seq":217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb55-94d5-7df2-b5d3-794df5ca58b3","at":1768642942165000000,"seq":218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bcb55-d2b0-73b5-bb96-5b7e0e7649ab","at":1768642958000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb55-e250-7ace-a715-0e2ccac128f1","at":1768642962000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb55-ee08-7a97-af4f-4b1677a59fee","at":1768642965000000000,"seq":221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bcb56-20d0-7fb5-aeb8-20ac3f0526eb","at":1768642978000000000,"seq":222,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb56-213c-7790-803d-9a9abe2e7225","at":1768642978108000000,"seq":223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bcb56-6338-7eb6-9dd3-4bf435624652","at":1768642995000000000,"seq":224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb57-0360-7d44-8378-cc821b1d126a","at":1768643036000000000,"seq":225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bcb65-6bd7-73df-aa36-92e45030a2e2","at":1768643980247000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bcb65-91f0-7b39-94f0-213d722856c3","at":1768643990000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb65-b6ca-78f8-9adb-24a13a569d77","at":1768643999434000000,"seq":228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bcb65-efb0-7e4b-94be-2b961a4a9fde","at":1768644014000000000,"seq":229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb66-09d4-7d5c-ac4b-fbce92353fb2","at":1768644020692000000,"seq":230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bcb66-12d8-741e-a1af-123f58809d8c","at":1768644023000000000,"seq":231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb66-7868-7a17-9708-e8b93a1f7702","at":1768644049000000000,"seq":232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb66-da10-71ba-a3fd-6b3c3cde1a2c","at":1768644074000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb66-da10-76ba-a32f-ba6a2c7e76f8","at":1768644074000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bcb67-08f0-7a1c-8b90-15ff3a50a660","at":1768644086000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb67-0bb8-77a6-9973-f25eff905030","at":1768644086712000000,"seq":236,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb67-0bb8-7149-9370-a4724672d5e3","at":1768644086712000000,"seq":237,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb67-7e20-7225-9108-4525ea2ad1a5","at":1768644116000000000,"seq":238,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bcb67-89d8-7aab-810b-c6e360dd7f0f","at":1768644119000000000,"seq":239,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb67-a918-73ac-8948-306221b5e34e","at":1768644127000000000,"seq":240,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bcb68-18bf-7b6c-933a-803add15b6b8","at":1768644155583000000,"seq":241,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb68-18bf-7117-9079-ecaa2514ad04","at":1768644155583000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}

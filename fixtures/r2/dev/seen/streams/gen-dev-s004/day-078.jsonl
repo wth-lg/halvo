@@ -1,0 +1,36 @@
+{"v":1,"id":"019d0508-2ad2-7872-84e4-da21954e740d","at":1773905914578000000,"seq":1166,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0508-2ad2-7a7b-b123-3cd9be290372","at":1773905914578000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d0508-7a98-7696-9888-fa7360e0040e","at":1773905935000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0508-b530-709a-a342-0ba35cbab4eb","at":1773905950000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d0508-d088-7231-bc67-e05ff1e90048","at":1773905957000000000,"seq":1170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0508-d5cb-7e1d-80b0-260a21fee047","at":1773905958347000000,"seq":1171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d0509-70b0-79d9-81ff-0e8cfd0ce571","at":1773905998000000000,"seq":1172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0509-8c08-79ab-9d6c-6c9caf593c37","at":1773906005000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d0509-96fd-7ca8-a5f1-d6e61ef39e9b","at":1773906007805000000,"seq":1174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0509-bed0-7077-8af0-45214a0b216d","at":1773906018000000000,"seq":1175,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d050a-0520-7d38-b6e8-7d1975733a14","at":1773906036000000000,"seq":1176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d050a-0eb6-7899-9a2b-077571ef2c0b","at":1773906038454000000,"seq":1177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d050a-6ab0-725b-a792-9076e8b6fae7","at":1773906062000000000,"seq":1178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d050a-6e98-7309-aa0b-b8e9a5ea210a","at":1773906063000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d050a-8220-75a7-9c02-51fbd8b24752","at":1773906068000000000,"seq":1180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d050a-95a8-7499-863c-f695b6fcd137","at":1773906073000000000,"seq":1181,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d050a-9990-7dc4-ad10-0f8f3cb28dff","at":1773906074000000000,"seq":1182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d050b-097a-7345-a688-5627993804df","at":1773906102650000000,"seq":1183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d050b-64b0-7911-9042-60fbad27c26f","at":1773906126000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d050b-8bc0-758d-9651-3cd85b041551","at":1773906136000000000,"seq":1185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d050c-0e05-7928-b72b-e636e535fbae","at":1773906169349000000,"seq":1186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d050c-1090-7cc4-8809-a8c0abf67c48","at":1773906170000000000,"seq":1187,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d050c-2030-78bf-9ac8-7bc175578a83","at":1773906174000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d050c-6298-781f-9a31-284933066f92","at":1773906191000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d050c-90b3-79e7-b250-077550c09816","at":1773906202803000000,"seq":1190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d050c-9948-7387-94d9-f78d3916cc65","at":1773906205000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d050c-9d30-7d6e-801d-c8377589f7c2","at":1773906206000000000,"seq":1192,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d050c-c058-7eb5-8a2e-312b230e11be","at":1773906215000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0522-e318-79e1-ab0c-4441731ad9bf","at":1773907665688000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0522-f008-7479-a0fd-7f6eb9026ed7","at":1773907669000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d0522-f7d8-72ab-b577-d0bf0ec4cf5d","at":1773907671000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0523-26b8-7c51-93de-6d60d9c1b409","at":1773907683000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0523-8860-7213-85f1-de38b01c59e7","at":1773907708000000000,"seq":1198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0530-66b6-76af-9023-3c0cd9a38633","at":1773908551350000000,"seq":1199,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0530-66b6-7a2f-90a1-1caacd0c17a7","at":1773908551350000000,"seq":1200,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0530-9050-7303-96c9-f10d3cddeb8f","at":1773908562000000000,"seq":1201,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

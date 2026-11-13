@@ -1,0 +1,20 @@
+{"v":1,"id":"019b97ba-37d5-78a9-8026-acc88f468cde","at":1767777122261000000,"seq":153,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97ba-37d5-740f-ab43-ecc50c392577","at":1767777122261000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b97ba-5610-7a06-a652-aafadcd50e3f","at":1767777130000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97ba-ce96-769e-8bf7-b0f832a0f68b","at":1767777160854000000,"seq":156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b97ba-cf28-7dc4-9876-c2f5c266c262","at":1767777161000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97ba-e2b0-7ce0-91b0-788953fc0d77","at":1767777166000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b97ba-e698-752e-9339-28c7784b8c4f","at":1767777167000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97ba-ea80-74c1-9c6a-4982398ccace","at":1767777168000000000,"seq":160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b97bb-3fc0-7bba-84b0-fa45536d7fc1","at":1767777189824000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b97bb-57e0-748a-b5d8-115c0987d98a","at":1767777196000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b97bb-6780-77a2-aee2-525b03d8bc0a","at":1767777200000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b97bb-82d8-72f1-895e-94cae70788b8","at":1767777207000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97bc-34e6-743b-8eb7-36cbded08c21","at":1767777252582000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b97bc-5d98-7ae4-ac71-253d639f6cec","at":1767777263000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97bc-6180-7c15-a3d0-172c3e969f6f","at":1767777264000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b97bc-73a7-7fe5-8cd6-a26c4aeb2264","at":1767777268647000000,"seq":168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b97bc-8890-7c3b-85d7-69820f0e1d87","at":1767777274000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97bc-9060-7a84-ad0f-af2709051769","at":1767777276000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b97bc-9c18-7744-8802-92a9267e67b5","at":1767777279000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97bc-a7d0-79fa-a6b6-f3d55cba29d8","at":1767777282000000000,"seq":172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

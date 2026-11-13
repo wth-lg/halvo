@@ -1,0 +1,11 @@
+{"v":1,"id":"019d248f-076a-7a65-a92c-b26a2a97f7ec","at":1774434846570000000,"seq":1090,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d248f-076a-768a-8252-b850ac64c8f3","at":1774434846570000000,"seq":1091,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d248f-8230-7882-8d25-a083005318fd","at":1774434878000000000,"seq":1092,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d248f-a952-7496-ad59-9cc3ffcbdd05","at":1774434888018000000,"seq":1093,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d248f-ad28-7d25-b913-7c4455db9cf1","at":1774434889000000000,"seq":1094,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d248f-d050-7aa5-a5a4-0abfabc57317","at":1774434898000000000,"seq":1095,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d248f-f378-7842-931b-af433df2831c","at":1774434907000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d248f-fa38-7e66-9774-1f37b2eb1d52","at":1774434908728000000,"seq":1097,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d248f-ff30-7739-84d7-a3988c88dc37","at":1774434910000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d2490-39c8-79e8-beb6-6f852f041b9f","at":1774434925000000000,"seq":1099,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2490-3db0-7df4-8041-a26cb8afc845","at":1774434926000000000,"seq":1100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

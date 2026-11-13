@@ -1,0 +1,8 @@
+{"v":1,"id":"019cbd15-469d-7fb1-af14-96bebbdb31d7","at":1772698814109000000,"seq":735,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd15-469d-7ba0-afb0-29e3ec34b0e0","at":1772698814109000000,"seq":736,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cbd16-56ff-7a49-afec-9bb7a6cdc29c","at":1772698883839000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cbd17-3a30-787e-a5ae-3d46712ff1ee","at":1772698942000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cbd17-5179-7ae8-9e2f-029843cb4144","at":1772698947961000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cbd17-74c8-731b-83a6-ce401c426df0","at":1772698957000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd17-7c98-7ffe-a5c8-9a153e3b0f55","at":1772698959000000000,"seq":741,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cbd17-8850-707a-b9e4-189b86b7f8bd","at":1772698962000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

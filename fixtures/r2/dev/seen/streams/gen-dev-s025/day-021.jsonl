@@ -1,0 +1,18 @@
+{"v":1,"id":"019bdff1-a71d-7581-be3f-213fc9979396","at":1768988714781000000,"seq":298,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdff1-a71d-78dd-a733-8f613ce55618","at":1768988714781000000,"seq":299,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdff1-c738-7923-821a-fe98675f79fa","at":1768988723000000000,"seq":300,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff1-cf08-7ff8-99b3-525d03199a1f","at":1768988725000000000,"seq":301,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff1-ee48-7095-8538-6648f492a0f5","at":1768988733000000000,"seq":302,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bdff5-fcb6-7768-bfb7-a3324526958e","at":1768988998838000000,"seq":303,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdff5-fcb6-713f-94b5-a7abec38a5ef","at":1768988998838000000,"seq":304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bdff6-18b0-72b8-a539-bf00a923b62e","at":1768989006000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff6-95b0-754c-bc80-1a8a9c86f87e","at":1768989038000000000,"seq":306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be004-d6dd-7964-87d2-35d0efa1592b","at":1768989972189000000,"seq":307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be005-4b50-7c5e-862c-62d343efc487","at":1768990002000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be005-5708-7882-b18a-c55746009e54","at":1768990005000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be005-9588-7c65-a37d-a1f3d2435b2f","at":1768990021000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019be01e-533d-72d8-a8d0-fb6315ce3251","at":1768991642429000000,"seq":311,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be01e-533d-7c63-87c2-b752c6c8623b","at":1768991642429000000,"seq":312,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be01e-6900-74be-9df1-83fecd246354","at":1768991648000000000,"seq":313,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019be01e-a398-786e-8bc4-d29a76f9f6ac","at":1768991663000000000,"seq":314,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019be01e-a780-72e6-9f15-975c1d9fd438","at":1768991664000000000,"seq":315,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}

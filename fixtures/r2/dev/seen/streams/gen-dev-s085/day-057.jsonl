@@ -1,0 +1,25 @@
+{"v":1,"id":"019c9977-5bdf-7e42-964f-6d71d8c96790","at":1772101262303000000,"seq":795,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9977-5bdf-7988-b21d-33b94c67bd9c","at":1772101262303000000,"seq":796,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9977-a8d0-79e0-b0c8-62de9a89970c","at":1772101282000000000,"seq":797,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9978-1248-72b1-8d8c-dde85e68c8d5","at":1772101309000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9978-29b8-7a5d-96e6-946801059451","at":1772101315000000000,"seq":799,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9991-9f9d-74c1-a39e-ccfbf039f6f8","at":1772102983581000000,"seq":800,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9991-cc38-7639-ac61-be4012081c27","at":1772102995000000000,"seq":801,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9991-d7f0-7ffd-bcb8-61393cd1d6d6","at":1772102998000000000,"seq":802,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c9991-e3a8-70a1-943f-935cee212d33","at":1772103001000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9991-f348-7602-8c45-02b994953924","at":1772103005000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c999a-4d5c-7df7-881b-edb14d8b41a0","at":1772103552348000000,"seq":805,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c999a-5f88-7831-bebc-8bda6d4c1875","at":1772103557000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c999a-d0d0-7fe0-a582-225d2b1af1d2","at":1772103586000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c999a-dd6b-7047-9e0b-5857f8d49e04","at":1772103589227000000,"seq":808,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c999b-1720-7a59-8060-47e1fba6c323","at":1772103604000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c999b-74e0-7215-90d4-f7aa61f35df4","at":1772103628000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c999b-a3c0-7465-a880-10d89edec747","at":1772103640000000000,"seq":811,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c999b-b748-7a04-aee1-d33b1ba54b25","at":1772103645000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c999b-d31d-7dca-9476-85d067c61091","at":1772103652125000000,"seq":813,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Oak Square - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c999c-0180-71fd-951f-fbfd29273a40","at":1772103664000000000,"seq":814,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c999c-1120-7fe2-ac34-04726f248471","at":1772103668000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c999c-1cd8-70c7-b160-c978e7b5f41c","at":1772103671000000000,"seq":816,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c999c-7565-74cb-96c0-7f9faf00095b","at":1772103693669000000,"seq":817,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c999c-8268-7a5e-9ced-48073deaadb6","at":1772103697000000000,"seq":818,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c999c-9dc0-7b04-9ddb-0fbc57cedfd4","at":1772103704000000000,"seq":819,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

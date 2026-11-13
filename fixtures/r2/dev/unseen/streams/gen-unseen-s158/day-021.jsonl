@@ -1,0 +1,15 @@
+{"v":1,"id":"019bdf9f-13e3-7c4b-b222-b67ae8fd842f","at":1768983303139000000,"seq":370,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdf9f-13e3-78c1-b329-dfb327293cd6","at":1768983303139000000,"seq":371,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdf9f-2eb0-79f7-9f25-6034aee993e5","at":1768983310000000000,"seq":372,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bdf9f-78e8-72dc-8e1c-13f7cda55946","at":1768983329000000000,"seq":373,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdf9f-9058-7533-bf4e-e1b55ca4f0f3","at":1768983335000000000,"seq":374,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfad-1986-7546-b92b-6df9502931df","at":1768984222086000000,"seq":375,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdfad-1986-7971-9147-ea0cfecba635","at":1768984222086000000,"seq":376,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bdfad-57b0-7fc8-aee6-d2672bf90126","at":1768984238000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfad-a9b8-74e1-b675-9a850cfaa14a","at":1768984259000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfad-b9a3-77a2-9d70-21785d68a7b5","at":1768984263075000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bdfad-dc80-7109-820b-983ead6542d4","at":1768984272000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bdfae-5b83-7853-b75a-dd2f2eeebc22","at":1768984304515000000,"seq":381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bdfae-5d68-7c4f-9d83-df74132e9c18","at":1768984305000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdfae-c6e0-7ab3-9fdb-149af38bbc11","at":1768984332000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfae-d298-7192-b141-847cfb04ec7b","at":1768984335000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

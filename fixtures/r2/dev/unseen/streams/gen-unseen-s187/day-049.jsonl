@@ -1,0 +1,13 @@
+{"v":1,"id":"019c6fd4-be88-72e3-930d-e6b6e6a2d9bb","at":1771402739336000000,"seq":958,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fd4-be88-7fba-b22f-cd5637675735","at":1771402739336000000,"seq":959,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c6fd4-dc78-7e1c-8627-a29ab9dba636","at":1771402747000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fd4-e060-7fe1-8323-b4e615beecf7","at":1771402748000000000,"seq":961,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6fd5-1328-790c-ae2c-faeab0dd75bb","at":1771402761000000000,"seq":962,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6fd5-1ee0-72d6-87c5-57aee9c07640","at":1771402764000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe5-9510-7b2b-9510-735f13c911f7","at":1771403842832000000,"seq":964,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe5-a170-7c42-b57f-e05571353f16","at":1771403846000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe6-0ed0-7587-8351-827a65d516a1","at":1771403874000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c6fe6-6393-7e7a-80e9-334ccc5db755","at":1771403895699000000,"seq":967,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe6-8018-7ada-9f82-784352a598d8","at":1771403903000000000,"seq":968,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6fe6-b2e0-73e6-aabb-76cac47c7247","at":1771403916000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe6-c668-7bb2-9a03-6f0cfc4d5f88","at":1771403921000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

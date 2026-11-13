@@ -1,0 +1,13 @@
+{"v":1,"id":"019cc79e-e946-7759-961a-0189325daa11","at":1772875606342000000,"seq":950,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc79e-e946-7075-8e01-76219e150a9f","at":1772875606342000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cc79f-3610-7711-afb2-73c72e7c43ba","at":1772875626000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc79f-bae0-7f03-ab08-4956d088807b","at":1772875660000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cc7b9-1e71-7645-b7b7-807356642abb","at":1772877323889000000,"seq":954,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cc7b9-3650-7982-995e-44a3c5b32c02","at":1772877330000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7b9-45f0-7598-8cce-553debb8e200","at":1772877334000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cc7b9-6530-7e14-92ce-7751b4373167","at":1772877342000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7d0-b5ac-7b8f-9ec1-69e97c2db0a7","at":1772878869932000000,"seq":958,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cc7d0-c1a8-7888-89f2-b49d71dbd106","at":1772878873000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7d1-1cb6-7100-827b-5c18395faf6d","at":1772878896310000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cc7d1-4a60-7f12-a5e6-bed2bce03fdf","at":1772878908000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7d1-7558-74e5-9676-21951d604353","at":1772878919000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

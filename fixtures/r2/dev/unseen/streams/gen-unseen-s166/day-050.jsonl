@@ -1,0 +1,37 @@
+{"v":1,"id":"019c7505-9067-7ce8-bc5f-21397dceb63b","at":1771489824871000000,"seq":577,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7505-9067-75c1-8441-1f933ad81b95","at":1771489824871000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7505-a858-7ea8-8091-18122ac603f9","at":1771489831000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7506-63d8-75aa-bd0e-500e7bf1302f","at":1771489879000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7506-997a-7036-91e2-9f3eb6fff7a4","at":1771489892730000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7507-9488-7273-a018-df1ef790fe40","at":1771489957000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7507-96fe-7820-a62a-dc2e9e5ed6a7","at":1771489957630000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c7508-2761-7987-9e74-9a3d02305b77","at":1771489994593000000,"seq":584,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c7508-3898-709e-95c9-dade30cb5f8d","at":1771489999000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7508-5008-7581-aac8-9a430589ad7f","at":1771490005000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7508-6b60-7fdf-a9c4-c37b7d0bbd95","at":1771490012000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7508-a210-7589-bc0f-e9606142fd0c","at":1771490026000000000,"seq":588,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7508-c8e0-7c32-9c0d-46e3b9842cd0","at":1771490035936000000,"seq":589,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c7509-1358-759f-b896-5dac48003545","at":1771490055000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c7509-222c-7f6d-beb3-37f3dc6d5f93","at":1771490058796000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c7509-4a08-7a92-9a13-fc1197671193","at":1771490069000000000,"seq":592,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c7509-5d90-73e5-8274-64251b9deb36","at":1771490074000000000,"seq":593,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7509-6d30-7006-ba14-42c6e33773ab","at":1771490078000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7509-b947-72c7-8e88-a284fa48c344","at":1771490097479000000,"seq":595,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7509-ced8-7f50-b63e-a6849421bf7d","at":1771490103000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c7509-e648-7307-a732-dc5174294cd3","at":1771490109000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7509-f200-7abe-9a54-f419d0f67143","at":1771490112000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7509-f44a-72a8-93e4-f7da48763a0f","at":1771490112586000000,"seq":599,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c750a-4fc0-7f45-90cb-c28e465c57b3","at":1771490136000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c750a-c108-7446-a5c1-24457f3d65fb","at":1771490165000000000,"seq":601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c750e-9e34-74fe-9348-592632b6da7e","at":1771490418228000000,"seq":602,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c750e-9e34-7ba2-b337-dc9d827d6b1b","at":1771490418228000000,"seq":603,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c750f-4d18-7e81-80a3-ec1e62011d16","at":1771490463000000000,"seq":604,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c750f-6870-79ee-a652-41f5b3b3cb7e","at":1771490470000000000,"seq":605,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c750f-6c58-7c49-b5ca-52c2ba154f49","at":1771490471000000000,"seq":606,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c7522-2560-7e73-8d3b-8169f95b1013","at":1771491698016000000,"seq":607,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c7522-34f0-7338-a7df-debeebde5ea4","at":1771491702000000000,"seq":608,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7522-5430-7f8e-9311-0cee222ba39e","at":1771491710000000000,"seq":609,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7522-d130-7780-bdb5-4877fc50d3e0","at":1771491742000000000,"seq":610,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7522-e8a0-7b55-9bd5-ca0e281fa577","at":1771491748000000000,"seq":611,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c7522-f799-7147-a7cf-fd901695dd5f","at":1771491751833000000,"seq":612,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c7523-2ef0-79b3-9777-dd54b80b0db8","at":1771491766000000000,"seq":613,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

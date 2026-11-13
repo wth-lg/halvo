@@ -1,0 +1,23 @@
+{"v":1,"id":"019c3c8e-d118-7c5e-9fb5-ebe3e49802c6","at":1770542518552000000,"seq":659,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c8e-d118-7de6-a1c8-38f8e5ce4e91","at":1770542518552000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c3c8e-d2d8-7b15-a16a-eebcef331ebd","at":1770542519000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c8f-b950-7a29-a3eb-aed6c3064434","at":1770542578000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c8f-c739-7e12-86d4-55f7b401f32d","at":1770542581561000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c3c8f-d0c0-7fa8-b08e-3c6702b1490a","at":1770542584000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3c8f-f000-76ed-a0eb-43d64012c127","at":1770542592000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3c90-0b58-7c12-9f8c-0b3308054683","at":1770542599000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c3c90-8c40-7fef-a7ae-88e448508165","at":1770542632000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c90-af68-70aa-8a9a-f2208a0fa021","at":1770542641000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c90-c031-7301-82c9-298403cdc6b6","at":1770542645297000000,"seq":669,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c3c90-c6d8-7ef5-9064-b27a2c34f58f","at":1770542647000000000,"seq":670,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3c90-e618-74d6-ae03-64dd41563a96","at":1770542655000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c90-fd88-77d3-91bb-27ac4968ec00","at":1770542661000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c91-0d28-74ed-8413-9e8d219fd497","at":1770542665000000000,"seq":673,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3cab-04e3-7c74-9146-e89e95535c14","at":1770544366819000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3cab-5b88-7d6b-85bf-76773c19273b","at":1770544389000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cab-a5c0-7bbe-a1bf-aedbcf9eff0d","at":1770544408000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cb3-1757-7c7b-9c4a-cc6c7a5f1884","at":1770544895831000000,"seq":677,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3cb3-f8a6-79b2-9a51-77d5634411bd","at":1770544953510000000,"seq":678,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3cb4-0260-76ea-9134-b55e4dcffe62","at":1770544956000000000,"seq":679,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3cb4-3528-7242-bb61-619fd1f83887","at":1770544969000000000,"seq":680,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3cb4-67f0-79c3-9c97-ecae80f9cb69","at":1770544982000000000,"seq":681,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,27 @@
+{"v":1,"id":"019b7896-7638-70a2-a436-d690f19c8465","at":1767254685240000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7896-7638-7680-86f4-2f346aa2ca0a","at":1767254685240000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7897-14fb-76c5-95fb-a6917aba1a5b","at":1767254725883000000,"seq":2,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7897-14fb-7aa0-a811-9961ebba902c","at":1767254725883000000,"seq":3,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7897-1d40-7793-9b23-55ba97aa9154","at":1767254728000000000,"seq":4,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b7897-28f8-7323-a855-3292fe95adef","at":1767254731000000000,"seq":5,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b7897-3898-741b-a450-aa0e82e3f89d","at":1767254735000000000,"seq":6,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b7897-d2a7-7fca-a448-f7fbf3fa4de8","at":1767254774439000000,"seq":7,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7897-d2a7-74f0-8ee3-3640add05a48","at":1767254774439000000,"seq":8,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7897-f030-7b5b-9dd5-d6344f0b272c","at":1767254782000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7897-ffd0-7f06-a544-6ba6aa53d953","at":1767254786000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7898-1b28-7b56-a940-33f864eee562","at":1767254793000000000,"seq":11,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7898-26dd-7e28-a452-65c292006432","at":1767254795997000000,"seq":12,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7898-8c70-71b9-91ab-3f5f9a3fe645","at":1767254822000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7898-99c6-7c62-9c21-9bbfbc9a30bd","at":1767254825414000000,"seq":14,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7898-bb50-7281-a539-56dbfdb9ecb7","at":1767254834000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b7898-d6a8-7723-ac6e-3a604d2a8360","at":1767254841000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7898-f5e8-72c6-a99f-7b14deff3f0b","at":1767254849000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7899-0588-73e6-bdbf-32cfbed807ae","at":1767254853000000000,"seq":18,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b789e-ed79-7dff-80d5-44b45731bacb","at":1767255240057000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b789f-b7e0-7fe4-b19c-a7dd196343f2","at":1767255291872000000,"seq":20,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b78a0-a4f1-7cb7-afc1-bf0077d79389","at":1767255352561000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b78a0-e140-7dfa-a38a-2e64e8227ccf","at":1767255368000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78a1-5670-741b-9b61-d41426739496","at":1767255398000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b78a1-66ae-789b-bffc-e8e6f8b5e3f1","at":1767255402158000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b78a1-9108-78ef-b167-c37bba21a1b7","at":1767255413000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78a2-6010-7442-8bc1-131736ad22b3","at":1767255466000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

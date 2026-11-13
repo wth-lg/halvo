@@ -1,0 +1,23 @@
+{"v":1,"id":"019c5b57-a6ea-7e04-a86a-b19a39070179","at":1771058996970000000,"seq":654,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b57-a6ea-7740-87b7-6776d6a22fa7","at":1771058996970000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c5b57-aed8-761a-b6f1-7a72930c6cd3","at":1771058999000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c5b57-b2c0-7813-b8b8-0109d08ac70e","at":1771059000000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b57-e1a0-7e21-95e9-b08d325dd067","at":1771059012000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b57-e375-70b9-b573-f2b4283c04e3","at":1771059012469000000,"seq":659,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c5b57-e970-7316-8cf2-5fb69b0a492c","at":1771059014000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b57-ed58-7f8d-b792-c5407d0423fa","at":1771059015000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b58-1c38-744e-8218-fd42b600f73a","at":1771059027000000000,"seq":662,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5b58-7de0-7bfb-b596-84cb08685b91","at":1771059052000000000,"seq":663,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5b58-97ff-7983-b2e0-8661327c8b45","at":1771059058687000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c5b59-8947-773b-9118-1db1dc3244bc","at":1771059120455000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c5b61-a5ea-78ff-95cc-f8eda1562dd8","at":1771059652074000000,"seq":666,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b61-a5ea-7c1d-9ba5-d1ce88484f31","at":1771059652074000000,"seq":667,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b61-ad70-7f16-abd7-ff25b98ce712","at":1771059654000000000,"seq":668,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c5b61-c0f8-787b-b5fc-10cb8ca33430","at":1771059659000000000,"seq":669,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b61-dc50-7954-b9a1-61a7d937a629","at":1771059666000000000,"seq":670,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c5b76-c138-7dd3-b429-30192bfb6e28","at":1771061035320000000,"seq":671,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b76-c138-722f-8ce3-3402fa6ad7c3","at":1771061035320000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c5b76-d768-7b0a-a77b-246c24955f54","at":1771061041000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c5b77-0260-7463-a841-dc0bc3916da3","at":1771061052000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b85-5b08-7dd7-aeeb-db4fe32b849b","at":1771061992200000000,"seq":675,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5b85-e6e0-7f7a-b757-af9e111f7f7f","at":1771062028000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019c9421-a903-7498-af02-14980e626ea0","at":1772011759875000000,"seq":760,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9421-a903-76e9-8a08-034314eb5d4a","at":1772011759875000000,"seq":761,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c9421-c0f0-70b6-87b1-407c80626525","at":1772011766000000000,"seq":762,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9421-e800-7f35-91bb-a9afcfb09111","at":1772011776000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c9421-ff70-7f2c-8b4f-860e9a40ea64","at":1772011782000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9422-63df-765c-bcfa-7527ae4c98c9","at":1772011807711000000,"seq":765,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c9422-ca90-7c30-96d8-d8c5e950721c","at":1772011834000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9422-d086-762d-a21b-a1a38f40feeb","at":1772011835526000000,"seq":767,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c9423-0cf8-7bd3-9a51-13d177c0f3c8","at":1772011851000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9423-2468-7a46-8fe2-c228ffa4cfb6","at":1772011857000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c9423-4b78-7ad8-b0e3-7264258312bb","at":1772011867000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9423-5348-7116-9a65-adb10e4e9feb","at":1772011869000000000,"seq":771,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9423-64be-73b5-8ad5-210f5bee9e42","at":1772011873470000000,"seq":772,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c9423-66d0-7186-98dd-f66af0a4d057","at":1772011874000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9423-8610-778d-b14a-3cb7e7a11c15","at":1772011882000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c9423-b108-71ef-a36b-5f57347d526c","at":1772011893000000000,"seq":775,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9423-b8d8-732a-b078-4e7779ba04c4","at":1772011895000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9423-d430-7797-a11d-91ddd6e27990","at":1772011902000000000,"seq":777,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9438-b859-7f10-a2f8-af3e5bca500d","at":1772013271129000000,"seq":778,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9438-b859-7939-826a-6ed8a0cead80","at":1772013271129000000,"seq":779,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9439-63b8-7df3-815d-de2def860d42","at":1772013315000000000,"seq":780,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9439-9298-7f56-9a94-27a6354878c0","at":1772013327000000000,"seq":781,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

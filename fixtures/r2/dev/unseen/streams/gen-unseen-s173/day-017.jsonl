@@ -1,0 +1,35 @@
+{"v":1,"id":"019bcb84-70c3-759c-abfa-6def8273706e","at":1768646013123000000,"seq":182,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb84-70c3-7ea8-9192-7408cc423ccb","at":1768646013123000000,"seq":183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bcb84-9f28-7138-8224-6311cac18e03","at":1768646025000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bcb84-be68-7044-8feb-4c5ce8641774","at":1768646033000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb84-ce08-71c7-8260-a923140e2f6e","at":1768646037000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb84-d98e-7617-a3ec-fdbfb8c81140","at":1768646039950000000,"seq":187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bcb84-e190-7cc8-bbd9-66b6362efaba","at":1768646042000000000,"seq":188,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb84-f518-7542-9e04-0db05e30bd06","at":1768646047000000000,"seq":189,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bcb85-00d0-7ba5-bcc5-6fb7b602b364","at":1768646050000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bcb85-1840-785a-b741-2c3d7e80be30","at":1768646056000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb85-40f9-7e1d-8fae-f310b6c67c08","at":1768646066425000000,"seq":192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bcb85-7600-7136-b074-6480d67645b6","at":1768646080000000000,"seq":193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb85-7dd0-7ff2-8eee-63ffbc2a4894","at":1768646082000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb85-a104-7c20-83fc-12facc7842a8","at":1768646091012000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bcb86-25c8-7171-b95b-ced1db0143f1","at":1768646125000000000,"seq":196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb91-231b-7f0c-8b26-1b3418aa5f37","at":1768646845211000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bcb91-39b8-77a9-85e1-4c198d5edc78","at":1768646851000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb91-8bc0-7cb3-870e-c648c5a8c3ba","at":1768646872000000000,"seq":199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bcb91-c658-799e-9494-f3c9a0efeb2e","at":1768646887000000000,"seq":200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb91-e598-7217-904d-fe920b49335a","at":1768646895000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba1-c512-7078-97fe-265f5d9cf055","at":1768647935250000000,"seq":202,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcba1-c512-755a-b2b5-bdc606eebf1c","at":1768647935250000000,"seq":203,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcba1-d7a0-72f8-adb7-4eac2743cec2","at":1768647940000000000,"seq":204,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba1-e358-7586-b435-a1ab7ad306c4","at":1768647943000000000,"seq":205,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bcba2-5888-7552-87d5-21cace0fc03d","at":1768647973000000000,"seq":206,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba2-5d9e-791d-8077-535cb7620066","at":1768647974302000000,"seq":207,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bcba2-9708-7bc1-90e5-a8468b72d603","at":1768647989000000000,"seq":208,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bcba2-c200-7ad5-a509-fa76bf43a356","at":1768648000000000000,"seq":209,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bcba4-d7bb-7c4e-b09f-efbd7c43b807","at":1768648136635000000,"seq":210,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcba4-d7bb-73c6-8a10-eb99b1fd84ab","at":1768648136635000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bcba5-2f18-7de5-81b6-2381ccc80157","at":1768648159000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bcbb5-0ba5-7fe0-b3e2-728819dac034","at":1768649198501000000,"seq":213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bcbb5-57d0-788d-b97d-5150921f611b","at":1768649218000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcbb5-82c8-76a1-9488-52a09f88264d","at":1768649229000000000,"seq":215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcbb5-9268-77ed-bee5-b7a383a06927","at":1768649233000000000,"seq":216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

@@ -1,0 +1,15 @@
+{"v":1,"id":"019c6b29-1e3f-7500-a6e5-9dcb26a65d4e","at":1771324382783000000,"seq":573,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6b29-1e3f-717f-abc0-f7573ec9f174","at":1771324382783000000,"seq":574,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6b2b-16a0-7519-ab4b-a727e6598dbd","at":1771324511904000000,"seq":575,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6b2b-16a0-7639-913b-2e678089ca35","at":1771324511904000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6b2b-1ed0-79a3-a459-9ac83bd33088","at":1771324514000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6b2b-8c30-7358-8d5e-16546737ad01","at":1771324542000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b2b-ce98-787b-b46a-c64331e9df54","at":1771324559000000000,"seq":579,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6b2c-f324-7ca0-aaf7-fb832874d7fc","at":1771324633892000000,"seq":580,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6b2c-f324-7f90-91af-451b4e0f5b4d","at":1771324633892000000,"seq":581,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6b2d-0ee8-782e-9148-b46d580c35ad","at":1771324641000000000,"seq":582,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c6b2d-5920-79c1-bd41-ae6cf3f35256","at":1771324660000000000,"seq":583,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6b2d-8800-7bac-988d-d6aa48db5c0d","at":1771324672000000000,"seq":584,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6b2d-a740-7275-90f2-e6befe92453b","at":1771324680000000000,"seq":585,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b2d-d42e-7fe3-9764-e28b4f531c5d","at":1771324691502000000,"seq":586,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6b2e-3f98-7ee1-8312-ed1c727c078b","at":1771324719000000000,"seq":587,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

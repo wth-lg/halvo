@@ -1,0 +1,33 @@
+{"v":1,"id":"019c3225-d9f9-75c8-aa1a-6fd3f3d387f0","at":1770367867385000000,"seq":446,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3225-d9f9-7730-bd70-edf439d8b99f","at":1770367867385000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c3226-7426-7411-b4ed-3184da812f7c","at":1770367906854000000,"seq":448,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c3227-0158-76f2-a3a2-02ff7523b1b8","at":1770367943000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3227-2915-7bbd-9070-4166ea1103d4","at":1770367953173000000,"seq":450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c3227-4f78-768f-83f5-4245908a856a","at":1770367963000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c3227-5360-7c04-89a9-7bb7abdde061","at":1770367964000000000,"seq":452,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3227-5748-76d4-b8d6-606775a0fad1","at":1770367965000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3227-5b30-7d2e-bad5-ae6e9740fb41","at":1770367966000000000,"seq":454,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3227-6eb8-7281-be79-48f7ad6366ae","at":1770367971000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3227-73f2-7b23-b1f5-c947e4cf3803","at":1770367972338000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c3227-d060-7d93-b77c-84369a0063d5","at":1770367996000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c3227-efa0-7e9e-9fe4-de68954d72a0","at":1770368004000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3228-0ee0-7d7c-8873-7aa8736fc28e","at":1770368012000000000,"seq":459,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3228-1a98-748d-a6b8-1acb7d9097de","at":1770368015000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322a-9bd2-7279-b84f-4cdc4bf111c6","at":1770368179154000000,"seq":461,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c322a-aad8-71bf-a7f5-a5825434a1df","at":1770368183000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322a-ed40-70e3-b079-9269b3580127","at":1770368200000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c322a-f8f8-754e-9fdb-fced1e0dac66","at":1770368203000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322b-3157-70a0-ad6b-b6c5c348b852","at":1770368217431000000,"seq":465,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c322b-3b60-76d6-859d-b6c56a4b40f0","at":1770368220000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c322b-52d0-7a2f-bb7e-af9893c946d9","at":1770368226000000000,"seq":467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c322b-8209-7869-8cbd-eb31fdfb20b2","at":1770368238089000000,"seq":468,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c322b-9d08-7366-9862-ab5079baa6a5","at":1770368245000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3238-709f-7579-a2b1-ba847f05bf73","at":1770369085599000000,"seq":470,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3238-709f-7c03-9a46-ce9b1cdda162","at":1770369085599000000,"seq":471,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3238-fae8-75b7-8cf6-bceb372551d7","at":1770369121000000000,"seq":472,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c3253-97fe-749d-b1cd-e26ec9aca85d","at":1770370865150000000,"seq":473,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3253-97fe-732b-b989-18d5887dd1d3","at":1770370865150000000,"seq":474,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c3253-aaf0-7776-b874-17b07eca87d5","at":1770370870000000000,"seq":475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3253-b6a8-7596-8910-27873525777c","at":1770370873000000000,"seq":476,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3253-ba90-7bf3-85ac-67c747ad62d4","at":1770370874000000000,"seq":477,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3253-f910-7cab-b11d-16f2afbeaaea","at":1770370890000000000,"seq":478,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

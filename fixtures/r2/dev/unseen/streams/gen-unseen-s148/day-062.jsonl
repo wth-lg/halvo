@@ -1,0 +1,12 @@
+{"v":1,"id":"019cb29c-1be2-7b43-920d-9010b82b2a99","at":1772523101154000000,"seq":743,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb29c-1be2-70f4-bd54-a00a5d865176","at":1772523101154000000,"seq":744,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb29c-2318-7ae0-a401-95dc0d4d2254","at":1772523103000000000,"seq":745,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb29c-32b8-70c2-8f88-0c46633d15a4","at":1772523107000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cb29c-55e0-74f7-a553-48754ffa3c9d","at":1772523116000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb29c-6198-700f-9055-b8c5a164ef27","at":1772523119000000000,"seq":748,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb2a2-9ede-7fad-8367-bd4258e720d3","at":1772523527902000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cb2a2-c268-75da-9308-6fdaf590b08c","at":1772523537000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cb2a3-1a8e-7224-9a78-a09b226522fc","at":1772523559566000000,"seq":751,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cb2a3-4350-75f0-90e0-3b08c8a57ab8","at":1772523570000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2a3-6e48-734f-aef8-9ec83aafbb0a","at":1772523581000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2a3-7a00-75da-89ac-b40672589797","at":1772523584000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

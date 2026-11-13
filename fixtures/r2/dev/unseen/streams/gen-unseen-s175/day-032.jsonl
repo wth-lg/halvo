@@ -1,0 +1,40 @@
+{"v":1,"id":"019c1868-4b5b-7d41-a05b-d82706239136","at":1769936014171000000,"seq":445,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1868-4b5b-7472-a7ed-40881bed70f1","at":1769936014171000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c1868-df20-7314-914e-b46e2b3cc98c","at":1769936052000000000,"seq":447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1868-f580-7e08-aab2-96b5b0384fb7","at":1769936057728000000,"seq":448,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c1868-fa78-7d8e-9d14-e1d0574cf2d7","at":1769936059000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1869-0e00-70a5-9f1d-b52dbf51ff9a","at":1769936064000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1869-0e00-771f-a2c4-1b4116a3ae06","at":1769936064000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c1869-73ff-7cb3-bda5-39f859a64af9","at":1769936090111000000,"seq":452,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c186a-36e0-753f-96f4-cc4aca12c7dc","at":1769936140000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c186a-4082-758c-adcc-021ca3876fbb","at":1769936142466000000,"seq":454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c186a-cf38-7811-8492-36d645c7ab9f","at":1769936179000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c186a-f260-783d-bbf9-d4dfd873b071","at":1769936188000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c186a-fe7e-73f8-bbc8-476da3411e92","at":1769936191102000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c186b-7b18-701b-bfa4-3add300104db","at":1769936223000000000,"seq":458,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c186b-82e8-7dfb-b361-133ef86fdd8c","at":1769936225000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c186b-dfc6-74ee-870b-bf3f7dcb362a","at":1769936248774000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c186b-ec60-7b55-a1fb-43cba8cf41b2","at":1769936252000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c186c-1370-7e29-abc9-799b84e1f4ea","at":1769936262000000000,"seq":462,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1885-3492-7989-9549-3ef94058a58a","at":1769937908882000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c1885-5c18-7007-ba54-85c8d6910f41","at":1769937919000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1885-6bb8-7297-91b3-c6c19a07416f","at":1769937923000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c1885-7388-7c3c-8d24-ed9eaec1fa58","at":1769937925000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1894-fb1c-7d4f-8026-127798feb53e","at":1769938942748000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c1895-1b58-7738-bdf2-063071a122b6","at":1769938951000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1895-4650-7bbd-96d5-162d58d5f499","at":1769938962000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1895-9858-7168-8122-74bda29afcdd","at":1769938983000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c1895-9fd6-74df-9697-ea5ca984354a","at":1769938984918000000,"seq":471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement May - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c1895-f230-77f1-879c-fe902ac46cca","at":1769939006000000000,"seq":472,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1896-3498-79a2-9714-14eec9e9cba3","at":1769939023000000000,"seq":473,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1896-46ba-7ea8-ba23-7f71195c82f9","at":1769939027642000000,"seq":474,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c1896-4ff0-7fa9-9346-c72262e75aaa","at":1769939030000000000,"seq":475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1896-7ae8-7847-af9e-f90b07634d6c","at":1769939041000000000,"seq":476,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1896-7ed0-7d0a-82da-644a38b9f807","at":1769939042000000000,"seq":477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1896-999d-730d-bfc6-728acc10fc8b","at":1769939048861000000,"seq":478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c1896-9a28-75f8-a782-2500bf41c82c","at":1769939049000000000,"seq":479,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1897-7100-70a4-93a5-ebff4fbbbb5d","at":1769939104000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a3-8ab1-7acd-b8e9-ac63ad44cfd7","at":1769939897009000000,"seq":481,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c18a3-8ab1-72ed-8e14-a075820b2c6d","at":1769939897009000000,"seq":482,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c18a3-cd10-7344-84b6-6b4498898555","at":1769939914000000000,"seq":483,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a3-e868-77b2-991b-428abfa4d044","at":1769939921000000000,"seq":484,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

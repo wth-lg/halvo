@@ -1,0 +1,37 @@
+{"v":1,"id":"019b9804-b70d-79b4-a065-6548e5c79d40","at":1767782004493000000,"seq":141,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9804-b70d-7f20-9042-b784566d6cd0","at":1767782004493000000,"seq":142,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9804-fb70-773f-84d3-0e59617e21d0","at":1767782022000000000,"seq":143,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b981d-a8f8-7317-9aae-51714d4d2c70","at":1767783639288000000,"seq":144,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b981d-a8f8-761f-8d09-e6cbf255b2d4","at":1767783639288000000,"seq":145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b981d-f5f8-7660-b160-19a21f228c69","at":1767783659000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b981e-4418-7280-b0ea-4524dc60eed4","at":1767783679000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b981e-b766-732b-8adf-4f8ac7213031","at":1767783708518000000,"seq":148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b981f-0768-7b4e-a097-069a665c8d98","at":1767783729000000000,"seq":149,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b981f-26a8-767b-ad3a-843c8dc98138","at":1767783737000000000,"seq":150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b981f-2d8e-7af8-8d36-619abc08e1b3","at":1767783738766000000,"seq":151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b981f-45e8-7a90-9652-cb335d0cd365","at":1767783745000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b981f-8468-7723-ab07-8ced66e48421","at":1767783761000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b981f-dfc5-7149-bf26-7c19d7ce886e","at":1767783784389000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9820-0550-72cd-bc15-e930e99aa9c0","at":1767783794000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9820-8638-746a-8fe5-b9ec95782a2b","at":1767783827000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b9820-882e-7c40-9d25-a66c15a8665c","at":1767783827502000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9820-c0d0-76db-ad89-a7b30ac8821e","at":1767783842000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b9820-dc28-7208-93b9-149224e59c89","at":1767783849000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9820-ff50-7f9f-829b-1c34b20f14c4","at":1767783858000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9821-3218-79d4-ab5b-bd9a86f983bd","at":1767783871000000000,"seq":161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9821-5d69-73e5-9260-2e629ba71e70","at":1767783882089000000,"seq":162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9821-64e0-7ccb-8c4a-b396b90bb525","at":1767783884000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b9821-7868-72bd-b053-3bf124cbfbfa","at":1767783889000000000,"seq":164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9821-8038-7dac-9118-16807b5b2035","at":1767783891000000000,"seq":165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9821-9b90-74c7-bd46-e76d08f1c0c5","at":1767783898000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b982c-da61-7876-8427-f34df6b6c140","at":1767784634977000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b982d-4008-78e2-b4f6-f6e747affaf1","at":1767784661000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b9849-04f8-7183-939e-81839324195a","at":1767786480888000000,"seq":169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9849-d63a-732f-a136-0f2d7fb6c859","at":1767786534458000000,"seq":170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b984a-1ac0-7954-8a36-5a1745dee034","at":1767786552000000000,"seq":171,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b984a-2522-7328-946c-0cefb63b1fab","at":1767786554658000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b984a-93d8-72c6-ab41-34c8e91e4474","at":1767786583000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b984b-2460-7b8a-851a-74e58d230bb8","at":1767786620000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b984b-2a55-74eb-b355-b47d5350639f","at":1767786621525000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b984b-c0a0-7a0a-b359-f9a583c35a54","at":1767786660000000000,"seq":176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b984c-0308-77d6-819e-30818d054e13","at":1767786677000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019bb132-ce55-71a0-8fd2-cfc07c400d1e","at":1768204455509000000,"seq":252,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb132-ce55-7c23-ab4a-dc9d3a7b2734","at":1768204455509000000,"seq":253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb133-0ad8-7dea-b829-278f4e4e5154","at":1768204471000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb133-4958-7b1a-b2e1-a615a917aaa4","at":1768204487000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb133-5510-7a0b-be1f-d4c426a8df0a","at":1768204490000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bb133-b492-7c05-b70b-8dea8f5240ae","at":1768204514450000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb133-b6b8-7cd1-a76d-9c3dfa3e8789","at":1768204515000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb133-ca40-71a6-bf78-ce63420cd8be","at":1768204520000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb134-3f70-7992-9325-495b2acb2ed8","at":1768204550000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bb134-4f10-73ec-a706-9fec5e03d8af","at":1768204554000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb134-5617-7d65-a73c-d10b25d5b541","at":1768204555799000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb134-5eb0-7f14-9fea-c6ae1149a7ef","at":1768204558000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb134-5eb0-788f-862d-402b3987b0f6","at":1768204558000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bb134-9178-76bd-921f-da2573aaf6d5","at":1768204571000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb134-9948-7f9e-ac53-5c36d20e6877","at":1768204573000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb134-b0b8-70bf-9021-2de12b064d77","at":1768204579000000000,"seq":267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb134-cdbe-7155-a5f1-324ca4d15ca0","at":1768204586430000000,"seq":268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bb135-4910-7567-ad26-739e359a8448","at":1768204618000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb135-ac12-7e77-b20b-8385f5e77dc1","at":1768204643346000000,"seq":270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb135-be40-7ee7-9d45-d32fca60a194","at":1768204648000000000,"seq":271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb135-cde0-7f64-beb2-eb46d336d718","at":1768204652000000000,"seq":272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb135-f4f0-70f4-b6d9-cf31b1b65f46","at":1768204662000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

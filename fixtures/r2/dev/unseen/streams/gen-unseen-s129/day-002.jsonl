@@ -1,0 +1,11 @@
+{"v":1,"id":"019b7d91-9cbc-7ddf-b9be-a26e30570eb2","at":1767338253500000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7d91-9cbc-7160-a79c-abd0b52431cb","at":1767338253500000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7da5-825f-7067-a9e3-d2acf1d9eb7e","at":1767339557471000000,"seq":2,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7da5-825f-7f13-a467-89e382f3d812","at":1767339557471000000,"seq":3,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7da5-ab80-76a4-8f00-0203af9a601b","at":1767339568000000000,"seq":4,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7da5-cea8-7523-9a9d-a215545eb351","at":1767339577000000000,"seq":5,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7da5-e618-733e-bb59-e5680c44af36","at":1767339583000000000,"seq":6,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b7da5-ede8-7a33-a266-037ef3cdaf89","at":1767339585000000000,"seq":7,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7da5-f34f-7e4b-b191-c8d8810bd241","at":1767339586383000000,"seq":8,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b7da6-1cc8-7def-b895-643ee1276ab4","at":1767339597000000000,"seq":9,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b7da6-3c08-78a4-bdfb-13bd70fa973c","at":1767339605000000000,"seq":10,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}

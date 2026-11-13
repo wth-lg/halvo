@@ -1,0 +1,4 @@
+{"v":1,"id":"019d338c-dee4-7c9a-9635-06d13c3f8e95","at":1774686363364000000,"seq":1268,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d338c-dee4-7b34-9352-7e2e3cb591df","at":1774686363364000000,"seq":1269,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d338d-3f20-7542-bb04-16da9f766834","at":1774686388000000000,"seq":1270,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d338d-6248-7982-9b21-1922c3de8b4f","at":1774686397000000000,"seq":1271,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

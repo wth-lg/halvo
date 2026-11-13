@@ -1,0 +1,13 @@
+{"v":1,"id":"019c08bd-6765-72f7-8272-4179b87cfef9","at":1769673156453000000,"seq":346,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08bd-6765-793a-ac55-b9c4f3e46a36","at":1769673156453000000,"seq":347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c08bd-b0a0-7d71-8e7d-f652fd35a6a9","at":1769673175200000000,"seq":348,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c08bd-f240-7776-b81f-c60fb9d44f98","at":1769673192000000000,"seq":349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08bd-f628-7bf2-941d-847b597dadbe","at":1769673193000000000,"seq":350,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c08be-429d-7198-b867-36c240f7da80","at":1769673212573000000,"seq":351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c08be-6388-7e2b-9b6c-a1f01adb09e1","at":1769673221000000000,"seq":352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08bf-2f76-74fc-89fb-0505a2712623","at":1769673273206000000,"seq":353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c08bf-3a60-7de1-82e9-5c4a3fc633a9","at":1769673276000000000,"seq":354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c08bf-3a60-7085-9693-e8ef0a73ca15","at":1769673276000000000,"seq":355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c08cd-4aff-76a8-973f-ff0310ccf669","at":1769674197759000000,"seq":356,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c08cd-9240-78e3-8f04-7c16f74ce7fb","at":1769674216000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08cd-9a10-70f3-bd69-7d313533844a","at":1769674218000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

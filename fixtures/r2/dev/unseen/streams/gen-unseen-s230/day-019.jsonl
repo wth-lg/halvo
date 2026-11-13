@@ -1,0 +1,9 @@
+{"v":1,"id":"019bd59c-8276-7680-9f1b-f313770e7d1d","at":1768815362678000000,"seq":157,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd59c-8276-769a-9897-523e796ec4ca","at":1768815362678000000,"seq":158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bd59c-9358-7798-a38d-f1068d35589e","at":1768815367000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd59d-52db-7268-af74-78618a7e2e9c","at":1768815416027000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bd59d-5e78-7621-ae14-0c844059546f","at":1768815419000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd59d-a0e0-7f29-9311-ddec4c72356e","at":1768815436000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5ac-3539-7c50-9285-6e29114e770a","at":1768816391481000000,"seq":163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bd5ac-5680-7471-9a77-7e39717ba843","at":1768816400000000000,"seq":164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd5ac-5e50-7f26-bc9b-2f846c6a0d6c","at":1768816402000000000,"seq":165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

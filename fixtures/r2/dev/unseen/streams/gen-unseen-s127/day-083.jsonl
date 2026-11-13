@@ -1,0 +1,20 @@
+{"v":1,"id":"019d1eeb-b52e-77b1-b782-98ca6a4813b4","at":1774340257070000000,"seq":1120,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1eeb-b52e-7875-a7f6-8ad6438f4b17","at":1774340257070000000,"seq":1121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d1eec-12a8-7ab8-8b2c-818f12300ae5","at":1774340281000000000,"seq":1122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eec-1ae1-7852-836d-db516a44b02c","at":1774340283105000000,"seq":1123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d1eec-4958-7ad8-a3cb-7cae11081108","at":1774340295000000000,"seq":1124,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1eec-7c20-766d-8d48-484e02455fe1","at":1774340308000000000,"seq":1125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1eec-be88-7d96-be37-9ee2c2e313b2","at":1774340325000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eec-c027-7e50-9978-ceefd107ba94","at":1774340325415000000,"seq":1127,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d1eed-2030-7324-8f3e-b2d8098e5a73","at":1774340350000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eed-5eb0-7224-87ef-00039d7ef89a","at":1774340366000000000,"seq":1129,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1eed-7a08-7e62-b695-c2dc636f5358","at":1774340373000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1eed-a8e8-754a-b6c7-919535895b7d","at":1774340385000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d1efe-9f29-7468-b84d-3ab349324fc2","at":1774341496617000000,"seq":1132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1eff-2578-76b7-952a-63a71d01b802","at":1774341531000000000,"seq":1133,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1eff-3ce8-772a-9206-cee157d60bfe","at":1774341537000000000,"seq":1134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1eff-48a0-7491-9757-556ddb9635d2","at":1774341540000000000,"seq":1135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f05-8123-7f11-9fb8-578fd122c13b","at":1774341947683000000,"seq":1136,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1f05-8a30-7599-993f-970b78d50ed9","at":1774341950000000000,"seq":1137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f05-a1a0-7b97-82d1-524a5aa6ea13","at":1774341956000000000,"seq":1138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1f05-c8b0-7df7-81ea-1893ee47c77e","at":1774341966000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

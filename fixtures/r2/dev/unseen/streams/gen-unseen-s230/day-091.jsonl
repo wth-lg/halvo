@@ -1,0 +1,21 @@
+{"v":1,"id":"019d484b-6865-7eff-9e8a-f7d5273de126","at":1775034394725000000,"seq":1228,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d484b-6865-7288-b5ec-a887458ef1ae","at":1775034394725000000,"seq":1229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d484b-b3b0-7a35-b6d2-ceb6174cd8c4","at":1775034414000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d484c-5f90-77c1-9358-83316e9a9841","at":1775034458000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d484c-7223-71fe-a4d7-c7e081d42f5c","at":1775034462755000000,"seq":1232,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d484c-7223-7cad-86af-d18eb1de5c41","at":1775034462755000000,"seq":1233,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d484c-7ae8-7f59-a559-f6913f055165","at":1775034465000000000,"seq":1234,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d484c-a5e0-709d-b16a-11563fe76327","at":1775034476000000000,"seq":1235,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d484c-bd82-7c31-abc0-2c97f88d060b","at":1775034482050000000,"seq":1236,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d484c-bd82-7970-b9bf-35e2fa360cfe","at":1775034482050000000,"seq":1237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d484c-e460-7386-b552-3eb9085df5c0","at":1775034492000000000,"seq":1238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d485f-64f5-7076-becf-2be6f1773eaa","at":1775035704565000000,"seq":1239,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d485f-64f5-7ed6-b8bb-adc7708f752a","at":1775035704565000000,"seq":1240,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d485f-7648-70e0-951b-e525b2d068df","at":1775035709000000000,"seq":1241,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d485f-85e8-7c4b-8ee7-14aab40d6152","at":1775035713000000000,"seq":1242,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d485f-c468-7740-bf51-b78ca88d3518","at":1775035729000000000,"seq":1243,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d485f-d408-7d25-850e-cb746705a41e","at":1775035733000000000,"seq":1244,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4863-8ca2-7127-8cea-d6405535b162","at":1775035976866000000,"seq":1245,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4863-8ca2-7288-b540-797d30c3f856","at":1775035976866000000,"seq":1246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d4863-98e0-77ca-a69a-66b9dde451f9","at":1775035980000000000,"seq":1247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4863-fa88-7a3c-af78-8efdcb774e05","at":1775036005000000000,"seq":1248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

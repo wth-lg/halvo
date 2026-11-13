@@ -1,0 +1,15 @@
+{"v":1,"id":"019bda4b-4357-70b4-be5a-4212d662808e","at":1768893924183000000,"seq":273,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda4b-4357-7030-9d3c-03d5225a6a07","at":1768893924183000000,"seq":274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bda4c-05f0-74ed-b6fd-d4cb3c8c88de","at":1768893974000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda60-2944-7a9c-8a6b-0c3a4b916125","at":1768895293764000000,"seq":276,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bda60-2944-7862-9781-2bc670d8eb1f","at":1768895293764000000,"seq":277,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bda60-2a30-75da-bcb5-21f631732e2e","at":1768895294000000000,"seq":278,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda60-5528-7203-b75c-ec00f856124f","at":1768895305000000000,"seq":279,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bda60-5910-78f9-a671-8c025cb7bc22","at":1768895306000000000,"seq":280,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bda60-60e0-7840-9a73-bc3febb7ea11","at":1768895308000000000,"seq":281,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bda60-696a-7d43-baf7-b38c21b119b9","at":1768895310186000000,"seq":282,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bda69-5a89-768a-96a4-f71512438d31","at":1768895896201000000,"seq":283,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bda69-88a0-7fb2-8341-82254ce4a8f6","at":1768895908000000000,"seq":284,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bda69-9070-7e01-8e08-9dcc8a77515f","at":1768895910000000000,"seq":285,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda72-50bf-7192-b1fb-fc8f64f048ee","at":1768896483519000000,"seq":286,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda72-50bf-7adb-9d21-08de3eee60ab","at":1768896483519000000,"seq":287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}

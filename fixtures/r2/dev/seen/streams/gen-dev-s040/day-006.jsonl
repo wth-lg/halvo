@@ -1,0 +1,17 @@
+{"v":1,"id":"019b92bf-69a3-7753-b8c4-0d0fd4a1bd92","at":1767693576611000000,"seq":69,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b92bf-69a3-7ba0-8a8a-6c907a213ff5","at":1767693576611000000,"seq":70,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b92bf-8e50-7061-a10d-293fa3e1bb72","at":1767693586000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92bf-b178-79f6-888d-db56fdb0b7ca","at":1767693595000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b92c0-094d-70b8-8867-bd1b3fd8ee94","at":1767693617485000000,"seq":73,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b92c0-d72e-7ab5-a4c1-e872487ae6da","at":1767693670190000000,"seq":74,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b92c0-da58-79fe-afd9-5b34b840ab27","at":1767693671000000000,"seq":75,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b92c1-1cc0-7d36-bb31-5d0a1e91d5be","at":1767693688000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92c1-2c60-70c3-81b2-a27d397e6169","at":1767693692000000000,"seq":77,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b92c1-2e47-7bfc-aa27-a6eaa6c81356","at":1767693692487000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b92c1-8e08-7966-adc6-f8603370c212","at":1767693717000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b92c1-d070-7d28-ace1-e9a42ae06e14","at":1767693734000000000,"seq":80,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92d6-4465-7f05-899d-43902d399b39","at":1767695074405000000,"seq":81,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b92d6-4465-78c2-851b-3e714f340766","at":1767695074405000000,"seq":82,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b92d6-98c0-7894-9b49-1558811d8c18","at":1767695096000000000,"seq":83,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92d6-ac48-7758-bc6f-18c21087c21b","at":1767695101000000000,"seq":84,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b92d6-b418-7565-a430-e1bf7eff71c7","at":1767695103000000000,"seq":85,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

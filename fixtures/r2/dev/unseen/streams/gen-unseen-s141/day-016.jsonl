@@ -1,0 +1,24 @@
+{"v":1,"id":"019bc5ac-a6a2-77f4-ba11-694f7d5b6c66","at":1768547985058000000,"seq":149,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc5ac-a6a2-749b-8530-37e24dbae150","at":1768547985058000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bc5ac-c1c0-7265-a891-a11a938280b0","at":1768547992000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5ac-ecb8-7593-90ce-45779aa9d952","at":1768548003000000000,"seq":152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc5ac-f870-72c3-8275-06a1503bcbea","at":1768548006000000000,"seq":153,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc5bf-4587-798b-a392-97e85663339a","at":1768549205383000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bc5c0-16df-7840-91d3-6c3d599362ff","at":1768549258975000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bc5c0-22b0-7788-b637-18406d4db37b","at":1768549262000000000,"seq":156,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc5c0-2a80-709a-acdb-7cd203204ee2","at":1768549264000000000,"seq":157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc5c0-74b8-7c84-ae67-027326b4c7f5","at":1768549283000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5c1-10c3-7b58-bad7-0933dae796bc","at":1768549322947000000,"seq":159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bc5c1-3038-7d6b-b619-e21fabfcbc10","at":1768549331000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5c1-6eb8-7d31-9c7a-90ff96299902","at":1768549347000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5c1-6eb8-7348-92fb-812d2f508bc5","at":1768549347000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bc5c1-7558-7b27-9009-9b9ed39cdb14","at":1768549348696000000,"seq":163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bc5c2-6543-75ec-85a9-53aea2bab581","at":1768549410115000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bc5c2-7858-728e-b785-e4025de31d39","at":1768549415000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5c2-b6d8-7359-ac10-5d26b3d1849a","at":1768549431000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5c2-f940-7803-b456-5f9f5da51594","at":1768549448000000000,"seq":167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc5c3-04f8-7d82-b2a1-95cffd3ae5a1","at":1768549451000000000,"seq":168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc5cb-6506-76c0-afda-05d8cfb6fcb6","at":1768549999878000000,"seq":169,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc5cb-6506-7920-bdaf-90d1b6c9e53b","at":1768549999878000000,"seq":170,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc5cb-7908-7f19-89c1-eef4c0f0d4da","at":1768550005000000000,"seq":171,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bc5cb-9848-7b6b-9a6e-04c99cbe00e6","at":1768550013000000000,"seq":172,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

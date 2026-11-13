@@ -1,0 +1,17 @@
+{"v":1,"id":"019cfabf-18a0-71d8-bf49-f305fd7dbf18","at":1773733353632000000,"seq":988,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfabf-18a0-7452-9cf7-5e75e0c7f0e8","at":1773733353632000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cfabf-1a10-7470-9ba5-1b51d791ce1b","at":1773733354000000000,"seq":990,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfad9-5850-7ad9-a7fd-8a1cd2e76ce2","at":1773735073872000000,"seq":991,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cfad9-7040-700c-b80b-41d5584cad89","at":1773735080000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cfad9-9379-7440-9e42-1f795425265f","at":1773735089017000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cfad9-9750-7105-8a11-ad8fef94797a","at":1773735090000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cfad9-9b38-74fa-95c9-53ef73c3eae3","at":1773735091000000000,"seq":995,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cfad9-ca18-7743-a882-31fea4c2702f","at":1773735103000000000,"seq":996,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cfae5-a6e6-7aed-b26f-523d1adf44ec","at":1773735880422000000,"seq":997,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cfaee-5da4-7530-a040-d86901446490","at":1773736451492000000,"seq":998,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cfaee-5da4-7161-94e2-513e902b70cb","at":1773736451492000000,"seq":999,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cfaee-5fa0-71b6-8368-59e8cfef1201","at":1773736452000000000,"seq":1000,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cfaee-6388-737b-ba4b-03e09f796058","at":1773736453000000000,"seq":1001,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfaee-7710-705a-a762-346874d7b97e","at":1773736458000000000,"seq":1002,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaee-8a98-7fba-a6df-7c50b81fea27","at":1773736463000000000,"seq":1003,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaee-a9d8-73b7-8f9f-b027894b531c","at":1773736471000000000,"seq":1004,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}

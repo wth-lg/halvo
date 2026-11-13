@@ -1,0 +1,43 @@
+{"v":1,"id":"019d2edc-4b6a-7b6e-943c-25f610c85263","at":1774607682410000000,"seq":1331,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2edc-4b6a-7f8d-bbd0-73428e31ba9f","at":1774607682410000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d2edc-9020-7469-b239-b1877949ce99","at":1774607700000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2edc-bf00-7378-826b-d9990b53e41c","at":1774607712000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d2edd-14f0-7644-b163-ffc48bcd0913","at":1774607734000000000,"seq":1335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2edd-1956-7edb-967b-255ca59c36d9","at":1774607735126000000,"seq":1336,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2edd-1956-7b7c-99e5-df2c131e228c","at":1774607735126000000,"seq":1337,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2edd-20a8-76cd-a5cc-2602ecec8dc3","at":1774607737000000000,"seq":1338,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d2edd-72b0-7d4e-a9c0-c6148e13a662","at":1774607758000000000,"seq":1339,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2edd-865c-727b-ae35-4b2414af179b","at":1774607763036000000,"seq":1340,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2ede-45a0-712b-ae78-8453cb1c9ec9","at":1774607812000000000,"seq":1341,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d2ede-8ef3-7f20-bc54-8e41a37a88f7","at":1774607830771000000,"seq":1342,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2ede-8ef3-790c-8cc8-05560d7f37d8","at":1774607830771000000,"seq":1343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d2ede-9b90-7cda-9d36-234dd19a0449","at":1774607834000000000,"seq":1344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ede-beb8-70a3-bb8f-0ecae001ca49","at":1774607843000000000,"seq":1345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2ede-d240-7927-8002-779e169a7c9b","at":1774607848000000000,"seq":1346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee9-00e1-730d-a877-4deadf200d3c","at":1774608515297000000,"seq":1347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee9-0b70-726d-8531-f2a625023404","at":1774608518000000000,"seq":1348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d2ee9-1728-756c-bdbf-e6c887b8c9c5","at":1774608521000000000,"seq":1349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2ee9-1ef8-7030-af3e-44e945336b09","at":1774608523000000000,"seq":1350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2ef2-5de4-73f3-9420-6dbb411b8ed4","at":1774609128932000000,"seq":1351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2ef2-6dc8-79fe-94c4-094127e80c3f","at":1774609133000000000,"seq":1352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef2-90f0-7bd1-808c-cf4260624a02","at":1774609142000000000,"seq":1353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef2-a50c-7c0b-a795-4a859eb13b70","at":1774609147148000000,"seq":1354,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2ef3-2560-7a12-bdeb-aab39f3f636a","at":1774609180000000000,"seq":1355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef3-5440-7544-a7ca-065ad1bf8938","at":1774609192000000000,"seq":1356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef3-9ade-78af-bb4e-876a7e683bac","at":1774609210078000000,"seq":1357,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2ef3-dcf8-7e32-9568-b9c4cf941721","at":1774609227000000000,"seq":1358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef3-e8b0-78ae-956b-5196362d83fd","at":1774609230000000000,"seq":1359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef3-ec98-7341-ab71-e15488a52686","at":1774609231000000000,"seq":1360,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2ef3-fc38-7757-8f86-ecbdacb675c4","at":1774609235000000000,"seq":1361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2ef4-005d-7aaf-a1ad-2836b6e71f77","at":1774609236061000000,"seq":1362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2ef4-1b78-7f96-8140-ffa73468e38e","at":1774609243000000000,"seq":1363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef4-36d0-76b8-b912-5fa20b88cf20","at":1774609250000000000,"seq":1364,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2ef4-8108-7ab6-ad3b-a0886d7e055e","at":1774609269000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d2ef4-a430-7f27-8278-178a46a0a664","at":1774609278000000000,"seq":1366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef4-afe8-7fb1-9efa-e0db0cf8c5e5","at":1774609281000000000,"seq":1367,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2ef4-bb1f-795f-aea6-399f7ef0badb","at":1774609283871000000,"seq":1368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2ef4-c370-7341-a7e5-fd2c1a24887c","at":1774609286000000000,"seq":1369,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2ef4-f638-739a-987e-6b342e73b658","at":1774609299000000000,"seq":1370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef5-2130-795b-855d-a468b6551ad5","at":1774609310000000000,"seq":1371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2ef5-5f91-7ec4-9d0b-944a6a4e0b1c","at":1774609325969000000,"seq":1372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2ef5-6398-7c89-9f31-bbd0485a4390","at":1774609327000000000,"seq":1373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

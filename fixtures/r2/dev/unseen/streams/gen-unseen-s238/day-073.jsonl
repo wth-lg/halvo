@@ -1,0 +1,37 @@
+{"v":1,"id":"019ceb5e-7ddd-74eb-91c4-79a42673013a","at":1773475364317000000,"seq":855,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb5e-7ddd-7122-8488-b72bf03e08ef","at":1773475364317000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019ceb5e-ea00-70f5-b559-a283471ef659","at":1773475392000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ceb5f-2d3e-73a7-ad5f-cca3894d9969","at":1773475409214000000,"seq":858,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019ceb5f-4ba8-7fe8-b5fb-f1d97418edac","at":1773475417000000000,"seq":859,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb5f-5f30-7528-9034-21bc8a660053","at":1773475422000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb5f-8258-7976-8f8a-bde706702f88","at":1773475431000000000,"seq":861,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb5f-8640-7d2e-9025-a55771a0a3d3","at":1773475432000000000,"seq":862,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb5f-afbe-7325-8315-c92072cc7ae5","at":1773475442622000000,"seq":863,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019ceb5f-e7e8-75e3-bbdc-8e1b7e11be9c","at":1773475457000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ceb5f-f3a0-7957-85a5-979022ae5db3","at":1773475460000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb60-0b10-720f-ae74-1741414bdd18","at":1773475466000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ceb60-1e98-7dcf-8356-41efe37cbcb9","at":1773475471000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb60-3a1e-7f4a-8382-875f389c0eac","at":1773475478046000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019ceb60-45a8-7b92-8901-5e3e419c37d8","at":1773475481000000000,"seq":869,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb60-45a8-7e83-a9f0-e57095e97dbe","at":1773475481000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ceb60-bec0-71f6-8c85-377684024eff","at":1773475512000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb71-d195-7af7-bfbd-660a8a3e8e42","at":1773476630933000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ceb71-e560-758d-8a3b-ed3d5b53d3ee","at":1773476636000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ceb71-e948-7a2a-88a6-84adec563979","at":1773476637000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb72-2f98-7cc6-bad7-abe8cf8d8ffe","at":1773476655000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb72-7a56-78e0-acd3-6a32e4394514","at":1773476674134000000,"seq":876,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ceb72-8d58-718c-a6a8-9e7bba3b7627","at":1773476679000000000,"seq":877,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ceb72-9528-7b72-8888-4ca2188c544a","at":1773476681000000000,"seq":878,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb72-cbd8-7e38-876d-2812be285076","at":1773476695000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb73-25b0-790f-a06b-f8e18b2cc0b8","at":1773476718000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceb73-28b1-703f-bda9-46ea17b63c52","at":1773476718769000000,"seq":881,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ceb73-ba20-7cf2-96bc-416764c0bbc8","at":1773476756000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ceb74-0ef6-7bb6-83d6-62ffec4370a9","at":1773476777718000000,"seq":883,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ceb74-13f8-7471-8d57-f5749a2b2510","at":1773476779000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb74-1fb0-7b3d-974b-9e32f4837466","at":1773476782000000000,"seq":885,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ceb74-2780-7c68-ba40-85dcd3c1002a","at":1773476784000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb74-7262-76a3-a8de-525c8084055f","at":1773476803170000000,"seq":887,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ceb75-11e0-78e0-80df-3aeeda483e16","at":1773476844000000000,"seq":888,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceb75-19b0-7c3c-b2e9-6d09e4215a2b","at":1773476846000000000,"seq":889,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb75-2180-7360-b9fc-f7feeba703d8","at":1773476848000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb75-4c78-7332-aa5e-4391b84c19f1","at":1773476859000000000,"seq":891,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,23 @@
+{"v":1,"id":"019c656a-091c-75a4-ab28-9bfda4aff156","at":1771227973916000000,"seq":618,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c656a-091c-7991-a457-14ed545faa20","at":1771227973916000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c656a-1528-718c-b197-1d2e982de52b","at":1771227977000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c656a-3468-7fb5-9f05-a9194c506c32","at":1771227985000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c656a-3850-7740-8ce2-9c7fde101efd","at":1771227986000000000,"seq":622,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c656a-3850-7a0b-94b1-90aec9ca4433","at":1771227986000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c6574-d23f-7a34-b373-b4e0e6fb4a99","at":1771228680767000000,"seq":624,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6574-f650-74c6-b394-476c646f9fda","at":1771228690000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6575-2148-7e6f-8062-eeae08098060","at":1771228701000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6575-9a57-791e-890b-ad7b39191b98","at":1771228731991000000,"seq":627,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6575-a230-7c8d-aacc-32403fffb496","at":1771228734000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6576-593d-764f-93d8-d606b1de67cb","at":1771228780861000000,"seq":629,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6576-80d8-782a-a5cd-163c8ca13204","at":1771228791000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6576-a018-7bab-955b-0df5ca77ce6f","at":1771228799000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6576-ede9-7726-990c-890905b73e91","at":1771228818921000000,"seq":632,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6577-5f80-751c-978a-e32072b2173a","at":1771228848000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6577-6b38-7bff-bd88-07b89d749e81","at":1771228851000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c658a-5743-740d-86d6-ec123f40e00b","at":1771230091075000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c658a-7638-78fe-b73e-94dd02d96f22","at":1771230099000000000,"seq":636,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c658a-81f0-7d3b-ad3b-2c085b7d31f2","at":1771230102000000000,"seq":637,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c65a4-b1b6-7ea2-b0dc-0801e2c4d5be","at":1771231818166000000,"seq":638,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c65a4-b8e0-7303-bc36-698644f50995","at":1771231820000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c65a4-d438-7dc3-9205-1caff400e61d","at":1771231827000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

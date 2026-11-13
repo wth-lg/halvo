@@ -1,0 +1,11 @@
+{"v":1,"id":"019b8813-f68a-7035-8e59-36872885b4ff","at":1767514568330000000,"seq":22,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8813-f68a-72bf-90a7-4b8ce7fe0c3c","at":1767514568330000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b8814-53b7-7707-a3be-f18312cced4b","at":1767514592183000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b8814-5ad0-78b4-b61d-6c50404e5769","at":1767514594000000000,"seq":25,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8814-5eb8-72d9-b401-549a835b9750","at":1767514595000000000,"seq":26,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8818-154b-7374-b77c-3246a449a779","at":1767514838347000000,"seq":27,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8818-154b-7f21-98de-866d12715494","at":1767514838347000000,"seq":28,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b882e-7cec-7721-abb1-cdff63ed2258","at":1767516306668000000,"seq":29,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b882e-7cec-7dc0-ac29-5ef768984ce0","at":1767516306668000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b882e-95a8-7028-973d-f1b44f1e3594","at":1767516313000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b882e-bcb8-7859-8d86-c2524cdb1652","at":1767516323000000000,"seq":32,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

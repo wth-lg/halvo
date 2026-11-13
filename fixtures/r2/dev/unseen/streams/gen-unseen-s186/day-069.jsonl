@@ -1,0 +1,32 @@
+{"v":1,"id":"019cd720-d394-7059-a301-1d53fa25224e","at":1773135778708000000,"seq":1032,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd720-d394-77f0-8ddb-1c7f680f7eb2","at":1773135778708000000,"seq":1033,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cd721-22d8-7c2c-842b-abd4f159bb89","at":1773135799000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd721-51b8-7ef8-ac92-e315719c4ec1","at":1773135811000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cd721-8fd5-7709-b950-f1b0116487de","at":1773135826901000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cd721-ea10-75de-b52c-94d656e8b283","at":1773135850000000000,"seq":1037,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd721-f5c8-7ab5-8598-1adbdf61c0aa","at":1773135853000000000,"seq":1038,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd722-2890-77e6-901c-25027b139f1c","at":1773135866000000000,"seq":1039,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd722-47d1-7399-850f-0fc75f06dc32","at":1773135874001000000,"seq":1040,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cd722-5f40-7aa7-a397-593865eb3595","at":1773135880000000000,"seq":1041,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd722-9208-7724-937a-b03baf1cbcb3","at":1773135893000000000,"seq":1042,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd722-92bd-7ea6-b505-664a61296100","at":1773135893181000000,"seq":1043,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cd722-a1a8-783a-9a54-0385efdca721","at":1773135897000000000,"seq":1044,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd722-b918-7b27-bb8a-cb55eb368271","at":1773135903000000000,"seq":1045,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cd723-2678-7965-a17e-38d39f959161","at":1773135931000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd732-9a92-7fd2-8d55-b48a6d747d79","at":1773136943762000000,"seq":1047,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cd733-1e5b-74a2-8dab-b6c8d9fedaea","at":1773136977499000000,"seq":1048,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cd733-5318-77ca-9e70-2793094106df","at":1773136991000000000,"seq":1049,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd733-7640-7b55-bb4e-1ec2df479724","at":1773137000000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd733-89c8-746e-93ad-951894d0ef5c","at":1773137005000000000,"seq":1051,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd733-8e8b-74a1-aa1c-580b19589f0b","at":1773137006219000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cd734-06c8-700e-97cd-57ea492609c9","at":1773137037000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd734-2dd8-703e-b566-b683e303656a","at":1773137047000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cd734-743c-707e-9c30-5d0418c9efad","at":1773137065020000000,"seq":1055,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cd734-a308-7102-821a-7ebe2505e199","at":1773137077000000000,"seq":1056,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd734-d1e8-7339-9e10-2abe107cefd7","at":1773137089000000000,"seq":1057,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd735-27d8-7dc4-9f57-6bd950c82ee6","at":1773137111000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cd74f-e413-74f1-b47a-9971d7861fdd","at":1773138863123000000,"seq":1059,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd74f-ef50-74c0-afbe-ccc9339d5958","at":1773138866000000000,"seq":1060,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd750-7bf0-774d-b615-918ef871c037","at":1773138902000000000,"seq":1061,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd750-7fd8-7ab1-9813-5bab7c2a4697","at":1773138903000000000,"seq":1062,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd750-87a8-7520-9d94-152f06253047","at":1773138905000000000,"seq":1063,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

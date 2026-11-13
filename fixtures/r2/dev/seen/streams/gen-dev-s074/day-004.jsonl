@@ -1,0 +1,44 @@
+{"v":1,"id":"019b880d-899a-71cc-b9ff-a69f717c3999","at":1767514147226000000,"seq":41,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b880d-899a-7652-9807-77c86b851b46","at":1767514147226000000,"seq":42,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b880d-a7f8-7e7b-a3aa-fc0bea9e0493","at":1767514155000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b880e-3498-77c9-ab59-c721fcbaff8f","at":1767514191000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b880e-4e89-794c-9630-b456d0758fe5","at":1767514197641000000,"seq":45,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b880e-53d8-7853-ad86-ff11d463feae","at":1767514199000000000,"seq":46,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b880e-6378-7b2b-a7be-cfb554349365","at":1767514203000000000,"seq":47,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b880e-6b48-760f-acd1-59fe9f9ed1a9","at":1767514205000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b880e-b198-7987-af83-e7827eecebb9","at":1767514223000000000,"seq":49,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b880e-b8f0-7ddf-9345-dbd3950e7821","at":1767514224880000000,"seq":50,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b880e-b8f0-7775-8814-c8a639bd6361","at":1767514224880000000,"seq":51,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b880e-fbd0-7d3a-9236-b3f76e4a2c80","at":1767514242000000000,"seq":52,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b880f-4bf7-7f5c-a98f-22625657a973","at":1767514262519000000,"seq":53,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b880f-4bf7-7e9d-8f67-dacde1996847","at":1767514262519000000,"seq":54,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Oak Square - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b880f-a7b0-7abd-ac10-7207020b8240","at":1767514286000000000,"seq":55,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b880f-b368-766d-aa43-ad20c7c752ba","at":1767514289000000000,"seq":56,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b880f-bb38-79e5-bdef-f3373ed1a532","at":1767514291000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b880f-c6f0-7c7b-be9c-13dd094bd47d","at":1767514294000000000,"seq":58,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b880f-c764-76d4-9a50-c4e6da9ad5fc","at":1767514294116000000,"seq":59,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b880f-e248-7487-aa7b-814220c35b38","at":1767514301000000000,"seq":60,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8826-2f19-7684-94e1-7f57a7550db1","at":1767515762457000000,"seq":61,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8826-4c90-7821-83cb-a99db5f24592","at":1767515770000000000,"seq":62,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8826-96c8-74d5-a9a4-248049582f6a","at":1767515789000000000,"seq":63,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8826-a280-71c5-a6c3-e6dfc7ce600b","at":1767515792000000000,"seq":64,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8826-d548-79d8-9eb3-6e8b930822c5","at":1767515805000000000,"seq":65,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8826-e902-77f1-b40d-d0ebb450d186","at":1767515810050000000,"seq":66,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b8827-0040-7b5a-a547-2057b43145dd","at":1767515816000000000,"seq":67,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b8827-94b0-7db3-be7c-7fbed9d3324b","at":1767515854000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8827-b92b-70a4-9089-10e7da878850","at":1767515863339000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b8828-0210-7383-aee3-6ddb5cf7c8a0","at":1767515882000000000,"seq":70,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8828-5030-7b5b-8051-1df4cfa200e9","at":1767515902000000000,"seq":71,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8828-9680-7b26-8ce1-644510d8df13","at":1767515920000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8828-99a1-7254-ad23-4224d88a976b","at":1767515920801000000,"seq":73,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b8828-e0b8-7541-a098-c51e868ae918","at":1767515939000000000,"seq":74,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8828-f440-7dde-a3e0-c8e78f3b76be","at":1767515944000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b8829-230f-7d67-8bfa-0f9372e0efcb","at":1767515955983000000,"seq":76,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b8829-2ed8-75c5-829d-07a212e031ee","at":1767515959000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b8829-7910-7ded-aec7-7ca930ab0bb8","at":1767515978000000000,"seq":78,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8829-c730-77d1-9574-3aaaa0d56ae5","at":1767515998000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8829-eb78-7930-b09f-627e9697a9df","at":1767516007288000000,"seq":80,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b882a-30a8-77ae-9f32-ce70743f0667","at":1767516025000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b882a-3c60-707f-b17f-31dc417887f5","at":1767516028000000000,"seq":82,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b882a-5f88-7549-ba2e-9d819dc34b5c","at":1767516037000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b882a-6758-7d45-8995-fbf43e08db7f","at":1767516039000000000,"seq":84,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

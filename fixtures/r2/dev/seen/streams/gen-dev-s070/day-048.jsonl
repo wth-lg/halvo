@@ -1,0 +1,57 @@
+{"v":1,"id":"019c6ace-7399-70fb-b335-e522d06ce42d","at":1771318440857000000,"seq":651,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ace-7399-79ca-9e00-3d51b30af2a5","at":1771318440857000000,"seq":652,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6ace-7428-7ebc-8165-f7e845ab7771","at":1771318441000000000,"seq":653,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6ace-ce00-73d5-b205-350eccaf9316","at":1771318464000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c6ace-dda0-7a22-a3f9-079fabb63f71","at":1771318468000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ace-f8f8-7e51-abdc-566ab4309efe","at":1771318475000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6acf-1068-789e-859d-d18674f316bd","at":1771318481000000000,"seq":657,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6aea-178e-7781-b387-9ac6fff44341","at":1771320252302000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c6aea-4540-75c3-8767-6b1b5101dc0f","at":1771320264000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c6aea-4d10-76ad-ba0f-9099bb64a413","at":1771320266000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aea-6413-7e0b-a381-edfcf6744ccf","at":1771320271891000000,"seq":661,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c6aea-8b90-7415-bce8-5b40fac19836","at":1771320282000000000,"seq":662,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6aea-8f78-7a56-9491-4a5521504177","at":1771320283000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aea-e180-78cc-aaf5-7858c3d00763","at":1771320304000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c6aea-ed38-76b1-919b-a5be66a1bfc8","at":1771320307000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6af5-11be-7f5a-8c81-4ba14de03c56","at":1771320971710000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c6af5-2e38-776b-9fc9-f926831c86d5","at":1771320979000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6af5-64e8-7403-bdb0-45764d8a3143","at":1771320993000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c6af5-93c8-77dc-b012-576cdd991a07","at":1771321005000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6af5-94d5-78b6-ae91-f3b86f532bb1","at":1771321005269000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c6af6-6e53-770f-92a1-51a8fe939dbc","at":1771321060947000000,"seq":671,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c6af6-7658-7ac7-b1f5-12bd477c8d9c","at":1771321063000000000,"seq":672,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6af6-7a40-747b-8ffa-2560e7f2156d","at":1771321064000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6af6-9d68-737d-aa2d-18ca7f9739bc","at":1771321073000000000,"seq":674,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6af6-b0f0-7770-9944-4e16e7b88d26","at":1771321078000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6af6-db11-7bdd-ba6c-081bc6f377f0","at":1771321088785000000,"seq":676,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c6af7-02f8-7146-8006-0f30a30a50a2","at":1771321099000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6af7-2a08-7e79-a78b-34b60328bf21","at":1771321109000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c6af7-7ef6-7bef-b097-9e7c39163718","at":1771321130742000000,"seq":679,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c6af7-e1ed-7999-b3b4-8d57a1431c3e","at":1771321156077000000,"seq":680,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c6af7-ed58-754f-8a42-af805d403e33","at":1771321159000000000,"seq":681,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6af8-3329-7b3b-9a97-b11c0289d6f7","at":1771321176873000000,"seq":682,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c6af8-4730-78fc-adc8-f18695b9038e","at":1771321182000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6af8-79f8-7265-823f-53ced9fdcc66","at":1771321195000000000,"seq":684,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6af8-7bfd-7cdb-a523-4183bb9574b1","at":1771321195517000000,"seq":685,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c6af8-8d80-74ef-b198-ee3dde4dff6d","at":1771321200000000000,"seq":686,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6af8-8d80-7c13-89ef-f34d089db70f","at":1771321200000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c6af8-e370-7c7d-9665-70c851e92b5e","at":1771321222000000000,"seq":688,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b06-7336-71ab-a0ba-eeaf4b5b8843","at":1771322110774000000,"seq":689,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6b06-9740-7a33-9197-0cdaa9e45727","at":1771322120000000000,"seq":690,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6b06-a6e0-7889-a837-27fa09d8f6dc","at":1771322124000000000,"seq":691,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c6b06-b680-7c69-aa7d-eaf5681513cd","at":1771322128000000000,"seq":692,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6b11-db91-7422-ab77-91c8facdb096","at":1771322858385000000,"seq":693,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6b12-3fa0-7178-9b8e-fffebe56ced2","at":1771322884000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c6b12-67d5-7fc1-bc47-ac18dce27059","at":1771322894293000000,"seq":695,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6b12-cc40-792b-80c1-81ac918c1d57","at":1771322920000000000,"seq":696,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6b12-d7f8-782c-9ee3-bca0b4316ed9","at":1771322923000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6b13-06cd-779e-8bdf-3c3077b7d268","at":1771322934989000000,"seq":698,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6b13-1a60-7d13-a625-722e5841113c","at":1771322940000000000,"seq":699,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6b13-2230-7821-9165-3e2a983276ca","at":1771322942000000000,"seq":700,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6b13-2230-75fd-8bef-4f3cf9fffec1","at":1771322942000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c6b13-2a00-7922-a59a-a44485bf2983","at":1771322944000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b13-3d88-7025-805e-1d7d4766446f","at":1771322949000000000,"seq":703,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b13-7e9a-7c37-bc88-d9753fd444c5","at":1771322965658000000,"seq":704,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6b13-ee11-79d5-883f-8d9ef6a48655","at":1771322994193000000,"seq":705,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6b13-f908-7b14-a0d9-a73893799dfd","at":1771322997000000000,"seq":706,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6b14-8d78-7d35-af41-94899c8a9ec7","at":1771323035000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

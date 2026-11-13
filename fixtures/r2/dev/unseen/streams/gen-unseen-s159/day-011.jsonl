@@ -1,0 +1,34 @@
+{"v":1,"id":"019bac4e-b017-7aef-9225-57b203205d2e","at":1768122396695000000,"seq":262,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac4e-b017-7c5c-bb79-da96ca2aeb74","at":1768122396695000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bac4f-41d0-7357-a2d9-0ef5af18f8d6","at":1768122434000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac4f-49a0-71d1-9096-acbeae3798ec","at":1768122436000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bac59-f078-7355-abf7-473f896d5ba2","at":1768123134072000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bac5a-9b32-7745-a8c3-fac5168c2505","at":1768123177778000000,"seq":267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bac5a-9ff8-78c7-9ed2-307ba7733a22","at":1768123179000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bac5a-f9d0-7f4d-b40b-264498a49707","at":1768123202000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5b-1910-795c-923d-82d55abd1da2","at":1768123210000000000,"seq":270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bac5b-4020-7875-8998-e27d0b53ef79","at":1768123220000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac74-a909-7f34-9b91-1cf0c8329a06","at":1768124885257000000,"seq":272,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bac74-afd8-7aff-8ae7-bec7277600cb","at":1768124887000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac74-bb90-7df6-b80a-d3f8d848b53d","at":1768124890000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bac75-83d1-71f4-932b-6a46f77b83dc","at":1768124941265000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bac75-c530-7a1b-a341-a77076d9b1be","at":1768124958000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac76-3290-7096-8c9b-d2c4702f21e5","at":1768124986000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac76-86ce-7f11-a36d-9e29bfbb93c7","at":1768125007566000000,"seq":278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bac76-da88-7774-bbcf-75320b100904","at":1768125029000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bac77-2c90-74de-a109-d32885cd5d01","at":1768125050000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bac77-49dd-7714-8c9c-808e2c0d4833","at":1768125057501000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bac77-5f58-75eb-9c71-178287eeae8c","at":1768125063000000000,"seq":282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac77-6340-7c71-b6ec-a85ee91b7e3a","at":1768125064000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac77-8a50-70b7-bf57-2c5bd719dea0","at":1768125074000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bac82-6014-7d95-8efa-9a9f5f3ff9cc","at":1768125784084000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bac82-6b78-720c-be67-76e7288fe17b","at":1768125787000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bac82-8ab8-73b4-83bd-59b30e1101fd","at":1768125795000000000,"seq":287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac82-c168-7f25-b51a-f2eac183d8fb","at":1768125809000000000,"seq":288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bac83-4250-725c-a0e0-a3a3ef258ea4","at":1768125842000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac8a-cc89-753a-ae48-0dcbb0710c91","at":1768126336137000000,"seq":290,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bac8a-cc89-7869-a21a-423f6fa71195","at":1768126336137000000,"seq":291,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bac8a-d7b8-73ab-a977-301b308af534","at":1768126339000000000,"seq":292,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac8a-df88-79a5-a33d-b02975b89ed9","at":1768126341000000000,"seq":293,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bac8a-e370-7091-bf8a-a538caaf15ee","at":1768126342000000000,"seq":294,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac8b-0a80-75d9-ab4b-367e0a308402","at":1768126352000000000,"seq":295,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

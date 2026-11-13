@@ -1,0 +1,41 @@
+{"v":1,"id":"019c094e-b7da-7268-a7a0-f57535a87a4b","at":1769682679770000000,"seq":367,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c094e-b7da-7ca9-8a11-5ea7ce1f01dc","at":1769682679770000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c094f-58e8-7ab9-9775-3dc79045f6b0","at":1769682721000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c094f-a708-7e75-ac44-7ad4d544a151","at":1769682741000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c094f-b19f-75c1-b641-8cc9c55dddfc","at":1769682743711000000,"seq":371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c094f-ddb8-75c6-bd61-377de3c55ff3","at":1769682755000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c0950-36f4-7e7b-b5e4-329e236d2124","at":1769682777844000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0950-52e8-75f3-9c10-58cb5c2a3f16","at":1769682785000000000,"seq":374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0950-a108-7ff6-bd5e-43397e6eeb14","at":1769682805000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c0950-a68a-7742-9653-3d1fcadf6d63","at":1769682806410000000,"seq":376,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0950-cc00-748e-91c9-553bd528d745","at":1769682816000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c0951-41f9-77fa-9361-c177dee25367","at":1769682846201000000,"seq":378,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0951-6840-7ec1-83f7-239fc9962a04","at":1769682856000000000,"seq":379,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c0951-73f8-73a7-9c56-cdc85339d853","at":1769682859000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0951-8398-70ec-bf4c-80766beaf097","at":1769682863000000000,"seq":381,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0951-8780-7293-9b3c-7a99208dab38","at":1769682864000000000,"seq":382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0951-9338-733e-80e0-7d9581c76163","at":1769682867000000000,"seq":383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0951-994d-7a6b-85ca-737e7d659600","at":1769682868557000000,"seq":384,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0951-9ef0-7a21-90bd-b22c3c4fc31e","at":1769682870000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0951-b278-7648-a03e-32cb640f5097","at":1769682875000000000,"seq":386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0951-b660-7136-9316-a8d46fe92be8","at":1769682876000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c0964-6986-7e3f-b7a1-2e99f14a9963","at":1769684101510000000,"seq":388,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0964-8ab0-7bb9-b698-0930720e5a67","at":1769684110000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0964-a9f0-7209-ac94-d853f72a46eb","at":1769684118000000000,"seq":390,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0964-b5a8-7a6c-87f8-0101b594a49a","at":1769684121000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0964-c548-7536-9f66-dbfd1fcbb715","at":1769684125000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c097c-e04a-758e-adb7-ee568ffdebd6","at":1769685704778000000,"seq":393,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c097c-e04a-7056-b67a-0476398fe598","at":1769685704778000000,"seq":394,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c097d-2f48-7f8f-a180-c47dbd6e3f51","at":1769685725000000000,"seq":395,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c098f-f513-755c-817e-5fbae3b417d8","at":1769686955283000000,"seq":396,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c098f-f513-7998-abc4-78cd2f0ba273","at":1769686955283000000,"seq":397,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c0990-ab90-705a-b738-80cc55e5b092","at":1769687002000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0990-f1e0-7278-82b3-4356bd6878f5","at":1769687020000000000,"seq":399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0991-011d-7a7c-8893-ab1efa968ab6","at":1769687023901000000,"seq":400,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c0991-0568-719c-9e22-2c86fdfd156a","at":1769687025000000000,"seq":401,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0991-1508-7662-b623-4d9c8e5736c7","at":1769687029000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0991-20c0-75bc-a196-8fb8498c0cee","at":1769687032000000000,"seq":403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0991-3d5c-7772-b9ac-1efcfe17a58f","at":1769687039324000000,"seq":404,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c0991-7a98-7b15-88c2-f894cf6e7dd5","at":1769687055000000000,"seq":405,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0991-c4d0-7161-9d1d-d7dd5ba225f0","at":1769687074000000000,"seq":406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0991-f798-7fa3-bbeb-b273256850d2","at":1769687087000000000,"seq":407,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

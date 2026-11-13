@@ -1,0 +1,13 @@
+{"v":1,"id":"019ca8f2-80d9-720e-b9e8-cc5209c401bd","at":1772360990937000000,"seq":686,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca8f2-80d9-7ee4-bdd3-7c0adfde8989","at":1772360990937000000,"seq":687,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca8f2-c768-7f7b-bb7d-de2d5f3890fe","at":1772361009000000000,"seq":688,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ca905-501d-7dca-8d52-decc90fcd068","at":1772362223645000000,"seq":689,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca905-501d-7747-a061-99cd7bfcc569","at":1772362223645000000,"seq":690,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ca905-d268-748a-9dbc-693e2081b7cf","at":1772362257000000000,"seq":691,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca906-13a2-747c-93cc-6bc2a562e260","at":1772362273698000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ca906-7e48-7c42-87b5-a84244cd8142","at":1772362301000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca906-b110-7e37-b8fb-b442621b0143","at":1772362314000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca906-b4f8-740d-b77d-dcad113ed5cb","at":1772362315000000000,"seq":695,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca91a-a3a4-7135-b67b-42b910e9ee2a","at":1772363621284000000,"seq":696,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ca91b-7190-7697-b63b-93370783a667","at":1772363674000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ca91b-8130-76a0-b6df-3324370c2342","at":1772363678000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,32 @@
+{"v":1,"id":"019bf4ca-127f-722f-ba02-a8a1ca1e15e5","at":1769338442367000000,"seq":285,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf4ca-127f-7dc9-9c32-75a7999ef467","at":1769338442367000000,"seq":286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bf4ca-5000-7c69-abcc-ddbb2b4eb829","at":1769338458112000000,"seq":287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bf4ca-5f30-7d45-836a-cdfdbdcf0bff","at":1769338462000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4ca-7e70-7a88-bb96-0857b2033aa2","at":1769338470000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4ca-8640-7330-858b-a2d272c36d71","at":1769338472000000000,"seq":290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf4ca-a968-727e-a760-920975226c1e","at":1769338481000000000,"seq":291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf4ca-e19e-7d95-9c69-578d506e4d11","at":1769338495390000000,"seq":292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bf4cb-16c8-718e-9d65-f6f8a54a4765","at":1769338509000000000,"seq":293,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf4cb-3220-72b1-a5dc-5f09fffbdfa9","at":1769338516000000000,"seq":294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf4cb-4ae6-7b47-bdd1-2a9b359764c3","at":1769338522342000000,"seq":295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bf4cb-7c58-730f-b1e5-e211305617d0","at":1769338535000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4cb-8bf8-73d1-b282-1bcf2df71473","at":1769338539000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bf4dc-78bf-75a8-be65-080018d032c6","at":1769339648191000000,"seq":298,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bf4dc-7fd0-7fa6-99d7-22a1610e49a6","at":1769339650000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4dc-b680-7451-8360-d9428f62dcbb","at":1769339664000000000,"seq":300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4dc-c664-7f62-a717-9e62d13a04b1","at":1769339668068000000,"seq":301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bf4dc-f500-76a2-9644-59774cc4926c","at":1769339680000000000,"seq":302,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf4dd-1440-797c-93d5-1ebe0e04f393","at":1769339688000000000,"seq":303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bf4dd-3380-7cfc-acbb-06843331e860","at":1769339696000000000,"seq":304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf4dd-a8b0-77d0-b107-1a1b0e2b4152","at":1769339726000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4dd-aa7e-7c12-9833-5fb4a054e8c8","at":1769339726462000000,"seq":306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bf4dd-f2e8-7e8c-827d-139982a6b33b","at":1769339745000000000,"seq":307,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf4dd-fab8-767d-befa-580aa46be2f5","at":1769339747000000000,"seq":308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf4dd-fea0-74f5-aa24-09e9e6715334","at":1769339748000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bf4de-5bb1-7bc4-b89e-1c4262868a22","at":1769339771825000000,"seq":310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bf4de-8b40-75d5-b41f-516e739eae39","at":1769339784000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bf4de-8f28-78d9-9c6c-342b23c86a08","at":1769339785000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf4f3-6b49-7fda-a7bf-5e72ef984eb1","at":1769341152073000000,"seq":313,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf4f3-6b49-75a0-acce-0aebe850ec33","at":1769341152073000000,"seq":314,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf4f3-a598-7e4e-abae-c4e5a65ff5bd","at":1769341167000000000,"seq":315,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bf4f4-0740-70da-abba-bb32c126c14c","at":1769341192000000000,"seq":316,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019bc653-edd0-773b-b38d-a1258d43c53d","at":1768558947792000000,"seq":300,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc653-edd0-79c3-a63e-f1085db80d52","at":1768558947792000000,"seq":301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc653-fa58-7562-94dc-f1114b8d2699","at":1768558951000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc654-0228-7653-b238-5ba387fc1e21","at":1768558953000000000,"seq":303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc662-3a57-747b-96ec-3c06c776616e","at":1768559884887000000,"seq":304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bc662-ffd8-7f0a-84e0-c8b94f4b99c9","at":1768559935448000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bc663-0200-7db5-9ff5-4f8b7c94d97d","at":1768559936000000000,"seq":306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc663-05e8-7322-9363-e27026da8b0e","at":1768559937000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bc663-1970-7b23-9b04-2732ecd1d460","at":1768559942000000000,"seq":308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc663-38b0-7fd2-bd0d-0aeb50eca4c7","at":1768559950000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc663-57f0-730e-9491-274de2048128","at":1768559958000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc663-662b-778c-8e9d-2dda017c6bf9","at":1768559961643000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bc663-7348-7741-bf3f-1a950c948afe","at":1768559965000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc663-9288-7086-9d9a-08cbf9688f73","at":1768559973000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bc663-cf31-7f82-8f47-981493d99c33","at":1768559988529000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bc664-84b8-7f4c-b2e9-9f747d5946be","at":1768560035000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc669-1d3d-7934-b6c4-1a8449d35c1c","at":1768560336189000000,"seq":316,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc669-1d3d-753c-b02c-d54b5da778f9","at":1768560336189000000,"seq":317,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc669-2c20-7b11-b705-b77f6084f536","at":1768560340000000000,"seq":318,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bc669-4778-71ea-a865-40599b6d77e6","at":1768560347000000000,"seq":319,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc669-6aa0-799e-8111-94552ab6a980","at":1768560356000000000,"seq":320,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc669-7658-7846-8d11-42e3d96f2f15","at":1768560359000000000,"seq":321,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

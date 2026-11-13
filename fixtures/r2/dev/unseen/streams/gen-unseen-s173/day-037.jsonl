@@ -1,0 +1,44 @@
+{"v":1,"id":"019c31cb-d843-7a1e-8378-e26639befeb4","at":1770361968707000000,"seq":544,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c31cb-d843-7ce9-9316-f5bd71d7e6ac","at":1770361968707000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c31cc-1bd0-78b4-871c-e0ff9ad9b8fe","at":1770361986000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31cc-4ab0-7e3d-9378-316e310d20ca","at":1770361998000000000,"seq":547,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c31cc-7990-72e3-a985-7983b42820d6","at":1770362010000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c31d3-0164-73b7-be0b-3965118d65fe","at":1770362437988000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c31d3-20b0-7a62-93f5-7d6ef942b8e4","at":1770362446000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c31d3-3050-7c3f-84c5-ab232b4f8e9d","at":1770362450000000000,"seq":551,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c31eb-bf2b-7a7d-8346-8224b4d77bd5","at":1770364059435000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c31ec-2ad8-7c74-b9a6-a0f416b4a280","at":1770364087000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31ec-783e-7ca9-80d6-038092ef761a","at":1770364106814000000,"seq":554,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c31ec-80c8-7587-9a97-ae83b4531222","at":1770364109000000000,"seq":555,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c31ec-8c80-799e-9ca7-7475c6b05f53","at":1770364112000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31ec-9068-71cd-9807-1e8be9fefecd","at":1770364113000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31ec-c6cd-7c02-a66c-3edb5402a129","at":1770364126925000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c31ed-53b8-7d02-9414-77bcbe9d4b5b","at":1770364163000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c31ed-53b8-7dba-ace4-6b020f4ad6b0","at":1770364163000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c31ed-c36a-7ccc-9a31-4745c55ef47a","at":1770364191594000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c31ed-ff98-7777-a30d-0f38bdfa1674","at":1770364207000000000,"seq":562,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c31ee-0f38-7bc0-af14-7092ce0638f4","at":1770364211000000000,"seq":563,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c31ee-1af0-758f-925a-e3a13d1abfb0","at":1770364214000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31ee-5d58-7664-b9c5-d0424a3f94d8","at":1770364231000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31f4-fe70-71fe-b9cc-d7317823aadb","at":1770364665456000000,"seq":566,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c31f5-46e0-796c-9245-3088f5eb384f","at":1770364684000000000,"seq":567,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c31f5-678e-7357-a06e-55048540f259","at":1770364692366000000,"seq":568,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c31f5-79a8-745c-ab9c-bc0183655485","at":1770364697000000000,"seq":569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31f5-cbb0-7009-82ee-afd66a73c985","at":1770364718000000000,"seq":570,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c31f5-d768-7973-92e5-e7486346c4ea","at":1770364721000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31f5-d768-7cc0-91c7-365a020e3fbb","at":1770364721000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c31f6-3140-79ae-9b2e-29e36e11bf1e","at":1770364744000000000,"seq":573,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c31f6-467e-7f4a-bafd-e2c03c37b336","at":1770364749438000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c31f6-48b0-7eef-906b-e638be127269","at":1770364750000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c31f6-4c98-7d37-8aed-5a45473af9a8","at":1770364751000000000,"seq":576,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c31f6-6fc0-78a8-8451-83deed06a10d","at":1770364760000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31f6-ae40-7a1f-a198-cf5720f1281b","at":1770364776000000000,"seq":578,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c31f6-c7fa-7b3f-ab7e-1e43e17e14b8","at":1770364782586000000,"seq":579,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c31f6-d168-7b9f-afe4-04f5ae58f9d9","at":1770364785000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c31f6-d938-7ccd-923d-5357a240272f","at":1770364787000000000,"seq":581,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c31f6-f0a8-7b12-a3de-aefd16e9d539","at":1770364793000000000,"seq":582,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c31fb-84c6-7762-a21f-4e4d86febadb","at":1770365093062000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c31fb-9bf8-77bb-9509-8bf27cff150a","at":1770365099000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31fb-bb38-7dc4-b96d-8f83e909af47","at":1770365107000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31fb-c6f0-74ad-bd0d-6445431eead2","at":1770365110000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c31fb-d690-7f5d-8698-61d2100874ac","at":1770365114000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

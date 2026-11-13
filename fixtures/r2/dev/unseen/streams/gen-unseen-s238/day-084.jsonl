@@ -1,0 +1,18 @@
+{"v":1,"id":"019d242c-d4a2-730f-a678-be6860faede1","at":1774428411042000000,"seq":1102,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d242c-d4a2-797d-af31-df89490e5749","at":1774428411042000000,"seq":1103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d242c-e418-77af-a4a4-6a64a8324c7c","at":1774428415000000000,"seq":1104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d242c-ebe8-7b9e-b337-7f53a6d5f7e5","at":1774428417000000000,"seq":1105,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d242d-0f10-7a66-addf-766b27c071b4","at":1774428426000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2448-48a2-7f51-8000-47b70e3658e2","at":1774430210210000000,"seq":1107,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2448-48a2-7f15-926b-c9e0ff5df93a","at":1774430210210000000,"seq":1108,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2448-cca0-7edd-b70b-b4085030a65d","at":1774430244000000000,"seq":1109,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2448-ed06-70be-982e-ad9b29cb3a60","at":1774430252294000000,"seq":1110,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2449-8c08-78b8-9d80-5d68a9fbf8a4","at":1774430293000000000,"seq":1111,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d244d-26f9-7748-95ee-5cb39b09c9ce","at":1774430529273000000,"seq":1112,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d244d-26f9-7107-ab67-ef647d03c0b0","at":1774430529273000000,"seq":1113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d244d-f081-7aa8-9ffa-f5f64344470e","at":1774430580865000000,"seq":1114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d244e-0c60-7ef4-b8d1-619966d27987","at":1774430588000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d244e-1fe8-7309-86c2-5155f4cc2c32","at":1774430593000000000,"seq":1116,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d244e-4ec8-7495-8704-7e315143d73c","at":1774430605000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d245b-b2cf-7196-b88a-967c6f5d7b43","at":1774431482575000000,"seq":1118,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d245b-b2cf-7a1d-aa70-8ac6d7e35485","at":1774431482575000000,"seq":1119,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}

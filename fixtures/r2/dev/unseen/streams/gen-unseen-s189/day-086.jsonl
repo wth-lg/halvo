@@ -1,0 +1,12 @@
+{"v":1,"id":"019d2e92-ed36-7e25-8887-9b01ef7fa606","at":1774602874166000000,"seq":1120,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2e92-ed36-70ab-8e15-67d54d3816e6","at":1774602874166000000,"seq":1121,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2e92-f460-79ce-b558-c2db8e91291a","at":1774602876000000000,"seq":1122,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d2e93-5608-7e8e-bd16-d51bea01091f","at":1774602901000000000,"seq":1123,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d2e93-84e8-7cf2-8726-da52a3de77b2","at":1774602913000000000,"seq":1124,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ea7-37ad-721d-a736-613bfe36d102","at":1774604203949000000,"seq":1125,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2ea7-37ad-760c-b7dc-213beb220b8f","at":1774604203949000000,"seq":1126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d2ea7-f748-7fcd-b9ac-a71dd32b0af0","at":1774604253000000000,"seq":1127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d2ea8-3448-79e2-9555-73fab724f049","at":1774604268616000000,"seq":1128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d2ea8-83e8-74f0-93b9-902c96c97a5c","at":1774604289000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ea8-aaf8-724a-a876-9b460802e8da","at":1774604299000000000,"seq":1130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2ea8-c650-7b35-b6b5-24dcd4484f98","at":1774604306000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

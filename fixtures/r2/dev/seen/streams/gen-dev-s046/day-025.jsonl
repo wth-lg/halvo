@@ -1,0 +1,45 @@
+{"v":1,"id":"019bf455-2707-7102-993c-0603ab801d36","at":1769330779911000000,"seq":431,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf455-2707-7d09-9f60-a8b8d43948c9","at":1769330779911000000,"seq":432,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf46c-0c5d-768f-82ef-7280e9688b3b","at":1769332280413000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf46c-1678-7f83-b952-c79075e885f1","at":1769332283000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bf46c-a318-7225-87eb-af6234a12534","at":1769332319000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46c-b6a0-722c-9bf7-a0aa348da652","at":1769332324000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46c-dcdd-75fd-8fe4-ceb3f0b221b0","at":1769332333789000000,"seq":437,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf46c-e198-7fa9-a240-24c579711638","at":1769332335000000000,"seq":438,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf46c-fcf0-7718-98c0-c6eb9f0d4d84","at":1769332342000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46d-4826-71fa-aa28-8bb078779a8e","at":1769332361254000000,"seq":440,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf46d-5ab0-720d-859d-6f5e5f4cd0ef","at":1769332366000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46d-81c0-7779-b0e2-3bb368462368","at":1769332376000000000,"seq":442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf46d-fad8-7bdd-87a3-78e66d4f3bb0","at":1769332407000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bf46e-4cdc-7707-b98a-3bcaa6732083","at":1769332427996000000,"seq":444,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf46e-ae88-752f-86c7-cc0029a1253e","at":1769332453000000000,"seq":445,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf46e-dd68-7928-a7eb-149f16bda7ad","at":1769332465000000000,"seq":446,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf46f-1800-7130-bc41-58d8068fbdeb","at":1769332480000000000,"seq":447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46f-2277-799f-a9ce-d495548804b8","at":1769332482679000000,"seq":448,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf46f-3358-7f65-91b6-1d550395b3b8","at":1769332487000000000,"seq":449,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf46f-98e8-79ed-897c-0fc3e0c1c4ae","at":1769332513000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf46f-c7c8-766e-b356-d7a234902328","at":1769332525000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bf47c-6d49-7b39-afdc-4e91fdcf2183","at":1769333353801000000,"seq":452,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf47c-b460-7342-8057-f5ee9d275714","at":1769333372000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf47c-b460-7289-b9c8-42b48c826b71","at":1769333372000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bf47c-c018-7e1a-ae04-2b12aec0dd0d","at":1769333375000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf480-e223-75af-9ef6-a7a15438f2a7","at":1769333645859000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bf481-1d48-7d1e-b266-de29528c950b","at":1769333661000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf481-7338-70d7-842f-27300d3c3e50","at":1769333683000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf481-7421-70ec-a26b-3fddfe43a546","at":1769333683233000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bf481-e868-7bce-a4b0-f18454776cbc","at":1769333713000000000,"seq":460,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf482-1748-7072-ad3f-6ab795b62ceb","at":1769333725000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf482-1e86-7505-8e68-dc6aade4a381","at":1769333726854000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bf482-1f18-79ab-bb90-ba1bac017c15","at":1769333727000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf482-2eb8-7bdc-b40a-dfcb8774e342","at":1769333731000000000,"seq":464,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf482-55c8-7a5e-af8d-0c03d5b677c2","at":1769333741000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf482-6180-7f09-8702-41c90fbb4381","at":1769333744000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bf489-f964-7154-bc89-7c7bde24d79a","at":1769334241636000000,"seq":467,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf489-f964-7b94-b288-b4366776aa08","at":1769334241636000000,"seq":468,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf48a-8388-72da-9285-9cb46fc23ee2","at":1769334277000000000,"seq":469,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bf48a-ae80-7da0-8011-eab4517f6de1","at":1769334288000000000,"seq":470,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf48a-ef2e-772f-9bd5-129241784cc4","at":1769334304558000000,"seq":471,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bf48a-f8b8-7fdb-b2e2-75d497169d37","at":1769334307000000000,"seq":472,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf48b-23b0-75d4-b59f-d4448b720e87","at":1769334318000000000,"seq":473,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bf48b-5290-7a81-bba6-62dcdecc0667","at":1769334330000000000,"seq":474,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bf48b-5a60-7895-a236-5f9d0059e6bb","at":1769334332000000000,"seq":475,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

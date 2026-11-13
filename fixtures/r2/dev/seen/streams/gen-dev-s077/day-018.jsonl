@@ -1,0 +1,6 @@
+{"v":1,"id":"019bd097-9a14-71a0-b7d4-00c1ceaf401b","at":1768731154964000000,"seq":373,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd097-9a14-7188-8361-88a2a5c981db","at":1768731154964000000,"seq":374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd097-cd00-7321-aaa8-79084cf2cca3","at":1768731168000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd097-d4d0-7a8b-a5f6-adbce4f9ab01","at":1768731170000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0b1-2701-740f-aec7-3b161719fca0","at":1768732829441000000,"seq":377,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd0b1-2701-757f-83ea-406b71156436","at":1768732829441000000,"seq":378,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}

@@ -1,0 +1,14 @@
+{"v":1,"id":"019c5677-0c9f-7595-8489-63bc23013cc5","at":1770977168543000000,"seq":665,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5677-0c9f-7425-861f-6d15ae87807d","at":1770977168543000000,"seq":666,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5677-4518-77bb-8140-9680776a2d2f","at":1770977183000000000,"seq":667,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c5689-24fa-7b06-a59e-59a042a2fccf","at":1770978354426000000,"seq":668,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5689-5618-7fd0-ab48-d0421bd5578e","at":1770978367000000000,"seq":669,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5689-5de8-79fe-b814-8f5424df7020","at":1770978369000000000,"seq":670,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c568b-4c3b-7a26-9ba0-7d456268c494","at":1770978495547000000,"seq":671,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c568b-4c3b-7f6b-81de-5d402f77ea0b","at":1770978495547000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c568b-e270-71ed-bddd-7327a34dae16","at":1770978534000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c568b-f210-7a1e-96b5-e5d859fb5df4","at":1770978538000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c568c-1920-7fd7-9333-caf2429575d8","at":1770978548000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c568c-258e-7ca9-8d9c-864387962db6","at":1770978551182000000,"seq":676,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c568c-4418-7e5a-839f-1650ff6e3139","at":1770978559000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c568c-b560-7b46-9a0d-879fc8c25cdc","at":1770978588000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

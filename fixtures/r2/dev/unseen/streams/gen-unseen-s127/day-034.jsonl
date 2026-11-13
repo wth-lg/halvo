@@ -1,0 +1,27 @@
+{"v":1,"id":"019c22f2-f9c5-7986-8151-abe4f8f28cc6","at":1770112874949000000,"seq":412,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22f2-f9c5-79bd-8619-91413e4a73f6","at":1770112874949000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c22f3-1168-743d-9812-0dcd742b67a5","at":1770112881000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22f3-2cc0-7175-9f51-40f2d84ff177","at":1770112888000000000,"seq":415,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c22f3-7ec8-7b5a-b2e2-b8e0429aaad7","at":1770112909000000000,"seq":416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22f3-82b0-7a79-899d-ea16ecc814ca","at":1770112910000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22f3-9a20-7730-8e79-0a2d5b28d2a3","at":1770112916000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c22fe-c1c3-79ac-9775-a98fdfe7fb26","at":1770113647043000000,"seq":419,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c22fe-c1c3-7715-aa11-8e22aa0eeda1","at":1770113647043000000,"seq":420,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c22ff-4810-7110-b1d9-67d82202a962","at":1770113681424000000,"seq":421,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c22ff-9488-71e7-892d-c539b1271b2f","at":1770113701000000000,"seq":422,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c22ff-abf8-7d22-ac26-7f45433d97e4","at":1770113707000000000,"seq":423,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ff-b7b0-7641-9c8d-5636f3dd10ea","at":1770113710000000000,"seq":424,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c230f-1253-72f8-aba3-4f5c6f750e3c","at":1770114716243000000,"seq":425,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c230f-1253-775b-bdfe-aa00e115f082","at":1770114716243000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c230f-8e60-75f3-be3b-00029abbb190","at":1770114748000000000,"seq":427,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c230f-f7d8-7209-8044-c719428801fa","at":1770114775000000000,"seq":428,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c231f-8714-71cf-b694-be1ee5335ae1","at":1770115794708000000,"seq":429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c231f-b718-7469-801f-af97ac939f58","at":1770115807000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2320-6ac8-720c-bb35-f4bf88e99e2f","at":1770115853000000000,"seq":431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c2320-97fe-7f0c-9892-de82c8cc41fa","at":1770115864574000000,"seq":432,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c2321-2a30-7ffc-9e0a-a00a1a0f3194","at":1770115902000000000,"seq":433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2321-a2a1-7985-8d51-47054f7443be","at":1770115932833000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c2321-f550-7d0f-8c2e-f76c0ba417bb","at":1770115954000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2321-fd20-759d-bf7a-a47767f83edf","at":1770115956000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2322-0275-7bda-beb0-de2f8a68b220","at":1770115957365000000,"seq":437,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c2322-37b8-7b91-85aa-050c46936478","at":1770115971000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

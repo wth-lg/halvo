@@ -1,0 +1,33 @@
+{"v":1,"id":"019c18ca-b076-7272-9ddc-390165369d4c","at":1769942462582000000,"seq":323,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c18ca-b076-7b1d-a2ec-1ba3876e54fe","at":1769942462582000000,"seq":324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c18ca-d158-7a1f-9c37-239791fce700","at":1769942471000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c18cb-0420-798d-8af8-4118e018295d","at":1769942484000000000,"seq":326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18cb-0a18-73ab-b85b-843218c7f028","at":1769942485528000000,"seq":327,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c18cb-1f78-7c0f-81ce-2bc9a411d0a6","at":1769942491000000000,"seq":328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18cb-2b30-7edb-96ed-4376b4dfb272","at":1769942494000000000,"seq":329,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c18cb-65c8-7f80-bcd9-b666cfb34903","at":1769942509000000000,"seq":330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c18cb-a060-7b4d-a2db-496fc849021c","at":1769942524000000000,"seq":331,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c18cc-053e-7981-b1ab-21cb4ec00055","at":1769942549822000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c18cc-2148-75d3-bd68-c2e0279c5a72","at":1769942557000000000,"seq":333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c18cc-4470-79e3-a10e-d77d11252efd","at":1769942566000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18cc-86d8-773b-8baa-64814cd45b71","at":1769942583000000000,"seq":335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18cc-c170-7ab9-89be-389f3648ba0e","at":1769942598000000000,"seq":336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c18cc-ce0c-715f-9f6a-d3fba02024c5","at":1769942601228000000,"seq":337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c18cc-dcc8-779b-9867-f19e27750e76","at":1769942605000000000,"seq":338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c18cc-fc08-70cc-8d7e-57d1a1fd47c5","at":1769942613000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18cd-3e70-75e4-9c6c-46d6e21bf84d","at":1769942630000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18d9-e6a5-7e24-8228-c17da12abdce","at":1769943459493000000,"seq":341,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c18da-1f50-71cf-95d2-92d776c5756f","at":1769943474000000000,"seq":342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18da-4a48-7c3e-a36f-a45dc8aca541","at":1769943485000000000,"seq":343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18da-4a48-7eab-ada7-1ae732c2f967","at":1769943485000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c18f1-de5d-7652-8766-7c5c832bbda8","at":1769945030237000000,"seq":345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c18f1-e158-7d4c-83cc-81f3b66c544d","at":1769945031000000000,"seq":346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18f2-1420-7d66-98ca-baa11f53b99a","at":1769945044000000000,"seq":347,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c18f2-6240-7c85-b2b5-afd2f1133c5b","at":1769945064000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18f2-b830-716b-b0a4-dee2d558ff8c","at":1769945086000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c1905-b140-70dd-bfb7-0cb375730bdd","at":1769946329408000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c1905-c330-7b4b-b6cc-ef53e94503ae","at":1769946334000000000,"seq":351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1905-cb00-72a9-a2e6-71508545181c","at":1769946336000000000,"seq":352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1905-cb00-71f0-9ace-d4f3b1c6f87e","at":1769946336000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c1906-1150-706d-a3b9-f49171046c02","at":1769946354000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1906-20f0-7965-b734-faa7abeecaf4","at":1769946358000000000,"seq":355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

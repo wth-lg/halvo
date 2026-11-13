@@ -1,0 +1,32 @@
+{"v":1,"id":"019d058e-f876-76cb-9cd3-8fd8da0036d6","at":1773914749046000000,"seq":969,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d058e-f876-716c-ac07-690d53d62caf","at":1773914749046000000,"seq":970,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d058f-13a0-74c3-a0a9-a6c77a72a7d1","at":1773914756000000000,"seq":971,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d058f-1788-7dd7-b803-78b1ae1d627e","at":1773914757000000000,"seq":972,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d058f-1f58-7ee5-9039-95611f2678ca","at":1773914759000000000,"seq":973,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d058f-2728-7319-bdf3-b4d10a538566","at":1773914761000000000,"seq":974,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d058f-2b10-7ef7-a32d-d9e5dcd09abc","at":1773914762000000000,"seq":975,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d058f-2ccb-7d8b-b035-718b4b798938","at":1773914762443000000,"seq":976,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d058f-2ccb-776c-9971-2414730cd0dc","at":1773914762443000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d058f-59f0-752f-b01c-38fc81c37308","at":1773914774000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d058f-6a15-7753-a0fe-19e6b3d3df1e","at":1773914778133000000,"seq":979,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d058f-b948-7001-9eee-303a92cf51e3","at":1773914798408000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d0590-1958-7686-a003-c5fe5145b8b7","at":1773914823000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0590-2ce0-70ea-bb80-f7bf43e71ed1","at":1773914828000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0590-bf59-7bef-889a-58102832c987","at":1773914865497000000,"seq":983,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d0590-fbe8-7162-8e8b-075b654d9d6f","at":1773914881000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0591-07a0-7125-9975-463c30e1e22e","at":1773914884000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d0591-7d77-7a94-81a4-8b8a686a0d84","at":1773914914167000000,"seq":986,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0591-7d77-772a-8dfa-941af27282a3","at":1773914914167000000,"seq":987,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0591-a3e0-7493-9b9b-ac259d546eee","at":1773914924000000000,"seq":988,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d0595-42d5-7c31-a7fc-0860fd1e14f2","at":1773915161301000000,"seq":989,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0595-42d5-710b-899b-a700f003be40","at":1773915161301000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d0596-4d60-71b9-a8ba-d4e84a44dea9","at":1773915229536000000,"seq":991,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d0596-a908-7a90-a6ef-baa6e0ed939a","at":1773915253000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0596-b678-78af-8c91-d0e498b90c1c","at":1773915256440000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d0596-d7e8-7cb1-b2bb-7c2c7afc8557","at":1773915265000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d0596-e3a0-7119-a875-052bfb928d87","at":1773915268000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0597-1280-7c3f-918c-a2d4a9c74bae","at":1773915280000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0597-39b2-7c9e-b9ac-ae7b9fad764a","at":1773915290034000000,"seq":997,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d0597-60a0-799c-8994-452f5283f1c7","at":1773915300000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0597-7810-7a71-a5fb-187e7f29a76d","at":1773915306000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0597-9368-7f4a-a695-d70c315350cf","at":1773915313000000000,"seq":1000,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

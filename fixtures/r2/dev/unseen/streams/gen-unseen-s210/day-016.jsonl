@@ -1,0 +1,40 @@
+{"v":1,"id":"019bc61d-e8c0-70df-86e5-4f5d25c457b4","at":1768555407552000000,"seq":256,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc61d-e8c0-7986-be72-2c3013db4285","at":1768555407552000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bc61e-99db-7228-bec3-2f7cb35f094f","at":1768555452891000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bc628-ba43-74ec-9520-67530603b194","at":1768556116547000000,"seq":259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bc628-cf90-71c0-94da-200cf708b3a2","at":1768556122000000000,"seq":260,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc628-eae8-7316-8d62-627ff350eef8","at":1768556129000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bc629-1e56-7d4f-b0a3-15ef1503bf32","at":1768556142166000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bc629-2968-7208-9277-e423eb14759b","at":1768556145000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bc629-5848-7e6a-95d9-f7fb98e31b9b","at":1768556157000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc629-67e8-7e78-80ed-f03c546ec7f5","at":1768556161000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc643-2dfc-7179-b983-abe00a16876d","at":1768557850108000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc643-3178-75dd-9254-4e628a2ed993","at":1768557851000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bc643-c5e8-74b4-9f56-38476f2f906c","at":1768557889000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc643-d736-7f55-9131-0319709c623f","at":1768557893430000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc643-dd58-71a0-9859-b6f433130ff1","at":1768557895000000000,"seq":270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc643-ecf8-7691-a4c4-798adec4fd43","at":1768557899000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc644-1bd8-7f52-9479-74ee15a9a37c","at":1768557911000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc644-2d47-7728-8743-1d5a1202370d","at":1768557915463000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc644-2f60-75d9-b1bc-ae7c66513ae3","at":1768557916000000000,"seq":274,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc644-5288-712f-b9fa-5289ba918f34","at":1768557925000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc644-69f8-72a5-b6e5-f38cdf4604f4","at":1768557931000000000,"seq":276,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc645-1a3f-7c18-ac52-05e633c3c2ed","at":1768557976127000000,"seq":277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc645-48a0-7cb1-9e52-a2d1bf5c0086","at":1768557988000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc645-4c88-7955-bad3-625d9257ca35","at":1768557989000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc645-6fb0-7370-9578-4fd105d147aa","at":1768557998000000000,"seq":280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc645-9d3a-7b5a-87ad-0328a5d0f2f0","at":1768558009658000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc645-e0f8-73b5-86e3-45f6c00989cb","at":1768558027000000000,"seq":282,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc645-fc50-7b86-9d81-239c9a443827","at":1768558034000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc645-ffe0-7956-b491-81a1c554f8b1","at":1768558034912000000,"seq":284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc646-0808-791d-b824-0b7636df70ec","at":1768558037000000000,"seq":285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc646-36e8-73ce-9389-7a9f575ffad3","at":1768558049000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bc646-3ad0-7116-915d-2e0bea2a5a5a","at":1768558050000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc655-da6b-79ce-81c8-53a814d8346f","at":1768559073899000000,"seq":288,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc655-da6b-731b-84f0-c1d35e6bb93f","at":1768559073899000000,"seq":289,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc655-f240-73b3-8e34-4667620aab65","at":1768559080000000000,"seq":290,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bc664-5fbb-7ea7-8d63-1b8fcb795c38","at":1768560025531000000,"seq":291,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc664-5fbb-7633-ba1b-279b4845d385","at":1768560025531000000,"seq":292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc664-6d48-7138-9fef-b634ffbb25a7","at":1768560029000000000,"seq":293,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc664-bb68-7df7-91af-eda650c96c39","at":1768560049000000000,"seq":294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc665-3868-7f95-bd37-7d2c5705505c","at":1768560081000000000,"seq":295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

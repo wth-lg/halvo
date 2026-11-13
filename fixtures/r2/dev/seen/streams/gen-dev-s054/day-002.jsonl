@@ -1,0 +1,8 @@
+{"v":1,"id":"019b7df8-08e9-7ebf-b778-4846517973f3","at":1767344965865000000,"seq":18,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7df8-08e9-75c5-94c4-fb5a4942f0d0","at":1767344965865000000,"seq":19,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7df8-9228-7c3d-9369-d88ac549deee","at":1767345001000000000,"seq":20,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df8-a74c-7175-9d22-4d6c852e6107","at":1767345006412000000,"seq":21,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b7df8-ad80-787c-b271-b0ec5a39f641","at":1767345008000000000,"seq":22,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df8-d0a8-7516-b8d1-d50062cdf840","at":1767345017000000000,"seq":23,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b7df9-568b-72f4-bceb-5d977ec547e3","at":1767345051275000000,"seq":24,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b7df9-97e0-74b2-b93d-033416b7dd55","at":1767345068000000000,"seq":25,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

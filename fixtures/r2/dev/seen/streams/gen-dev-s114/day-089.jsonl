@@ -1,0 +1,15 @@
+{"v":1,"id":"019d3db0-7479-7842-bae5-7c9be3d32450","at":1774856467577000000,"seq":1294,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3db0-7479-7c20-85e6-d915d953cdb0","at":1774856467577000000,"seq":1295,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3db0-85c0-720d-91a5-0a6711f90f1c","at":1774856472000000000,"seq":1296,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3db0-b4a0-79db-8a44-da03fee3c417","at":1774856484000000000,"seq":1297,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dc1-4cab-77a4-89d1-cf46d9e88dd9","at":1774857571499000000,"seq":1298,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3dc1-69f8-7d25-b4fb-2e990b7405b4","at":1774857579000000000,"seq":1299,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d3dd6-4a77-7f86-885a-4f9e995065be","at":1774858947191000000,"seq":1300,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3dd6-4a77-7adc-b404-6c5570791330","at":1774858947191000000,"seq":1301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d3dd6-5188-7a3f-87c3-9a6833dac296","at":1774858949000000000,"seq":1302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de6-fee7-70a6-86a3-724337df0c44","at":1774860041959000000,"seq":1303,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3de6-fee7-78df-90bd-0beec8898006","at":1774860041959000000,"seq":1304,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3de7-2620-7e0c-b527-e1d3245b20ab","at":1774860052000000000,"seq":1305,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d3de7-8bb0-755c-a51f-c51d83d9d400","at":1774860078000000000,"seq":1306,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d3de7-b2c0-7cb0-bdcd-78a6e91e6ce5","at":1774860088000000000,"seq":1307,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d3de7-d5e8-7973-9a24-0b8b38617cdf","at":1774860097000000000,"seq":1308,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

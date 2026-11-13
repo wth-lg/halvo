@@ -1,0 +1,25 @@
+{"v":1,"id":"019d2e8a-6d69-7274-ad12-2e53a214e33b","at":1774602317161000000,"seq":1327,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2e8a-6d69-7cd8-b3b2-71976c6be5c0","at":1774602317161000000,"seq":1328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2e8a-7c68-79c0-ae58-5f3887dbc227","at":1774602321000000000,"seq":1329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d2e8a-97c0-7cd9-bb30-8748cad07d8f","at":1774602328000000000,"seq":1330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e8a-a378-737b-b6ca-6c4586a1dd4d","at":1774602331000000000,"seq":1331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e8a-a556-7d7e-ac87-d584b347e6f3","at":1774602331478000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2e8a-af30-7097-bbcc-0507661958b5","at":1774602334000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d2e8a-d640-705f-bbfe-c9de35bd67d2","at":1774602344000000000,"seq":1334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2e8a-e5e0-775f-8f90-2382353e584c","at":1774602348000000000,"seq":1335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e8a-edb0-7ca7-b165-616efbd9044d","at":1774602350000000000,"seq":1336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e8a-f165-7231-adde-e1ea28bac125","at":1774602350949000000,"seq":1337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2e8a-f968-71eb-bdbb-176dcc2bd1d9","at":1774602353000000000,"seq":1338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2e8b-0138-7ef4-9137-d419a3029348","at":1774602355000000000,"seq":1339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e8b-4f7a-7831-bac6-9c94048f2b7f","at":1774602375034000000,"seq":1340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2e8e-05fb-7a44-b563-e43ee43a2c31","at":1774602552827000000,"seq":1341,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d2e8e-4528-7c74-ac8d-9be6350dc315","at":1774602569000000000,"seq":1342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e8e-6c38-70ed-88d9-b1e09e7058db","at":1774602579000000000,"seq":1343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d2e8e-884e-7659-9e7d-a45057a9dc89","at":1774602586190000000,"seq":1344,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d2e8e-9730-7c83-9f26-9199e90fc36c","at":1774602590000000000,"seq":1345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2e8e-e19a-7f25-a202-010dcbde622a","at":1774602609050000000,"seq":1346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d2e8f-4ec8-7537-81bd-d9b78d1c7c1f","at":1774602637000000000,"seq":1347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e8f-5a80-735c-b10f-79baab834bc6","at":1774602640000000000,"seq":1348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e8f-5de8-7d6f-8d0f-9357f7b8e626","at":1774602640872000000,"seq":1349,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d2e8f-bc28-70dd-84d6-a23caae400a4","at":1774602665000000000,"seq":1350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2e90-3d10-756f-a481-e5d5569cf294","at":1774602698000000000,"seq":1351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

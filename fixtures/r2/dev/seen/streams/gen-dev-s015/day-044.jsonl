@@ -1,0 +1,37 @@
+{"v":1,"id":"019c568d-3da8-7616-a97a-4dfdef40dc1b","at":1770978622888000000,"seq":532,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c568d-3da8-7b18-87df-663d945d1cd1","at":1770978622888000000,"seq":533,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c568d-3e18-715e-bb60-7e9d8d7e531a","at":1770978623000000000,"seq":534,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c568d-6cf8-7182-bb42-f3c163429d39","at":1770978635000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c568d-74c8-7569-b3c4-fe63098cb01a","at":1770978637000000000,"seq":536,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c568d-8c38-7fb7-b928-7b863c3df281","at":1770978643000000000,"seq":537,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5699-c3d7-7343-b9bf-1b183b6a6254","at":1770979443671000000,"seq":538,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c569a-c0fa-707a-b1e1-81d1abc986b9","at":1770979508474000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c569b-0188-7bdd-96a5-3ad9d77b6b8e","at":1770979525000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c569b-1510-7188-9e5c-de166db9ae71","at":1770979530000000000,"seq":541,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c569b-18f8-7559-9954-c40280f34d3c","at":1770979531000000000,"seq":542,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c569b-3450-7be8-b96b-9602fa725682","at":1770979538000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c569b-47e6-7735-8035-eebe107acc84","at":1770979543014000000,"seq":544,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c569b-6b00-77e8-8233-6340e5b13313","at":1770979552000000000,"seq":545,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c569b-e926-741f-a648-0cd99b0ef6ce","at":1770979584294000000,"seq":546,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c569c-2e50-7738-8a52-f2373bbcddaf","at":1770979602000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c569c-41d8-7470-a0b3-cf300b6fcdc3","at":1770979607000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c569c-625a-73a0-8f53-d18be0499229","at":1770979615322000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c569c-8058-7ec9-82f8-464e499e2972","at":1770979623000000000,"seq":550,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c569c-9bb0-7f74-8aec-c6b2c4d3b508","at":1770979630000000000,"seq":551,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c569d-10e0-7e77-945c-84fc82c33db2","at":1770979660000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56a0-521b-7aba-b135-4f6738fdaeb2","at":1770979873307000000,"seq":553,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c56a0-8f68-7a8b-a723-81c8745f6965","at":1770979889000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c56a1-0880-7446-aa7f-487ebb9c5a7d","at":1770979920000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c56a8-78c9-7c10-9f06-c3405011cb9a","at":1770980407497000000,"seq":556,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c56a8-9de8-720e-a028-f3bda8e759fd","at":1770980417000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56a8-fba8-7a11-b33e-e71621fda6ce","at":1770980441000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c56a9-63db-7272-821f-453659859fb0","at":1770980467675000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c56aa-0548-7231-af64-b269326ede5c","at":1770980509000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c56aa-2870-7c86-88a9-73630f079178","at":1770980518000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56aa-4626-7e57-a755-e8d589aea5fa","at":1770980525606000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c56aa-4f80-781c-a06d-49a2a4c9c17a","at":1770980528000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56aa-6ad8-773f-a51a-9d5d923c17a9","at":1770980535000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56aa-a202-70da-a270-76d489831928","at":1770980549122000000,"seq":565,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c56aa-a570-79a3-9201-b1758d800871","at":1770980550000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c56aa-e008-74fb-b7a0-731caddccb0d","at":1770980565000000000,"seq":567,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c56ab-0718-7402-bfc9-0c79a45b3805","at":1770980575000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

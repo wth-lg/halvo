@@ -1,0 +1,10 @@
+{"v":1,"id":"019d4d5d-a122-715f-b13c-f931b59e8559","at":1775119474978000000,"seq":1518,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d5d-a122-7f95-a829-0c9ac9f4871f","at":1775119474978000000,"seq":1519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d4d5e-1280-71ce-90ef-0d55e078fc08","at":1775119504000000000,"seq":1520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d5e-1e38-7e37-bc91-0a141070664c","at":1775119507000000000,"seq":1521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d5e-1e38-757d-84e8-b43687644b69","at":1775119507000000000,"seq":1522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d4d5e-25ca-7109-8dd1-640f57c86bdd","at":1775119508938000000,"seq":1523,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d4d5e-3990-7964-800a-f01daa94bf77","at":1775119514000000000,"seq":1524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d4d5e-fce0-7bd6-a65a-078fcd383657","at":1775119564000000000,"seq":1525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d71-78e4-7da1-b4be-c6e2fdf02a7c","at":1775120775396000000,"seq":1526,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4d71-9e68-7a1d-8081-188bf295d3a1","at":1775120785000000000,"seq":1527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

@@ -1,0 +1,10 @@
+{"v":1,"id":"019c74c2-d216-7dc1-90e1-8da58695f58d","at":1771485450774000000,"seq":759,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c74c2-d216-7a67-97fa-1f0b5d08af9a","at":1771485450774000000,"seq":760,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c74c2-ee50-73fa-98ed-89b0b4f9095c","at":1771485458000000000,"seq":761,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74c3-96ce-78fe-b96c-a47b62f4a630","at":1771485501134000000,"seq":762,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c74c3-9e18-7119-97f3-6d8b82d4ad43","at":1771485503000000000,"seq":763,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c74c3-c140-73ad-b3b7-0043fbb60798","at":1771485512000000000,"seq":764,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c74c4-521e-7732-b668-fd20ac0ee508","at":1771485549086000000,"seq":765,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c74d0-18c3-7786-af6b-a302efb95de2","at":1771486320835000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c74d0-4460-7cb4-9573-d620b7d8ef75","at":1771486332000000000,"seq":767,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c74d0-c160-7571-aaff-37c02a913ca5","at":1771486364000000000,"seq":768,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

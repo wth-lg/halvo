@@ -1,0 +1,27 @@
+{"v":1,"id":"019ba254-bda5-79a0-b1dc-1d2d76fc404e","at":1767955021221000000,"seq":111,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba254-bda5-709b-a02d-183171b5b2df","at":1767955021221000000,"seq":112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ba254-f378-7619-a9b3-8c423ef456d1","at":1767955035000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ba254-f760-7ff9-b340-720a5d0035b7","at":1767955036000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba255-5ddb-7609-9197-3d00bc932827","at":1767955062235000000,"seq":115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ba255-60d8-796e-a5da-41162f4583d2","at":1767955063000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ba255-c668-7b0c-95a7-5ed24a59035c","at":1767955089000000000,"seq":117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba256-33c8-7ec9-b104-45cca6455813","at":1767955117000000000,"seq":118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba256-5d40-74a0-bdcc-ae5288b1c41b","at":1767955127616000000,"seq":119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ba256-7e00-75f1-900c-622f9f2f4693","at":1767955136000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ba256-bc80-77e9-8978-78cb382be75f","at":1767955152000000000,"seq":121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba256-c068-7381-9e86-3f14d64eb964","at":1767955153000000000,"seq":122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba257-5139-7149-b2d1-06f0b9b796af","at":1767955190073000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ba257-6c48-7768-a55a-ca9b240e4c9e","at":1767955197000000000,"seq":124,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba257-7418-7c45-9272-badabe138ae4","at":1767955199000000000,"seq":125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba257-8b88-7aa8-8e1f-17c0da377f7c","at":1767955205000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba264-3522-7a44-9390-68dafc6fdd9f","at":1767956034850000000,"seq":127,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ba264-39a0-7faf-96c2-7be63c396344","at":1767956036000000000,"seq":128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ba264-5110-751c-931e-7a2ed9bdb25c","at":1767956042000000000,"seq":129,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba264-83d8-7d71-b7d7-76df067bd18a","at":1767956055000000000,"seq":130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba264-c640-7e9d-af9b-2f54b5836311","at":1767956072000000000,"seq":131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba26e-0903-7ee5-b0ce-40881f582b0c","at":1767956678915000000,"seq":132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ba26e-18f8-7aa6-a3ac-cf3fa6cc8250","at":1767956683000000000,"seq":133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26e-20c8-7684-a6cc-24084a223ea6","at":1767956685000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26e-47d8-7587-93ce-99b5c6fd8d77","at":1767956695000000000,"seq":135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ba26e-5b60-74b9-bad5-ba6caaa9633f","at":1767956700000000000,"seq":136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba26e-7e88-700d-8982-b7585e3904b9","at":1767956709000000000,"seq":137,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

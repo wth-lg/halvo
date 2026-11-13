@@ -1,0 +1,45 @@
+{"v":1,"id":"019cd74f-4bf5-76c9-9c9b-26567b7d1fe6","at":1773138824181000000,"seq":885,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd74f-4bf5-79ad-980c-9cf5f60fc0b7","at":1773138824181000000,"seq":886,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd74f-5310-7702-9c9d-714ef82f2216","at":1773138826000000000,"seq":887,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cd74f-b4b8-73aa-945b-066a42ff3b12","at":1773138851000000000,"seq":888,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd74f-b704-7a29-b5b8-0c120273ba4f","at":1773138851588000000,"seq":889,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd74f-b704-7015-8c22-52a31a74dde2","at":1773138851588000000,"seq":890,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cd74f-e780-753a-af56-296274d70755","at":1773138864000000000,"seq":891,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd750-3988-7ca8-87ea-f70de3117498","at":1773138885000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cd750-893d-78a2-b15f-78c3de5055a8","at":1773138905405000000,"seq":893,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cd750-9360-765a-949d-cf6d1ba1caaa","at":1773138908000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd750-9f18-7470-95cc-8a713803825a","at":1773138911000000000,"seq":895,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd751-2fa0-759e-b48c-3f40823e12d5","at":1773138948000000000,"seq":896,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd751-2fa0-7896-bb3d-32de2bb201de","at":1773138948000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cd751-56b0-771c-ab93-141764f81793","at":1773138958000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd751-692d-7dde-bc13-3ba90f654c52","at":1773138962733000000,"seq":899,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd751-692d-7092-80a3-48193c866ad1","at":1773138962733000000,"seq":900,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd751-7dc0-7ee5-8a7a-e13f3c21e4e6","at":1773138968000000000,"seq":901,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd751-8d60-7d22-891e-b553043780eb","at":1773138972000000000,"seq":902,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd759-733e-747a-8065-719f1adf8b4f","at":1773139489598000000,"seq":903,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd759-733e-7308-8f3e-94a7b28f29fd","at":1773139489598000000,"seq":904,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd759-9028-7a5e-8900-a76a2d391418","at":1773139497000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd759-b350-7034-bc03-b146868e1d10","at":1773139506000000000,"seq":906,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd75a-2880-79c0-8e77-8c489dc75475","at":1773139536000000000,"seq":907,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd765-391f-763c-85c6-a9fbb329ca89","at":1773140261151000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd765-6768-731d-b635-bac1c515fd2b","at":1773140273000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cd765-7708-7faa-b532-ecea4db11e30","at":1773140277000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd765-838e-79d8-b369-7309204c703d","at":1773140280206000000,"seq":911,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd765-c140-7e74-a25c-f49b924562ac","at":1773140296000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cd766-1dec-7ef2-a14f-98784cefbea6","at":1773140319724000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd766-55b0-78a9-82c9-f121376def56","at":1773140334000000000,"seq":914,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd766-5d80-7c86-9898-2b323a4b3568","at":1773140336000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cd766-80a8-7b5b-8e85-a987e1e95a39","at":1773140345000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd766-80b8-7b35-bb03-fa79f9158698","at":1773140345016000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd766-e428-7e18-a739-8ef207e87b3b","at":1773140370472000000,"seq":918,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd766-ee08-747b-a1fa-c005f1b5173c","at":1773140373000000000,"seq":919,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd767-2cef-744b-9b00-8d0b0cd44687","at":1773140389103000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd767-5780-712a-ac5b-b86801a04191","at":1773140400000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd767-7aa8-71b1-b80c-14bd520a2083","at":1773140409000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd767-8a48-733e-8579-0f0d70eb965f","at":1773140413000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cd767-9600-7d5f-a473-9f4b42248496","at":1773140416000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd767-99e8-70ab-b887-f819d5b9a9a3","at":1773140417000000000,"seq":925,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd780-1cd4-7cbc-9358-ccbf1d62e5b7","at":1773142023380000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd780-4e20-7c1c-915f-58eaed7b13e4","at":1773142036000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd780-4e20-7422-8d9e-7118e1567add","at":1773142036000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cd780-6978-7342-bea3-3b017c06e19c","at":1773142043000000000,"seq":929,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

@@ -1,0 +1,18 @@
+{"v":1,"id":"019d337e-6f31-7740-ad78-54b8e545c2f4","at":1774685417265000000,"seq":1152,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d337e-6f31-7d02-8b59-76ed01343442","at":1774685417265000000,"seq":1153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d337e-f6e0-7feb-8e4f-c2a32565876e","at":1774685452000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d337f-7535-7002-b4d7-51ebfacbc68e","at":1774685484341000000,"seq":1155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d337f-77c8-7fc3-900b-1139555ab182","at":1774685485000000000,"seq":1156,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d337f-9708-737a-af5b-c5da9aba765c","at":1774685493000000000,"seq":1157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d337f-aa90-77f7-82a9-9b261890989d","at":1774685498000000000,"seq":1158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d337f-ae78-771d-8623-03094b884db4","at":1774685499000000000,"seq":1159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d337f-b260-749c-becf-c89a5d11180f","at":1774685500000000000,"seq":1160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d337f-bff2-79aa-ba48-4513ae029d8f","at":1774685503474000000,"seq":1161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d3380-1408-72c9-aee8-be8f9c9f7fd9","at":1774685525000000000,"seq":1162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3380-17f0-7900-8ffd-666360bff03d","at":1774685526000000000,"seq":1163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d3385-0225-7bea-b42e-00b05df63eb8","at":1774685848101000000,"seq":1164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d3385-8690-7cd3-be4d-fcd647f5db5c","at":1774685882000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d3385-95f1-730c-b8f5-42c08d98be06","at":1774685885937000000,"seq":1166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d3385-b570-7b48-bd75-626430e22fd1","at":1774685894000000000,"seq":1167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3385-d4b0-791f-889c-ca39ae72d294","at":1774685902000000000,"seq":1168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3386-3a40-79e0-be73-ebb5fe77529d","at":1774685928000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

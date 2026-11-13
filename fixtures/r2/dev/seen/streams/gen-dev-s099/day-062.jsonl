@@ -1,0 +1,43 @@
+{"v":1,"id":"019cb34d-aa5b-7bc8-856c-6325158c2a53","at":1772534737499000000,"seq":909,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb34d-aa5b-70f6-b732-53eedc6baa68","at":1772534737499000000,"seq":910,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cb34d-ac50-7dfe-a675-0c6cdb182c99","at":1772534738000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb34d-ff0a-79a7-8bfe-b6e59db6bde0","at":1772534759178000000,"seq":912,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cb34e-0a10-75ed-b9ad-df6cdef4bfde","at":1772534762000000000,"seq":913,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb34e-7770-7f41-b556-3f679d6fa469","at":1772534790000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb34e-96b0-76cb-bdf2-e86abf976f0f","at":1772534798000000000,"seq":915,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb34e-9fe5-73d2-a64d-a5770ae72c6a","at":1772534800357000000,"seq":916,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cb34e-f232-7929-865c-1a9104654fcd","at":1772534821426000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cb34f-1798-7e71-ac01-399e26557b39","at":1772534831000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb34f-84f8-7fa1-b95c-6f999bc1bfef","at":1772534859000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb34f-88e0-70ee-94c8-c0b220e8b9bb","at":1772534860000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cb34f-b3d8-7f8e-807b-3577c945af2c","at":1772534871000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb34f-fd00-7656-a229-7e077ebb9aea","at":1772534889728000000,"seq":922,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cb350-2908-7896-bd3e-30447cc6ea50","at":1772534901000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb350-57e8-74a6-8c62-42702cc7b80b","at":1772534913000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb350-7728-7c74-87dd-d0fc677b0e7f","at":1772534921000000000,"seq":925,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb353-415c-72b4-b52e-7f4baca0505c","at":1772535103836000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cb353-4db8-7052-bfa1-3eb407d04659","at":1772535107000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb353-cab8-7df5-ac56-852920942529","at":1772535139000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb353-cd28-75f8-a2fe-9540ed215ae1","at":1772535139624000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cb354-3430-7764-94ba-56e09b56884a","at":1772535166000000000,"seq":930,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb354-db01-7299-8b6b-69004ccc7b47","at":1772535208705000000,"seq":931,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cb354-f398-7118-85b2-8a443c2136ab","at":1772535215000000000,"seq":932,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb355-16c0-745f-bb8d-12a4014278a3","at":1772535224000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb355-5158-7a6f-805f-d2693c164232","at":1772535239000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb355-55a9-72ee-b4b3-464d0c82ee14","at":1772535240105000000,"seq":935,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cb355-5928-7f10-a30a-28febcc12e6a","at":1772535241000000000,"seq":936,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb355-af18-7ab4-8abb-094114504d98","at":1772535263000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb355-bad0-721c-8daf-22a6095c9955","at":1772535266000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb355-d240-7656-b34f-103c6cec15b6","at":1772535272000000000,"seq":939,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cb356-3fa0-7430-9fae-e659cb5d7e57","at":1772535300000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb360-bb24-77c5-8398-342da15d9a22","at":1772535986980000000,"seq":941,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cb360-f5d0-7781-905f-f0022761df5a","at":1772536002000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb360-feda-7c56-ac71-cef0f6fa79cc","at":1772536004314000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cb361-4008-7604-b7d7-1f2a40079574","at":1772536021000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cb361-574a-7480-9659-9fc6cbfe36a9","at":1772536026954000000,"seq":945,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cb361-b150-7a71-846a-0defb8bf89b6","at":1772536050000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb361-b538-7b11-a54c-8185948276ff","at":1772536051000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb361-c0f0-7428-b021-a64e0fcfb9bc","at":1772536054000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb361-ee3b-7e8e-8bf7-43a7ce1b50e7","at":1772536065595000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cb362-2680-7aea-afc8-042a78ef71c0","at":1772536080000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb362-3df0-70c9-84d6-cef894a71699","at":1772536086000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

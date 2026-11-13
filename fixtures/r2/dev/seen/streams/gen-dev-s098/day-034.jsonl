@@ -1,0 +1,37 @@
+{"v":1,"id":"019c2267-a042-7571-bf15-8962511f335c","at":1770103742530000000,"seq":485,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2267-a042-721b-928b-7718fe29488f","at":1770103742530000000,"seq":486,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2268-26e8-790f-b9e2-cddde72ba3c4","at":1770103777000000000,"seq":487,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2279-b5a9-725e-92ff-54dfac39e223","at":1770104927657000000,"seq":488,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c227a-7e1a-73b6-b109-5cf1e47b5ac4","at":1770104978970000000,"seq":489,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c227a-9d78-7b34-997b-9ef5ec792a85","at":1770104987000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c227a-ff20-7a0e-a1fd-502d35ba8d4e","at":1770105012000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c227b-8de6-7d16-b6a4-34dde60790cc","at":1770105048550000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c227b-9778-7978-8c35-d7a70299247d","at":1770105051000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c227c-1860-7501-aef3-3ab7cda425a0","at":1770105084000000000,"seq":494,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c227c-5f4d-746a-90b5-5d043a2eba6f","at":1770105102157000000,"seq":495,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c227c-b0b8-758e-8a01-6251253c0d43","at":1770105123000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c227c-d3e0-7a1e-8997-13f748b265be","at":1770105132000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c228f-32da-7a5a-8009-5c4275839ae4","at":1770106335962000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c228f-36e8-75b7-b908-f55b9ef55dc7","at":1770106337000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c228f-65c8-7c10-b541-9639eb5fe68b","at":1770106349000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c228f-a448-7acb-a6f1-1e98aec4a467","at":1770106365000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2290-0b9f-7d17-9d4c-4ff6e5f56d71","at":1770106391455000000,"seq":502,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c2290-11a8-70a6-ad57-507e68868557","at":1770106393000000000,"seq":503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c2290-30e8-7f89-9b7f-6e3c00f3f5c2","at":1770106401000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2290-6f68-76a3-b76a-8b5223483ac8","at":1770106417000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2290-7350-7326-8d12-4a665843aa63","at":1770106418000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2290-d5a3-7d71-aa3a-96051e7de762","at":1770106443171000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c2291-be4b-790f-a146-24bf2fb99c39","at":1770106502731000000,"seq":508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c2291-de98-78ed-a9e1-afaab23eaf9b","at":1770106511000000000,"seq":509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2291-e668-7e4b-b024-ede22bb32e2f","at":1770106513000000000,"seq":510,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2291-ea50-7af9-b075-38bd1382b90a","at":1770106514000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22a3-fbcd-7326-b59c-6530abf6a068","at":1770107698125000000,"seq":512,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c22a3-fbcd-78ec-b21a-08576795a782","at":1770107698125000000,"seq":513,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c22a4-12c0-7600-8051-25f05aa7d1d1","at":1770107704000000000,"seq":514,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22a4-4588-7713-8580-e1412caa2590","at":1770107717000000000,"seq":515,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22a4-7080-7570-ba29-a2972a3784d3","at":1770107728000000000,"seq":516,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c22a4-7850-76be-ac46-3e1c016e37cd","at":1770107730000000000,"seq":517,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c22b3-8e6d-7800-8eb6-4227b4348cfa","at":1770108718701000000,"seq":518,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22b3-8e6d-74cb-bcd8-69f9dd53e21b","at":1770108718701000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c22b3-ca30-7538-bb25-20a2b828a29b","at":1770108734000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22b4-2bd8-74cf-a12b-28b4825187ae","at":1770108759000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

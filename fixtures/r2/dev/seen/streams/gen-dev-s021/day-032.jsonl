@@ -1,0 +1,31 @@
+{"v":1,"id":"019c188b-d605-7cf9-a46c-42266d5fe6a3","at":1769938343429000000,"seq":425,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c188b-d605-7799-b5f5-268987be2630","at":1769938343429000000,"seq":426,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c18a6-5aa6-7a91-aec5-b7dc2603861a","at":1769940081318000000,"seq":427,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c18a6-5aa6-764d-aff9-46ff3027a682","at":1769940081318000000,"seq":428,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c18a6-6908-7c08-9e1f-344269daefec","at":1769940085000000000,"seq":429,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c18a6-a3a0-732d-a8c6-ad9ea5bafee1","at":1769940100000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a6-c6c8-7407-a0e5-cfb98f62a893","at":1769940109000000000,"seq":431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a6-fd78-7a9b-a19d-dabb6ab871db","at":1769940123000000000,"seq":432,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c18be-78b8-78cf-94d2-7fad13b2262f","at":1769941661880000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c18be-a040-781b-8451-c743344af74a","at":1769941672000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c18be-b85e-7588-8dac-94203e53201c","at":1769941678174000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c18be-ea78-7189-8433-f0a74d8bd6cb","at":1769941691000000000,"seq":436,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c18be-ee60-7c42-8698-3d3fc496a0dd","at":1769941692000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18bf-53f0-739b-8cee-b9c6e5f8345a","at":1769941718000000000,"seq":438,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c18bf-b1b0-7a66-bfc7-2e1db8bcb2f0","at":1769941742000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18bf-b7dc-7fbe-bce3-e487406b82cd","at":1769941743580000000,"seq":440,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c18bf-d8c0-78cd-a2fd-125ba891de66","at":1769941752000000000,"seq":441,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c18bf-ffd0-7b38-a519-e2fcdb0c28cc","at":1769941762000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18c0-03b8-73f6-9047-13d46a246c77","at":1769941763000000000,"seq":443,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c18c0-26e7-7757-9d1b-689af6dab2c0","at":1769941772007000000,"seq":444,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c18c0-51d8-74fd-9fcb-647dcbafb023","at":1769941783000000000,"seq":445,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c18c0-ea30-78af-b993-aaaffd5abd20","at":1769941822000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c18cb-dba8-7cb5-82d9-a8ee364e4801","at":1769942539176000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c18cc-3805-7ce8-bcc3-92dcaf9c872d","at":1769942562821000000,"seq":448,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c18cc-fdc6-76e7-9265-6890e37f7891","at":1769942613446000000,"seq":449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c18cd-03d8-7536-b60c-e4e4f4ab569a","at":1769942615000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c18cd-1f30-74ab-bbd4-e3f7b356d029","at":1769942622000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c18cd-2ed0-728e-93f2-1a14934025a2","at":1769942626000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18cd-36f3-7d1a-98ae-8addb91d2f3c","at":1769942628083000000,"seq":453,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c18cd-4640-7755-988a-a6ba518a0240","at":1769942632000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c18cd-6d50-74be-a415-81b1566e0493","at":1769942642000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

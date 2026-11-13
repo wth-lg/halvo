@@ -1,0 +1,31 @@
+{"v":1,"id":"019cd1a5-fe19-7f4b-b0aa-0b75bdaae021","at":1773043842585000000,"seq":1070,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd1a5-fe19-78c6-a697-6fcfe4748e2e","at":1773043842585000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cd1a6-5d78-759b-b854-06078ad5895e","at":1773043867000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1a6-9810-77ee-9e1c-e697ee9905fa","at":1773043882000000000,"seq":1073,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1a6-ad18-73aa-ba23-a447092fc33d","at":1773043887384000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cd1a6-b368-70a3-bc69-e4260e154844","at":1773043889000000000,"seq":1075,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd1a6-b750-70b4-b120-5b882b31923c","at":1773043890000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1a6-bf20-7aee-a512-100a631d2271","at":1773043892000000000,"seq":1077,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd1a6-da78-7f50-8e84-ceec32138533","at":1773043899000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cd1a6-f32c-759f-b3ac-6369c51c8f4c","at":1773043905324000000,"seq":1079,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cd1a7-24b0-7b38-8c50-b8abb4325c99","at":1773043918000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1a7-8dce-7fae-86c8-e39b21646564","at":1773043944910000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cd1a7-b150-7fdd-8782-f95bd9d27d6c","at":1773043954000000000,"seq":1082,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd1a7-c4d8-7937-a0fd-8a35122a8961","at":1773043959000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cd1a7-cca8-78e1-b84b-9bc830ff0490","at":1773043961000000000,"seq":1084,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd1b2-20b7-7219-93c8-e91480ecefd2","at":1773044637879000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cd1b2-7979-72c6-bc36-ed698f18ea7f","at":1773044660601000000,"seq":1086,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cd1b2-ec50-780d-bd49-9ab43e7f2ba4","at":1773044690000000000,"seq":1087,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1b2-ec50-7149-afab-d657e67fddc9","at":1773044690000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cd1b2-ff00-76fc-98c8-06260bb8baa7","at":1773044694784000000,"seq":1089,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cd1b3-4a10-7f96-8c11-b87180af1c1e","at":1773044714000000000,"seq":1090,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cd1b3-5c87-7167-9a67-2eb839ff4b0f","at":1773044718727000000,"seq":1091,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cd1b3-6d38-76f2-9a62-e296bea077c9","at":1773044723000000000,"seq":1092,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd1b3-7508-7f1e-ba07-fa0fba45b6eb","at":1773044725000000000,"seq":1093,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd1c9-e868-7f64-857e-12d6e2864a90","at":1773046196328000000,"seq":1094,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd1c9-e868-72c7-ad4a-d0e87cf16bc3","at":1773046196328000000,"seq":1095,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd1ca-1dd0-74b6-8f1c-28789f99aa5a","at":1773046210000000000,"seq":1096,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cd1ca-2988-7bf2-9d1d-59f29413fec9","at":1773046213000000000,"seq":1097,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ca-5098-701b-a726-708de565d045","at":1773046223000000000,"seq":1098,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cd1ca-6fd8-7893-8230-e0308c5418ce","at":1773046231000000000,"seq":1099,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ca-8748-74d0-8f88-ae4f01830b74","at":1773046237000000000,"seq":1100,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}

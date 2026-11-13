@@ -1,0 +1,31 @@
+{"v":1,"id":"019bac4d-99bc-7d0d-b9d3-40d8d15968c9","at":1768122325436000000,"seq":91,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac4d-99bc-7e7f-aa1b-c229b2ed9eec","at":1768122325436000000,"seq":92,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bac4d-de58-7dd7-b951-9ee80acd9929","at":1768122343000000000,"seq":93,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bac4e-7fa6-7eb1-9c48-f284bba523a7","at":1768122384294000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bac4e-95f0-706c-8cbe-e9d1271419f7","at":1768122390000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac4e-99d8-7ea9-97bc-c411342c0dfd","at":1768122391000000000,"seq":96,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bac4e-99d8-70c4-a61d-042eb07a9186","at":1768122391000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bac4e-a1a8-764f-b684-aa824176025b","at":1768122393000000000,"seq":98,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bac4f-16d7-74e4-ae18-b84871ac17d8","at":1768122422999000000,"seq":99,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bac4f-b318-7779-b108-1cbfd3c91766","at":1768122463000000000,"seq":100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac4f-de10-718a-b78e-8d193381d595","at":1768122474000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac4f-e809-7834-ae86-47dee1df45e3","at":1768122476553000000,"seq":102,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bac4f-e809-777c-8228-05bd00a368a1","at":1768122476553000000,"seq":103,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bac4f-f580-7c14-8b9f-e3e4e8f6e060","at":1768122480000000000,"seq":104,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bac50-2848-72d7-a588-68720ea6755f","at":1768122493000000000,"seq":105,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bac50-3fb8-79fc-a234-a93c28cc8dbc","at":1768122499000000000,"seq":106,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac50-4788-7b19-ac84-db803160d401","at":1768122501000000000,"seq":107,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac50-6d10-7cd9-b40a-39cbd2a845e2","at":1768122510608000000,"seq":108,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac50-6d10-77d6-90ea-d5b2db9cff97","at":1768122510608000000,"seq":109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bac50-7668-7dde-8c52-7a35b86e7104","at":1768122513000000000,"seq":110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac50-9990-7f47-ae0d-883b4ba9128a","at":1768122522000000000,"seq":111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bac50-a548-717b-8176-bdb6a79f6f3e","at":1768122525000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac56-fd0e-7a31-b834-af71d325d8c4","at":1768122940686000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bac57-19a0-773b-9964-1ed38243d675","at":1768122948000000000,"seq":114,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac57-1d88-79e1-8e34-0c168310b3ca","at":1768122949000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bac57-4c68-7e19-a259-6bdfad58cd0f","at":1768122961000000000,"seq":116,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bac66-0098-7bcf-9b7c-c958505b5199","at":1768123924632000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bac66-0dc0-7f11-8579-95e14b3d8e8b","at":1768123928000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac66-1d60-7d30-9bbf-f0446f472ae2","at":1768123932000000000,"seq":119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bac66-2530-7acb-ad80-f4670042e39e","at":1768123934000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac66-3ca0-7330-87d7-6a142790f625","at":1768123940000000000,"seq":121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,0 +1,53 @@
+{"v":1,"id":"019c4c33-67f5-7f23-b5a3-d892e541eaf3","at":1770804963317000000,"seq":757,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c33-67f5-7877-9ac4-6ba7195d0908","at":1770804963317000000,"seq":758,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4c33-b8c0-7f0c-abcc-a702e92cd5dd","at":1770804984000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c34-02f8-760d-b28b-b8391c771964","at":1770805003000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c34-1ccf-78ba-9c4c-7c6895c3006d","at":1770805009615000000,"seq":761,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4c34-2620-7fb6-8c33-719fde53b9f4","at":1770805012000000000,"seq":762,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c34-4178-7a72-9b60-aa8e4a76e3ae","at":1770805019000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c4c34-7030-7e2d-b06a-418830a2f544","at":1770805030960000000,"seq":764,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4c34-7440-7ab8-8669-7fd9405493fc","at":1770805032000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c34-9b50-7bb6-9d56-fdfab2c9a4ec","at":1770805042000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c35-2020-7379-b36e-2b7c4fd871a0","at":1770805076000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c35-67ab-7505-a32e-6cf570821228","at":1770805094315000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4c35-a4f0-724e-8934-06f6beaf5930","at":1770805110000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c4c35-dba0-774f-8020-1628ebb5142f","at":1770805124000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4c35-fec8-749d-a3f1-485803448941","at":1770805133000000000,"seq":771,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c4d-556c-71f7-b7fd-c9000d060ec1","at":1770806662508000000,"seq":772,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c4d-556c-7452-8c7a-a798afc15d5f","at":1770806662508000000,"seq":773,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c5c-a52d-7271-a608-636d90efc43e","at":1770807665965000000,"seq":774,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c5c-a52d-7064-b860-d2f0d6a7bb56","at":1770807665965000000,"seq":775,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4c5c-e306-71fe-a1f8-b29c0f6dbb5e","at":1770807681798000000,"seq":776,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4c5d-97d7-7da9-9e12-89821198fa5c","at":1770807728087000000,"seq":777,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4c5d-e5a0-725a-8850-df349560469d","at":1770807748000000000,"seq":778,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c4c5e-2038-737b-b059-cf93922df9b6","at":1770807763000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c5e-6e58-7a71-9afc-aee5ce945e0d","at":1770807783000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c5e-72fb-7759-990a-afd8715661b6","at":1770807784187000000,"seq":781,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4c5e-85c8-75ea-8a0e-74fc7e228933","at":1770807789000000000,"seq":782,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c5e-9950-762c-961a-fd838836c770","at":1770807794000000000,"seq":783,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c5e-9d38-7d5f-a444-b339381e25b2","at":1770807795000000000,"seq":784,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4c5e-cc18-77aa-8385-59d3e7823870","at":1770807807000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4c5f-1268-79c9-bbfb-7e62f99a4bfa","at":1770807825000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c5f-3b68-7af9-a8dd-6d93dccbb641","at":1770807835496000000,"seq":787,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4c5f-5ca0-7e28-a9d7-47975789cbf1","at":1770807844000000000,"seq":788,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c5f-e558-79c4-a4fe-2c166d188070","at":1770807879000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c4c60-404a-7935-89b4-4c34722f8bd6","at":1770807902282000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4c60-4ae8-715a-94e9-cec8e7f48468","at":1770807905000000000,"seq":791,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c60-4ed0-7b81-8446-24118e6afd4a","at":1770807906000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c7b-c301-7bc4-965e-9fa7252097b5","at":1770809705217000000,"seq":793,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c7b-c301-788d-ad6e-0900b3632f7c","at":1770809705217000000,"seq":794,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c7b-fcc0-737e-a71f-28de8559b374","at":1770809720000000000,"seq":795,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c7c-1c00-7515-8cea-4d60bf1e2b1a","at":1770809728000000000,"seq":796,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c4c7c-3370-7e2d-9945-f662f529c94c","at":1770809734000000000,"seq":797,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c4c7c-5e68-7417-a2c7-44b2efde9359","at":1770809745000000000,"seq":798,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c4c7c-7076-773f-9888-6a0df0a1a0ce","at":1770809749622000000,"seq":799,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c7c-7076-7155-a87e-48bb9283d20b","at":1770809749622000000,"seq":800,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4c7c-8190-71e1-85c2-27022194a551","at":1770809754000000000,"seq":801,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c7c-9130-775a-8c09-7bdce5752911","at":1770809758000000000,"seq":802,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c4c7c-9900-7524-83ab-526c1c232c0b","at":1770809760000000000,"seq":803,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c7c-a4b8-7e83-8b90-f707f7838223","at":1770809763000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c7c-adfe-723d-a9d4-ce11aade6130","at":1770809765374000000,"seq":805,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c7c-adfe-7e01-8f00-6666bef51f9c","at":1770809765374000000,"seq":806,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c7c-df50-7b3d-9aaf-07f842c7016a","at":1770809778000000000,"seq":807,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c7d-0278-745e-8cca-ed38df5cfc0b","at":1770809787000000000,"seq":808,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c4c7d-5480-7148-9ba8-a8d328c1219e","at":1770809808000000000,"seq":809,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

@@ -1,0 +1,26 @@
+{"v":1,"id":"019c4203-3228-7350-bc3c-656586248983","at":1770634031656000000,"seq":622,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4203-3228-74dc-bcc2-1a6cafb4867c","at":1770634031656000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4203-81a0-7042-a337-4bf32a172228","at":1770634052000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c4203-9528-7ec0-9e0a-d34045548054","at":1770634057000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4203-97a3-7911-96b2-911041f76d30","at":1770634057635000000,"seq":626,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4203-97a3-7c14-b840-94e0f6f0cd50","at":1770634057635000000,"seq":627,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4203-ac98-7b81-a02b-ab9bc2b6c8da","at":1770634063000000000,"seq":628,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c4203-db78-7141-ba6f-ea06a1ddccee","at":1770634075000000000,"seq":629,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c4203-f01e-77a2-ba1e-74f62d83fea3","at":1770634080286000000,"seq":630,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4203-f01e-7662-9395-5f86f4050f6c","at":1770634080286000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4204-3550-7fbe-99bc-0820dd86be56","at":1770634098000000000,"seq":632,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4204-4108-78da-bfd3-619c3b09c3df","at":1770634101000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c4204-44f0-7455-9de8-f6675d58e432","at":1770634102000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4204-6982-7a82-ba78-7705be3efd0b","at":1770634111362000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4204-73d0-775f-8146-3c1974b6b496","at":1770634114000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4204-8370-740e-abcc-2559850036ee","at":1770634118000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4204-ece8-7fc3-a09e-b20bf0129e18","at":1770634145000000000,"seq":638,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4205-0d01-744c-a914-c12d27b157e7","at":1770634153217000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4205-2398-7e0d-94b2-d5bc36ed1455","at":1770634159000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4205-98c8-7085-bd2f-afba96f29ccd","at":1770634189000000000,"seq":641,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4205-f2a0-782e-af42-da33b62715ff","at":1770634212000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4209-84b3-7930-9e3e-4832316f3dfd","at":1770634446003000000,"seq":643,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4217-a10d-7cf1-9c63-d6aa69ba52ed","at":1770635370765000000,"seq":644,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4217-a10d-79e4-a4a8-502a2cb75ec6","at":1770635370765000000,"seq":645,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4217-d4c0-7963-993a-5203e6b80056","at":1770635384000000000,"seq":646,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c4217-d8a8-7288-a6f7-afeb58ecd222","at":1770635385000000000,"seq":647,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

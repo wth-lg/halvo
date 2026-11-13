@@ -1,0 +1,36 @@
+{"v":1,"id":"019c65b2-8222-7cd2-9bc2-314070b5eb81","at":1771232723490000000,"seq":782,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65b2-8222-72e1-8935-16d71e39dc1f","at":1771232723490000000,"seq":783,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c65b2-ce58-704d-b6f0-b41a55f9c50b","at":1771232743000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c65b2-d222-70a6-bc56-1a54ae55a9e5","at":1771232743970000000,"seq":785,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65b2-d628-7884-83ed-1a5ce1689276","at":1771232745000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b2-ed98-71f1-8aa1-a0ac9ebf349c","at":1771232751000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b3-09ce-782d-be44-519d9722ecc1","at":1771232758222000000,"seq":788,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65b3-1c78-75a8-b3ec-190c45e4a533","at":1771232763000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b3-5710-7901-99e7-b7e825ea677c","at":1771232778000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b3-7650-7d2b-bb48-e728e73522ee","at":1771232786000000000,"seq":791,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65b3-f7d5-7fab-bf73-14ac08faf4de","at":1771232819157000000,"seq":792,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65b4-4d28-774c-9f9c-962758381e93","at":1771232841000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b4-768a-7204-92ff-638b2236b23a","at":1771232851594000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65b4-7c08-76db-813a-8d257e0264e5","at":1771232853000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65b4-e198-730a-a5d4-e5c27c135e9c","at":1771232879000000000,"seq":796,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c65b4-f908-7aa2-a201-10c2b29503a1","at":1771232885000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c65b5-0e59-71f1-8c45-14615daafc45","at":1771232890457000000,"seq":798,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65b5-6a50-7aa1-bb4d-959c2e62d7ea","at":1771232914000000000,"seq":799,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b5-79f0-70fd-a52f-af7c52bab9be","at":1771232918000000000,"seq":800,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c65b5-a60c-73db-8b1a-db3fc63188f2","at":1771232929292000000,"seq":801,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65b5-bc58-7d58-9a26-26bf5fef985f","at":1771232935000000000,"seq":802,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b5-cbf8-7c3a-81a5-d4403afc544a","at":1771232939000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b5-d3c8-7438-8dd0-b50a9afcf401","at":1771232941000000000,"seq":804,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65b5-e750-792a-8262-d124fbf3f756","at":1771232946000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c65b6-31c0-7d73-8e0d-3dbd70f0dcfe","at":1771232965056000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c65b6-4510-7261-91ff-e6508f905cfd","at":1771232970000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b6-e920-7c40-a9fc-a9190935aea9","at":1771233012000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b6-f4d8-7296-9f3d-187c36e6ac45","at":1771233015000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c65b7-23b8-73ef-af5d-1af45d0fe82a","at":1771233027000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c65b7-34c7-7832-8fef-bf2964377aca","at":1771233031367000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c65b7-79a8-781e-a605-4059c7a78676","at":1771233049000000000,"seq":812,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65b7-98e8-7d63-b9cf-24fc923d73e3","at":1771233057000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b7-bff8-7ef8-b5fc-dd49f6371dcc","at":1771233067000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b7-cf98-79d3-a4ab-088ef5a40f72","at":1771233071000000000,"seq":815,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65b7-e320-71d6-ba05-27521b715836","at":1771233076000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c65b7-ece9-7920-8ba6-1f07ad72a9b8","at":1771233078505000000,"seq":817,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}

@@ -1,0 +1,14 @@
+{"v":1,"id":"019c7a8b-46fe-7b3a-8942-81fb686e9e8e","at":1771582473982000000,"seq":703,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a8b-46fe-7579-9829-b173f49bcf63","at":1771582473982000000,"seq":704,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7a8b-81a8-79d4-baee-6cdae1ff6e7c","at":1771582489000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a8c-21d0-7d5f-b2c1-a4cd5837dacf","at":1771582530000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c7a8c-31c3-7b45-8328-005bfb311b33","at":1771582534083000000,"seq":707,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7a8c-3558-71ac-9204-8ee83f8445eb","at":1771582535000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7aa0-6671-79df-8e61-bfc2743b065e","at":1771583858289000000,"seq":709,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa1-0d48-7200-a5cf-49412a4f7562","at":1771583901000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa1-1518-7786-b8c0-a8457d17b41b","at":1771583903000000000,"seq":711,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa1-2d0c-784f-8ecd-589aacc88f57","at":1771583909132000000,"seq":712,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa1-5b68-73a7-9ba7-85da361678ef","at":1771583921000000000,"seq":713,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa1-76c0-78c5-87e0-c554614e43a9","at":1771583928000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa5-a971-7c39-8cf6-2fecc55d08b2","at":1771584203121000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa6-6860-76be-b7da-b1429f4b7c7d","at":1771584252000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019ce63a-8337-7e37-a828-27448ad29308","at":1773389120311000000,"seq":940,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce63a-8337-790e-b019-ab0a3f2daf71","at":1773389120311000000,"seq":941,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce63a-ef60-7754-aa38-038b2ce1e140","at":1773389148000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce63a-fb18-7e7d-90b1-bde52bc2c294","at":1773389151000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ce63b-4168-7322-9a38-8a01980d02d1","at":1773389169000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce64d-d790-743a-a78c-bec9682e1b0f","at":1773390387088000000,"seq":945,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ce64d-fa60-788b-b76e-4eb72676f626","at":1773390396000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce64e-38e0-777c-94b5-f3c7d98a0cc2","at":1773390412000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ce64e-9e70-7e76-a85a-d4f7562fadcf","at":1773390438000000000,"seq":948,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce64e-ce19-7690-881f-93ca036c13ee","at":1773390450201000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ce64e-ec90-7e9b-a46c-a8ba24ba5e1a","at":1773390458000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce64f-a931-79b1-9c52-56337d5049dd","at":1773390506289000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ce64f-dec0-7d6b-b9a6-bb5ef2e9c0d6","at":1773390520000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce650-2128-7e68-a53c-0e69be50a67d","at":1773390537000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce650-b354-7075-8995-500421c17058","at":1773390574420000000,"seq":954,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce650-b354-7f72-bbdb-ab73f07345c5","at":1773390574420000000,"seq":955,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce650-b980-708b-b282-12e4f4d56d09","at":1773390576000000000,"seq":956,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ce650-d0f0-7569-8275-e4cb1f3a1e8a","at":1773390582000000000,"seq":957,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce650-e860-76b5-9778-f876801683a1","at":1773390588000000000,"seq":958,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ce651-4f22-72e9-ad11-488d91694ee1","at":1773390614306000000,"seq":959,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce651-4f22-7b3f-a8ec-9d1bafc0ac57","at":1773390614306000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}

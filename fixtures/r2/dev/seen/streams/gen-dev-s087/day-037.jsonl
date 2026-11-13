@@ -1,0 +1,19 @@
+{"v":1,"id":"019c3296-140d-7e19-85fc-dc20166e1695","at":1770375222285000000,"seq":448,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3296-140d-77e8-b8b5-27d4f60b770b","at":1770375222285000000,"seq":449,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3296-5558-7124-95b5-e5b2fa9dc24a","at":1770375239000000000,"seq":450,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c3296-7c68-7718-94a0-694f7bcd7e3f","at":1770375249000000000,"seq":451,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3296-af30-7cc3-9aa4-ef81baa7e9b9","at":1770375262000000000,"seq":452,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c329d-199e-70bb-b0c2-b99fb1f81616","at":1770375682462000000,"seq":453,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c329d-199e-7812-b29a-dd28cdd080bf","at":1770375682462000000,"seq":454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c329d-2b58-7f25-8e9c-441a6cafef12","at":1770375687000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c329d-42c8-76a1-a579-41c5e1ad661e","at":1770375693000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c329d-8d00-725d-a355-a2f6fb99fa0e","at":1770375712000000000,"seq":457,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c329d-94d0-73b0-8dad-9d525bc7c6ff","at":1770375714000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c32ab-7190-7c18-9be5-f8d5db5e111e","at":1770376622480000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c32ab-c37c-78fa-9345-c1cd1fd16d3d","at":1770376643452000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c32ab-e4e0-78dc-88c1-51baff9c44ac","at":1770376652000000000,"seq":461,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c32ac-0420-7395-9a16-3293344337c7","at":1770376660000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ba-09db-7f67-8122-e8911e9aa774","at":1770377578971000000,"seq":463,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c32ba-09db-7749-9075-186371c2d14f","at":1770377578971000000,"seq":464,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c32ba-4c60-7fdd-a387-4dc351097f7e","at":1770377596000000000,"seq":465,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ba-ec88-7f4e-b724-c18f13e93979","at":1770377637000000000,"seq":466,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

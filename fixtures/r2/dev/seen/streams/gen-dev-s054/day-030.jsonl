@@ -1,0 +1,23 @@
+{"v":1,"id":"019c0e56-08ad-716e-a3ad-75a204c09b92","at":1769767045293000000,"seq":267,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e56-08ad-7232-94cb-dc12f690e7b7","at":1769767045293000000,"seq":268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c0e56-936d-77b3-8962-5edbeee62d96","at":1769767080813000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c0e56-a7b0-798c-bc49-b9121e6c25af","at":1769767086000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e56-ab98-7673-a02e-f96f291dd98e","at":1769767087000000000,"seq":271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e56-cec0-76a0-85a9-69f888f9e7e8","at":1769767096000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e56-fda0-7ba1-b71a-13d0e21f06c4","at":1769767108000000000,"seq":273,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e57-1128-7897-83cc-17c2b28a2970","at":1769767113000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c0e60-4ff4-7248-87a9-23bff030bc4e","at":1769767718900000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e60-ae18-7ff2-9a31-a847bcc1fb84","at":1769767743000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e60-d528-7a89-843e-1a19ea8b05c8","at":1769767753000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c0e60-e8b0-740e-b1d6-18e5ed64c301","at":1769767758000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e60-f81d-7ce4-b011-db1135b188f9","at":1769767761949000000,"seq":279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e61-59f8-7a2e-9aae-c5d4534d1a3a","at":1769767787000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e69-a3c4-72d1-9aeb-2a43348d133e","at":1769768330180000000,"seq":281,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e69-a3c4-7a79-baf6-96bb58bd442e","at":1769768330180000000,"seq":282,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e69-d1f0-7e78-9b1e-dafcb1da7219","at":1769768342000000000,"seq":283,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c0e69-e960-7db9-95cd-2d9d1f1e768c","at":1769768348000000000,"seq":284,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e6a-3b68-78a2-8d6e-6909068c918f","at":1769768369000000000,"seq":285,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e6a-b098-7bd0-bec9-09779130aa40","at":1769768399000000000,"seq":286,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e76-6ac2-7b04-bca7-ca6c4be27c0f","at":1769769167554000000,"seq":287,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e76-6ac2-77b5-855c-771ca76d9875","at":1769769167554000000,"seq":288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0e76-ddc8-7d31-a30b-6df68327207f","at":1769769197000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

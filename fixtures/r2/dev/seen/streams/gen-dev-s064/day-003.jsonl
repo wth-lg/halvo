@@ -1,0 +1,21 @@
+{"v":1,"id":"019b82f2-a0c0-7753-b708-6f6ec07afa19","at":1767428497600000000,"seq":22,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b82f2-a0c0-7ec1-8b5e-3096a0ad61ee","at":1767428497600000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b82f2-a638-7908-a07a-5dc5e787ede2","at":1767428499000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b82f2-bda8-7175-9533-87d1810c5e50","at":1767428505000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82f2-d130-7e52-ac79-e17f18a9b80a","at":1767428510000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82f2-da76-7066-8a87-50c215628ab3","at":1767428512374000000,"seq":27,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b82f2-ec88-74cf-9c37-63b15369a087","at":1767428517000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82f2-f840-7eed-a255-376dcebb616b","at":1767428520000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82f3-43dd-7efc-9c5e-84fb213556c1","at":1767428539357000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b82f3-9aae-7e88-b369-b2372399d9f7","at":1767428561582000000,"seq":31,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b82f3-ea70-747b-93e9-1ea866424cea","at":1767428582000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82f4-0d98-7a44-ab85-7165aa5595aa","at":1767428591000000000,"seq":33,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b82f4-4830-7a93-b44e-0bded439b528","at":1767428606000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b82f4-7625-7cf2-8aab-e682788b8a89","at":1767428617765000000,"seq":35,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b82f4-7af8-7b25-adec-1af4826056aa","at":1767428619000000000,"seq":36,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b82f4-7ee0-7b67-bc57-6c0a4cdbde4b","at":1767428620000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82f5-1738-7327-bfb6-7bd2d8567f52","at":1767428659000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b82fe-7284-7684-bb90-80f542a8ccd4","at":1767429272196000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b82fe-9100-7caf-af42-ce6fcbd82f00","at":1767429280000000000,"seq":40,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b82fe-cf80-714c-9d95-9a3561f82767","at":1767429296000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b82ff-38f8-7cba-a113-b7d149dc7e6d","at":1767429323000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

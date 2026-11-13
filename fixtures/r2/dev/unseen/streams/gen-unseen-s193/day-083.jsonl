@@ -1,0 +1,27 @@
+{"v":1,"id":"019d1ec1-3112-7702-9756-36a85a433fc4","at":1774337470738000000,"seq":991,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1ec1-3112-7111-96b1-5103de19e049","at":1774337470738000000,"seq":992,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec1-39e8-7d15-be10-6eda233e4e0b","at":1774337473000000000,"seq":993,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec1-5540-7b19-93eb-af0fa53dfaa0","at":1774337480000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec1-7868-74cf-a37c-d79a3b9a68c6","at":1774337489000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d1ed2-f8b4-7619-80c9-144cb84b80e0","at":1774338635956000000,"seq":996,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed3-0498-7480-8d49-0dc24b162524","at":1774338639000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d1ed3-a8a8-7581-8e1d-5db6e4412785","at":1774338681000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ed3-d1b7-7b54-ae5f-6c6c5d1c1452","at":1774338691511000000,"seq":999,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed4-9ec0-7c1f-bd01-9f4cf19f3cb2","at":1774338744000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ed4-d5f7-7067-aeb6-ebfdbfc02b98","at":1774338758135000000,"seq":1001,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed5-42d0-7bc4-9fc9-cbd76faa5e61","at":1774338786000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ed5-4e88-7a5c-b9c4-468730a09cdf","at":1774338789000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ed5-93b5-7e6d-ac73-cf6d27717383","at":1774338806709000000,"seq":1004,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d1ed5-bfd0-7b74-ad63-14d9a43c50e6","at":1774338818000000000,"seq":1005,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1ed5-d740-7011-842d-33d4fa38b9b1","at":1774338824000000000,"seq":1006,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1ed6-11d8-78e5-a3d7-0d549724dfee","at":1774338839000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d1ee7-df37-7623-84ce-6773c9d84cbb","at":1774340005687000000,"seq":1008,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1ee7-f3f8-7ae1-bed0-fab28c5b0c08","at":1774340011000000000,"seq":1009,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ee8-22d8-7fdf-a8c3-6e9d888dee93","at":1774340023000000000,"seq":1010,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1ee8-3e30-7c1e-bf6f-76ddf4719785","at":1774340030000000000,"seq":1011,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1ee8-6540-76f9-9836-9dc70014ee40","at":1774340040000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ef2-5d47-73a3-abee-d214c2051b40","at":1774340693319000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1ef2-67c0-73a6-9882-2e3049a3256f","at":1774340696000000000,"seq":1014,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1ef2-67c0-772e-a595-21e2d7048fa8","at":1774340696000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d1ef2-dcf0-7bac-89ef-f733e87619e7","at":1774340726000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ef3-0fb8-7f8e-b1f0-78baf7eb5c56","at":1774340739000000000,"seq":1017,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

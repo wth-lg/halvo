@@ -1,0 +1,42 @@
+{"v":1,"id":"019c9e75-5caa-7a97-a13d-c67b338a4504","at":1772185017514000000,"seq":908,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9e75-5caa-762c-937a-ea6969abe4a0","at":1772185017514000000,"seq":909,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9e75-81b8-7be1-b0c2-306ad6475a72","at":1772185027000000000,"seq":910,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c9e75-a8c8-789f-87af-25e3070bbc43","at":1772185037000000000,"seq":911,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c9e76-998c-7a64-b530-a463207cf206","at":1772185098636000000,"seq":912,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e76-998c-7fc2-84b0-98ef20c3fa61","at":1772185098636000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c9e76-d1a8-7881-b4de-637c7a2de179","at":1772185113000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e76-e530-7151-941e-8375c5b928ea","at":1772185118000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c9e76-f4d0-7d16-af1b-1e5693ff7753","at":1772185122000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e76-f81e-72ed-9738-b3318ebaa2b5","at":1772185122846000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c9e77-5e48-7ad7-b423-c5a866ee6834","at":1772185149000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e77-6ef6-70fa-bb34-b34770f6b8d9","at":1772185153270000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c9e77-8170-7fd8-ac59-025e704e1425","at":1772185158000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c9e77-8d28-7e59-85c8-aaf84125efe2","at":1772185161000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9e77-c7c0-71fc-b7fb-39bb80343c37","at":1772185176000000000,"seq":922,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9e77-cba8-7291-99f9-ec7b507fa6fb","at":1772185177000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e78-0ced-7bb1-ac49-9b5a170b1c86","at":1772185193709000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c9e78-2198-7bd6-8213-d36d2b873bf5","at":1772185199000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e78-2d50-736b-bbd4-c50242c8eeaa","at":1772185202000000000,"seq":926,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9e78-3138-7e7e-8029-ef56ae8dca01","at":1772185203000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e78-a668-7b41-a381-512e47b8a71a","at":1772185233000000000,"seq":928,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e78-ae38-7ed4-a118-e30a4fd9d68a","at":1772185235000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c9e7e-3d76-719e-9c55-5541f6eca083","at":1772185599350000000,"seq":930,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c9e7e-43e8-72f9-81f0-92331117d822","at":1772185601000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e7e-cf92-7919-99c2-bde0d266675d","at":1772185636754000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c9e7e-d088-78d8-ba17-87cbc256ea88","at":1772185637000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e7e-e028-7666-a25d-640a644a396f","at":1772185641000000000,"seq":934,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e7f-2e48-7aeb-b25f-93aa100fd30f","at":1772185661000000000,"seq":935,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9e85-a759-74d8-a336-dd2cf373b831","at":1772186085209000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9e85-bdf8-71ee-99e7-5f035bd10ca3","at":1772186091000000000,"seq":937,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9e85-cd98-7952-a26d-f97065dc4ead","at":1772186095000000000,"seq":938,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e85-d950-7f8b-b226-230462c68994","at":1772186098000000000,"seq":939,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e85-e8f0-7cda-a946-101c6c09bf4a","at":1772186102000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e91-0ce6-7058-bfd7-da8d377ebe52","at":1772186832102000000,"seq":941,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9e91-0ce6-74cc-a3bf-0fe737f0171e","at":1772186832102000000,"seq":942,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9e91-8598-7760-a277-7fc7f4abd42a","at":1772186863000000000,"seq":943,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9e91-ef10-7855-aa32-dafd0c946dd9","at":1772186890000000000,"seq":944,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e92-187f-7644-b3a8-4eb636d5049a","at":1772186900607000000,"seq":945,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c9e92-4500-70a5-ba46-5f9f47fa2a4c","at":1772186912000000000,"seq":946,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9eac-d65a-7e40-ba12-d0d52c0ef219","at":1772188653146000000,"seq":947,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c9eac-e950-70d6-886e-a1eb4fec53bd","at":1772188658000000000,"seq":948,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ead-04a8-7e41-bddd-6bc4cbe24aba","at":1772188665000000000,"seq":949,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}

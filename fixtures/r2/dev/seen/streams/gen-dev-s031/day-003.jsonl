@@ -1,0 +1,15 @@
+{"v":1,"id":"019b831e-59ef-7857-ba3b-e4806267db7e","at":1767431363055000000,"seq":70,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b831e-59ef-7716-ad36-cf091bd9b2aa","at":1767431363055000000,"seq":71,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b831e-8c80-7645-83ba-29fc9637cdde","at":1767431376000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b831e-9838-770e-b95b-10bf8fb4b12b","at":1767431379000000000,"seq":73,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b831e-ca5c-7722-9b23-a00005ac02fb","at":1767431391836000000,"seq":74,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b831f-0598-7520-9979-b5b5812abcaf","at":1767431407000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b831f-4418-700e-ac44-2a5dded31cb2","at":1767431423000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8321-985f-7698-b89d-b6b33ba03c43","at":1767431575647000000,"seq":77,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b8321-b130-7e4e-8ae5-e6d7a35aa07c","at":1767431582000000000,"seq":78,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8321-dc28-714b-a82b-ecae500f7a32","at":1767431593000000000,"seq":79,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8321-f398-7b9f-92e6-32a1db945007","at":1767431599000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8337-cd7e-774a-af4c-1e04f315eb41","at":1767433031038000000,"seq":81,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8337-dcf8-7da1-937f-ae63b114f5f6","at":1767433035000000000,"seq":82,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8338-0020-7907-91fd-adecb20c904c","at":1767433044000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8338-3ab8-7836-acb8-d7a491800aeb","at":1767433059000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

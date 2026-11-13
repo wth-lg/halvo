@@ -1,0 +1,20 @@
+{"v":1,"id":"019bf433-c0e3-7b4f-b661-a8dded4c1d90","at":1769328591075000000,"seq":358,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf433-c0e3-7dac-a081-72124fd41695","at":1769328591075000000,"seq":359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bf433-dbf0-7a39-95fd-29be0df05258","at":1769328598000000000,"seq":360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bf433-fe0f-7116-9da8-2598ab8f6b1d","at":1769328606735000000,"seq":361,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bf434-f5ae-751d-be38-23ffc599dd5b","at":1769328670126000000,"seq":362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bf435-2410-7c51-87bd-97a77e32fa47","at":1769328682000000000,"seq":363,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf435-2be0-70ff-88b0-5383a283bda6","at":1769328684000000000,"seq":364,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf435-3b6b-72ba-b096-2c6cb79503d6","at":1769328687979000000,"seq":365,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bf435-3b80-7bc9-9ec8-e9955487c7e3","at":1769328688000000000,"seq":366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf435-89a0-77fb-b92f-418f6414f386","at":1769328708000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf435-9d28-72b0-bfd1-f4b88807d369","at":1769328713000000000,"seq":368,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf436-ae33-7a35-8aa0-a0e26a0d2f9c","at":1769328782899000000,"seq":369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf43f-2983-714f-a3ef-adb9862ef499","at":1769329338755000000,"seq":370,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf43f-2983-7758-a5d0-e96f9298c1c1","at":1769329338755000000,"seq":371,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf43f-3e00-7d2e-9f7b-199244a944d9","at":1769329344000000000,"seq":372,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bf43f-97d8-76e8-855f-73a18d862c18","at":1769329367000000000,"seq":373,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bf43f-caa0-707b-b4e4-d411feaac32f","at":1769329380000000000,"seq":374,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf440-1188-7bd3-9d05-f8cd7774cf49","at":1769329398152000000,"seq":375,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bf440-3fd0-73b8-99a0-d48e0a288d48","at":1769329410000000000,"seq":376,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf440-a948-7445-b582-d167f439f80d","at":1769329437000000000,"seq":377,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

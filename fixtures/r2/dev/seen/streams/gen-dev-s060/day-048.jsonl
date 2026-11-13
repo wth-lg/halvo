@@ -1,0 +1,32 @@
+{"v":1,"id":"019c6a7b-b5fe-717f-8280-be7a5bee6fbb","at":1771313018366000000,"seq":625,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6a7b-b5fe-7714-863c-08a92c01e1d1","at":1771313018366000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6a7b-ef28-742f-b7c6-fec13ef678e6","at":1771313033000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6a7b-fec8-78b9-9875-827f7a9105bb","at":1771313037000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a7c-1e08-7365-b672-2ea9476605f8","at":1771313045000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6a86-4b01-7f37-b38e-c11d927d683f","at":1771313711873000000,"seq":630,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6a86-5350-7631-be1e-df78f3308ae2","at":1771313714000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c6a86-7a60-731a-9f34-c9a68f0fa215","at":1771313724000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a86-88b0-7846-b920-4f2e41240ff6","at":1771313727664000000,"seq":633,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6a86-ad28-792c-9ddf-18449d5e8fb6","at":1771313737000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a86-b4f8-7352-b89a-ad37dc406262","at":1771313739000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a86-bcc8-76d1-be35-69bb615289f7","at":1771313741000000000,"seq":636,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6a86-c7fb-706a-886f-d7739df43262","at":1771313743867000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6a86-dff0-7601-a1ca-fd48c1f02690","at":1771313750000000000,"seq":638,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6a87-4d50-743f-954e-7e6592bf96c6","at":1771313778000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a87-c1b6-75c5-8759-c02fdd6aa0eb","at":1771313807798000000,"seq":640,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6a87-ca50-7424-b6b0-4bcfa94dc42f","at":1771313810000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c6a87-e1c0-72ac-89ae-00cded259f2d","at":1771313816000000000,"seq":642,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6a88-33c8-7194-beaf-a7820a08d4dd","at":1771313837000000000,"seq":643,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6a88-4bc7-7261-95c9-6c803f217e6e","at":1771313843143000000,"seq":644,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6a88-7e00-7995-b328-d3efb168e020","at":1771313856000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a88-97d0-7cef-9178-f3fd392aade1","at":1771313862608000000,"seq":646,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6a88-dbc0-706c-bfb8-038d49dad2c6","at":1771313880000000000,"seq":647,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6a89-0e88-7b7d-8791-2e6836355cd6","at":1771313893000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c6a89-2210-7c7c-be9e-3bb1344fdccf","at":1771313898000000000,"seq":649,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6a98-865f-74f9-a124-e44260ae8c99","at":1771314906719000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6a98-dd68-7e21-b5dc-66ae4c09b67e","at":1771314929000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a98-f8c0-76fd-aef8-656a2580529b","at":1771314936000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6aa9-00c1-7373-8aa8-b4bb4c68134a","at":1771315986625000000,"seq":653,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6aa9-00c1-723f-bc04-0fcba1976783","at":1771315986625000000,"seq":654,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6aa9-15c0-7edf-81a6-280fcc99e848","at":1771315992000000000,"seq":655,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6aa9-c588-7df0-a4af-e7171418aea7","at":1771316037000000000,"seq":656,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

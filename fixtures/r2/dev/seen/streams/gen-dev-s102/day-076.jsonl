@@ -1,0 +1,27 @@
+{"v":1,"id":"019cfb1d-18a6-7ded-8afd-d130a2102e1f","at":1773739514022000000,"seq":993,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfb1d-18a6-7db5-ad78-1ddbb9bdfa76","at":1773739514022000000,"seq":994,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cfb1d-2448-7ed8-b4a7-55c24d518a72","at":1773739517000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cfb1d-5ee0-7f71-b51c-815636547034","at":1773739532000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb1d-c858-7532-ab47-ea1cf00384b1","at":1773739559000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb1d-e94d-74c1-a212-ccb9fcdf7b08","at":1773739567437000000,"seq":998,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cfb1e-2a00-7417-8007-8fa92d25ee14","at":1773739584000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb1e-7820-78bf-91b0-a0ac63530675","at":1773739604000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cfb1e-a700-76b8-9da0-b9a8b5499e24","at":1773739616000000000,"seq":1001,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfb1e-be70-75da-8a85-6324606f8544","at":1773739622000000000,"seq":1002,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfb1e-d35b-747d-bf69-0806ca8abfaf","at":1773739627355000000,"seq":1003,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cfb1f-33a0-7c8a-87b5-2b1565b4f3d9","at":1773739652000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cfb1f-4ef8-7f4a-8bbc-4a64c7773a27","at":1773739659000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb1f-b929-72b2-b4c3-969c3e73eba9","at":1773739686185000000,"seq":1006,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cfb1f-c810-7a70-a697-c5359a2db98e","at":1773739690000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb20-3d6a-77df-ad41-2193fab07ce4","at":1773739720042000000,"seq":1008,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cfb20-6450-7b83-ba33-63e34387a845","at":1773739730000000000,"seq":1009,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfb20-8778-75b8-abcf-87b78e7d4222","at":1773739739000000000,"seq":1010,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfb20-b270-793a-8d38-c7589f1873e1","at":1773739750000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cfb2f-67f0-70e1-9aa3-af7b61e48462","at":1773740713968000000,"seq":1012,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cfb2f-8750-7f59-9fbc-78859cb5d574","at":1773740722000000000,"seq":1013,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb2f-f4b0-72b7-9a37-f8273f0de730","at":1773740750000000000,"seq":1014,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cfb30-34e2-7c95-9554-7dd159f0ba4b","at":1773740766434000000,"seq":1015,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cfb30-7d68-7fdf-a7c9-4954157d0a8e","at":1773740785000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cfb30-9027-795f-b3ed-fafcb91b887b","at":1773740789799000000,"seq":1017,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cfb30-9ca8-7b87-9b17-85af5c01f7aa","at":1773740793000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cfb30-c7a0-754c-909c-727377024206","at":1773740804000000000,"seq":1019,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

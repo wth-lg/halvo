@@ -1,0 +1,18 @@
+{"v":1,"id":"019c226e-d132-7cfe-bac0-ef6f2ff68264","at":1770104213810000000,"seq":576,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c226e-d132-789d-8464-be0e0925141c","at":1770104213810000000,"seq":577,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c226e-d5d8-74e0-b99b-ff2975d6ca0d","at":1770104215000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c226f-27e0-7dcd-9ff3-2e50d8c7b4e3","at":1770104236000000000,"seq":579,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c226f-b480-7c3c-87b5-0e7397fe4ecd","at":1770104272000000000,"seq":580,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2271-9934-76ff-9067-2425abb71a45","at":1770104396084000000,"seq":581,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2271-9934-7472-b0de-f27c70ece528","at":1770104396084000000,"seq":582,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2271-bff0-7549-aade-db4e8831cd11","at":1770104406000000000,"seq":583,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2271-d378-7000-8c0b-eb88283303ff","at":1770104411000000000,"seq":584,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2272-3520-7c90-83c6-9cf1bc1cf5f0","at":1770104436000000000,"seq":585,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2272-44c0-73bf-b5ca-e243c29e1982","at":1770104440000000000,"seq":586,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c2272-5d2e-7d4a-9169-acc700b17431","at":1770104446254000000,"seq":587,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c2273-0bf8-7065-ade2-657fa32b91f6","at":1770104491000000000,"seq":588,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2273-0bf8-7f20-86f1-22aa5e250c2d","at":1770104491000000000,"seq":589,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c2273-13c8-7360-9131-1b4d870c0cbf","at":1770104493000000000,"seq":590,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2282-4d60-7f9a-9d14-634ed9af4f46","at":1770105490784000000,"seq":591,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2282-4d60-7364-9bc1-1d1a2901442a","at":1770105490784000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c2282-7930-7db3-af0a-501f533a3ea9","at":1770105502000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

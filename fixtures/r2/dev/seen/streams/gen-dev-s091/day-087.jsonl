@@ -1,0 +1,26 @@
+{"v":1,"id":"019d33b1-3ccb-7c78-87cd-50a3f4275dca","at":1774688746699000000,"seq":1221,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d33b1-3ccb-74d1-93d8-82170f5b841e","at":1774688746699000000,"seq":1222,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d33b1-5180-7284-8221-1984c76965f3","at":1774688752000000000,"seq":1223,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d33b1-8c18-7608-9dd3-1aedbcd6ebbb","at":1774688767000000000,"seq":1224,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33b1-93e8-7a66-bd8a-6a10abc357d8","at":1774688769000000000,"seq":1225,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d33b1-c6b0-7291-b284-82db0a93cacc","at":1774688782000000000,"seq":1226,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33cd-9531-77f0-a972-5f4fdb10be57","at":1774690604337000000,"seq":1227,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d33cd-9531-755c-b580-d0a957034632","at":1774690604337000000,"seq":1228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d33cd-97c8-7dbc-9467-686ee458fd37","at":1774690605000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33cd-9bb0-7644-a0e1-7fa12254051c","at":1774690606000000000,"seq":1230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d33cd-b320-7bd0-968a-d3190ebcd0a6","at":1774690612000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33cd-d685-7445-bba6-12246b94618f","at":1774690621061000000,"seq":1232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d33ce-0140-7b50-b74e-e186948ff04d","at":1774690632000000000,"seq":1233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d33ce-5348-7c4b-bf68-3c3b38142afe","at":1774690653000000000,"seq":1234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d33ce-91c8-768f-abdb-9cef60fb5cb1","at":1774690669000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d33dd-2dc2-7334-8cfb-c06bfd029f92","at":1774691626434000000,"seq":1236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d33dd-89d0-7f4c-b223-cd3e45c43d71","at":1774691650000000000,"seq":1237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33dd-e790-7bed-b075-bdc87723c2bb","at":1774691674000000000,"seq":1238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33dd-eab7-7853-a3bc-87c060f2b81a","at":1774691674807000000,"seq":1239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d33dd-fb18-77cd-95ee-44beff87eaba","at":1774691679000000000,"seq":1240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d33de-3d80-78e0-bc2c-146b812ede49","at":1774691696000000000,"seq":1241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d33de-b7db-7a9a-98e2-9acf870d10e3","at":1774691727323000000,"seq":1242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d33de-ca20-7926-be2d-e7d2242d29f0","at":1774691732000000000,"seq":1243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33df-1c28-7d3b-87e8-d5145ccbd946","at":1774691753000000000,"seq":1244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33f2-1493-7ea2-8a46-e3400512d8d3","at":1774692996243000000,"seq":1245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d33f2-2728-7ab4-9fb8-2fbb11620bf9","at":1774693001000000000,"seq":1246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

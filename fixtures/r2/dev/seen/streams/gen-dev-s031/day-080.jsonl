@@ -1,0 +1,14 @@
+{"v":1,"id":"019d0fcf-4966-7005-a6a8-6e080f21b849","at":1774086736230000000,"seq":924,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fcf-4966-70fb-ac9a-52468f6fadbd","at":1774086736230000000,"seq":925,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0fcf-67c0-77f9-b33e-d5c14f4b971b","at":1774086744000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d0fdf-de16-799a-90b0-faddbe563fa8","at":1774087822870000000,"seq":927,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0fe0-b188-7297-ba01-6735fd8debea","at":1774087877000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fe0-b958-7c41-9c59-2b436f8bb991","at":1774087879000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ff0-ffbf-722f-ade0-1d9dab9162ba","at":1774088945599000000,"seq":930,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff1-c5f8-7441-91a2-b1aa6800a780","at":1774088996344000000,"seq":931,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff2-0320-72e0-bcdf-cebaba568916","at":1774089012000000000,"seq":932,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d0ff2-0af0-7e95-9fa3-234a2eb9e734","at":1774089014000000000,"seq":933,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0ff2-0ed8-7844-96ab-7b485912398c","at":1774089015000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ff2-12c6-7d63-a547-17df7a8ff045","at":1774089016006000000,"seq":935,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff2-4588-7cfc-9315-85ad91df6d28","at":1774089029000000000,"seq":936,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0ff2-e5b0-7558-a9a8-9c8d1327bc4f","at":1774089070000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

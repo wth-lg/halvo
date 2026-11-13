@@ -1,0 +1,29 @@
+{"v":1,"id":"019c5ba0-8eed-79c1-914c-ce4e450ad934","at":1771063774957000000,"seq":567,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5ba0-8eed-722f-888a-28362aed1653","at":1771063774957000000,"seq":568,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba1-8bba-786a-b118-8228da6215fe","at":1771063839674000000,"seq":569,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba2-3110-70ed-ad4e-696f2b71f2c0","at":1771063882000000000,"seq":570,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5ba2-80be-7d52-8487-53136b5ca04f","at":1771063902398000000,"seq":571,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5ba2-80be-7a34-8a28-4bb78eee2af8","at":1771063902398000000,"seq":572,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5ba2-9a88-7ed0-98d8-7b56f35be765","at":1771063909000000000,"seq":573,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c5ba2-c580-71eb-896a-ada8a88bc4e1","at":1771063920000000000,"seq":574,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5ba2-d379-7844-85b4-1e84dc139254","at":1771063923577000000,"seq":575,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5ba2-d379-7b7f-a59e-5b0900f8e338","at":1771063923577000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba3-0018-74d8-9195-ce23067a381d","at":1771063935000000000,"seq":577,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5ba3-1788-7359-b447-46955877aabb","at":1771063941000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba3-c5c5-7654-9c09-e8292294a8a9","at":1771063985605000000,"seq":579,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba4-4838-7c22-bc8f-b325b77b1e6a","at":1771064019000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c5ba4-d61c-7496-a39c-6ebeaa408c5c","at":1771064055324000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba5-26e0-7add-a8cd-688068f4336c","at":1771064076000000000,"seq":582,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5bb4-951b-7125-86d5-f580e4f3ec1f","at":1771065087259000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb5-5535-7e25-bcd2-f3b7e60d7986","at":1771065136437000000,"seq":584,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb5-6af0-7427-a9d9-5d5bf49a2ee6","at":1771065142000000000,"seq":585,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bb5-ebd8-733c-b2c0-a649526b13ce","at":1771065175000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5bb6-626c-7c23-896b-48c303745f84","at":1771065205356000000,"seq":587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb6-ce68-7e6f-8e0a-f09b3eab2b24","at":1771065233000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb6-f960-7a85-b52c-66b8be7c4e76","at":1771065244000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bb7-37e0-75f3-862d-db7b0de4e5e7","at":1771065260000000000,"seq":590,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5bb7-4398-7724-8507-f6d8c02f92ef","at":1771065263000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c5bc7-773d-722c-9839-33aa48241388","at":1771066324797000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc7-f508-7f65-a863-5ddc2cf0f71b","at":1771066357000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5bc8-1448-78c5-bcca-c7d63d7958cd","at":1771066365000000000,"seq":594,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bc8-27d0-70eb-a241-4472a285f844","at":1771066370000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

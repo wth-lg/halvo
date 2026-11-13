@@ -1,0 +1,19 @@
+{"v":1,"id":"019cb875-4f13-71dd-b234-c68174b4a627","at":1772621221651000000,"seq":760,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb875-4f13-7cd2-8f7b-8ab792458611","at":1772621221651000000,"seq":761,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb875-7398-7c92-91b7-5ad505f4e82b","at":1772621231000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb875-8338-787c-b2e9-be300cd5d0c9","at":1772621235000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb875-92d8-7480-8c3b-e7d2ab73f2a7","at":1772621239000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cb875-a278-7063-aa78-895334983daf","at":1772621243000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb889-1487-7f37-a3b4-5d1117852923","at":1772622517383000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cb889-3248-7c48-914a-0fa715cafb94","at":1772622525000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb889-49b8-7278-ac2c-f528a9dea2b2","at":1772622531000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb889-4e87-7b9c-a7f0-9e63f72072ae","at":1772622532231000000,"seq":769,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cb889-8068-78d7-a3ac-cf41aea583a2","at":1772622545000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb889-8068-74b7-adfd-c25cbe85ba46","at":1772622545000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cb889-ab60-7840-b9ea-9df5b9c28f5e","at":1772622556000000000,"seq":772,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb889-ce88-7553-8eac-c7f545ae306b","at":1772622565000000000,"seq":773,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb88e-7cdc-7afe-a026-0e20e39612cd","at":1772622871772000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb88e-cbe0-75fa-a331-18cfb0e3b815","at":1772622892000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb88e-db80-7d1f-9774-b07cef4904fd","at":1772622896000000000,"seq":776,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb88f-2d88-767f-8bdd-758c49998463","at":1772622917000000000,"seq":777,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb88f-6438-7a96-8ff9-11340bde4cde","at":1772622931000000000,"seq":778,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

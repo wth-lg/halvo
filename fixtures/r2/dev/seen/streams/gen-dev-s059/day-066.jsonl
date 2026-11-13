@@ -1,0 +1,34 @@
+{"v":1,"id":"019cc7a6-ba8a-7255-a7fe-0d3f28d64fd9","at":1772876118666000000,"seq":1025,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc7a6-ba8a-71be-9ec2-803f584b1f02","at":1772876118666000000,"seq":1026,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cc7a6-bbd8-7483-bf4e-9edc27f2b290","at":1772876119000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7a6-d348-7b93-9ffd-458c2e92f096","at":1772876125000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cc7a7-11c8-7b43-9bac-0dcf33c1d9c0","at":1772876141000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7a7-16de-761d-994d-bae573f37871","at":1772876142302000000,"seq":1030,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cc7a7-5430-7a5a-b844-5435cd0f05e0","at":1772876158000000000,"seq":1031,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7a7-5fe8-788b-96ca-92cfc2c58901","at":1772876161000000000,"seq":1032,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc7a7-8ae0-70fc-891a-c926c6185ca2","at":1772876172000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7a7-a638-77a0-b011-6fe7ce7f1d33","at":1772876179000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cc7a7-c960-7ec7-8acf-40a9d59ca30d","at":1772876188000000000,"seq":1035,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc7ac-aec9-75d4-97ac-e3ec5fb60ee7","at":1772876508873000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cc7ac-b718-7ee6-aa22-f4f003bb1581","at":1772876511000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7ac-da40-79cf-beb6-1eb56f9d12e9","at":1772876520000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cc7ac-edfe-73cb-ac2a-c3efd6801bea","at":1772876525054000000,"seq":1039,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cc7ad-1ca8-7a12-839d-500bd2e68cba","at":1772876537000000000,"seq":1040,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cc7ad-2090-7b59-b679-2b4c9cffe754","at":1772876538000000000,"seq":1041,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7ad-423f-7596-97dd-4a18a9e5b43f","at":1772876546623000000,"seq":1042,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cc7ad-4f70-74c8-a5ae-5d24e4af657b","at":1772876550000000000,"seq":1043,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc7ad-6eb0-7aa0-8a21-3064218b8c3e","at":1772876558000000000,"seq":1044,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc7c4-1c3a-7aee-ac27-3f4143a358eb","at":1772878044218000000,"seq":1045,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc7c4-1c3a-7d4f-b344-957a0f34dd04","at":1772878044218000000,"seq":1046,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc7c4-2718-7173-a12e-4f8c21c7f18f","at":1772878047000000000,"seq":1047,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c4-59e0-7fd5-b2e1-7b4465806a59","at":1772878060000000000,"seq":1048,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7d3-c941-7b52-9093-e2a594359221","at":1772879071553000000,"seq":1049,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cc7d3-e658-7bdf-af71-7b79023ad55b","at":1772879079000000000,"seq":1050,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cc7d4-1920-7adb-b1a7-af521f8a0da3","at":1772879092000000000,"seq":1051,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7d4-3c48-7b4b-ac11-380fd600be91","at":1772879101000000000,"seq":1052,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cc7d4-b948-70d3-bfa5-370c52988163","at":1772879133000000000,"seq":1053,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc7e6-05a5-7938-b0c1-290287d5e97e","at":1772880266661000000,"seq":1054,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc7e6-05a5-775d-beaf-e842c2c9cc72","at":1772880266661000000,"seq":1055,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc7e6-5518-7dc8-aa16-922bb253a4d3","at":1772880287000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7e6-5518-7d5e-a2fd-2eee09b9b9a6","at":1772880287000000000,"seq":1057,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cc7e6-e988-7e47-b78a-9d9234b0d0a1","at":1772880325000000000,"seq":1058,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

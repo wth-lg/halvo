@@ -1,0 +1,22 @@
+{"v":1,"id":"019ca879-b018-7889-9d9d-a93517105ddc","at":1772353073176000000,"seq":841,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca879-b018-7ccc-9e89-438a5393e0a5","at":1772353073176000000,"seq":842,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ca87a-1110-735b-9a6e-4cd74db3f9df","at":1772353098000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87a-3050-7137-bdb8-51032e9d1589","at":1772353106000000000,"seq":844,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87a-6715-7cbb-9e52-df6d506a1732","at":1772353120021000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca87a-8e10-7cb7-809c-109aac3c79c9","at":1772353130000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ca87b-114c-7749-9803-c3aab6788e21","at":1772353163596000000,"seq":847,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca87b-6cb8-7442-a733-86d70b58cc01","at":1772353187000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca87b-8040-7691-9d32-2cbefc14f21e","at":1772353192000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87b-a368-76fa-be8b-bb1782973655","at":1772353201000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ca87b-e6b4-731b-ad22-73faefb7b7fa","at":1772353218228000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca87c-3008-7765-b0cd-c5ebec779a4a","at":1772353237000000000,"seq":852,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87c-5ee8-7c95-879d-920c13564f9d","at":1772353249000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87c-9d68-7ec3-ad1b-6c011ada1264","at":1772353265000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca87c-b847-76bf-b567-4d5e3e0919c2","at":1772353271879000000,"seq":855,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca87d-1e50-74c3-a438-ed2c959648c5","at":1772353298000000000,"seq":856,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87d-7d3f-7633-9d91-e02cf5b2bb0d","at":1772353322303000000,"seq":857,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ca87e-79f8-7584-a771-2c14fa43291f","at":1772353387000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca880-1f28-7535-9ecd-260dac291b7d","at":1772353494824000000,"seq":859,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca880-1f28-73c5-94e6-de41ce87a598","at":1772353494824000000,"seq":860,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca880-1fd8-7856-a807-45bef20ea82e","at":1772353495000000000,"seq":861,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca880-2b90-76f6-a2e0-3bc9f623310a","at":1772353498000000000,"seq":862,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}

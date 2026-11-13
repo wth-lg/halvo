@@ -1,0 +1,11 @@
+{"v":1,"id":"019c1db9-77c6-775a-a36f-6c76a155ca50","at":1770025220038000000,"seq":449,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1db9-77c6-759f-a0ba-1aae42021cf1","at":1770025220038000000,"seq":450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1db9-96e0-7e94-a375-efd87774fd1d","at":1770025228000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db9-d560-7e66-86c5-f18b28df763d","at":1770025244000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c1db9-ecd0-76dd-919b-57e652a9835e","at":1770025250000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dc0-f99b-78c7-9ace-5dd349e11f40","at":1770025712027000000,"seq":454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c1dc1-3800-7a08-9315-b6acffd4e53b","at":1770025728000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1dc1-4b88-72c2-9ffd-27ca71aa8a00","at":1770025733000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c1dc1-e62f-7f93-a4df-e0ee91369d2d","at":1770025772591000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c1dc1-ff38-76a8-83c7-3b702e9c6d0e","at":1770025779000000000,"seq":458,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1dc2-0af0-7336-9884-3601c21d9a98","at":1770025782000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

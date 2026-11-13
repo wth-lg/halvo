@@ -1,0 +1,11 @@
+{"v":1,"id":"019ce16e-a00a-7e6d-b41e-650957eeeeb4","at":1773308649482000000,"seq":988,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce16e-a00a-7236-9d2a-468574975e1d","at":1773308649482000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce16e-a5f8-7c30-8160-96e4c10b6ee9","at":1773308651000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce16e-e478-747d-b8b2-363150cf5018","at":1773308667000000000,"seq":991,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce16f-2eb0-7b42-a82c-29f35c68d597","at":1773308686000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16f-5d90-7de1-b762-c58a0fa4e118","at":1773308698000000000,"seq":993,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce16f-a8e9-71ad-a385-798b8397a831","at":1773308717289000000,"seq":994,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce16f-b768-709a-ae02-e42c293d6838","at":1773308721000000000,"seq":995,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce16f-ea30-7820-9dba-f0ca69229781","at":1773308734000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16f-f5e8-7d96-b666-7c9c2da15de3","at":1773308737000000000,"seq":997,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce16f-f9d0-71b0-8bf9-24ad28761b55","at":1773308738000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,16 @@
+{"v":1,"id":"019cc728-d985-721d-87c6-196715d7eb69","at":1772867869061000000,"seq":866,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc728-d985-7c12-a772-dd96bb47e336","at":1772867869061000000,"seq":867,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc728-f888-774b-8355-b3e9b5a0bffe","at":1772867877000000000,"seq":868,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc729-6200-7dda-95dc-46784012c00c","at":1772867904000000000,"seq":869,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc741-b073-7ab2-8db2-f4c27323b1c8","at":1772869496947000000,"seq":870,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc741-b073-7699-b3bb-fa171640d317","at":1772869496947000000,"seq":871,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc74e-d771-7f91-8dcd-76fddd297f3a","at":1772870358897000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cc74f-5ca8-7fd1-a915-24b9affaa669","at":1772870393000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc74f-e3cf-7a6a-b754-961e16a3602f","at":1772870427599000000,"seq":874,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cc750-1440-7088-a139-5ac7784ea563","at":1772870440000000000,"seq":875,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc750-1828-75aa-8f28-0cefd1d6b707","at":1772870441000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc750-5a21-7f3c-9991-44aa2beca71c","at":1772870457889000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cc750-cfc0-78bf-b6c5-6adc625ebf0a","at":1772870488000000000,"seq":878,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc751-1ca7-7750-94c9-f465c3870f1e","at":1772870507687000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cc751-ece8-7b2d-ad6f-09534fbf9437","at":1772870561000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cc751-f0d0-73d3-86f7-6d82f7bbb84c","at":1772870562000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

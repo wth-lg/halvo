@@ -1,0 +1,15 @@
+{"v":1,"id":"019c5666-968f-7260-91c8-5724a3fdaed4","at":1770976089743000000,"seq":615,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5666-968f-7837-b4b8-7581b967e55e","at":1770976089743000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c5666-bab8-748f-bc69-6c0eaeeeb825","at":1770976099000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5666-c670-7f8c-8e0b-95f96125b9f1","at":1770976102000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5666-e2b8-753b-8341-136d474da498","at":1770976109240000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c5667-37b8-74aa-bd78-10a8a60e68a1","at":1770976131000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5667-37b8-75c6-adf7-c0a4db8312e8","at":1770976131000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5667-4883-7b75-95d0-f9ed078f3a18","at":1770976135299000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c5667-62b0-7b92-9122-090c8b5ac8fb","at":1770976142000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5667-fb08-7851-a908-0a6ef01c843e","at":1770976181000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5668-35f7-73af-b083-4492722eb0c9","at":1770976196087000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c5668-7038-77e0-b31d-97253c4c2afd","at":1770976211000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5668-ca10-7d8e-b8e8-59b9b811fefb","at":1770976234000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5678-83b1-7774-9f0d-76b056dff521","at":1770977264561000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c5678-ac78-7b85-b048-8e22b4d56659","at":1770977275000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

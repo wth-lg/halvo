@@ -1,0 +1,15 @@
+{"v":1,"id":"019b7dab-6fe8-7c53-b772-b7e69e575025","at":1767339945960000000,"seq":28,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7dab-6fe8-7750-8d84-fab8531e7ea3","at":1767339945960000000,"seq":29,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b7dab-c600-7758-ba56-65d3dba83711","at":1767339968000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dac-0098-7989-a354-56ecfec0aa19","at":1767339983000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dac-3f18-74d4-8b07-cf93d4984d2a","at":1767339999000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b7dac-5d77-7947-b209-bd4badddee34","at":1767340006775000000,"seq":33,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b7dac-6a10-713c-95c6-46c686433f67","at":1767340010000000000,"seq":34,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7dac-8950-76a5-8ed4-26221e4114d4","at":1767340018000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dac-9120-78a7-8ac8-d8dc49094adf","at":1767340020000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dac-cfa0-7c28-b390-0d3e840e431c","at":1767340036000000000,"seq":37,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7dad-1dc0-7383-b552-d28ee8ca0c3b","at":1767340056000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7dbc-c1fd-741f-a281-1c72206be6af","at":1767341081085000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7dbd-5de8-7f70-b129-7b68e41ce44e","at":1767341121000000000,"seq":40,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7dbd-9498-7858-ac31-2b6cab5f33b7","at":1767341135000000000,"seq":41,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7dbd-ac08-7651-a920-1de5bc60bea1","at":1767341141000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

@@ -1,0 +1,25 @@
+{"v":1,"id":"019ceb80-7e35-7d1a-8402-cc012c084359","at":1773477592629000000,"seq":1044,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb80-7e35-7187-be3d-6dc8964370f0","at":1773477592629000000,"seq":1045,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ceb80-9ee8-7ae3-bbf7-0e73bce3b038","at":1773477601000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb80-b270-7ba9-b9e0-2ca34dcfa2d1","at":1773477606000000000,"seq":1047,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ceb80-c210-7fbd-88ff-048c3c415cb9","at":1773477610000000000,"seq":1048,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb82-25ea-75d7-990c-a76082c25378","at":1773477701098000000,"seq":1049,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ceb82-5080-7992-8fdd-868cd2b27482","at":1773477712000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb82-5850-768b-a7ec-2111dd417791","at":1773477714000000000,"seq":1051,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceb82-67f0-77e7-aeaf-19c604ef5a23","at":1773477718000000000,"seq":1052,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceb8f-9ff6-76c3-bbae-b2b925da7757","at":1773478584310000000,"seq":1053,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ceb8f-b630-79c3-a5a9-9ddbb3a7334c","at":1773478590000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb8f-fc80-7811-ab95-a4c196e66a66","at":1773478608000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ceb90-00c5-7cae-a20a-b32684b6ceb8","at":1773478609093000000,"seq":1056,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ceb90-00c5-78b6-b906-de4672c988ae","at":1773478609093000000,"seq":1057,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ceb90-2778-73dc-9ffb-4a8d77224c29","at":1773478619000000000,"seq":1058,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb90-4aa0-7309-9756-27ea5e903cc2","at":1773478628000000000,"seq":1059,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb90-c3b8-7dc4-abbc-c7bede15fd73","at":1773478659000000000,"seq":1060,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ceb90-c472-7aca-ac2a-7654a1a2bf9b","at":1773478659186000000,"seq":1061,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ceb91-72e9-7537-97f5-cd65a9f2ab11","at":1773478703849000000,"seq":1062,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb91-72e9-761f-8a11-285f1eb4894c","at":1773478703849000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ceb91-7f38-71c6-a8a2-89122eb7e73d","at":1773478707000000000,"seq":1064,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ceb91-b200-71d2-b2de-28480b41053d","at":1773478720000000000,"seq":1065,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceb91-c224-78b6-be0d-08268a98ad49","at":1773478724132000000,"seq":1066,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ceb92-2348-72a5-961d-10df68201a77","at":1773478749000000000,"seq":1067,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ceb92-4670-731f-b23c-6884fcec4d30","at":1773478758000000000,"seq":1068,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

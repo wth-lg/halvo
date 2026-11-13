@@ -1,0 +1,6 @@
+{"v":1,"id":"019c50f5-9547-737a-b3be-e2a2bd0c5fd7","at":1770884797767000000,"seq":663,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c50f5-9547-74a8-a619-69d69b949de5","at":1770884797767000000,"seq":664,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c50f5-ed09-7a6b-ba0b-6b4bc0eba7bf","at":1770884820233000000,"seq":665,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c50f6-1b00-782e-bd7c-419ceef4094d","at":1770884832000000000,"seq":666,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c50f6-5f08-719a-8ab1-387b018ee7bc","at":1770884849416000000,"seq":667,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c50f6-f5c0-7850-a32b-3138944c87f1","at":1770884888000000000,"seq":668,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

@@ -1,0 +1,41 @@
+{"v":1,"id":"019b7d89-fd4d-76f2-98e1-3aed25256c9a","at":1767337753933000000,"seq":18,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7d89-fd4d-7383-87c3-674d18ceb4af","at":1767337753933000000,"seq":19,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7d8a-1500-74f2-bded-bab40df34d2c","at":1767337760000000000,"seq":20,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7d8a-3058-73ee-b2e1-44a9c1876e2c","at":1767337767000000000,"seq":21,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7d8a-5380-7ccb-b4b9-9fa4853c98f3","at":1767337776000000000,"seq":22,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b7d8a-b910-7693-b776-457af8ad76f2","at":1767337802000000000,"seq":23,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7d98-8237-7698-8333-0351075d0a65","at":1767338705463000000,"seq":24,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7d98-8237-7d37-8070-e9e702562bf5","at":1767338705463000000,"seq":25,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b7d98-f0aa-708d-b7b4-cdb8884879f1","at":1767338733738000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement May - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b7d98-f1b0-7d42-b42f-4c6a72db8e69","at":1767338734000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7d99-2478-7347-ab36-c6eb61498f45","at":1767338747000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7d99-3fd0-7886-bd56-d6da67225b68","at":1767338754000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7d99-63e9-7d5d-88d9-3d6303e6710c","at":1767338763241000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b7d99-8a08-7d2c-aea9-7ed3791ce5f1","at":1767338773000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7d99-b8e8-7571-9f79-336ccdc4f01f","at":1767338785000000000,"seq":32,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7d99-c0b8-78a2-83c6-5400968dcf07","at":1767338787000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b7d99-debf-73db-ad53-51484ab72925","at":1767338794687000000,"seq":34,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b7d9a-35e8-7d6f-a906-76ca7c94434f","at":1767338817000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b7d9a-360a-7f61-8948-398046af15e4","at":1767338817034000000,"seq":36,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b7d9a-9790-70ae-bae7-f78e39bccbff","at":1767338842000000000,"seq":37,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7d9a-af00-7b04-b68f-e924524e5a0d","at":1767338848000000000,"seq":38,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7d9a-b6d0-74a3-be1b-552866555dd8","at":1767338850000000000,"seq":39,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7d9a-e998-73df-ba37-24e8be0bc40e","at":1767338863000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7d9b-18df-7461-a01d-1f6bb0d56234","at":1767338875103000000,"seq":41,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b7d9b-81f0-74f7-93f2-1595cd747a07","at":1767338902000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7d9b-c458-76a1-843a-460b4d69e785","at":1767338919000000000,"seq":43,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7d9b-d3f8-74c3-80da-3b4aa6ff6db7","at":1767338923000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7d9c-292d-78e0-85f7-e0a6e65fe929","at":1767338944813000000,"seq":45,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b7d9c-9f8a-7354-916c-a0454275d0c4","at":1767338975114000000,"seq":46,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b7d9c-aad0-710e-bc5a-818b75d2ebdf","at":1767338978000000000,"seq":47,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7d9c-aeb8-7fe4-8f63-7b39d3a8a08f","at":1767338979000000000,"seq":48,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7d9c-dd98-7d57-a207-c4c277a0b023","at":1767338991000000000,"seq":49,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7d9c-e568-7760-b532-4a5bff51f9e5","at":1767338993000000000,"seq":50,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7db5-e3a5-7252-9368-2d98dec3cdf1","at":1767340630949000000,"seq":51,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7db5-e3a5-770c-9118-3e4fe3cbfeeb","at":1767340630949000000,"seq":52,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7db6-2e10-74ab-8320-b41d5ef1cd59","at":1767340650000000000,"seq":53,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b7dbd-f7ca-766d-b32b-1003923e9108","at":1767341160394000000,"seq":54,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7dbd-f7ca-7b1f-a92d-d94b0eff55a1","at":1767341160394000000,"seq":55,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7dbe-1198-7fc9-a24d-649ada9e6466","at":1767341167000000000,"seq":56,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dbe-86c8-7a70-a05d-f293529b0e70","at":1767341197000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b7dbe-9a50-7aa2-9a4f-7db004dce1ef","at":1767341202000000000,"seq":58,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

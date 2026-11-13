@@ -1,0 +1,20 @@
+{"v":1,"id":"019ca3dd-3cd2-770b-aba0-4a0be5f25d08","at":1772275711186000000,"seq":657,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca3dd-3cd2-76f8-bf1f-5d28e4fc6d6b","at":1772275711186000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ca3dd-5388-72a5-9ae9-186cb7053cce","at":1772275717000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3dd-6328-793a-810a-4cf525056079","at":1772275721000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3ef-b8a5-7b2c-8c9e-dc84b57e0bf4","at":1772276922533000000,"seq":661,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca3f0-5e88-793a-83a6-19b3cdee3105","at":1772276965000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3f0-7dc8-7dfa-9d97-4a3ce7875c35","at":1772276973000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ca400-0969-7df7-91f6-89d5811a193e","at":1772277991785000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ca400-6800-723f-8893-9de0e7d9fe37","at":1772278016000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca400-b238-754e-9fc9-2558e90eb27e","at":1772278035000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ca400-c9d2-7748-91a6-0f9ece6ec975","at":1772278041042000000,"seq":667,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ca400-d178-7d60-b5c6-ef852b88e74f","at":1772278043000000000,"seq":668,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca400-f4a0-7f5c-8d23-a0bc1a523f1a","at":1772278052000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca401-3ed8-71f6-a629-85381cce56e3","at":1772278071000000000,"seq":670,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca401-7588-7207-8614-08ed61f8ca5d","at":1772278085000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ca401-7816-78c4-b2a8-c3c9f59b023c","at":1772278085654000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ca401-98b0-7923-af4b-663499580ebc","at":1772278094000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ca401-e6d0-7a50-8026-5d36b9b3e3e9","at":1772278114000000000,"seq":674,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca401-f670-7762-9ab4-ef2c339a211a","at":1772278118000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca402-0ad7-7c3b-9221-7e4ad6e6de44","at":1772278123223000000,"seq":676,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}

@@ -1,0 +1,25 @@
+{"v":1,"id":"019bd056-3170-78e1-bd5b-56270245a565","at":1768726868336000000,"seq":225,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd056-3170-7f7c-b0b8-9ed0118606ac","at":1768726868336000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd056-cf6e-7b77-bc97-de0c9cfadff7","at":1768726908782000000,"seq":227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd056-dfe8-7355-9cb1-9ee075681e08","at":1768726913000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd056-f370-7266-8140-7b336c166c5d","at":1768726918000000000,"seq":229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd057-0ae0-7994-a30a-7cfb6caf3320","at":1768726924000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd057-0ec8-7d22-aa65-1fb029debfa8","at":1768726925000000000,"seq":231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bd057-9f50-7f70-b03c-87369d93d894","at":1768726962000000000,"seq":232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd057-d6b2-75e1-b958-b649271e4aed","at":1768726976178000000,"seq":233,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd057-f158-7100-9e63-35ec636a58df","at":1768726983000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd057-f928-7f2f-8065-eee7c9eb6989","at":1768726985000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd058-04e0-7859-9336-28d2d20fd874","at":1768726988000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd058-1098-72be-9024-de703c49a0aa","at":1768726991000000000,"seq":237,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd058-1480-7f61-b89d-e09f799ce89e","at":1768726992000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bd058-151a-7a41-8f94-f924d8d61613","at":1768726992154000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd058-5300-7def-9561-6f14bad8ca42","at":1768727008000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd058-7240-7077-8239-1ed9763afe9d","at":1768727016000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd058-b5ae-7ad5-a654-c76391cd1332","at":1768727033262000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd059-2208-7c92-8dab-c8d049b7b874","at":1768727061000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd059-4148-7430-ae73-8fd038580524","at":1768727069000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd059-6470-769c-a518-f8c621ad9adb","at":1768727078000000000,"seq":245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd059-6e10-72bb-a7b4-bd8ef75fd4c5","at":1768727080464000000,"seq":246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd059-8b80-7572-ad06-be2c24e6a038","at":1768727088000000000,"seq":247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd059-9b20-7334-af7a-959a679176b1","at":1768727092000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd059-b290-7577-a876-ee3b57ba9d03","at":1768727098000000000,"seq":249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

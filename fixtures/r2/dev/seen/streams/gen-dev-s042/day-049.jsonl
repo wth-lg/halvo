@@ -1,0 +1,43 @@
+{"v":1,"id":"019c702f-8e29-7544-bd4f-23b86c6e0978","at":1771408690729000000,"seq":613,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c702f-8e29-7303-96d8-388a5ebd97c3","at":1771408690729000000,"seq":614,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c702f-9708-73fe-80e9-d04fdd7341ed","at":1771408693000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7030-23a8-7503-a07b-7393aa8358ec","at":1771408729000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7030-46d0-7055-89e5-0eecf04c646e","at":1771408738000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7030-647e-7742-8640-10c5593cbd53","at":1771408745598000000,"seq":618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7030-a0a8-7f78-90cd-d9086b116c32","at":1771408761000000000,"seq":619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7040-38cb-746a-98a6-cdb7b17bd198","at":1771409782987000000,"seq":620,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7040-38cb-7ace-b7bf-7aee692f078c","at":1771409782987000000,"seq":621,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7040-5fe8-77c0-b33e-8074d06f1394","at":1771409793000000000,"seq":622,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7040-86f8-7d86-8f61-73d397f7cd13","at":1771409803000000000,"seq":623,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7040-9698-79c3-b63c-e6dacbc55b54","at":1771409807000000000,"seq":624,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c7040-ae08-7d23-8b6c-2af0d602a885","at":1771409813000000000,"seq":625,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7041-1398-76e2-aac9-f66a2572aaf9","at":1771409839000000000,"seq":626,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7058-783b-7a53-b5ef-86fdb10ece76","at":1771411372091000000,"seq":627,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7058-783b-7f42-9b74-92cfd686005e","at":1771411372091000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7058-9ef0-7211-b519-570531c48d04","at":1771411382000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7058-b278-75a8-952f-e63f28e51dc4","at":1771411387000000000,"seq":630,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7058-ba48-7159-bffb-b1b207e6020c","at":1771411389000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7058-c218-7ddc-b57d-28f30969a3c1","at":1771411391000000000,"seq":632,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7060-dab3-763f-a780-f84dbd712941","at":1771411921587000000,"seq":633,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7060-dab3-7962-abb5-2980fb63e7cf","at":1771411921587000000,"seq":634,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7061-22a0-78e1-990d-0997984a0f37","at":1771411940000000000,"seq":635,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7061-2e58-7367-b039-b68a196a098b","at":1771411943000000000,"seq":636,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7061-9000-713e-b4b1-feff21725a4e","at":1771411968000000000,"seq":637,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c707b-d583-7ca9-8092-0b4c6b6a64c2","at":1771413689731000000,"seq":638,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c707b-d583-79bf-9996-695121975a57","at":1771413689731000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c707c-0958-729b-bcd1-fbbe957cac96","at":1771413703000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c707c-3068-7345-aedc-271fcd8f25cf","at":1771413713000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c707c-9008-715b-bac0-6dc5714fc2f7","at":1771413737480000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c707c-b538-7b96-ba13-d65fa380eadb","at":1771413747000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c707c-c8c0-7b9f-aeac-0f347746bf96","at":1771413752000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c707d-0470-765e-8dbe-6b86ecb7510e","at":1771413767280000000,"seq":645,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c707d-8673-77dc-930e-5be969b71dee","at":1771413800563000000,"seq":646,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c707d-9bb0-7a07-bb91-1c217b17657e","at":1771413806000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c707d-ab50-7b25-bb6e-53c9f1088a6a","at":1771413810000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c707d-c2c0-751f-9dd1-1661c694f490","at":1771413816000000000,"seq":649,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c707d-cdad-7c4e-b62f-411b78eb1f3e","at":1771413818797000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c707d-e9d0-7a89-abc9-de2a04791524","at":1771413826000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c707e-18b0-74c4-bdab-226cf3af238b","at":1771413838000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c707e-2080-7454-ae86-31acaacf605c","at":1771413840000000000,"seq":653,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c707e-2080-7be4-b4b6-1fe1476c2836","at":1771413840000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c707e-43a8-7d3f-9780-c90d57838f09","at":1771413849000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

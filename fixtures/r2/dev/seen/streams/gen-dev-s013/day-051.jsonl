@@ -1,0 +1,24 @@
+{"v":1,"id":"019c7a4b-2898-79e5-bbf1-59fbe0f80db6","at":1771578271896000000,"seq":588,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a4b-2898-76f8-a846-a88ed0f66e56","at":1771578271896000000,"seq":589,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a5e-cef6-7e7d-8723-ef1682a7afc3","at":1771579559670000000,"seq":590,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a5e-cef6-74bf-9db9-4f835f25658f","at":1771579559670000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a5f-6fda-7939-a933-3cd481a29e93","at":1771579600858000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a5f-7c20-72e3-a44f-753b1cecdc59","at":1771579604000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a5f-9390-7a08-86d3-35427c13aa69","at":1771579610000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c7a5f-a330-7b2d-8933-5f1a571cd995","at":1771579614000000000,"seq":595,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7a5f-be39-76d1-ab0d-8590bf70ce23","at":1771579620921000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a5f-be88-71bb-a77c-342e5645ca69","at":1771579621000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a5f-ce28-7085-96a7-6b8ada0f163c","at":1771579625000000000,"seq":598,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a5f-e598-7bfc-af83-1defd0087880","at":1771579631000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a5f-fd08-77ed-a4da-f375c9dfc619","at":1771579637000000000,"seq":600,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a60-2030-7ae1-b180-491fbe0ab91f","at":1771579646000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c7a60-27dd-704c-8c8b-55829b569918","at":1771579647965000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a60-7a08-7ca7-8845-d24838f1cbbe","at":1771579669000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a60-d1e8-7eb4-a9f5-3f2070c4c463","at":1771579691496000000,"seq":604,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a60-faf0-747c-9bf4-d68d5d42b148","at":1771579702000000000,"seq":605,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a61-1a30-7e25-b670-8575a48f11e6","at":1771579710000000000,"seq":606,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7a61-5112-7d54-9b71-a21d23514898","at":1771579724050000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a61-9f00-751a-a386-1406d9074286","at":1771579744000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c7a64-8466-7dc0-bc9f-dfbf65aa3125","at":1771579933798000000,"seq":609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7a64-bfc8-77a1-8811-1cd1123be8ec","at":1771579949000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a64-e6d8-7aec-bf3e-94908537a175","at":1771579959000000000,"seq":611,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

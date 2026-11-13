@@ -1,0 +1,19 @@
+{"v":1,"id":"019c84fe-6082-7d41-bd72-553f508c51bf","at":1771757789314000000,"seq":659,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84fe-6082-7f1d-9a96-db7623e7d3d1","at":1771757789314000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c84fe-95f8-7a33-9dc9-6068f8df6c82","at":1771757803000000000,"seq":661,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c84fe-b150-7e86-8126-eeadca9ede11","at":1771757810000000000,"seq":662,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c84ff-386d-7eb8-b9aa-26602479daa1","at":1771757844589000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c84ff-b708-7906-9c36-157edc7b9770","at":1771757877000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c84ff-baf0-7542-97e3-fba68d10e1c5","at":1771757878000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c84ff-f1a0-7dff-818a-380a919c89eb","at":1771757892000000000,"seq":666,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c84ff-f49a-7697-9bc2-21917aed9706","at":1771757892762000000,"seq":667,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8500-14c8-7324-908e-838f5f551e13","at":1771757901000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8500-18b0-73fe-8b19-afa3301a29ff","at":1771757902000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8514-bfae-77fd-bea9-8a63e2338e20","at":1771759255470000000,"seq":670,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8514-bfae-7ce0-be9a-c5d2db9c9f63","at":1771759255470000000,"seq":671,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8514-d160-700b-8a99-aefa5e0cdb2c","at":1771759260000000000,"seq":672,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c8514-dd18-78b8-95f8-f248a1c2f3ba","at":1771759263000000000,"seq":673,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8514-f870-7379-830c-7970d5f697e5","at":1771759270000000000,"seq":674,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8515-2f20-7439-8f8b-11dc0d927e24","at":1771759284000000000,"seq":675,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c8515-4761-7e95-9922-c35de4e28956","at":1771759290209000000,"seq":676,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c8515-5630-7b5d-b97c-2aeeac7bfe1d","at":1771759294000000000,"seq":677,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

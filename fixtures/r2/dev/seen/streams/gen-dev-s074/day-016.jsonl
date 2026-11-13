@@ -1,0 +1,31 @@
+{"v":1,"id":"019bc647-bf11-73ee-b699-421a36847f75","at":1768558149393000000,"seq":250,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc647-bf11-7722-898d-ce29dff4d2f3","at":1768558149393000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc648-0ba8-7b49-9bed-27d4ba60cdb4","at":1768558169000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc648-59c8-7ead-84f0-5aad463fc1b8","at":1768558189000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc65c-862d-7c85-b091-69bf96994249","at":1768559511085000000,"seq":254,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bc65c-bc88-7e44-9593-513994a52c22","at":1768559525000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bc65c-dced-7251-97b7-05b11db75c5f","at":1768559533293000000,"seq":256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bc65d-50f8-717c-ae14-81b6d77fd302","at":1768559563000000000,"seq":257,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc65d-69fe-7daf-9258-15b164bc504b","at":1768559569406000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bc65e-5a98-7072-ab47-7bc31b6e479d","at":1768559631000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bc65e-5e80-7659-890e-d1fd3b05d3df","at":1768559632000000000,"seq":260,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc65e-6c67-7ff5-9908-cea975a22102","at":1768559635559000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bc65e-9530-75d1-a663-ff96b8b924e3","at":1768559646000000000,"seq":262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc65e-a4d0-7e7c-a82f-d2779aa464f4","at":1768559650000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc65e-b470-74ce-b4db-c8bd5e3b62a1","at":1768559654000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc65e-e350-7ca7-b336-c0cb561a4b21","at":1768559666000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc662-4462-72d3-857e-eeb1273caa39","at":1768559887458000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bc662-c380-79b9-84bd-a6d861853933","at":1768559920000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc662-ff3e-7df3-85f7-2836efb504c9","at":1768559935294000000,"seq":268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bc663-09d0-7408-abdd-9593c3184a7b","at":1768559938000000000,"seq":269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc663-1970-7985-b914-ca5023238cc2","at":1768559942000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc663-2528-7f2e-932b-939b93f12aaf","at":1768559945000000000,"seq":271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc663-38b0-7e90-bdf8-ec0140f21814","at":1768559950000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc663-3a5d-7e9e-8405-c2088e59a125","at":1768559950429000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bc663-4850-71e6-9bac-1c93e029268f","at":1768559954000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc663-ffe8-79cf-912f-5756a9ebf0b5","at":1768560001000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc664-3910-78b2-9eb9-d9aacbf40271","at":1768560015632000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bc664-3a80-7443-8912-c180d7eb6773","at":1768560016000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bc664-4e08-7eec-b994-6f673f212a38","at":1768560021000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc664-6190-75d7-94c8-1e97c8dbb12b","at":1768560026000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc664-9458-7b58-9026-56759dc96878","at":1768560039000000000,"seq":280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

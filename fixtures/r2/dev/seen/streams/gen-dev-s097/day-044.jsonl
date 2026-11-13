@@ -1,0 +1,21 @@
+{"v":1,"id":"019c55d5-3a65-7266-aea0-4d51563c2b53","at":1770966563429000000,"seq":670,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c55d5-3a65-751b-897a-41a13b4462c5","at":1770966563429000000,"seq":671,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c55f1-3934-74ff-81f0-b5a2803eadd5","at":1770968398132000000,"seq":672,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c55f1-3934-78cb-8467-7a6b080b0a5c","at":1770968398132000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c55f1-9a58-74d8-8378-5f087721eb16","at":1770968423000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c55f1-ca19-7c13-a390-e9ed8db6b4ce","at":1770968435225000000,"seq":675,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c55f1-e0a8-77d9-b0f5-099bbe9f4bbd","at":1770968441000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f1-f818-799d-8b22-05a599f8f926","at":1770968447000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f2-379a-7cf1-879f-db4e9a825047","at":1770968463258000000,"seq":678,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c55f2-5da8-7c1b-8e07-151b55da9c00","at":1770968473000000000,"seq":679,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c55f2-80d0-7fc4-9c4a-5e87db1744a4","at":1770968482000000000,"seq":680,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c55f2-a313-70a5-b7d0-1a2ece93081d","at":1770968490771000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c55f2-cb08-7c01-b5ac-60b5af7d9add","at":1770968501000000000,"seq":682,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c55f3-28c8-7896-8e72-f14b5f35a8f9","at":1770968525000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c55f5-2923-7726-aee0-a1e7aeb2aa6b","at":1770968656163000000,"seq":684,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c55f5-2c68-7cbc-9f37-c75619ed2856","at":1770968657000000000,"seq":685,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c55f5-3438-7abc-a3e1-a711c3e06c2e","at":1770968659000000000,"seq":686,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c55f5-43d8-7dcc-93c2-8d1c7734f344","at":1770968663000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f5-4f90-7b73-8df8-8d70d5679982","at":1770968666000000000,"seq":688,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f9-b40d-7c06-a7d8-90c440cd5fa7","at":1770968953869000000,"seq":689,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c55fa-1e08-7d6c-85cd-c26f4d050d4a","at":1770968981000000000,"seq":690,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

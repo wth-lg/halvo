@@ -1,0 +1,20 @@
+{"v":1,"id":"019c22b9-1669-77b8-a1ff-0a739eb6073e","at":1770109081193000000,"seq":506,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22b9-1669-7785-9896-6a216802ca00","at":1770109081193000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c22b9-67b0-794c-8d85-a19c03e414fc","at":1770109102000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c22b9-e285-78d2-a769-10b29df405ca","at":1770109133445000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c22b9-f450-7044-a3b7-e9c61edeb492","at":1770109138000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ba-03f0-79a7-a695-9c4f3eea3853","at":1770109142000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c22ba-07d8-7a11-b627-232fbf32a319","at":1770109143000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c22ba-2174-769a-afd2-9ea346e5c60d","at":1770109149556000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c22ba-59e0-714f-ad35-c635777abf2f","at":1770109164000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22ba-7150-7046-a77a-95ef1c3ed708","at":1770109170000000000,"seq":515,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c22cf-d22d-7dd7-aeac-2aba7955a2e5","at":1770110571053000000,"seq":516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c22d0-4b10-76d6-91a9-b77b0e0d725f","at":1770110602000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22dd-cd64-751d-8724-e318a0f6420f","at":1770111487332000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c22de-4148-7076-9dfd-0b822e9031b0","at":1770111517000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22de-50e8-7c4e-9c19-2a102f92f851","at":1770111521000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c22de-8f68-7c81-8007-7e33a22dc896","at":1770111537000000000,"seq":521,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c22e7-3d00-71f9-9678-70e4c73f0a83","at":1770112105728000000,"seq":522,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c22e7-3d00-7682-92a4-c48e462fdbd5","at":1770112105728000000,"seq":523,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c22e7-78a8-7653-9ae7-b63d7e77d940","at":1770112121000000000,"seq":524,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c22e7-9bd0-7463-b00f-9d92afdbd35e","at":1770112130000000000,"seq":525,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

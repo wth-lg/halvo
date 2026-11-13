@@ -1,0 +1,18 @@
+{"v":1,"id":"019c0db8-192d-75f0-85e5-9ee3627935fb","at":1769756694829000000,"seq":418,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0db8-192d-79a0-92af-b078e89ccbcf","at":1769756694829000000,"seq":419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0db8-2d60-7e63-befb-f7a40d707ed7","at":1769756700000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0db8-6028-7f8f-b5bd-ee1e2d038f51","at":1769756713000000000,"seq":421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0db8-6410-7bab-a16e-f1da11b51d99","at":1769756714000000000,"seq":422,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0db8-6be0-777c-bb6e-4de3549b1192","at":1769756716000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dbb-45be-7c61-998b-fe859e903372","at":1769756902846000000,"seq":424,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0dbb-45be-7a27-8057-e17ba1a39795","at":1769756902846000000,"seq":425,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0dbb-7538-7866-9d38-06b9bf873729","at":1769756915000000000,"seq":426,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c0dbb-bb88-7a80-8da3-8eed696ed59e","at":1769756933000000000,"seq":427,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c0dbb-f620-7661-881c-7d2090ef1d4b","at":1769756948000000000,"seq":428,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c0dbb-fcc6-7280-8050-57c91873ba9e","at":1769756949702000000,"seq":429,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c0dbc-05c0-7d31-b231-7e251789aaba","at":1769756952000000000,"seq":430,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c0dbc-0d90-749e-b311-0bc6a3a34060","at":1769756954000000000,"seq":431,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dbc-2500-7b79-85aa-ecd00934490e","at":1769756960000000000,"seq":432,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dbc-34a0-7e98-81a9-7ba2ac4486fd","at":1769756964000000000,"seq":433,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c0dbc-543f-7479-a4bc-6cdfd2dfb411","at":1769756972095000000,"seq":434,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c0dbc-7ed8-763f-8a29-2401e80dbeb3","at":1769756983000000000,"seq":435,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}

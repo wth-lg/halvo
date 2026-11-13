@@ -1,0 +1,12 @@
+{"v":1,"id":"019c6f8f-ebf0-75c0-98d6-3e0c6d1bdb9d","at":1771398228976000000,"seq":596,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6f8f-ebf0-78f5-8086-aaf97777ee79","at":1771398228976000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6f90-1318-7384-bb3f-7668b72b9df0","at":1771398239000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6f90-1ed0-74d4-8b85-1ae94d38fb95","at":1771398242000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6f90-3a28-708c-8307-02cee0b4f0af","at":1771398249000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c6fa6-c634-7374-bb2c-071a9f469dcb","at":1771399726644000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6fa6-cf68-7dee-bdb1-caaf8334d45d","at":1771399729000000000,"seq":602,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6fa6-df08-731c-affe-c1ade736e150","at":1771399733000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fa7-0230-7631-ad9a-83ac0bbdbcf9","at":1771399742000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fa7-61de-7490-8d48-29d3b210eb88","at":1771399766494000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6fa7-63d8-7611-a75d-efcabea0779c","at":1771399767000000000,"seq":606,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6fa7-e0d8-7ae0-999f-c4da6845003d","at":1771399799000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

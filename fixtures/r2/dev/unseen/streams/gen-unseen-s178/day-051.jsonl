@@ -1,0 +1,20 @@
+{"v":1,"id":"019c7a3e-04d8-7a42-9d5f-268271a292ae","at":1771577410776000000,"seq":650,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a3e-04d8-7f4a-84a6-413b8063d1d7","at":1771577410776000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7a3e-2cc8-746a-97c3-7f4fb662f329","at":1771577421000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c7a3e-57c0-70c8-b8d2-1a78d180baf2","at":1771577432000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a52-8575-76cd-b144-0854c2c425b0","at":1771578754421000000,"seq":654,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7a52-87b8-7859-990d-dc8e994ab032","at":1771578755000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a52-d5d8-7baa-8897-9b3cdf56fc58","at":1771578775000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c7a53-1070-7992-bf51-c2f0de5f0162","at":1771578790000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a53-666e-7f7b-babe-8063f1c35323","at":1771578812014000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7a53-9928-7a91-a65d-6796f9a6c340","at":1771578825000000000,"seq":659,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a53-c038-703a-9058-49c218490e12","at":1771578835000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a53-e360-78d3-bb49-471256cfb063","at":1771578844000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c7a54-1240-7f6d-8477-86e963746fda","at":1771578856000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a54-20b5-7f10-9e7a-da85a0ac962a","at":1771578859701000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7a54-29b0-7548-b098-eba6ef0c74b6","at":1771578862000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a54-50c0-781e-b8d3-b63e3d97d7f1","at":1771578872000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7a54-6448-7f81-b092-b239003cc927","at":1771578877000000000,"seq":666,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a54-6c18-7ffc-82da-28aa3ca50640","at":1771578879000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a6b-0cb6-710e-a5c0-53efd3621b9c","at":1771580361910000000,"seq":668,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7a6b-47a8-71e1-a387-01a68c3aee31","at":1771580377000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,36 @@
+{"v":1,"id":"019cc24d-65e1-738f-8a77-b130773f8a46","at":1772786378209000000,"seq":923,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc24d-65e1-7800-a4e2-f6b24e6ed217","at":1772786378209000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc24d-8c20-7512-a92f-fd8c4542e075","at":1772786388000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc24d-f9d8-7fc5-b3d3-9a54117d5c83","at":1772786416088000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc24e-47a0-7caa-b4b5-73ce301c6af6","at":1772786436000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc24e-5f10-78a9-a35b-3bc33384ebc3","at":1772786442000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cc24e-6eb0-7a68-b91b-53e022022fd5","at":1772786446000000000,"seq":929,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc24e-cc70-7c02-a65b-d27d6bce8268","at":1772786470000000000,"seq":930,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc24e-d45b-75ad-8788-dbcf7dd5b641","at":1772786472027000000,"seq":931,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cc24e-dc10-7e7e-8b9b-f7e369bade4e","at":1772786474000000000,"seq":932,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cc24f-b30e-7362-82e3-08f8e88acf0b","at":1772786529038000000,"seq":933,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cc24f-ca58-76bc-adf3-36310464a913","at":1772786535000000000,"seq":934,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc24f-e1c8-7ce0-ae61-5041a2fde39b","at":1772786541000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc250-0108-7e9c-81cc-95688db41c67","at":1772786549000000000,"seq":936,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc250-1490-7f18-a142-741b6b92fc99","at":1772786554000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc250-37b8-7b2f-a53f-edfae894abf9","at":1772786563000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cc250-53dd-72a9-8341-40d6f148fdde","at":1772786570205000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cc250-62b0-7603-8e51-6a2c68190702","at":1772786574000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc250-a9bc-7e67-a052-07b831d57058","at":1772786592188000000,"seq":941,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cc250-ace8-71a2-91ab-17b7f11872a8","at":1772786593000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc251-1278-7139-9a44-f59fe999840b","at":1772786619000000000,"seq":943,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc251-1e30-7879-9970-9d87a8d991e8","at":1772786622000000000,"seq":944,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc251-24fd-7b98-af8a-4b10b165d980","at":1772786623741000000,"seq":945,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc251-5cb0-7d46-914d-786857520dbe","at":1772786638000000000,"seq":946,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc251-d5c8-72fc-a710-198e358777a8","at":1772786669000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cc252-00c0-7f96-92bf-7cdbf4d0dde8","at":1772786680000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc252-25d0-758e-929f-320f4ccccdb6","at":1772786689488000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc252-27d0-7163-bfcc-abec70f84147","at":1772786690000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc252-3388-7807-8ea7-da0d4f787391","at":1772786693000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc252-3f40-79c9-954e-9fdde0fb5472","at":1772786696000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc252-4328-7a50-8e6b-30dc678d231c","at":1772786697000000000,"seq":953,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc252-6268-710d-8843-a3e5da492ca7","at":1772786705000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cc256-ca63-7f9b-9084-ff41bfa3fad5","at":1772786993763000000,"seq":955,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cc257-1588-78de-ab9d-56f89ab5b758","at":1772787013000000000,"seq":956,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc257-4850-7569-afcf-d6d70110351d","at":1772787026000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cc257-5020-7ef2-a730-0d5a16e04b9e","at":1772787028000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

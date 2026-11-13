@@ -1,0 +1,23 @@
+{"v":1,"id":"019cfb0b-77a1-7b6e-9498-6d3e92b96d29","at":1773738358689000000,"seq":1026,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfb0b-77a1-78e2-a939-cb9b57a82836","at":1773738358689000000,"seq":1027,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cfb0b-a3d0-7ac1-88a2-f097ff526497","at":1773738370000000000,"seq":1028,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfb0b-cae0-75b0-8c56-13df4545c991","at":1773738380000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb0c-5780-709c-bd28-af800547d5dc","at":1773738416000000000,"seq":1030,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfb18-82eb-7fb2-a7cc-5aef97430bd6","at":1773739213547000000,"seq":1031,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfb18-8898-7e76-9bf6-d9302bcc38c5","at":1773739215000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb18-b390-76ab-946b-084b433dfa4f","at":1773739226000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb18-ba71-7b2c-a688-4b4b1e45b026","at":1773739227761000000,"seq":1034,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfb19-be58-7ce6-94bb-95875f2ef6f3","at":1773739294296000000,"seq":1035,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfb1a-4200-774a-bb58-06e45254ecaf","at":1773739328000000000,"seq":1036,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfb1a-8080-758c-83fe-9c445e44db8a","at":1773739344000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb1a-97f0-7276-85bb-7935b426e698","at":1773739350000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb1a-9eee-7929-8a54-8b6204db4201","at":1773739351790000000,"seq":1039,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfb1a-bf00-7b5f-98dc-6106e4ecc146","at":1773739360000000000,"seq":1040,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb1b-0d20-7c32-b6b3-f3049cb64463","at":1773739380000000000,"seq":1041,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfb1b-3048-768c-8c0a-cc9eb841ee73","at":1773739389000000000,"seq":1042,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb1b-8250-7dcc-ab50-950e71728433","at":1773739410000000000,"seq":1043,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cfb1b-8e08-7e6c-9f3c-3047e7f3491b","at":1773739413000000000,"seq":1044,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfb20-9e39-7449-a600-8aad96f2d7e5","at":1773739744825000000,"seq":1045,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cfb20-9ee8-7b44-a4d1-bdd49a4298a5","at":1773739745000000000,"seq":1046,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cfb20-f0f0-79c7-a9a7-55d513830f01","at":1773739766000000000,"seq":1047,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfb21-1fd0-7f17-bba7-a199c60553fe","at":1773739778000000000,"seq":1048,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,33 @@
+{"v":1,"id":"019ccd14-cbc3-7422-9f54-5d5b9b49e323","at":1772967218115000000,"seq":882,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccd14-cbc3-7d3f-bc89-fb40208b5128","at":1772967218115000000,"seq":883,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ccd15-09d0-746d-82c3-049b5b7c99cf","at":1772967234000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ccd15-159a-7617-9fce-fe476cc70f70","at":1772967237018000000,"seq":885,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 11 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ccd15-6b78-7fca-9daf-44f366e4cf98","at":1772967259000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd15-dcc0-7a80-bc91-f280f3b4e706","at":1772967288000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ccd15-e75e-7962-ab33-8ecad122ad3b","at":1772967290718000000,"seq":888,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ccd15-ec60-79df-a1b0-7ace7701468d","at":1772967292000000000,"seq":889,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ccd16-2ec8-7572-812b-a06385f5658b","at":1772967309000000000,"seq":890,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ccd16-3b55-7926-b8b9-f5cfbf6e6bf8","at":1772967312213000000,"seq":891,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ccd16-ea48-7e8f-9149-0e1d7b420c55","at":1772967357000000000,"seq":892,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ccd17-2928-76a8-81a4-e09b85f14903","at":1772967373096000000,"seq":893,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ccd17-82a0-72c7-83e4-2cf022bbfa57","at":1772967396000000000,"seq":894,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ccd17-9240-782b-8353-5553b1551469","at":1772967400000000000,"seq":895,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ccd22-8273-742b-b4e3-39fe6ec2dba3","at":1772968116851000000,"seq":896,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ccd22-9e60-780a-ab4c-c054ddd8d113","at":1772968124000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ccd22-b5d0-729f-9cbc-887852c6305a","at":1772968130000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd23-2d8b-7eec-b47f-2c0bdf838413","at":1772968160651000000,"seq":899,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ccd23-7538-7273-afd4-2617c472a104","at":1772968179000000000,"seq":900,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ccd24-1178-7b95-af9a-632ad1a6c027","at":1772968219000000000,"seq":901,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ccd24-1d30-7059-a921-d62e3238abca","at":1772968222000000000,"seq":902,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ccd24-2399-706b-88b4-38aa96e5ad2e","at":1772968223641000000,"seq":903,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ccd24-4058-7e7a-bb04-e49253be4ef6","at":1772968231000000000,"seq":904,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ccd24-4828-7ae8-a24f-dc77c314c40d","at":1772968233000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd24-4ff8-7699-b851-fbf4c9b49499","at":1772968235000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd24-a9d0-74b7-b302-e2808fdeef2c","at":1772968258000000000,"seq":907,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ccd24-b904-71e5-a250-a60881ef3a2e","at":1772968261892000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ccd25-26d0-7e57-9c93-30c01e9d79c6","at":1772968290000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ccd25-6550-7156-b212-22716cd1059e","at":1772968306000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd25-9430-7bfd-af24-19bbb54729f6","at":1772968318000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd25-c6c7-772d-9e19-db634e2b0143","at":1772968330951000000,"seq":912,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ccd26-3070-7fc7-a498-30a7a8538654","at":1772968358000000000,"seq":913,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd26-6ef0-7f39-92bf-fcfeec84578c","at":1772968374000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

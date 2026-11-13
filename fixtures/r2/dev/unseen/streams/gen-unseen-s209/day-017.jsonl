@@ -1,0 +1,21 @@
+{"v":1,"id":"019bcb5c-73c3-7e39-8fd6-3f33a40594a3","at":1768643392451000000,"seq":135,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb5c-73c3-7cc9-a7a3-90eed51affd4","at":1768643392451000000,"seq":136,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb5c-8970-7948-8e8f-d33eda97c414","at":1768643398000000000,"seq":137,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bcb5c-c020-7e6e-993b-3a8cd9157a96","at":1768643412000000000,"seq":138,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bcb5c-eb18-7cde-a7b5-cc032ee7efa2","at":1768643423000000000,"seq":139,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb5f-004e-7d39-998d-617857583a56","at":1768643559502000000,"seq":140,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb5f-004e-7125-85fd-dc3b75e02a00","at":1768643559502000000,"seq":141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bcb5f-0240-7e70-b51d-da93aaa83222","at":1768643560000000000,"seq":142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb5f-67d0-7745-9099-ebffe5c5bb82","at":1768643586000000000,"seq":143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bcb6e-20ef-7d2d-ac3f-85724a733aa3","at":1768644550895000000,"seq":144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bcb6e-f830-729e-9dac-cac887431808","at":1768644606000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bcb84-1493-7ac2-b420-c7077fce4835","at":1768645989523000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bcb84-3998-74df-93e9-b3f990a7fce4","at":1768645999000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb84-8171-71d2-b286-f1a1b857b6e0","at":1768646017393000000,"seq":148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bcb84-d1f0-7417-a6e8-b0617e090f68","at":1768646038000000000,"seq":149,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb84-dda8-7e82-a59e-70b1cae8f4ea","at":1768646041000000000,"seq":150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb85-1c28-7845-8187-25f7f654ccb5","at":1768646057000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bcb85-4029-7702-92a9-e6b8a2440e1a","at":1768646066217000000,"seq":152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bcb85-4720-7970-9532-f5935f234f9e","at":1768646068000000000,"seq":153,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bcb85-824b-7029-8347-52818f1c20da","at":1768646083147000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bcb85-e748-7675-bbc5-4ab5306adb06","at":1768646109000000000,"seq":155,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

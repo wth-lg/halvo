@@ -1,0 +1,32 @@
+{"v":1,"id":"019cffbe-ac60-73ec-bfc2-62c682139b29","at":1773817212000000000,"seq":1012,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cffbe-ac60-7f2e-af4d-de76f468f410","at":1773817212000000000,"seq":1013,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cffbe-eec8-709d-81b0-18cd99d71d24","at":1773817229000000000,"seq":1014,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cffbf-0250-7358-926a-150f306e141c","at":1773817234000000000,"seq":1015,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffbf-3ce8-72e9-bd1c-ef45e5a67821","at":1773817249000000000,"seq":1016,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffd9-1e5d-73be-9b13-fd54f6d0bd84","at":1773818945117000000,"seq":1017,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cffd9-1e5d-7b15-9d3f-7f370847cdcf","at":1773818945117000000,"seq":1018,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cffd9-4110-7d28-bf99-fefb814e8fcc","at":1773818954000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffd9-4cc8-78a9-ae43-8f15d8306777","at":1773818957000000000,"seq":1020,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffd9-9b99-7274-bd41-8fca3ffabe10","at":1773818977177000000,"seq":1021,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cffd9-f4c0-70d8-a138-1c0006212c81","at":1773819000000000000,"seq":1022,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffda-71c0-706f-89f0-c37df7a2f50a","at":1773819032000000000,"seq":1023,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffda-75a8-75d9-8b75-25fcef322042","at":1773819033000000000,"seq":1024,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cffef-0377-716c-86ba-b22cd350c01e","at":1773820380023000000,"seq":1025,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cffef-0377-729a-b767-ff34bd60484d","at":1773820380023000000,"seq":1026,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cffef-3628-7738-8871-ec0f342729b5","at":1773820393000000000,"seq":1027,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cffef-4d98-7b3c-bc6b-98abf44c0e7b","at":1773820399000000000,"seq":1028,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffef-68f0-7448-8c0b-93dfdf420576","at":1773820406000000000,"seq":1029,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffef-8830-7e8b-ace3-ee97288c3884","at":1773820414000000000,"seq":1030,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cfff9-7675-7b7d-af0f-ef922b02cbfb","at":1773821064821000000,"seq":1031,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfff9-7675-7f65-8b9b-eb96c971cb97","at":1773821064821000000,"seq":1032,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cfff9-7728-75d1-b06c-8ce02a5e3d3c","at":1773821065000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff9-b3d1-70de-b695-ea82e24674ea","at":1773821080529000000,"seq":1034,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cfff9-c160-7e8d-a557-eef2cb306673","at":1773821084000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff9-d100-7a18-a441-3d46064ee222","at":1773821088000000000,"seq":1036,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfff9-d8d0-7503-bc33-0e430a425504","at":1773821090000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cfffa-1750-7bcb-99a8-1bacbee28797","at":1773821106000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfffa-1b38-79d8-9988-5f6f6ef8683f","at":1773821107000000000,"seq":1039,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfffa-349d-7fd9-a849-557f4601d58a","at":1773821113501000000,"seq":1040,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cfffa-f48c-72ca-8ec1-e8f020e94291","at":1773821162636000000,"seq":1041,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cfffb-01b0-712a-86e8-36762208c7fa","at":1773821166000000000,"seq":1042,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfffb-2ca8-728c-b4aa-d440071ad03f","at":1773821177000000000,"seq":1043,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

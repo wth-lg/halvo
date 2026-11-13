@@ -1,0 +1,34 @@
+{"v":1,"id":"019b7863-f2de-767c-b99a-d52f8afb357b","at":1767251374814000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7863-f2de-77a7-925e-788ce27331bd","at":1767251374814000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b7864-8808-7b2c-be6c-ae9d49413ff5","at":1767251413000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7864-93c0-724d-b03a-cbf65687d781","at":1767251416000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7864-adb2-7af0-95fd-1f5c208d2e41","at":1767251422642000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b7864-b300-7443-af7c-58e71ff471da","at":1767251424000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7864-b300-7daa-8d8d-2f7b0586f125","at":1767251424000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b7864-d240-7f72-8aa2-ba8122f57865","at":1767251432000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7864-ec28-7d49-a785-97ec11e8f32b","at":1767251438632000000,"seq":8,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b7864-f180-737d-9b77-b4abac65ee6c","at":1767251440000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b7865-7268-7c75-a9d7-8598cb5acf2c","at":1767251473000000000,"seq":10,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7865-7a38-7d21-9825-8e6c6bb91958","at":1767251475000000000,"seq":11,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7865-9d6f-72f5-9d03-1b42af023b46","at":1767251484015000000,"seq":12,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b7865-b0e8-702f-bcc9-928de8c02ce6","at":1767251489000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7865-c470-7974-b96c-531025b2a8d4","at":1767251494000000000,"seq":14,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7865-dbe0-72ae-828b-7c73ff9e783e","at":1767251500000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7865-e3b0-7635-a964-28cfd34904e0","at":1767251502000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b7867-99a0-7e3a-9f4d-ad6656b7a00b","at":1767251614112000000,"seq":17,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7868-54b0-7f96-83d2-1fae48bd1f5d","at":1767251662000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7868-6838-7738-a00f-ed4298b77dcd","at":1767251667000000000,"seq":19,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7868-9ee5-7a8b-a0bf-0e026c14063c","at":1767251680997000000,"seq":20,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7868-aaa0-7d3a-9438-3bc3c4f96938","at":1767251684000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7868-b270-719b-bea7-15a27883a883","at":1767251686000000000,"seq":22,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7868-c210-7c00-ae8e-ef92923368f3","at":1767251690000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b7868-d598-787a-9dd4-631831962e29","at":1767251695000000000,"seq":24,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7868-e490-7ff8-a934-042117d160e6","at":1767251698832000000,"seq":25,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7868-ed08-7640-96c1-0caeccf5787b","at":1767251701000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b7868-f8c0-7937-8383-d562ef0433e6","at":1767251704000000000,"seq":27,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7869-42f8-7d11-8ee8-4f04cbf679f5","at":1767251723000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7869-5680-7ee5-b569-42b9159905f2","at":1767251728000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7869-894b-742c-a03e-ae49d8d2e9f0","at":1767251741003000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7869-b440-732d-a6fa-f4d261f9b3ed","at":1767251752000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7869-bc10-7396-b64d-0a5b4e426ce5","at":1767251754000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b7869-bff8-754a-918b-6c8f03fae8f7","at":1767251755000000000,"seq":33,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

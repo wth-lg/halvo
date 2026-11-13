@@ -1,0 +1,23 @@
+{"v":1,"id":"019d0085-03d4-71b3-999b-f9db6b8ec1f9","at":1773830210516000000,"seq":1182,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0085-03d4-7e72-b1e8-e1f3c9a94784","at":1773830210516000000,"seq":1183,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0085-30b0-7030-8ebe-a68574dce26c","at":1773830222000000000,"seq":1184,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d009c-beaa-758a-9125-c2515b1405e1","at":1773831765674000000,"seq":1185,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d009c-beaa-7bd9-b0f3-573dafa1d361","at":1773831765674000000,"seq":1186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d009c-c7c0-715b-87b7-8144773ec85a","at":1773831768000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d009c-cba8-7f2c-af44-9908a2a37904","at":1773831769000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d009d-016b-7db0-9d36-524150cf6f2d","at":1773831782763000000,"seq":1189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d009d-48a8-7af5-b7f2-2776536c487c","at":1773831801000000000,"seq":1190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d009d-49ed-7778-9ed2-dbf2d0470d0a","at":1773831801325000000,"seq":1191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d009d-6018-7e91-bbc6-e3342977be47","at":1773831807000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d009d-73a0-7a17-a244-f6d51cfe6d39","at":1773831812000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d009d-9e98-7907-8213-23c24294eae8","at":1773831823000000000,"seq":1194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d009d-b52c-77bf-be90-dc2d287a7028","at":1773831828780000000,"seq":1195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d009d-c5a8-7807-8f80-7c212dafa2cf","at":1773831833000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d009e-0040-7ba6-bc7e-ca7e1c3f85a0","at":1773831848000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d009e-0428-716e-8d09-03b8082ae741","at":1773831849000000000,"seq":1198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d00a0-a529-718a-a5be-3a6f2112769a","at":1773832021289000000,"seq":1199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d00a0-cb18-7195-8ca2-9ea0a51eacff","at":1773832031000000000,"seq":1200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d00a0-cf00-7180-8002-1abb81065cd6","at":1773832032000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d00a0-e670-702e-8f78-ff5c7f78fca1","at":1773832038000000000,"seq":1202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d00a0-fde0-7440-af06-f492197744fc","at":1773832044000000000,"seq":1203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d00a1-01c8-7e1a-b02d-98eb1a1ccdcf","at":1773832045000000000,"seq":1204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

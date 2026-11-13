@@ -1,0 +1,25 @@
+{"v":1,"id":"019c1dff-e306-73a8-b445-7aeb121dd182","at":1770029835014000000,"seq":361,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1dff-e306-7a8b-b43a-0b934a751824","at":1770029835014000000,"seq":362,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1e00-5440-7f4d-96d1-a95afa0d0831","at":1770029864000000000,"seq":363,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e00-9a90-7cff-a01b-82c826d990a0","at":1770029882000000000,"seq":364,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e00-bdb8-7202-9bcd-c8ae20e19f83","at":1770029891000000000,"seq":365,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c1e0f-d549-77ec-b423-f0a754885680","at":1770030880073000000,"seq":366,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1e0f-d549-7aab-a8ca-b06f1b477096","at":1770030880073000000,"seq":367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1e0f-f058-73c7-aee8-b5f833c6bb55","at":1770030887000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e10-6d38-77f1-a688-4f95d5d30fff","at":1770030918968000000,"seq":369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1e10-cf00-7e54-8159-d7b2a3de8c9d","at":1770030944000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1e10-fddd-774f-8a80-f0ff28df235b","at":1770030955997000000,"seq":371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 3 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1e11-1938-7fc3-969b-e7518585afca","at":1770030963000000000,"seq":372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1e11-24f0-7581-9dba-ef0b929252dc","at":1770030966000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e11-28d8-794b-af68-85f91565a9ad","at":1770030967000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c1e11-3490-7ef2-a286-db5895d6a985","at":1770030970000000000,"seq":375,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1e11-3f55-70c4-87a1-d154e5351186","at":1770030972757000000,"seq":376,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1e11-a5d8-70bf-8e65-96d03d043373","at":1770030999000000000,"seq":377,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1e11-e458-760a-b757-5cf5502aade2","at":1770031015000000000,"seq":378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1e25-87ea-78d0-8d82-657e24bcb80f","at":1770032302058000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1e25-be60-746d-bbfd-7301bcfdc2c2","at":1770032316000000000,"seq":380,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1e26-3390-7f52-9246-aec7bc696a19","at":1770032346000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e26-3778-783c-a757-6815ddfa962c","at":1770032347000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1e2b-32a8-7085-b408-9c72be0f34de","at":1770032673448000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1e2b-8ac0-72b2-8e47-0cf0ce47b42c","at":1770032696000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e2b-aa00-70fe-8254-b725021df8f2","at":1770032704000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

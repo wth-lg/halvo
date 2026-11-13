@@ -1,0 +1,17 @@
+{"v":1,"id":"019b7dde-658b-74a0-b666-60119131ed0e","at":1767343285643000000,"seq":28,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7dde-658b-76da-a7b1-e92d3f107deb","at":1767343285643000000,"seq":29,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b7ddf-16b8-7365-80bf-fe180619ca71","at":1767343331000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7ddf-64ac-78a3-9651-9df30784449c","at":1767343350956000000,"seq":31,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b7ddf-8418-7b01-9432-3d0712accf70","at":1767343359000000000,"seq":32,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7ddf-93b8-7f40-8f1a-4080a8fab295","at":1767343363000000000,"seq":33,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7ddf-e9a8-725b-abbc-ce7f7582c686","at":1767343385000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b7de0-10b8-74d1-bd1b-bbdd462a3169","at":1767343395000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de0-1888-7568-8b2b-6ff63c42c0dc","at":1767343397000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de0-7509-7c1f-a311-fdc1fe8be91c","at":1767343420681000000,"seq":37,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b7de0-8db8-7934-af07-267d4161b538","at":1767343427000000000,"seq":38,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7de0-9d58-7100-9f3e-52b1e6527532","at":1767343431000000000,"seq":39,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de0-d020-7ba6-ba8d-58f9aeb137f6","at":1767343444000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de0-e419-7589-9d8e-dc380d984939","at":1767343449113000000,"seq":41,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b7de1-0ab8-7a06-99dd-4d7668805c05","at":1767343459000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de1-2de0-7410-9dcb-7f31cd0757bb","at":1767343468000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de1-4d20-7b13-a50e-0e87480cefea","at":1767343476000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

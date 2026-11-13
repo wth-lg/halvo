@@ -1,0 +1,36 @@
+{"v":1,"id":"019c4bac-100a-77e9-84a4-3e2dbafdcd0b","at":1770796093450000000,"seq":663,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4bac-100a-71ce-8d23-555d30b8f972","at":1770796093450000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c4bac-6820-7b54-a2ce-b891d4fe0e61","at":1770796116000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bac-dcd0-7182-8aba-5498a6a8f5bc","at":1770796145872000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c4bac-dd50-75c6-9b41-d165ce7ee2a3","at":1770796146000000000,"seq":667,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4bac-f8a8-7bfe-9a42-73c4148b406b","at":1770796153000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bad-2f58-7a58-abf4-e2001bbf4888","at":1770796167000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4bad-54cd-7b6a-83d3-1a30b86409f1","at":1770796176589000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c4bad-5e38-7e57-8491-d67c6e296bde","at":1770796179000000000,"seq":671,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4bad-9100-7a56-9a05-a5da0cdad4a1","at":1770796192000000000,"seq":672,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4bad-c4a5-7e0c-81b7-08bf7be51b77","at":1770796205221000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c4bae-2ab4-7690-9a6b-a5faa95e9b8f","at":1770796231348000000,"seq":674,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4bae-2ab4-76a7-82f3-64ffd76e0e4b","at":1770796231348000000,"seq":675,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4bae-7b60-726d-b55f-1b30c9224dbc","at":1770796252000000000,"seq":676,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c4bae-8718-7b01-a65c-d5e2f7d05067","at":1770796255000000000,"seq":677,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c4bae-a270-7e5e-9e73-cc3b152e0a03","at":1770796262000000000,"seq":678,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bae-b9e0-7f59-8a7c-bea8bb80f00d","at":1770796268000000000,"seq":679,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bae-e061-7493-ba7e-dd8fad0f42e4","at":1770796277857000000,"seq":680,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4bae-e061-7c00-bfd6-9a08c092d0c2","at":1770796277857000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c4bae-e0f0-7550-a283-dfc2806924f9","at":1770796278000000000,"seq":682,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bae-f090-7c96-b075-4a43dbe13cd3","at":1770796282000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4baf-1b88-7988-b61b-49a2d5514015","at":1770796293000000000,"seq":684,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4baf-2874-760b-9d2d-ace72602a5ed","at":1770796296308000000,"seq":685,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c4baf-2b28-72cb-aa30-a40cb2222288","at":1770796297000000000,"seq":686,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4baf-a440-7f2c-abc2-41ee0dcec737","at":1770796328000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4baf-ea90-74d8-a953-29ab01c04ed9","at":1770796346000000000,"seq":688,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bbd-b0f0-7798-8031-e8a66c4047ee","at":1770797248752000000,"seq":689,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c4bbe-55f8-766c-b8d7-fe0ef72f269a","at":1770797291000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bbe-5830-74a0-beb2-3f80973f2f83","at":1770797291568000000,"seq":691,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c4bbe-61b0-70d6-9753-01bf5f053330","at":1770797294000000000,"seq":692,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c4bbe-9478-7a15-a3cf-e2c94fda0f1a","at":1770797307000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bbe-acfc-7ebf-9011-6f6660d8f99e","at":1770797313276000000,"seq":694,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c4bbf-0d90-74a5-9932-228eb2ec69e5","at":1770797338000000000,"seq":695,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4bbf-4c10-7d1e-9c64-b8f91255805f","at":1770797354000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4bbf-a9d0-7113-8ac9-868279e3944e","at":1770797378000000000,"seq":697,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4bbf-b2e2-70c6-9621-c5e07fc8f513","at":1770797380322000000,"seq":698,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}

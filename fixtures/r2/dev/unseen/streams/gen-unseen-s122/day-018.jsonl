@@ -1,0 +1,31 @@
+{"v":1,"id":"019bd06d-f261-7084-8fc2-4cf7bf3d77b5","at":1768728425057000000,"seq":152,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd06d-f261-7c93-8e73-13bfafc44cbb","at":1768728425057000000,"seq":153,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd06e-4fe8-7cf6-b81c-ff8f8c2e56dc","at":1768728449000000000,"seq":154,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bd06e-5f88-7e78-b927-541c91cfb23a","at":1768728453000000000,"seq":155,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd072-aa21-78d6-a025-676794db9e86","at":1768728734241000000,"seq":156,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd072-aa21-7f93-b096-645f78155bfd","at":1768728734241000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bd073-2e00-7354-abfb-ceb4ba9e089a","at":1768728768000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd073-79ef-789c-9f5a-9b1958a8fe4f","at":1768728787439000000,"seq":159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bd073-7c20-783d-b96d-cb56555de3d6","at":1768728788000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd073-8fa8-7bf1-a0ef-736bc926ce83","at":1768728793000000000,"seq":161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd073-9f48-798c-98bd-46fb66cc27d0","at":1768728797000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd073-c658-72be-a1a1-0f88ce05af89","at":1768728807000000000,"seq":163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd073-c658-795a-ae4d-8935e7e45e97","at":1768728807000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bd073-cf9f-7d46-864b-9cff50cb3fa2","at":1768728809375000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bd073-d5f8-7164-bf99-94ea05d609fa","at":1768728811000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd074-4536-7559-b770-247a42a4659c","at":1768728839478000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bd074-4f10-7616-951f-87d99a68769a","at":1768728842000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bd074-6a68-731c-af09-e7eff87b3d5e","at":1768728849000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd074-acd0-7aac-a47b-6f8d7ace9d5c","at":1768728866000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd08b-3cc5-74be-b045-835a720959e0","at":1768730344645000000,"seq":171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bd08b-d680-76a3-b6d5-b2c33f19f852","at":1768730384000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd08b-d680-7913-a188-6d75e9a7789c","at":1768730384000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd08b-f9a8-7cd8-938b-d9ff98323ede","at":1768730393000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd08c-08ee-7efc-9eb2-379df0dc8617","at":1768730396910000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bd08c-0d30-752c-9d29-3eeae8b0f844","at":1768730398000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd08c-8260-7637-b5f0-d8dc72aec9d4","at":1768730428000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd08c-8260-7445-845a-a42c9737b9ba","at":1768730428000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bd08c-b8d7-7654-8e9b-4e7dc26c9a3a","at":1768730441943000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bd08d-89d2-7ae7-8f10-96c3883e5ff5","at":1768730495442000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bd08e-2c28-78e8-ba7c-f29a7923c03d","at":1768730537000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd08e-4780-7873-abb5-faa3632b25c7","at":1768730544000000000,"seq":182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

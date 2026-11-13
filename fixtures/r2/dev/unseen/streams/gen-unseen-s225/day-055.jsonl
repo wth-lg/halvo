@@ -1,0 +1,9 @@
+{"v":1,"id":"019c8eef-f82f-7414-ae43-2c8979aa686d","at":1771924617263000000,"seq":735,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8eef-f82f-73e3-8f24-127b732b3d4d","at":1771924617263000000,"seq":736,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c8ef4-e0d9-7b4f-ad0e-bf223d06abd7","at":1771924938969000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8ef5-3eb8-7fa7-babb-b373ffee9eda","at":1771924963000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef5-635b-710c-aa39-9784c8f2c958","at":1771924972379000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8ef5-7180-75d1-8000-c2e093101b24","at":1771924976000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef5-94a8-75e6-81c8-da1ebb48f1ed","at":1771924985000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef5-a448-7ab2-8df0-2c298dd84c09","at":1771924989000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8ef5-daf8-7cda-8d3b-f3948751544a","at":1771925003000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

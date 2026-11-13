@@ -1,0 +1,5 @@
+{"v":1,"id":"019cebad-8d2c-7960-825b-472082bde043","at":1773480545580000000,"seq":1000,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cebad-8d2c-79a8-ac8f-134908eb964d","at":1773480545580000000,"seq":1001,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cebae-2b41-7690-8d52-98cdfafa6829","at":1773480586049000000,"seq":1002,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cebae-9d27-7e25-b42e-17fa48872ae9","at":1773480615207000000,"seq":1003,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cebae-c368-7ad6-8ddf-6818bc35ff12","at":1773480625000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

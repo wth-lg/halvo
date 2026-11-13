@@ -1,0 +1,43 @@
+{"v":1,"id":"019ba6f5-2f10-76a3-8daf-4befe60d09d2","at":1768032644880000000,"seq":96,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba6f5-2f10-7e12-8626-7e2f9e53e4fa","at":1768032644880000000,"seq":97,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ba6f5-3f28-70c4-971c-6451a9df3d10","at":1768032649000000000,"seq":98,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba705-75c8-798e-9c3c-ce941920adbc","at":1768033711560000000,"seq":99,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ba706-0420-70b7-914a-3ddc0bfa98ab","at":1768033748000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba70e-7e2f-7fd5-8b2a-371dac253429","at":1768034303535000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ba70e-83e8-7b99-b94c-c484b2ee0e0d","at":1768034305000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba70e-87d0-700b-957d-9d2bb326abbc","at":1768034306000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba70e-ed60-707f-b690-dad0cffb931d","at":1768034332000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba70f-04d0-7acf-8746-33230c2c515a","at":1768034338000000000,"seq":105,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba70f-08b8-7cdc-9a7e-d15e487e9d16","at":1768034339000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ba71e-83ab-7ce4-b1bc-f8cb46190f96","at":1768035353515000000,"seq":107,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba71e-83ab-74ec-9c81-39b02e8f3edf","at":1768035353515000000,"seq":108,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba71e-8590-720f-a428-531eb8e1c40a","at":1768035354000000000,"seq":109,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71e-8978-7e82-8b32-a4355f351c54","at":1768035355000000000,"seq":110,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ba71e-9d00-7b23-83d1-9076554c8b21","at":1768035360000000000,"seq":111,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71e-9d00-773e-b99a-3b6497c0a6d9","at":1768035360000000000,"seq":112,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba71e-a4d0-7eab-97a5-fdd0319f0ae8","at":1768035362000000000,"seq":113,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ba722-b654-75c1-b75f-2b301087d691","at":1768035628628000000,"seq":114,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba722-b654-784b-891a-334ff8e12d7e","at":1768035628628000000,"seq":115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba722-cb50-7e33-8e08-4f17cea7b434","at":1768035634000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ba723-5020-73d8-8fdb-f9dcd280a10e","at":1768035668000000000,"seq":117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba723-5d89-74d0-b99a-a5642d3d4632","at":1768035671433000000,"seq":118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba723-63a8-787a-9c7d-de8953536a6d","at":1768035673000000000,"seq":119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba723-7b18-78a7-be08-1e2ffaa273a4","at":1768035679000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba723-a610-7d99-8b05-91f9877e9cf7","at":1768035690000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ba724-32b0-76bc-9ecd-a3cffc24a7c0","at":1768035726000000000,"seq":122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba724-55e0-7767-9fef-3eece5a45479","at":1768035735008000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba724-a3f8-71bf-8411-445371e43b73","at":1768035755000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba724-e278-762f-bcab-dd3ba0fe6cad","at":1768035771000000000,"seq":125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba724-e660-72b5-82e8-8e1ec88d558b","at":1768035772000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba724-f2ec-7419-8dfd-0ba58ca6c5e9","at":1768035775212000000,"seq":127,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba725-05a0-779c-a397-70d90b42d3a1","at":1768035780000000000,"seq":128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba725-0988-7a26-9e9f-9969444407d8","at":1768035781000000000,"seq":129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba725-2cb0-7cad-b34e-c90ecdd9cc8d","at":1768035790000000000,"seq":130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba725-3480-7014-9844-b0ae19e7ab07","at":1768035792000000000,"seq":131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ba725-4902-7610-adba-abd12a6fb4c7","at":1768035797250000000,"seq":132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba725-7eb8-7b75-b23e-82e633681c32","at":1768035811000000000,"seq":133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba725-f3e8-7d3e-b95c-53c39b347119","at":1768035841000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba726-03eb-75a4-a68f-a51008c5d1c1","at":1768035845099000000,"seq":135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ba726-2a98-7e1f-a675-7de29533596a","at":1768035855000000000,"seq":136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba726-5978-7c5d-91c3-0e3689296385","at":1768035867000000000,"seq":137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba726-78b8-7477-ab5b-9c1208843e3e","at":1768035875000000000,"seq":138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

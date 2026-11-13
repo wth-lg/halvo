@@ -1,0 +1,41 @@
+{"v":1,"id":"019cf5c1-654e-76d1-9786-85a84edbfc28","at":1773649618254000000,"seq":1274,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5c1-654e-7ea2-8952-136b641b1300","at":1773649618254000000,"seq":1275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c1-f0f0-70f5-bd7f-b2b25863af4e","at":1773649654000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cf5c2-1f2f-7b5b-a288-0a9d3394ef05","at":1773649665839000000,"seq":1277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c2-4eb0-7475-8aff-fe697a371d74","at":1773649678000000000,"seq":1278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cf5c2-a0db-73aa-9d7d-a196a3a2c24b","at":1773649699035000000,"seq":1279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c2-b828-7499-8ff8-6f35be2b90ed","at":1773649705000000000,"seq":1280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf5c2-fe78-7b68-a71b-f64f3fd56bfb","at":1773649723000000000,"seq":1281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5c3-15e8-7e38-bd5e-35658ed599b5","at":1773649729000000000,"seq":1282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cf5c3-1db8-7de9-a58a-ea9f8cac5eb9","at":1773649731000000000,"seq":1283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf5c3-21a0-76f9-b5c1-c98211efa3f5","at":1773649732000000000,"seq":1284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5c3-5308-7e73-86b0-36c3bcb0e98e","at":1773649744648000000,"seq":1285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c3-dd20-711b-af0d-1d05cd290ae5","at":1773649780000000000,"seq":1286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf5c3-f160-74aa-be17-539f81be05c6","at":1773649785184000000,"seq":1287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c4-5250-7864-a54d-9f2f5a41bb7e","at":1773649810000000000,"seq":1288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf5c4-69c0-7035-86f1-f7c5cf5262bf","at":1773649816000000000,"seq":1289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf5c4-8130-7fb4-9153-f18a20a96c77","at":1773649822000000000,"seq":1290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf5c7-f781-7e43-a2f3-99753cc84382","at":1773650048897000000,"seq":1291,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c8-3e38-79e9-94ca-5e9b559d70b0","at":1773650067000000000,"seq":1292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5c8-af80-7054-9d1f-64a16bfbccf6","at":1773650096000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cf5c8-f1e8-78bc-8bcf-7a8f190350c9","at":1773650113000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5c8-fe41-7af5-8432-7845ec34f457","at":1773650116161000000,"seq":1295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c9-1510-7471-be5b-110bb5a4967e","at":1773650122000000000,"seq":1296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cf5c9-1ce0-7cc4-9e53-031f447d8cff","at":1773650124000000000,"seq":1297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5c9-3068-7aa1-9231-f11e12996316","at":1773650129000000000,"seq":1298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5c9-429d-7172-aa2d-31b5863e5e04","at":1773650133661000000,"seq":1299,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c9-99e0-7915-ba34-91d98bfb3850","at":1773650156000000000,"seq":1300,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf5c9-ad68-76e3-8304-4d3e6c13ef0f","at":1773650161000000000,"seq":1301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5c9-c8bd-7af3-b606-e7021c8d757e","at":1773650167997000000,"seq":1302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c9-d090-7696-9075-3c4a930577b3","at":1773650170000000000,"seq":1303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf5c9-f3b8-7ea9-a02e-83030fb37374","at":1773650179000000000,"seq":1304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf5ca-2e50-7f9e-b7dd-86b963129198","at":1773650194000000000,"seq":1305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cf5ca-3275-7982-a748-8cd99e242fe5","at":1773650195061000000,"seq":1306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ca-41d8-78de-878c-74f903dedfaf","at":1773650199000000000,"seq":1307,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf5ca-49a8-71ba-8f55-44cd3f2b5340","at":1773650201000000000,"seq":1308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ca-8ff8-75f4-a0c2-a3735f3f20b5","at":1773650219000000000,"seq":1309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cf5ca-9bb0-7a2d-be81-5506127cf1f2","at":1773650222000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ca-9d99-7b19-995e-1705431d4f6a","at":1773650222489000000,"seq":1311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ca-e200-7852-b240-ec6d8ac75c24","at":1773650240000000000,"seq":1312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cf5ca-e9d0-7f56-8513-1f660d133808","at":1773650242000000000,"seq":1313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cb-1c98-7da7-822c-0a5005bb58ae","at":1773650255000000000,"seq":1314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

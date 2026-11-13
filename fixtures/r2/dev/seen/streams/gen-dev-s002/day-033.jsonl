@@ -1,0 +1,11 @@
+{"v":1,"id":"019c1da4-1c50-70ed-82ca-8f4559f8ed6e","at":1770023820368000000,"seq":529,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1da4-1c50-7bec-b562-bacc24f1c13d","at":1770023820368000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1da4-1ec8-75ab-9d54-e0dad2f584d7","at":1770023821000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da4-ab2c-718a-861c-b46c5304c79d","at":1770023856940000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1da5-18c8-7aab-963a-b01315f5f529","at":1770023885000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1da5-2098-7104-8041-d27487a68e55","at":1770023887000000000,"seq":534,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1da5-5360-7ce2-ac71-dee4d99276b4","at":1770023900000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c1daa-2d97-74e4-a41b-d23337acdd32","at":1770024218007000000,"seq":536,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1daa-2d97-7f72-9e5f-a07350a5ea38","at":1770024218007000000,"seq":537,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1daa-3560-796c-8b69-fa094aeda26d","at":1770024220000000000,"seq":538,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1daa-be18-7bfd-974f-bf62fcd3ee02","at":1770024255000000000,"seq":539,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

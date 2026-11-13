@@ -1,0 +1,31 @@
+{"v":1,"id":"019d5247-53bb-7310-bc44-9892d47778cd","at":1775201899451000000,"seq":1445,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d5247-53bb-73d6-ba1b-63b358369055","at":1775201899451000000,"seq":1446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d5247-6d50-7f04-b0ee-cdf0ff837a35","at":1775201906000000000,"seq":1447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5247-9c30-7f2d-996a-41003862f0c4","at":1775201918000000000,"seq":1448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d5247-bf58-7af7-8e92-b933e5fb7e6b","at":1775201927000000000,"seq":1449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5248-4504-77cf-8add-f2c3a165ad93","at":1775201961220000000,"seq":1450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d5248-ada0-7271-83da-aae59c6def69","at":1775201988000000000,"seq":1451,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d5248-c510-7e19-9508-c5be381f6615","at":1775201994000000000,"seq":1452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5249-4dc8-7ede-86b0-21f5dfd96b49","at":1775202029000000000,"seq":1453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d5249-4fe1-7494-916f-d6a1503bbc85","at":1775202029537000000,"seq":1454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d5249-51b0-7233-b4d8-d49b374fae01","at":1775202030000000000,"seq":1455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d5249-74d8-7e55-b067-55455e92ca6a","at":1775202039000000000,"seq":1456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5249-8717-7ad7-94d1-66a536fc75dd","at":1775202043671000000,"seq":1457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d5249-f1d8-7ac5-bf75-a0c4c1d88a58","at":1775202071000000000,"seq":1458,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d524e-e4c9-7d54-81b7-d1552640d96d","at":1775202395337000000,"seq":1459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d524e-f318-73af-8095-bcc1117e89f6","at":1775202399000000000,"seq":1460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d524f-3968-7ef2-96e8-ac095c7f4a8f","at":1775202417000000000,"seq":1461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d524f-3d8a-7230-b2d7-1979658f7023","at":1775202418058000000,"seq":1462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this month - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d524f-9340-7c65-9e10-c9cb9b6aaa34","at":1775202440000000000,"seq":1463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d524f-ae98-7033-a1cf-7a61b8a3ff7e","at":1775202447000000000,"seq":1464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d524f-c608-71fd-9c24-b600864fc589","at":1775202453000000000,"seq":1465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d524f-ed18-7210-b52b-fc68e51a7573","at":1775202463000000000,"seq":1466,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d524f-ed72-7b66-b597-b457d01dad5c","at":1775202463090000000,"seq":1467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d5250-3368-7119-aba8-1ad4835f0f52","at":1775202481000000000,"seq":1468,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d5250-75d0-7424-9cb2-33538c58ac5e","at":1775202498000000000,"seq":1469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5250-fd3d-7cd1-b385-9adb9ef16e34","at":1775202532669000000,"seq":1470,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d5251-2598-7499-9791-90471b8adfd6","at":1775202543000000000,"seq":1471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5251-2598-7df8-97bd-7a22ed9320f4","at":1775202543000000000,"seq":1472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d5251-5478-7cef-adae-267dba31c639","at":1775202555000000000,"seq":1473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5251-5c48-7008-b21b-aafc70dedc71","at":1775202557000000000,"seq":1474,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d5251-7f70-76b8-9410-2cc98b96af60","at":1775202566000000000,"seq":1475,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

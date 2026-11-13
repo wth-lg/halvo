@@ -1,0 +1,35 @@
+{"v":1,"id":"019c413f-d89a-767e-85f9-fd580a79c8de","at":1770621229210000000,"seq":428,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c413f-d89a-79a2-8348-b7734fd323d6","at":1770621229210000000,"seq":429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c413f-ef38-7149-8c6a-16318e4516b5","at":1770621235000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4140-50e0-74e2-8245-08cceef4ce0b","at":1770621260000000000,"seq":431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4140-6468-70ba-acb9-fd383ccdee38","at":1770621265000000000,"seq":432,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4140-aea0-7cbf-9153-d5cbb61df3e1","at":1770621284000000000,"seq":433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4157-c793-777e-ab81-af5395bd89d6","at":1770622797715000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c4158-5168-7002-81f2-d3d38bc44e86","at":1770622833000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4158-81d4-7ec2-a8cb-fb225bf7c77b","at":1770622845396000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c4158-f578-7629-b109-7545cf364349","at":1770622875000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4159-0130-7183-8abb-5806ef5dd5a4","at":1770622878000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4159-0900-7385-80d2-229a2025e2f4","at":1770622880000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c4159-3107-7a48-bb2d-06b06c2edd0f","at":1770622890247000000,"seq":440,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c4159-33f8-71db-ae09-19ebaaf28671","at":1770622891000000000,"seq":441,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4159-4b68-7f25-8a87-6c3a0524359d","at":1770622897000000000,"seq":442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4159-5338-736f-a872-b7d12ae56f70","at":1770622899000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c4159-8600-70cb-af60-065f5f1295d0","at":1770622912000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4159-8ec2-745c-afd3-4ccec899d235","at":1770622914242000000,"seq":445,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c415a-2240-73df-988e-f5aa1c823ff5","at":1770622952000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c415a-2d37-7a0f-adba-3bb6c7db1b3a","at":1770622954807000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c415a-3d98-7bcf-8bc9-e8d3062c91d7","at":1770622959000000000,"seq":448,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c415a-4568-7367-ab46-65ca07d8e343","at":1770622961000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c415a-5508-7b4a-885a-ed37b12c5e17","at":1770622965000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c415a-58f0-7a32-800b-409eca6efdbf","at":1770622966000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c415a-7060-7cbe-8882-695f3115f74c","at":1770622972000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c415a-8699-7ee6-981e-d490f6202d30","at":1770622977689000000,"seq":453,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c415a-b2c8-797f-9b17-5719ba9f0ece","at":1770622989000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c415a-ba98-7804-8820-b16120ef2251","at":1770622991000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c415a-be80-79ee-87e8-853ad7172a6b","at":1770622992000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c415a-ccdf-7792-bcdd-ecbd94337d9d","at":1770622995679000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c415b-3b80-71ee-a599-b32683615a61","at":1770623024000000000,"seq":458,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c415b-5ac0-7615-8202-6022f8c12e81","at":1770623032000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c415b-6290-7a2c-9622-9b47da7db659","at":1770623034000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c415b-8379-75bc-b4d9-a99bc202726e","at":1770623042425000000,"seq":461,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c415b-8d88-75f3-92f4-567419bafa01","at":1770623045000000000,"seq":462,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

@@ -1,0 +1,37 @@
+{"v":1,"id":"019c943d-45e0-7c65-9ac9-aef9cd10c10c","at":1772013569504000000,"seq":881,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c943d-45e0-7859-b56e-528964f94ac9","at":1772013569504000000,"seq":882,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c943d-4bb8-75e8-bd66-b64e29f87af0","at":1772013571000000000,"seq":883,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c943d-99d8-7ba2-ac94-f095b7c36cd7","at":1772013591000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c943d-a590-7236-8a7d-6c77be32226f","at":1772013594000000000,"seq":885,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c943d-e7f8-70e0-b9e5-515260504bcd","at":1772013611000000000,"seq":886,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c943d-ff68-75f9-9ea1-5c30a799fb60","at":1772013617000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9453-4a2b-709a-85c0-fe5e31b07faa","at":1772015012395000000,"seq":888,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c9453-8ac4-730a-99e1-a5ad828fdd58","at":1772015028932000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c9453-aa48-79cf-ad47-aafcd58a9308","at":1772015037000000000,"seq":890,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9453-b9e8-7cd8-9525-d51de592baed","at":1772015041000000000,"seq":891,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9454-2360-77a8-8866-dbe021edf30a","at":1772015068000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c9454-7180-7664-831f-14821fbe45ea","at":1772015088000000000,"seq":893,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9454-922d-789e-9ee7-395042f4b917","at":1772015096365000000,"seq":894,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c9454-a830-7cce-b3bc-4f2ed1b8f4c1","at":1772015102000000000,"seq":895,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9454-f650-76a0-882a-1837031098c8","at":1772015122000000000,"seq":896,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9454-f74e-73ec-b00c-6e9be6ed327c","at":1772015122254000000,"seq":897,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c9455-05f0-7d53-a0b4-924ef5d0f0ef","at":1772015126000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c9455-5028-7381-9047-d50b982a64ef","at":1772015145000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9455-57f8-7222-a7ef-a22461a5c184","at":1772015147000000000,"seq":900,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9464-ea6b-770a-aecb-06de63f74790","at":1772016167531000000,"seq":901,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9464-f028-7ab0-878d-196ee253aeb1","at":1772016169000000000,"seq":902,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9465-2ac0-75c8-8b0a-60dcf645f100","at":1772016184000000000,"seq":903,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9465-80b0-7d49-b776-0e1cbf7571d6","at":1772016206000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c9465-9dda-7207-ac26-71b49b7e5bea","at":1772016213466000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9465-d6a0-7240-9257-a0e8e967a889","at":1772016228000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9465-f1f8-7457-bd14-231d2c52e7b9","at":1772016235000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c9465-f39a-79de-a15d-499ef2962d7a","at":1772016235418000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9466-4018-79f3-9bc8-ccee78d4ab2e","at":1772016255000000000,"seq":909,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9466-4bd0-74e3-ab51-fc2c26281371","at":1772016258000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c9466-b0b5-7052-a956-d9ab4fa8bb69","at":1772016283829000000,"seq":911,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c9466-b160-7794-8209-23ef43432e99","at":1772016284000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c9466-c100-7a1f-836a-8fed37f4f9c3","at":1772016288000000000,"seq":913,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9466-d870-7a39-b1d8-bd85cdd10d70","at":1772016294000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9466-f3c8-70b0-b7b1-da0bc6ac0286","at":1772016301000000000,"seq":915,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9466-fb98-77b2-aff0-eaacb350d695","at":1772016303000000000,"seq":916,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9467-21a6-7a1b-95bd-4be102a1ee61","at":1772016312742000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019bf94f-0bea-72b9-857c-f44f2543c809","at":1769414265834000000,"seq":361,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf94f-0bea-749c-80d1-d62ea18d0136","at":1769414265834000000,"seq":362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf94f-1c30-7974-8b02-8c55eb190408","at":1769414270000000000,"seq":363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bf94f-7220-7987-89e9-c9726be671b1","at":1769414292000000000,"seq":364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf94f-d7b0-7ce3-a344-9bc0279c4719","at":1769414318000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf94f-e0d8-7ee6-88a7-e4ad44d585a5","at":1769414320344000000,"seq":366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf950-1630-7b57-a7c3-8b878a7b6e2c","at":1769414334000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bf950-7bc0-7cc3-aa89-d0301852445b","at":1769414360000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf950-7e9b-7016-b2dc-c4ab505eeacd","at":1769414360731000000,"seq":369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf950-9718-791a-9ab4-13406a401b5c","at":1769414367000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf950-9ee8-7360-a22b-17d782c73784","at":1769414369000000000,"seq":371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf950-b6cd-7611-a679-0e161eb33a09","at":1769414375117000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf950-dd68-7dae-a20d-4142978d3c5b","at":1769414385000000000,"seq":373,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf951-1030-734a-82ec-9e028358cdf7","at":1769414398000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf951-1030-739b-b3a1-a7c2e5f2905c","at":1769414398000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bf951-23b8-75ae-81c7-30b8f013a187","at":1769414403000000000,"seq":376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf959-25ad-79d4-91dc-807ec9c430cf","at":1769414927789000000,"seq":377,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf959-25ad-77c9-a7c2-704c3ec7d06f","at":1769414927789000000,"seq":378,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf959-41d8-73d3-86b0-fbdd1e4cc8a5","at":1769414935000000000,"seq":379,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf959-5178-772a-9444-4755b5408872","at":1769414939000000000,"seq":380,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bf959-5560-757a-89cd-d1fe3e3c1443","at":1769414940000000000,"seq":381,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf959-5d30-70ab-ad2d-8eef05f55a76","at":1769414942000000000,"seq":382,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}

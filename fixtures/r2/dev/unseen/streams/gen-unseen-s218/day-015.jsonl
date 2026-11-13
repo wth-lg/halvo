@@ -1,0 +1,24 @@
+{"v":1,"id":"019bc109-a5df-7ff7-879e-91623dcc5450","at":1768470193631000000,"seq":165,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc109-a5df-7f6a-a433-f71da0f25be6","at":1768470193631000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc109-b6f0-7907-91d4-13dee697246a","at":1768470198000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bc10a-33f0-70ce-911e-b75f8e06ed1e","at":1768470230000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc10a-6e88-7af3-858f-aa4cd2977b44","at":1768470245000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc10e-7cf3-7766-8a29-62a6eddd0c0d","at":1768470510835000000,"seq":170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc10e-d770-7a8f-abc3-7d7d48ebabce","at":1768470534000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc119-7f99-7cf2-8921-899cc06bb96e","at":1768471232409000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc11a-7485-7500-8a92-6f71c973f4ce","at":1768471295109000000,"seq":173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc11b-3768-7e76-9a5c-09e461d08cb3","at":1768471345000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc11b-43ff-7df3-9057-7cc31e1c6488","at":1768471348223000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc11b-5e78-7ab5-b6d2-5d801889bd6d","at":1768471355000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc11b-6648-755f-9e8b-8fff7989be8b","at":1768471357000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc11b-81a0-7ae9-8109-3ae205cb3dae","at":1768471364000000000,"seq":178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc11b-8588-7758-bcf3-7cb8574a2467","at":1768471365000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc11b-9915-7100-b6ae-5274e21a8d6f","at":1768471370005000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc11b-eb18-7671-9fae-8e3337b9ab95","at":1768471391000000000,"seq":181,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc11c-25b0-7edb-a376-8989b1dfdcf5","at":1768471406000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bc125-803a-7d78-b0d8-d71b118f6652","at":1768472019002000000,"seq":183,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc125-803a-79ed-8dae-a497ffad4631","at":1768472019002000000,"seq":184,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc125-8420-77d1-ad69-b9743d13ee3c","at":1768472020000000000,"seq":185,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc125-beb8-71a7-89bb-ebcdcb75f393","at":1768472035000000000,"seq":186,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc126-0120-7b95-994b-a57e24e9e415","at":1768472052000000000,"seq":187,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bc126-0508-71a1-9887-0efc8826a49f","at":1768472053000000000,"seq":188,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}

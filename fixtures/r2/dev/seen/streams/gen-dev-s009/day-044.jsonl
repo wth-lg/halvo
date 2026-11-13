@@ -1,0 +1,28 @@
+{"v":1,"id":"019c55dd-08cf-7bff-a5fa-118151e10bb9","at":1770967075023000000,"seq":802,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c55dd-08cf-7ceb-9c92-985900b742b4","at":1770967075023000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c55dd-7de8-7d83-b2ca-73fba74cd2a0","at":1770967105000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c55dd-9558-70c0-aec6-0e8873dc9fa2","at":1770967111000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55de-01de-7295-a282-ec571f9d46c8","at":1770967138782000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c55de-0a88-7266-b0a9-f083facc1c95","at":1770967141000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55de-58a8-7f01-ad00-452de32d4f63","at":1770967161000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55de-7018-7949-9029-eaa12928019f","at":1770967167000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c55de-7400-7ba4-b8fd-e2af33302ccb","at":1770967168000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c55de-bd9a-7c84-9ff8-32be4d6619f1","at":1770967186842000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c55de-c9f0-7063-a159-8c006875fa7d","at":1770967190000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c55de-cdd8-76a3-90bb-ad55cca7a5d8","at":1770967191000000000,"seq":813,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c55df-3b38-7ffb-93ca-f9495eda0ccf","at":1770967219000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f9-66be-7fc6-8711-c9b974542be0","at":1770968934078000000,"seq":815,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c55f9-a108-754c-9423-8076ff82eff4","at":1770968949000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f9-b878-78aa-8f80-de12db3e53f2","at":1770968955000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f9-c819-7bfc-a927-ad876edf1ce2","at":1770968959001000000,"seq":818,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c55f9-cc00-7834-8226-73d71f29a320","at":1770968960000000000,"seq":819,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c55f9-cfe8-7ce2-8158-b87589cc01bc","at":1770968961000000000,"seq":820,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55fa-0698-7015-a1e5-b90273fddb38","at":1770968975000000000,"seq":821,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c55fa-18d9-7672-8442-2e7aa930f184","at":1770968979673000000,"seq":822,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c55fa-21f0-7749-ac28-b0f630728982","at":1770968982000000000,"seq":823,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c55fa-29c0-7e1b-a66d-5b3a347d9155","at":1770968984000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c55fa-6b68-7df8-b392-abce5d373468","at":1770969000808000000,"seq":825,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c55fa-7bc8-7bc6-bcf8-8a2a2fc9e4e6","at":1770969005000000000,"seq":826,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c55fb-3748-7879-be84-5347628d4aeb","at":1770969053000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c55fb-4244-7d8e-b9ce-fcf31663825e","at":1770969055812000000,"seq":828,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c55fb-c3e8-7ea4-8b97-a2d788da9aac","at":1770969089000000000,"seq":829,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

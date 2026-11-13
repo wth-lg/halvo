@@ -1,0 +1,37 @@
+{"v":1,"id":"019ba705-dab6-7655-b13e-ed773221fd3e","at":1768033737398000000,"seq":128,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba705-dab6-7565-98e4-a16c9fd099af","at":1768033737398000000,"seq":129,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba706-36e8-7556-acf7-783a10422a70","at":1768033761000000000,"seq":130,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba706-4a70-7a4d-887b-fe488ba6aee3","at":1768033766000000000,"seq":131,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ba706-9890-704c-9d3f-853f8d8c6737","at":1768033786000000000,"seq":132,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71c-2e24-7d2e-a000-8222ecba13ff","at":1768035200548000000,"seq":133,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ba71c-62b0-7336-9498-df66d516a406","at":1768035214000000000,"seq":134,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71c-7a20-7a2d-9b6f-92f8959876f9","at":1768035220000000000,"seq":135,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71c-7e08-735e-9a69-667ab40a5f4c","at":1768035221000000000,"seq":136,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ba72f-f74e-734e-b5f1-6e931823504b","at":1768036497230000000,"seq":137,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba72f-f74e-7f32-91bb-633846246eed","at":1768036497230000000,"seq":138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ba730-a2bb-7c53-b5fd-dd90e58ecfb7","at":1768036541115000000,"seq":139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ba730-b9b8-7f37-b443-f66b19436bd2","at":1768036547000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ba730-f068-7670-b582-51f6f58d855e","at":1768036561000000000,"seq":141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba731-2330-717f-889c-bf24aba34c3b","at":1768036574000000000,"seq":142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba731-69cd-7166-9dda-1308704eae4a","at":1768036592077000000,"seq":143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ba731-7150-7159-99e8-808c5d07f906","at":1768036594000000000,"seq":144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ba731-a030-7ff2-ae22-34b413361832","at":1768036606000000000,"seq":145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba731-f620-7201-b453-b7f84dda2c3b","at":1768036628000000000,"seq":146,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba732-10b2-7bbf-8636-a5362bc924ab","at":1768036634802000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba732-9e18-7bc2-a072-1792ff75fb7a","at":1768036671000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ba732-d69a-7430-9b1f-970d33526930","at":1768036685466000000,"seq":149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba732-dc98-7655-858b-fd5a8e4dc715","at":1768036687000000000,"seq":150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba732-e080-705e-a23c-2fcb0128cecf","at":1768036688000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ba732-ec38-7f85-97fb-f45af6f10b67","at":1768036691000000000,"seq":152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba733-26d0-7f7a-8af7-de2b95f281a4","at":1768036706000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba733-4594-7ee4-a278-5ec3c9a6a895","at":1768036713876000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba733-6168-762a-bcec-be0aa88b4986","at":1768036721000000000,"seq":155,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba733-7cc0-7ea1-833a-4c4663f127b5","at":1768036728000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba733-9818-7e30-9c75-21bf13abc6b6","at":1768036735000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba733-de97-748c-bc2f-f7aa3ce96f71","at":1768036753047000000,"seq":158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba734-0d48-7038-86fb-e9fe6b2fcbc2","at":1768036765000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba734-4f34-7a2a-83dc-22feca1da761","at":1768036781876000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ba734-4fb0-7fee-9dde-7205e0476ffd","at":1768036782000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba734-7e90-729e-802a-25611c136bdc","at":1768036794000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba734-8278-76d6-b3b3-b4fe7dc873f7","at":1768036795000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ba734-8660-7a3f-aa29-5d4af78e8ed4","at":1768036796000000000,"seq":164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

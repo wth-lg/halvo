@@ -1,0 +1,28 @@
+{"v":1,"id":"019c2d38-cc54-76da-b73e-89beb71021cd","at":1770285222996000000,"seq":489,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d38-cc54-7324-86b2-7359ff94bf82","at":1770285222996000000,"seq":490,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c2d39-260b-7092-99c6-e3fab1ff7b45","at":1770285245963000000,"seq":491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c2d3a-05e2-7273-8a1d-830cec3349f7","at":1770285303266000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c2d3a-0ca8-7997-90e3-e5a8f5fe68d6","at":1770285305000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2d3a-1090-747f-9ec6-69529f14ac5a","at":1770285306000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c2d3a-2fd0-7219-aed5-4119dfd0e35b","at":1770285314000000000,"seq":495,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d3a-45f9-7a30-bc9a-1e4443d186ad","at":1770285319673000000,"seq":496,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c2d3a-4f10-74bd-8c46-dbd15acca4e3","at":1770285322000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d3a-6680-7f15-ad26-83c3ba58146f","at":1770285328000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d42-f907-71e1-a718-b6655b964630","at":1770285889799000000,"seq":499,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c2d42-f9d0-7aa4-bdef-8ac5d77ad008","at":1770285890000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d43-1140-7072-8e1c-85046e0d734f","at":1770285896000000000,"seq":501,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2d43-53a8-78a3-b48b-e77016cb4360","at":1770285913000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d43-6f00-7874-9c13-0f89c47a5f14","at":1770285920000000000,"seq":503,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d43-72e8-790e-82b6-8b827b15f7aa","at":1770285921000000000,"seq":504,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c2d48-4ff2-77b6-8722-a750efdfc6c1","at":1770286239730000000,"seq":505,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c2d48-e958-79b1-8986-763b78d7029b","at":1770286279000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d49-4b39-77b1-a707-62b806f30672","at":1770286304057000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c2d49-4ee8-7f14-84d3-2770770c1e28","at":1770286305000000000,"seq":508,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d49-a7c0-7b50-a6b7-7b74b26a3de2","at":1770286327744000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c2d49-bc48-7913-8260-9ba362b4a459","at":1770286333000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c2d49-c418-7e34-9efa-b89a5a6a63f9","at":1770286335000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d49-e740-7eb1-8de5-ee62c9d60e14","at":1770286344000000000,"seq":512,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d49-fb64-7444-a03f-8e49c0611e5a","at":1770286349156000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c2d4a-5888-7685-b814-e5ca7c5d734d","at":1770286373000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2d4a-6058-70f9-8a9a-838a74eb9957","at":1770286375000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d4a-6828-7b3d-9cbf-56498486b420","at":1770286377000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

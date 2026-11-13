@@ -1,0 +1,28 @@
+{"v":1,"id":"019c89c3-178a-72a3-a82a-7b888155005f","at":1771837790090000000,"seq":610,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89c3-178a-7f16-a94a-a33c96ffbaf2","at":1771837790090000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c89c3-5d80-73cf-ac0b-4005da80e403","at":1771837808000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c89c3-bbf5-7e9a-9634-e92566c93761","at":1771837832181000000,"seq":613,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c89c3-cec8-7aa6-a365-a16e87e288d7","at":1771837837000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c89c3-f1f0-76cd-afd1-c51cd648b9b7","at":1771837846000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c4-1130-7408-a6b3-d8bbd4755af1","at":1771837854000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c89c4-3c28-7d9d-bd08-230bbd2c07b3","at":1771837865000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c89c4-5398-70ec-b900-1ceda55a1f66","at":1771837871000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c4-5416-7060-9265-6a2fa9d30a1b","at":1771837871126000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c89c4-9dd0-72a1-96ec-cfda1d129372","at":1771837890000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c89c4-c4e0-7422-a358-1e4abd01f0c2","at":1771837900000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c89c4-ff78-7dab-bef3-18d9b7017364","at":1771837915000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c5-0748-7c4c-999c-be8ba8fab115","at":1771837917000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c89ca-4709-79ca-a033-e0902c56a1bb","at":1771838261001000000,"seq":624,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c89ca-4709-799d-a5aa-c24f4bb60a4d","at":1771838261001000000,"seq":625,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c89ca-56a8-78b6-80af-3ead6cb3aa2e","at":1771838265000000000,"seq":626,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c89ca-7db8-77e3-8891-accfd830ff62","at":1771838275000000000,"seq":627,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89d6-7a30-7218-9835-6c790b04c48a","at":1771839060528000000,"seq":628,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89d6-7a30-7b6d-8097-85b4c09f8219","at":1771839060528000000,"seq":629,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c89d6-8f90-77c1-8d69-205d24849cdf","at":1771839066000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c89d6-9760-7369-92bf-9dc959b7f439","at":1771839068000000000,"seq":631,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c89d6-aed0-7a41-aab0-e02613b7c9fb","at":1771839074000000000,"seq":632,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c89d6-f138-704f-8960-94096f5d1ab8","at":1771839091000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89d7-1460-737a-9593-be141860dd92","at":1771839100000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89dd-0db1-77ab-a5b3-160a5209eb6a","at":1771839491505000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c89dd-a7f8-7498-8e38-2e3c0538a70e","at":1771839531000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c89dd-b3b0-71cf-b55f-31115b280b8b","at":1771839534000000000,"seq":637,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

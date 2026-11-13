@@ -1,0 +1,15 @@
+{"v":1,"id":"019d2901-0a33-710c-af3f-7c55a14363da","at":1774509427251000000,"seq":1061,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2901-0a33-7a83-adc8-770210688c8f","at":1774509427251000000,"seq":1062,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d2901-18d8-746d-be86-f6fe7ef1f4ea","at":1774509431000000000,"seq":1063,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2901-99c0-70db-ac97-517930264177","at":1774509464000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2901-cd57-7b8a-850d-54fcb7479f59","at":1774509477207000000,"seq":1065,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d2901-f780-7b91-9b2e-1c9a128d139e","at":1774509488000000000,"seq":1066,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2902-0338-7cf7-a356-cd27727f6812","at":1774509491000000000,"seq":1067,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2902-0720-78a8-b3f7-15212a7c969d","at":1774509492000000000,"seq":1068,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2902-2a00-7a1a-b21b-ef8b66bfb253","at":1774509500928000000,"seq":1069,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d2902-a748-75fa-ad3a-f2323efff10a","at":1774509533000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2902-e9b0-7400-a5bc-b20007b63429","at":1774509550000000000,"seq":1071,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2902-eae1-76b3-9d84-08aede1665b9","at":1774509550305000000,"seq":1072,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d2903-08f0-7a8f-bb0d-2d9db12c067d","at":1774509558000000000,"seq":1073,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2903-2060-7b60-acd0-61c11427a925","at":1774509564000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2903-37d0-74b8-ba7a-46ed0446033b","at":1774509570000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

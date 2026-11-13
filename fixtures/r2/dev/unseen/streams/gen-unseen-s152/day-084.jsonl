@@ -1,0 +1,10 @@
+{"v":1,"id":"019d23e1-cf1e-7f60-8109-0cd366ae75eb","at":1774423494430000000,"seq":1252,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d23e1-cf1e-7a9e-b291-12b5cbf335c2","at":1774423494430000000,"seq":1253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d23e2-0808-782f-9635-af6e5d9903be","at":1774423509000000000,"seq":1254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d23e2-0e6d-74a7-b2af-ae2a7985bd48","at":1774423510637000000,"seq":1255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d23e2-42a0-7856-b561-f4b04203c6db","at":1774423524000000000,"seq":1256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d23e2-5df8-79e7-9d0d-ab062c42d2dd","at":1774423531000000000,"seq":1257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d23ec-86e0-7efb-83f4-b8dcb73ef5a6","at":1774424196832000000,"seq":1258,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d23ec-86e0-72cf-a8db-25a5eed76f82","at":1774424196832000000,"seq":1259,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d23ec-c220-79b5-978e-bd0b02fa7e6a","at":1774424212000000000,"seq":1260,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d23ec-c9f0-7f05-88c7-b1f25e6d4b8a","at":1774424214000000000,"seq":1261,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}

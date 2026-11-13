@@ -1,0 +1,37 @@
+{"v":1,"id":"019bdfc6-7284-7d8e-b1bf-fe06b28510cb","at":1768985883268000000,"seq":356,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdfc6-7284-7980-b7e2-0fd6b3bf8db4","at":1768985883268000000,"seq":357,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdfc6-b7c8-7db8-9367-f5c016bb67fb","at":1768985901000000000,"seq":358,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bdfc6-c751-7cd0-b999-7645c16f7708","at":1768985904977000000,"seq":359,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdfc6-c751-7ea3-9fc2-6271cdb930c9","at":1768985904977000000,"seq":360,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bdfc7-0db8-72e1-8595-f6fb2e215b4e","at":1768985923000000000,"seq":361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfc7-34be-706e-8dd9-3ba338654fd9","at":1768985932990000000,"seq":362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bdfc7-57f0-7c93-a8e0-a614a96542c9","at":1768985942000000000,"seq":363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfc7-9e40-77f0-85c6-13d375636be7","at":1768985960000000000,"seq":364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfc7-c168-78d0-89fd-7c6f2edac705","at":1768985969000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bdfc7-e4f1-7edb-977b-d1e0c58271f5","at":1768985978097000000,"seq":366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bdfc8-07b8-7da5-ae1e-45d00d22f1e5","at":1768985987000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfc8-1f28-762a-9f42-fd0c183d1b2b","at":1768985993000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfc8-2ec8-785a-83e5-c2d14b652e3e","at":1768985997000000000,"seq":369,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdfc8-9458-7f39-9d66-cc5750fc65d1","at":1768986023000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bdfc8-9840-7cf7-a0b2-2a89765041ef","at":1768986024000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bdfc8-bb64-7172-a4ea-3d19ef1f9b6e","at":1768986032996000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bdfc8-daa8-7821-95da-e763f76c653b","at":1768986041000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfc9-2cb0-7120-9a64-64e513567815","at":1768986062000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfc9-3098-7735-9c34-4b1ad96b1675","at":1768986063000000000,"seq":375,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdfc9-4d24-7f5f-81aa-e36f66504a18","at":1768986070308000000,"seq":376,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdfc9-4d24-7ab5-8e25-afb73bea9f75","at":1768986070308000000,"seq":377,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdfc9-ad98-7fc2-ad2e-ce50a50ed824","at":1768986095000000000,"seq":378,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bdfc9-d890-7295-b061-08dc47379b82","at":1768986106000000000,"seq":379,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdfdb-b769-7d8d-b4cd-d3d9919a29bd","at":1768987277161000000,"seq":380,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdfdb-b769-7b92-b6f2-e73345557e2e","at":1768987277161000000,"seq":381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bdfdc-a5c4-78cc-b139-bc4b1688f69a","at":1768987338180000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bdfdc-d7d8-7df8-9b84-729b78a2e69a","at":1768987351000000000,"seq":383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdfdc-eb60-7f17-8384-beeb1d89b9e3","at":1768987356000000000,"seq":384,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdfdc-fba3-7564-abf8-d3132a53df63","at":1768987360163000000,"seq":385,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bdfdc-fee8-7b08-b494-7617de06e30e","at":1768987361000000000,"seq":386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bdfdd-6478-70e7-bbc0-0dfbfd081448","at":1768987387000000000,"seq":387,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdfdd-8c58-7d5c-a301-3e259e5a7a96","at":1768987397208000000,"seq":388,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bdfde-1828-7e1b-8634-a25c56735c5c","at":1768987433000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfde-23e0-78ec-a9d7-9f8c260beedc","at":1768987436000000000,"seq":390,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdfde-27c8-7e78-ae6d-1af4f0607a28","at":1768987437000000000,"seq":391,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdfde-3b50-7a08-b672-c9ce4d9603db","at":1768987442000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

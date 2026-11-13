@@ -1,0 +1,15 @@
+{"v":1,"id":"019c3c8e-b330-715d-91d1-7115bbad5cec","at":1770542510896000000,"seq":541,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3c8e-b330-7c17-8f6c-6b9c27459a49","at":1770542510896000000,"seq":542,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3c8f-24e0-766e-a921-b8cb9635913d","at":1770542540000000000,"seq":543,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c3c8f-7300-7624-9d43-a13b277fecaf","at":1770542560000000000,"seq":544,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c3ca7-ef13-7dee-a7bf-ad0598e5d730","at":1770544164627000000,"seq":545,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c3ca8-0be0-7f6f-9bc0-27e55e949db4","at":1770544172000000000,"seq":546,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ca8-c760-7846-831c-e7784721361d","at":1770544220000000000,"seq":547,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ca8-ef04-74e1-9934-52e0d5a48159","at":1770544230148000000,"seq":548,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3ca8-ef04-7d1f-87b3-7152229ee2ae","at":1770544230148000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3ca9-6b70-725d-9273-98171a33b8d6","at":1770544262000000000,"seq":550,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3ca9-8e98-7282-8122-f1ad0d60b7a3","at":1770544271000000000,"seq":551,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3ca9-a1d6-7127-b038-19d2ee453f5c","at":1770544275926000000,"seq":552,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3ca9-a1d6-7db2-934a-28c247d617f1","at":1770544275926000000,"seq":553,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3ca9-b1c0-707e-b7e4-568e6a9a70d9","at":1770544280000000000,"seq":554,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c3caa-2308-7799-b495-f0ca9b57d927","at":1770544309000000000,"seq":555,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

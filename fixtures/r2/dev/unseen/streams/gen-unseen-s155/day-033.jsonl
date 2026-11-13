@@ -1,0 +1,18 @@
+{"v":1,"id":"019c1d8e-bb95-7cba-815e-00b5df582afb","at":1770022419349000000,"seq":472,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1d8e-bb95-7ba4-8a19-38cf8dabf0e9","at":1770022419349000000,"seq":473,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1d8e-f4d0-7105-a6de-19dea83c7b58","at":1770022434000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c1da3-95d3-7b42-b17a-66772ae1528a","at":1770023785939000000,"seq":475,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1da3-95d3-759d-b299-0fc772798d4e","at":1770023785939000000,"seq":476,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1da3-ad80-7311-a982-1077602f35b5","at":1770023792000000000,"seq":477,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c1db8-af3b-7bce-9749-7bed62c02c30","at":1770025168699000000,"seq":478,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1db8-af3b-7826-bc89-4912cb9e7416","at":1770025168699000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1db8-cbc0-7ca9-81c1-ad4ecf624e51","at":1770025176000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c1db8-faa0-7246-ab10-670bbd52d6b8","at":1770025188000000000,"seq":481,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1dc3-22f8-7e23-afd4-519b99aad434","at":1770025853688000000,"seq":482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c1dc3-4758-7950-92f9-c8b1ce033d5b","at":1770025863000000000,"seq":483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dc3-b8a0-76cb-99ad-4222699b42ee","at":1770025892000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c1dc3-c229-7e39-8082-ad50e132c423","at":1770025894441000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c1dc3-c458-7f02-835b-5a1676de4e0b","at":1770025895000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c1dc4-7808-7a86-9b56-d2b35b727810","at":1770025941000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dc4-7bf0-71ef-8aff-8f1198b5015f","at":1770025942000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dc4-aad0-774c-9651-f8c57284380f","at":1770025954000000000,"seq":489,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

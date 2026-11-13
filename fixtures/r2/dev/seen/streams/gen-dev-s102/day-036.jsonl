@@ -1,0 +1,26 @@
+{"v":1,"id":"019c2ca7-0343-7c08-b078-e831af5fea31","at":1770275668803000000,"seq":454,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2ca7-0343-73e0-9155-cbdad28759e7","at":1770275668803000000,"seq":455,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2ca7-07f0-768a-95b0-f11cd46b6679","at":1770275670000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2ca7-4e40-7805-8f4e-2c0204860b0c","at":1770275688000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cbb-5bd4-78db-a745-dbc355f8cbd3","at":1770277002196000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2cbb-c488-7488-aed2-21645f6882b0","at":1770277029000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c2cbb-cdc0-7932-ac7b-472dbb17e7a8","at":1770277031360000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2cbb-d428-7c04-a67f-d1af75ebd6a2","at":1770277033000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c2cbb-e3c8-71bc-b89a-bc0657c952f1","at":1770277037000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cbc-2917-797e-9728-49178a1ee6ce","at":1770277054743000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2cbc-6898-7e8c-9c00-a57787c46259","at":1770277071000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cbc-b702-746d-a496-4854f0ef1732","at":1770277091074000000,"seq":465,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2cbc-fd08-76cb-b214-59169f919337","at":1770277109000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cbd-7df0-700e-b2e9-98ff6f27b088","at":1770277142000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cbd-a32a-7732-9300-abca74045acb","at":1770277151530000000,"seq":468,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2cbd-c828-76ec-bbaf-a479308272ee","at":1770277161000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cbe-2db8-7104-a066-95c7608f21fc","at":1770277187000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c2cd3-d5f6-7ee0-801c-ac45c0190ff9","at":1770278606326000000,"seq":471,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2cd3-d5f6-7980-b383-01c7fc10b486","at":1770278606326000000,"seq":472,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2cd3-dc80-741c-a554-c5a58ccf43dc","at":1770278608000000000,"seq":473,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c2cd4-1330-7c97-917b-ecbb4ac019bb","at":1770278622000000000,"seq":474,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cd4-2e88-7137-8b56-400006e6dbf0","at":1770278629000000000,"seq":475,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c2cd4-4210-72c4-a0ee-7f5863dbcf99","at":1770278634000000000,"seq":476,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cd4-5598-7653-9c1b-6006082291db","at":1770278639000000000,"seq":477,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c2cda-caba-7ec5-a0f5-7eac0c88266d","at":1770279062202000000,"seq":478,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2cda-caba-77a7-9ddb-2d972c3ec352","at":1770279062202000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}

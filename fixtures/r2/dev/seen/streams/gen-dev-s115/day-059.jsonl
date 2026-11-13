@@ -1,0 +1,13 @@
+{"v":1,"id":"019ca32b-69cc-7682-b9a5-cc861c419dcc","at":1772264057292000000,"seq":830,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca32b-69cc-79e9-8441-4b8264b41ddf","at":1772264057292000000,"seq":831,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca32b-ddd8-759d-ad2b-86c5ae1fc566","at":1772264087000000000,"seq":832,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ca32b-f160-71c3-a8c2-b203fd2951da","at":1772264092000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca33f-20f4-77ff-a1bb-58cd7ac5f731","at":1772265349364000000,"seq":834,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ca33f-5250-7499-9176-167a9d14734c","at":1772265362000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca33f-ba82-766c-b374-2c5183337ae8","at":1772265388674000000,"seq":836,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ca33f-bbc8-7061-8395-e5c50d51c70c","at":1772265389000000000,"seq":837,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca33f-bfb0-786d-be47-d69e5eb6bc05","at":1772265390000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca34b-da96-7296-b5f1-81adb077c301","at":1772266183318000000,"seq":839,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca34b-da96-72ac-ab00-2de5a2ab36ba","at":1772266183318000000,"seq":840,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca34b-f4b0-7295-89df-0b47b5866cd3","at":1772266190000000000,"seq":841,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ca34c-2b60-7aee-a263-44027e3234b0","at":1772266204000000000,"seq":842,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

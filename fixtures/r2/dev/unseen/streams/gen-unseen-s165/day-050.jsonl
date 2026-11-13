@@ -1,0 +1,18 @@
+{"v":1,"id":"019c74b9-6aaa-70b7-8fb2-733109e1194a","at":1771484834474000000,"seq":734,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c74b9-6aaa-7a4f-9a69-eb1b1ca04f96","at":1771484834474000000,"seq":735,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c74b9-e3de-76c0-8c3c-e38970da446a","at":1771484865502000000,"seq":736,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c74ba-0510-7ffd-bab1-8bba9ee6b08b","at":1771484874000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74ba-470f-7b13-b16d-51ee903147d6","at":1771484890895000000,"seq":738,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c74ba-7270-7936-bb00-b3aedd4942aa","at":1771484902000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c74ba-b4d8-7cd5-a72f-da23eb858d3a","at":1771484919000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74ba-ead3-7c21-aa32-ad11a712a9fb","at":1771484932819000000,"seq":741,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c74bb-4560-733e-afa2-9ca593e043ad","at":1771484956000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c74bb-4d30-746d-8e0b-dd19395edb73","at":1771484958000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c74bb-64a0-7d9f-bb84-67fa22e71009","at":1771484964000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74be-1649-7b5d-b252-1e7c0d2b2a5b","at":1771485140553000000,"seq":745,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c74be-4300-77ff-b8f5-dd5b396f3590","at":1771485152000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c74be-4ad0-7c47-b8df-0d045168416a","at":1771485154000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74c1-8849-7e96-a003-2c7f8128936f","at":1771485366345000000,"seq":748,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c74c1-8849-7008-981d-fa41d1f349e9","at":1771485366345000000,"seq":749,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c74c1-d128-7ee6-8a03-98db1b619617","at":1771485385000000000,"seq":750,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74c1-d8f8-76f2-9574-57e0691201c5","at":1771485387000000000,"seq":751,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

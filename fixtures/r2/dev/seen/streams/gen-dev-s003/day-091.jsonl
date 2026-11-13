@@ -1,0 +1,41 @@
+{"v":1,"id":"019d4892-7821-706c-8f08-08a34338710c","at":1775039051809000000,"seq":1364,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4892-7821-78ba-8420-15d9d4ba3f86","at":1775039051809000000,"seq":1365,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4892-b378-7cdd-9e3d-7fcd4bd8c159","at":1775039067000000000,"seq":1366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4892-b760-7357-953b-455d6e651825","at":1775039068000000000,"seq":1367,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4892-bf30-7603-8d9a-073bf75cdb09","at":1775039070000000000,"seq":1368,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d48a5-2e5b-763f-822f-455a3e9d0a5b","at":1775040278107000000,"seq":1369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d48a5-60b8-7bad-9af2-76f8b40b72a0","at":1775040291000000000,"seq":1370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d48a5-64a0-797a-bdef-1bfa4ca5d649","at":1775040292000000000,"seq":1371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48a5-670e-7f0b-aa83-69e890e2d609","at":1775040292622000000,"seq":1372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d48a5-8f98-7f17-9bcd-469792ecce14","at":1775040303000000000,"seq":1373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48a5-9768-754d-8206-0367fefc1407","at":1775040305000000000,"seq":1374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d48a6-1080-77e9-a79a-88f11a97a304","at":1775040336000000000,"seq":1375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48a6-74b3-7c89-84cd-e4a5943364da","at":1775040361651000000,"seq":1376,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d48a6-a108-7bec-886d-a3a196fc2213","at":1775040373000000000,"seq":1377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48a7-0698-7e7f-a28f-f09aafed281e","at":1775040399000000000,"seq":1378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d48a7-1a20-7efd-aa78-c1639d217989","at":1775040404000000000,"seq":1379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d48a7-3803-7512-bddf-a6d35b3947a8","at":1775040411651000000,"seq":1380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d48a7-3960-71e7-9ffa-e6b6f1169d97","at":1775040412000000000,"seq":1381,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d48a7-4518-7a54-b709-59150fbd3cfe","at":1775040415000000000,"seq":1382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48a7-7174-718b-9ed4-7498c0eedc08","at":1775040426356000000,"seq":1383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d48a7-9720-750b-8554-99ba8a119016","at":1775040436000000000,"seq":1384,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d48a7-b278-7273-99ca-a0dc8c64c978","at":1775040443000000000,"seq":1385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d48a8-27a8-74e3-ac8c-e8ae1d8da5dc","at":1775040473000000000,"seq":1386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d48a8-5661-776f-b4ff-6c9fae8074fe","at":1775040484961000000,"seq":1387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d48a8-a0c0-72f6-8840-4cc6c9b9c8f5","at":1775040504000000000,"seq":1388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d48a8-c000-7146-a161-7c53e4a4f4a7","at":1775040512000000000,"seq":1389,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d48bf-7286-78b6-9a9d-a6279d3e37e9","at":1775041999494000000,"seq":1390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d48bf-7c50-710b-aaee-9df80830eb42","at":1775042002000000000,"seq":1391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48bf-97a8-7726-90b1-98c2deb7a887","at":1775042009000000000,"seq":1392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48c0-0696-72aa-a49d-f0ff7ed96b06","at":1775042037398000000,"seq":1393,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d48c0-2830-77a2-b649-546a8a80764a","at":1775042046000000000,"seq":1394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48c0-4f40-709e-a8ce-32ff91a192c9","at":1775042056000000000,"seq":1395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48c0-55e2-714e-b286-a435d708dbde","at":1775042057698000000,"seq":1396,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d48c0-62c8-7d6a-8c08-3437d0ae9dd8","at":1775042061000000000,"seq":1397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48c0-66b0-75ee-9200-b3793590c319","at":1775042062000000000,"seq":1398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48c0-7268-7f4b-ae92-e036f546e465","at":1775042065000000000,"seq":1399,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d48c0-7650-7da7-8e2a-54920cbe3a66","at":1775042066000000000,"seq":1400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d48c0-8e85-7b1c-927d-1b76f90ba37f","at":1775042072197000000,"seq":1401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d48c0-9d60-7791-8c6e-67b2f636f42b","at":1775042076000000000,"seq":1402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48c0-a918-7081-8a36-4cbd4f77ba29","at":1775042079000000000,"seq":1403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d48c0-e798-774f-bdbc-162e498f57da","at":1775042095000000000,"seq":1404,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

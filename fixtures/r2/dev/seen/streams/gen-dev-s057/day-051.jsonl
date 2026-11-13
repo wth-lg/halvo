@@ -1,0 +1,33 @@
+{"v":1,"id":"019c7aa2-93c8-77ad-a467-9189ad898e79","at":1771584000968000000,"seq":592,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7aa2-93c8-7778-9014-d228bdbcc7a8","at":1771584000968000000,"seq":593,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7aba-c369-74d0-baa8-d4b73487a66e","at":1771585586025000000,"seq":594,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7aba-c369-7dad-9133-989034a13c2f","at":1771585586025000000,"seq":595,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7abb-a1f8-7594-93ae-063304334f2f","at":1771585643000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c7abb-a284-74e8-bd33-a20a1d914e5e","at":1771585643140000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7abb-c138-7ef1-8d3f-0d156d6bfe8a","at":1771585651000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7abb-c520-7d2f-9316-714f0ae07be6","at":1771585652000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7abb-ccf0-75d9-bb26-4f1a8b547494","at":1771585654000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7abb-d4c0-736d-96d7-768286582fc6","at":1771585656000000000,"seq":601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7abb-dc4a-7436-bf1c-c6b8bc595a03","at":1771585657930000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7abb-ec30-7407-9f44-bf5f5e093f43","at":1771585662000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7abc-ea18-79ea-b79c-b67e2ffc049a","at":1771585727000000000,"seq":604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7abc-eb0e-7791-b909-ff2539210239","at":1771585727246000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7abd-3838-746b-bf55-1c96d0cf7836","at":1771585747000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7abd-4fa8-741c-9f5a-84ea18e6625f","at":1771585753000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7abd-6b00-77a5-9bb1-86b2a7c3021b","at":1771585760000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7abd-a1b0-726f-acee-1cb81830e7d6","at":1771585774000000000,"seq":609,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7abd-e220-7eeb-841b-9236b360d9e6","at":1771585790496000000,"seq":610,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7abe-12f8-72ac-956a-3c1c381ea3ce","at":1771585803000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7abe-3238-7d2d-b96d-710b3260ab89","at":1771585811000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7abe-49a8-742c-bc2a-7edd2ae8570b","at":1771585817000000000,"seq":613,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7abe-69b5-7e48-8df9-58501047770f","at":1771585825205000000,"seq":614,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7abe-8c10-78f6-9ba0-893a0f6035bc","at":1771585834000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c7abf-0140-787b-88bf-8aa72e1a15ca","at":1771585864000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7acd-602f-78fe-a748-124b63075038","at":1771586805807000000,"seq":617,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7acd-6ca8-740d-ba3f-9c756a346dbc","at":1771586809000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7acd-ddf0-79c3-a1ee-9710a5dd3c87","at":1771586838000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7acd-fd30-705d-b94d-36484249fa80","at":1771586846000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7ace-2828-7f6c-b77a-a3e3e11c3c0f","at":1771586857000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c7ad0-2ecd-7df4-8d1a-dc0e9e2f3afc","at":1771586989773000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7ad0-9158-78b3-8266-7389b009ac9e","at":1771587015000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7ad0-c808-780c-a840-d1312ead41cb","at":1771587029000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,9 @@
+{"v":1,"id":"019ce0ff-4930-7610-ad22-d2e7c6962d64","at":1773301352752000000,"seq":988,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce0ff-4930-7cfd-930e-4055701a9358","at":1773301352752000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce100-4836-76e1-96b0-61ad44cc6fc3","at":1773301418038000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce100-5b98-7cae-89d0-f90ff5d68e84","at":1773301423000000000,"seq":991,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce100-8a78-7c8e-8d11-9a9be9fffe41","at":1773301435000000000,"seq":992,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce100-e37b-7385-bba3-92a712d94886","at":1773301457787000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce100-e838-7741-b891-bb814d172f76","at":1773301459000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ce100-ffa8-771a-8666-abec1987c4ee","at":1773301465000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce101-3270-75b1-b696-de043a388200","at":1773301478000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

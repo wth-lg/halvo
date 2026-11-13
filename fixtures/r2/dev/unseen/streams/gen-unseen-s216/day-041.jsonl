@@ -1,0 +1,23 @@
+{"v":1,"id":"019c4711-99bc-72b8-a4ca-d577c5317025","at":1770718861756000000,"seq":557,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4711-99bc-7034-95b9-825b9dd9f1ea","at":1770718861756000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c4711-9ab0-76a1-8594-e3de73ed3c35","at":1770718862000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4712-2368-71a3-9421-09bd939a78fd","at":1770718897000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c4728-cd19-7236-8178-dd96a2a55177","at":1770720382233000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c4729-bba8-707e-8c8a-5f07aece0f3a","at":1770720443304000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c472a-ca69-7ccc-abef-cd6ee75aefc0","at":1770720512617000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c472a-fac8-736d-ac02-eb9808e2c74c","at":1770720525000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c472b-21d8-70a2-a06a-701963b11a87","at":1770720535000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c472b-25c0-7de8-9dd8-e32bb134b4a7","at":1770720536000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c472b-2607-7722-9b26-16fcc8846276","at":1770720536071000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c472b-54a0-7d96-b1bb-4b30469adc4e","at":1770720548000000000,"seq":568,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c472b-5c70-7afc-8dbe-7e8994341a70","at":1770720550000000000,"seq":569,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c472b-5c70-7958-9027-72b000947331","at":1770720550000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c472b-72ef-76f4-a5ea-e24498bace04","at":1770720555759000000,"seq":571,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c472b-8b50-7c3e-9d46-3a3062c9d57e","at":1770720562000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c472b-8f38-7869-b6b9-d6a3bba25c11","at":1770720563000000000,"seq":573,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c472b-be18-7300-9895-94bb7b0f8307","at":1770720575000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c472c-1fc0-7de8-b3c4-dcd2be1bcb17","at":1770720600000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c472c-7416-7b94-889f-4ff86500fe3f","at":1770720621590000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c472c-75b0-7b11-9b5a-744e5c453b0b","at":1770720622000000000,"seq":577,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c472c-ac60-7caa-a50c-5ea96ad3ced5","at":1770720636000000000,"seq":578,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c472c-c3d0-7dba-96be-e9337a551aaa","at":1770720642000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

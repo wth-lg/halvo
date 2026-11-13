@@ -1,0 +1,20 @@
+{"v":1,"id":"019b7e5c-8b43-7cdd-9317-1c7b316f68a1","at":1767351552835000000,"seq":25,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e5c-8b43-7d6b-90e1-505f65f636c9","at":1767351552835000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b7e5d-57a2-7d06-b5ec-d8dd7e26b702","at":1767351605154000000,"seq":27,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b7e5d-6e78-7276-bc54-cda5a191eba7","at":1767351611000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e5d-7a30-77fe-9021-6d58c32b0cec","at":1767351614000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e5d-c468-72f9-9bcf-22649d4cd029","at":1767351633000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e5e-649b-7da9-9615-b30c1241fda0","at":1767351674011000000,"seq":31,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b7e5e-6c60-781f-86c4-b185f62deb9b","at":1767351676000000000,"seq":32,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e5e-b698-7c08-bb9a-f6252eb8b4c0","at":1767351695000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e5e-be68-7138-9d20-4996a72212a1","at":1767351697000000000,"seq":34,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7e5e-e36b-736a-a342-c547cf04c511","at":1767351706475000000,"seq":35,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b7e5f-7600-77f5-b82a-f68e617dca9b","at":1767351744000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b7e64-cb28-7e13-bdb6-5c9428149486","at":1767352093480000000,"seq":37,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e65-03e0-7047-91e5-47ddef30a849","at":1767352108000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b7e65-07c8-7cdf-b43d-cb720650c385","at":1767352109000000000,"seq":39,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e65-5200-7a49-8c98-fa2e402b9541","at":1767352128000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e65-a408-7a4e-88d1-038fc489311d","at":1767352149000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e65-b9e7-7f1f-9127-36bf68952925","at":1767352154599000000,"seq":42,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e65-c730-7055-9a5f-1b35f900e9e4","at":1767352158000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e66-4048-7425-91ae-3ad298cf218c","at":1767352189000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

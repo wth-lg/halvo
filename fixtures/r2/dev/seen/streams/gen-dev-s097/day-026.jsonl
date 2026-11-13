@@ -1,0 +1,63 @@
+{"v":1,"id":"019bf941-ac3e-7b7b-8f99-c6af03f9e448","at":1769413389374000000,"seq":363,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf941-ac3e-73a2-9ccf-b251300ce520","at":1769413389374000000,"seq":364,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf941-aeb0-7826-85fa-3f9f5a13bab7","at":1769413390000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf941-ca08-7f83-bea4-eeed1166015f","at":1769413397000000000,"seq":366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf941-dd90-779f-9f42-45373a818e2b","at":1769413402000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bf941-fe4b-7a05-a7fa-f66321beb1a7","at":1769413410379000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf942-1c10-7189-9582-91f7d40887da","at":1769413418000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf942-2bb0-7983-b633-9eafa6e31214","at":1769413422000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf942-8588-7826-8135-c6ac39b8c6b7","at":1769413445000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bf942-9577-7b01-9412-c30316a236be","at":1769413449079000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf942-df60-7331-ba55-caedf64e1d71","at":1769413468000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf943-0670-73db-9b19-c3093f671c41","at":1769413478000000000,"seq":374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf943-1228-721d-b8f5-1eb0bfcf4830","at":1769413481000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf943-21c8-7066-ab23-be023ad27410","at":1769413485000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf943-3723-7b15-8070-2a777c972831","at":1769413490467000000,"seq":377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf943-8758-7263-acb1-7fba696754e7","at":1769413511000000000,"seq":378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf943-a698-7805-8917-f81eff2a1d27","at":1769413519000000000,"seq":379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf95b-881c-7544-ac70-099a09b9b2ca","at":1769415084060000000,"seq":380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf95b-8bc8-7058-a54f-826554c03053","at":1769415085000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bf95b-9780-741f-8851-53e69156b758","at":1769415088000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf970-d30c-7ea5-99fe-8c69429fb267","at":1769416479500000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf970-dcd0-7858-8392-29151fa06834","at":1769416482000000000,"seq":384,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf971-1380-7300-9e5a-34ce2a384821","at":1769416496000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf976-73a5-74b8-bfb8-eef31022ae2e","at":1769416848293000000,"seq":386,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf976-a548-7520-9ca8-e6e4b5e6892f","at":1769416861000000000,"seq":387,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf976-e7b0-7460-9da5-24acbd8d98ef","at":1769416878000000000,"seq":388,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf977-2248-7d9c-b70e-b262bd20aaea","at":1769416893000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf97d-ddc8-76d9-a1d3-3c63f412734d","at":1769417334216000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bf97d-f848-73fb-bb31-0113b3ad0d86","at":1769417341000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf97d-f848-7edd-921d-f2ef5838a186","at":1769417341000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bf97e-13a0-73a5-9251-01f468a25b61","at":1769417348000000000,"seq":393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf97e-3621-7b98-a884-243056d20023","at":1769417356833000000,"seq":394,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bf97e-90a0-744f-b7ef-b3ef48001531","at":1769417380000000000,"seq":395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bf97e-e2a8-7a7e-b310-2a26879dff3a","at":1769417401000000000,"seq":396,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf97f-007f-747f-863a-2b994173577f","at":1769417408639000000,"seq":397,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Oak Square - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bf97f-0da0-7f1e-bb33-ea506140d58e","at":1769417412000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bf97f-4c20-7be3-aacf-af64235f3f52","at":1769417428000000000,"seq":399,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf97f-6f48-76c4-b0e2-b040b15c4201","at":1769417437000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf97f-7718-71da-b76f-68bf2dbf21bf","at":1769417439000000000,"seq":401,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf97f-f7d3-7049-baeb-14d45fbf04ec","at":1769417471955000000,"seq":402,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bf980-3298-7562-9e16-13548725fb36","at":1769417487000000000,"seq":403,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf980-80b8-7be3-b080-956820db8b2f","at":1769417507000000000,"seq":404,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf980-a7c8-725c-8e2d-a1ad88ea239b","at":1769417517000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bf980-b380-7015-9fc3-be584c8571b7","at":1769417520000000000,"seq":406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf980-bb50-7a64-826c-90b184fad761","at":1769417522000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf990-0d4b-7da8-be2c-9b024c832adb","at":1769418526027000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf990-76a8-76c0-8880-183e70449b41","at":1769418553000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bf990-8434-7878-920d-92987dc2d75d","at":1769418556468000000,"seq":410,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf990-8a30-71f8-9ebd-07a383c838e4","at":1769418558000000000,"seq":411,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf990-8e18-77b0-8f28-bb15ec1fcfc4","at":1769418559000000000,"seq":412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf990-f3a8-7d44-9a8e-d91c310693e8","at":1769418585000000000,"seq":413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf991-4d80-72e5-8a65-f1ecae15ab4d","at":1769418608000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bf991-6167-7683-8c57-ad4a8eef56ba","at":1769418613095000000,"seq":415,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf991-64f0-7022-a6f0-0cccaedfc1c1","at":1769418614000000000,"seq":416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf991-a370-7dc1-91c6-70ca9891e143","at":1769418630000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf991-c698-75a9-b95a-098ec6eba67e","at":1769418639000000000,"seq":418,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf991-d271-77f1-94b8-e1147e0034bb","at":1769418642033000000,"seq":419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf992-3010-7de2-811e-12e0c851cec3","at":1769418666000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf992-384c-7e12-9d10-411dfa2973a3","at":1769418668108000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf992-7660-74ac-8728-2f059b8f7d77","at":1769418684000000000,"seq":422,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf993-0652-7c1f-a9d7-d6948f216b29","at":1769418720850000000,"seq":423,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf993-1688-7b13-bb0c-85a1442db899","at":1769418725000000000,"seq":424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf993-d9d8-7a6c-b0b7-80d5d7623a6e","at":1769418775000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

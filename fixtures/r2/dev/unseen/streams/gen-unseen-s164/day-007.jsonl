@@ -1,0 +1,11 @@
+{"v":1,"id":"019b97c2-f95a-7e86-a8d5-2a66d08d0dd0","at":1767777696090000000,"seq":45,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97c2-f95a-74b2-8651-0515d84e606a","at":1767777696090000000,"seq":46,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b97c3-bc50-749f-9c6f-79da70ad2ac4","at":1767777746000000000,"seq":47,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b97c4-055a-73a7-92ab-5865cc135a22","at":1767777764698000000,"seq":48,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b97c4-f695-740c-bdec-54243e352533","at":1767777826453000000,"seq":49,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b97c4-fca0-701b-b8b6-b3eff3e8201f","at":1767777828000000000,"seq":50,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c5-17f8-78ff-a2cf-506853c49f5d","at":1767777835000000000,"seq":51,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b97c5-5bb9-7aa5-be61-97007be85fbf","at":1767777852345000000,"seq":52,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b97c5-6230-7a43-8606-82a06b865b01","at":1767777854000000000,"seq":53,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c5-bc08-7732-bbc6-f80a2ef57a38","at":1767777877000000000,"seq":54,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b97c5-cf90-7167-a4ba-bf30e23de275","at":1767777882000000000,"seq":55,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

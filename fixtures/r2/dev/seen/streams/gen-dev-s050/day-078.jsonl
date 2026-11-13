@@ -1,0 +1,22 @@
+{"v":1,"id":"019d0519-a7c6-7895-b6d1-e650be5cf1e8","at":1773907060678000000,"seq":1194,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0519-a7c6-7d31-b9e1-4b6b292a1e47","at":1773907060678000000,"seq":1195,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d051a-3d78-7245-8256-de2adc71db52","at":1773907099000000000,"seq":1196,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d051a-9368-786c-9932-8cd6894a7f7d","at":1773907121000000000,"seq":1197,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d051a-9368-7fe4-a985-79fe8febb099","at":1773907121000000000,"seq":1198,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d052d-7844-7043-a1e1-c6026068226f","at":1773908359236000000,"seq":1199,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d052d-7844-7d95-95d0-f35591dcf857","at":1773908359236000000,"seq":1200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d052e-2ef0-7a2f-b4c9-f3362649bfe4","at":1773908406000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d052e-3e90-7a2e-8d11-789e4323be53","at":1773908410000000000,"seq":1202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d052e-4660-739a-aa31-88bc45a7e9eb","at":1773908412000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0545-7a57-794f-a7bc-becac78ce01b","at":1773909932631000000,"seq":1204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0545-b3a2-7231-819d-845caca1319e","at":1773909947298000000,"seq":1205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0545-e928-7291-8c02-d7d02dfc6428","at":1773909961000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0545-f0f8-786d-a769-eb05911eb067","at":1773909963000000000,"seq":1207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d0546-5e58-7c99-b895-92a507341a27","at":1773909991000000000,"seq":1208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0546-7bdd-71a3-bf76-d4fb64aa9f6b","at":1773909998557000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0547-2d60-73e0-9f7f-c88f0fb48fca","at":1773910044000000000,"seq":1210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0547-46a1-72ef-815e-895e835a71ae","at":1773910050465000000,"seq":1211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0547-a290-7f51-8ea5-ef62517c875d","at":1773910074000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0547-a678-7f0f-a57e-d2b524efb9e0","at":1773910075000000000,"seq":1213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d054f-7fac-738f-ad7a-00e0bf44e358","at":1773910589356000000,"seq":1214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d054f-ad28-73c6-aa31-ae916d595b14","at":1773910601000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,15 @@
+{"v":1,"id":"019cbd12-1460-711f-b943-8af6e5d9d91d","at":1772698604640000000,"seq":1074,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd12-1460-790a-a398-76841cac5197","at":1772698604640000000,"seq":1075,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cbd12-7f40-7ba8-b817-e817ef7f07b8","at":1772698632000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd12-d4f0-700f-ae0a-66dd8bb207e5","at":1772698653936000000,"seq":1077,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cbd13-07f8-7640-bd1c-bfd47ebefe3f","at":1772698667000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd1f-85fc-7afb-bfd2-6dd3fad94679","at":1772699485692000000,"seq":1079,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd1f-85fc-7fbe-9303-e43173f5c71e","at":1772699485692000000,"seq":1080,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd1f-f490-7fd3-ad33-2ff9b0d5659e","at":1772699514000000000,"seq":1081,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cbd20-0048-7976-87ff-e17e2970d88b","at":1772699517000000000,"seq":1082,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd20-2370-730d-9227-3970a1729af8","at":1772699526000000000,"seq":1083,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cbd2c-97b2-7eba-9156-1b6f0bf22e7d","at":1772700342194000000,"seq":1084,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd2c-97b2-7573-8fef-17c4612d3014","at":1772700342194000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cbd2d-5658-71f8-84b6-74d68668c64b","at":1772700391000000000,"seq":1086,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2d-5e28-7ddf-8199-15f9c948ff9f","at":1772700393000000000,"seq":1087,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbd2d-8920-7620-a8f6-8fb4394d5e91","at":1772700404000000000,"seq":1088,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

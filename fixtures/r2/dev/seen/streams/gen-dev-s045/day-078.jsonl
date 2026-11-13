@@ -1,0 +1,38 @@
+{"v":1,"id":"019d052b-4315-70db-8b5a-86dbc98570d8","at":1773908214549000000,"seq":1050,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d052b-4315-73f7-aaa1-ed9a4939206c","at":1773908214549000000,"seq":1051,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d052c-0b8f-70b9-bea1-c8ad92346698","at":1773908265871000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d052c-5e18-75e2-b6f8-38850a7a92c3","at":1773908287000000000,"seq":1053,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d052c-8bc3-796c-807c-e7448ad18f2f","at":1773908298691000000,"seq":1054,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d052c-a468-74a2-8559-7cff529abec5","at":1773908305000000000,"seq":1055,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d052c-eab8-780c-aa70-fc55ee66a7f8","at":1773908323000000000,"seq":1056,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d052c-ef35-7a45-b085-143b2890ffd3","at":1773908324149000000,"seq":1057,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d052d-7370-72d1-a782-d83ef3b46b7a","at":1773908358000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d052d-8ae0-7fc8-91dd-11e1090ceadd","at":1773908364000000000,"seq":1059,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0539-9733-77c9-863a-6bf74dbfdbba","at":1773909153587000000,"seq":1060,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0539-9733-71f9-97f1-dff301780fc2","at":1773909153587000000,"seq":1061,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0539-e8c3-74f2-944a-7a0f5ff46ccb","at":1773909174467000000,"seq":1062,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0539-e8c3-7cb7-9764-bf9911a26406","at":1773909174467000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d053a-4898-7a8c-b636-a2d3df4891e4","at":1773909199000000000,"seq":1064,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d053a-f957-7adf-ab84-99b6dafd74e0","at":1773909244247000000,"seq":1065,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d053a-f957-7d6f-a1f6-773eb5eb1ce5","at":1773909244247000000,"seq":1066,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d054a-72cb-7085-a7df-0370e7c091fc","at":1773910258379000000,"seq":1067,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d054a-72cb-7feb-9389-f324adce8ced","at":1773910258379000000,"seq":1068,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d054a-bf70-7723-a52a-47c311fc751e","at":1773910278000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d054b-0979-7456-b0b0-6ec8b590c8d8","at":1773910296953000000,"seq":1070,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d054b-2500-7b1e-af94-44da23d7e7b2","at":1773910304000000000,"seq":1071,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d054b-4058-734f-8cec-67fb314a4e9e","at":1773910311000000000,"seq":1072,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d054b-4828-7b97-b6ab-53f36a112eb7","at":1773910313000000000,"seq":1073,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d054b-4b19-72c3-bc07-64fff6c003b3","at":1773910313753000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d054b-5f98-7ae5-8d46-d3d5facc9101","at":1773910319000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d054b-7320-7a7a-a0a3-2f240ef953e5","at":1773910324000000000,"seq":1076,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d054b-ab34-7590-9107-521d638fd2a5","at":1773910338356000000,"seq":1077,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d054b-dc98-7f66-b093-7726df861d34","at":1773910351000000000,"seq":1078,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d054b-fbd8-7961-b454-9d12a44590b3","at":1773910359000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d054c-22e8-79f6-b1d8-9dba09f0c1ba","at":1773910369000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0567-7d56-7bfb-b416-a4d33e2d2474","at":1773912161622000000,"seq":1081,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0567-7d56-757d-9871-511911ae1a34","at":1773912161622000000,"seq":1082,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0567-9258-739e-9e01-003a756ee44a","at":1773912167000000000,"seq":1083,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0567-9640-759c-ae60-a630477932da","at":1773912168000000000,"seq":1084,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0567-9e10-7e4a-83bc-b7b3e7c0e8b9","at":1773912170000000000,"seq":1085,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0567-d4c0-72d7-9b84-07d9abc89159","at":1773912184000000000,"seq":1086,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d0567-e078-71ce-9515-7eebca76489e","at":1773912187000000000,"seq":1087,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

@@ -1,0 +1,12 @@
+{"v":1,"id":"019c4bb0-be44-77ba-a0b1-9da848054cd2","at":1770796400196000000,"seq":456,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4bb0-be44-7680-9cac-9455f07a4dac","at":1770796400196000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c4bb1-9170-7102-b0b9-f8182a39edde","at":1770796454256000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c4bb1-bb68-7e71-bfea-dbe27307726f","at":1770796465000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bb1-c720-7ffb-abb4-08d6e43d7777","at":1770796468000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c4bb1-de7c-78a9-835b-605e95faed1f","at":1770796473980000000,"seq":461,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c4bb2-1d10-7544-ae38-cd16cdf53d25","at":1770796490000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bb2-31d9-709a-bee4-c4c1da70e46a","at":1770796495321000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c4bb2-3480-7b6b-bff8-a757bbed9bc7","at":1770796496000000000,"seq":464,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4bb2-57a8-7566-974c-ebe0b4781265","at":1770796505000000000,"seq":465,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4bb2-5f78-7dfc-8194-912f457dd3a0","at":1770796507000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c4bb2-7eb8-7cd1-8884-1e50860f125b","at":1770796515000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,24 @@
+{"v":1,"id":"019bda55-bff1-7889-ba83-1be54ec92dc5","at":1768894611441000000,"seq":446,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda55-bff1-7180-87fe-3ffb04d9c67d","at":1768894611441000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bda55-e160-7805-a0d7-b284daed3e89","at":1768894620000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda55-f8d0-7607-88da-d7faec59ec25","at":1768894626000000000,"seq":449,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda56-0c58-744d-aeec-f8ff5a2be230","at":1768894631000000000,"seq":450,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda57-68e7-73a6-852a-acac3e86f471","at":1768894720231000000,"seq":451,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bda57-c6d4-7e49-b770-b3b6b33d417c","at":1768894744276000000,"seq":452,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bda58-4a90-7b47-aac6-f969223b0e2a","at":1768894778000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda58-c1b6-7669-9577-29c0fc13c579","at":1768894808502000000,"seq":454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bda58-eea0-72e7-8cd8-5cc509ac0b8b","at":1768894820000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda59-ae08-75c6-b839-6875660b2993","at":1768894869000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda59-c8fe-7153-abcb-b813b9577ad7","at":1768894875902000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bda59-ec88-78e4-a22b-cb3df295eac9","at":1768894885000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bda5a-7928-7da0-a9b7-6892a2d6aac0","at":1768894921000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda5a-bf78-74bc-a957-d4f7947f3efa","at":1768894939000000000,"seq":460,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda6d-fbbd-788f-9adc-39c4a4e1c04e","at":1768896199613000000,"seq":461,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bda6d-fbbd-7a46-9d25-90b2284a6f3d","at":1768896199613000000,"seq":462,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bda6e-7e28-7d4a-ae10-ecf11d6ad459","at":1768896233000000000,"seq":463,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bda6e-ad08-7a2f-a95a-9eecfa8a61e4","at":1768896245000000000,"seq":464,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6e-dbe8-700b-8259-8736326fa865","at":1768896257000000000,"seq":465,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda70-1609-7677-93ec-266f18918702","at":1768896337417000000,"seq":466,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bda70-2fc0-7efe-9c79-a6a957d20cbf","at":1768896344000000000,"seq":467,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bda70-a4f0-79a1-a4de-3104e38467d4","at":1768896374000000000,"seq":468,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bda70-b490-765a-a21c-d1bbd0a68043","at":1768896378000000000,"seq":469,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

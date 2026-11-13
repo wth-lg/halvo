@@ -1,0 +1,22 @@
+{"v":1,"id":"019cffe1-5932-7370-abf1-563239455d12","at":1773819484466000000,"seq":1144,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cffe1-5932-7726-9283-3cba6bb8a375","at":1773819484466000000,"seq":1145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cffe1-5f30-7277-9d4a-364953ad387e","at":1773819486000000000,"seq":1146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe1-72b8-7ca2-b779-bd435e1a7969","at":1773819491000000000,"seq":1147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cffe1-8640-7ec5-93ad-9155319f6b02","at":1773819496000000000,"seq":1148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe1-9702-7a5c-94e3-0d2c302211f8","at":1773819500290000000,"seq":1149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cffe1-e400-7aed-9f79-83089629d207","at":1773819520000000000,"seq":1150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cffe1-ff58-75b5-a391-2b0826c06068","at":1773819527000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe2-1ab0-7ef9-bfdf-8d71266b37cf","at":1773819534000000000,"seq":1152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cffe2-5930-7d72-a25a-93c3acdd204c","at":1773819550000000000,"seq":1153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe2-8dfc-7601-838e-906ec39d14f9","at":1773819563516000000,"seq":1154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cffe2-97b0-7706-913c-79e28bd283d9","at":1773819566000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cffe2-a750-7f48-903c-33c778834bfc","at":1773819570000000000,"seq":1156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe2-af20-7fbd-b0f7-8a8946036aad","at":1773819572000000000,"seq":1157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfffa-4b2d-73ec-8a9f-aa6a93a742e0","at":1773821119277000000,"seq":1158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cfffa-5da0-7116-8e07-48777bb03649","at":1773821124000000000,"seq":1159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfffa-9068-77a4-8667-41de87f89b13","at":1773821137000000000,"seq":1160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0007-71e0-7751-b3fd-92a117248dcc","at":1773821981152000000,"seq":1161,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0007-71e0-713c-99d1-d052832474b3","at":1773821981152000000,"seq":1162,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0007-7530-7bf2-a053-872cde347909","at":1773821982000000000,"seq":1163,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0007-7918-7970-877d-1292bec7b711","at":1773821983000000000,"seq":1164,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d0007-b3b0-7086-8acd-f79ac701999e","at":1773821998000000000,"seq":1165,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

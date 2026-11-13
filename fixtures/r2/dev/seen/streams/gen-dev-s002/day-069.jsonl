@@ -1,0 +1,42 @@
+{"v":1,"id":"019cd6f3-5670-75fc-9233-e7858974fcee","at":1773132797552000000,"seq":976,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6f3-5670-7689-a148-133d893219ad","at":1773132797552000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f3-cd60-7eb1-ad69-17ce64891598","at":1773132828000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cd6f3-d148-79a2-9e66-52977d727628","at":1773132829000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f4-335b-74c5-bfa4-e96de121c885","at":1773132854107000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f4-4678-7878-9c07-4a880272d87c","at":1773132859000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cd6f4-7170-744c-b3ec-01c19fba5238","at":1773132870000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f4-7d28-7984-a37c-7c642fe2208f","at":1773132873000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd700-5596-7381-a1e6-9851a3903ea5","at":1773133649302000000,"seq":984,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cd700-8f00-7051-89a4-0597f9da9e75","at":1773133664000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cd701-5d01-7f01-ac12-9d8526ae4723","at":1773133716737000000,"seq":986,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cd701-6da8-739c-acf8-000e3999b135","at":1773133721000000000,"seq":987,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd701-8130-7c84-adc2-e3060c4eaa3d","at":1773133726000000000,"seq":988,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd701-ee90-79ea-a536-ccaa747789b9","at":1773133754000000000,"seq":989,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd702-1613-7a25-a40c-561415a0fc94","at":1773133764115000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cd702-34e0-7e83-8f68-89b8e14eed6f","at":1773133772000000000,"seq":991,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd702-5420-7ab3-9286-d3ffd939738c","at":1773133780000000000,"seq":992,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd702-5e37-7049-92c4-0e780849e1f4","at":1773133782583000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cd702-6b90-7946-ac39-074567c488d5","at":1773133786000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cd702-8300-79d3-9063-ebaea44945d7","at":1773133792000000000,"seq":995,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd702-92a0-7750-9bc9-599b0ea434dc","at":1773133796000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd702-adf8-7aa1-b52d-7a2c0c2410df","at":1773133803000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd705-0767-7a1b-894b-1031612f5409","at":1773133956967000000,"seq":998,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cd705-0b70-73f4-9283-71e464a0f9e8","at":1773133958000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd705-3a50-720f-b839-760419169c14","at":1773133970000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cd705-7daf-7066-9db7-c22100bfe76b","at":1773133987247000000,"seq":1001,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cd705-9428-75a9-8969-f00b306b4c0e","at":1773133993000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd705-b368-7bc5-b777-7f1b133a04be","at":1773134001000000000,"seq":1003,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd705-bf20-7a68-b1c6-49b21dfd2403","at":1773134004000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd705-c8f4-77e9-b2de-42b33394efe0","at":1773134006516000000,"seq":1005,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cd705-ea18-76b0-94cc-c5aa4b7734cc","at":1773134015000000000,"seq":1006,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd705-f1e8-7081-99dc-7370c095997e","at":1773134017000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd706-0570-740f-9dc8-3dbb5e23e512","at":1773134022000000000,"seq":1008,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd706-1ce0-7a2b-8405-f6d0b08d1e09","at":1773134028000000000,"seq":1009,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd706-3203-7116-ad78-9fa0fb89041f","at":1773134033411000000,"seq":1010,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cd706-47d8-76ce-8424-8ccddff291fb","at":1773134039000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cd706-4fa8-71a1-9dcb-adc17525ad95","at":1773134041000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd706-5b60-7fc9-9570-ecc53acfe4a8","at":1773134044000000000,"seq":1013,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd706-6718-7ce8-9ca8-d273f0beaa1b","at":1773134047000000000,"seq":1014,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd706-7e88-700a-bd54-4177141635f2","at":1773134053000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd706-7e8e-764d-8730-1a5308db3b57","at":1773134053006000000,"seq":1016,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cd707-16e0-7c7a-95a9-5f87130b93e0","at":1773134092000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

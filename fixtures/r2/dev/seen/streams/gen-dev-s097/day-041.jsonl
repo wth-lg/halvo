@@ -1,0 +1,22 @@
+{"v":1,"id":"019c4729-e619-7131-a88e-c042a16806f7","at":1770720454169000000,"seq":648,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4729-e619-70c7-85c2-7ba9417a05f3","at":1770720454169000000,"seq":649,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4729-fce0-7123-9e43-949a6961236c","at":1770720460000000000,"seq":650,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c472a-1450-7192-b3fd-acd89d399fae","at":1770720466000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c472a-1838-779a-b406-1847f537f7c2","at":1770720467000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c472a-23f0-73f0-a08c-a30eec9aa0e2","at":1770720470000000000,"seq":653,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c473e-a9d1-73b8-b40c-f33a8b9778d6","at":1770721814993000000,"seq":654,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c473f-83fc-7420-9565-19bdb9b4240c","at":1770721870844000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c473f-9c08-788a-9c91-b2f98d691611","at":1770721877000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c473f-f9c8-7e18-ba18-12bbd523bdf1","at":1770721901000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c473f-fdb0-77dd-ad57-aaaf1ac8038a","at":1770721902000000000,"seq":658,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4740-20d8-7af3-8a79-5956f8411066","at":1770721911000000000,"seq":659,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4740-61bd-796d-9a74-b2786ea96c87","at":1770721927613000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c4740-76c8-7a27-9c6a-9b2e200fb1d9","at":1770721933000000000,"seq":661,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4740-8e38-7bb3-99ac-0797c7d46f67","at":1770721939000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c4740-99f0-7e24-87c5-7f4e918da8d1","at":1770721942000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4740-b160-7980-ba52-ba30f9fb3850","at":1770721948000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4740-bb85-7300-9840-6b67ed252f19","at":1770721950597000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c4740-c8d0-78c8-90ea-8b789c2fc4a7","at":1770721954000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4740-e810-7919-9c80-e2a05b2cc59d","at":1770721962000000000,"seq":667,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4740-f7b0-7ca6-b5dc-f173a5eedc3c","at":1770721966000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4741-0368-76d1-b67e-7501a2a9a029","at":1770721969000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

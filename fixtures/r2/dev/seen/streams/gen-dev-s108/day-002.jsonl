@@ -1,0 +1,52 @@
+{"v":1,"id":"019b7e05-8ab8-769d-8aad-876be2c9f479","at":1767345851064000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e05-8ab8-769f-bdab-9c779c755b78","at":1767345851064000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e05-a5d0-7545-a6cf-26cc630ef935","at":1767345858000000000,"seq":2,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e05-b188-7f7d-a875-b1e3e0ff7379","at":1767345861000000000,"seq":3,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e05-c128-7199-aae3-9a60655486d6","at":1767345865000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e05-c8f8-7a9d-9a9a-9ae3208dfa49","at":1767345867000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e05-d0c8-784b-8b64-694e2e351e8f","at":1767345869000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b7e07-329f-71dd-a909-bdff29792847","at":1767345959583000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b7e07-3c10-7fd3-9046-6307dce32113","at":1767345962000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7e07-f48a-7f45-af1c-d3cc34be7c48","at":1767346009226000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b7e07-fb78-7e1d-a037-3304f95a5f07","at":1767346011000000000,"seq":10,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e08-2e40-7d8e-99b1-6935ae773532","at":1767346024000000000,"seq":11,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e08-7878-7577-a777-b0505eb15c2d","at":1767346043000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e08-8430-7a7a-ace0-8e4aceaae117","at":1767346046000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e08-93d0-74c3-9cdc-29a7474f9ace","at":1767346050000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b7e08-a8ca-7779-9598-04d3acec084e","at":1767346055370000000,"seq":15,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b7e08-ca80-7783-9dcc-6791d2e802e8","at":1767346064000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b7e08-f578-764e-98df-6d82a1bd4049","at":1767346075000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e09-44a4-73fb-860c-3fddf8894b0d","at":1767346095268000000,"seq":18,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b7e10-7b83-74fe-8b34-a8264edbff27","at":1767346568067000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7e10-b1f0-7b3b-88f4-cfca6d30e782","at":1767346582000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e10-bf45-7135-b2fb-bd0a8f564394","at":1767346585413000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7e10-c578-7503-a5a9-37b1adb3c5c4","at":1767346587000000000,"seq":22,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e10-f070-73b7-ab67-fbd317c89681","at":1767346598000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e11-7540-75f4-9797-f6e06bad42d7","at":1767346632000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b7e11-a038-7fe3-8b13-070a6b81a1ef","at":1767346643000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e11-b33b-709a-a24d-236bae0cd3f2","at":1767346647867000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7e11-bf78-7909-83a2-220e9ef53091","at":1767346651000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e11-f240-7d05-a5be-b6d72bc367ec","at":1767346664000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e12-4448-7384-8c06-23316ea2eb2b","at":1767346685000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e12-5000-7c4f-89d9-49f577ef5e0c","at":1767346688000000000,"seq":30,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e12-6c2d-7f83-b42f-914db62a6932","at":1767346695213000000,"seq":31,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7e12-6f40-7069-88bd-9e6cfb6c72b5","at":1767346696000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e12-82c8-73e1-855c-4586fded24e0","at":1767346701000000000,"seq":33,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e12-b978-7c15-b07d-e77f7d4f4df4","at":1767346715000000000,"seq":34,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e13-1119-7183-861a-73f71a096638","at":1767346737433000000,"seq":35,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7e13-1f08-7ef4-81b5-e24914493b8b","at":1767346741000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e13-26d8-7479-8d81-1b8fc57b0c35","at":1767346743000000000,"seq":37,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e13-3678-78aa-b22f-2f4467163d43","at":1767346747000000000,"seq":38,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e13-3e48-7b29-adb5-e416e14fa2a8","at":1767346749000000000,"seq":39,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e13-61f1-7e11-91fd-da81f733d697","at":1767346758129000000,"seq":40,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7e13-9438-772a-8e49-32d9b29175e2","at":1767346771000000000,"seq":41,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e13-9ff0-72e8-9318-c90eb6377ce6","at":1767346774000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e13-b760-7ff4-b85c-d239cee3bacd","at":1767346780000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e13-bf30-736c-b72d-4ba664a1d1fd","at":1767346782000000000,"seq":44,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e1d-0e4d-7d53-b30f-d5d78e0dae1c","at":1767347392077000000,"seq":45,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7e1d-3ce0-7ef3-af20-a71eb6fdd014","at":1767347404000000000,"seq":46,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e1d-7778-734f-bfab-b182da03b23d","at":1767347419000000000,"seq":47,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e1d-7f48-7b6d-b61d-33e2310cb4f0","at":1767347421000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b7e26-dcd8-74b4-bfca-ea835e7472e9","at":1767348034776000000,"seq":49,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7e27-1080-72ab-8101-7b4134b52a2a","at":1767348048000000000,"seq":50,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7e27-2408-7150-93c4-45a5fcbdad1c","at":1767348053000000000,"seq":51,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

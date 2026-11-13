@@ -1,0 +1,20 @@
+{"v":1,"id":"019d14db-b830-7fea-8435-511f5c63dd71","at":1774171437104000000,"seq":1301,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14db-b830-7bb9-bac0-bfa1640102c2","at":1774171437104000000,"seq":1302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d14db-ea90-7f49-8fa4-579009580637","at":1774171450000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d14db-f260-7191-90e7-d9ff1a85cd88","at":1774171452000000000,"seq":1304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14db-fe2d-7312-9617-99d625ef7928","at":1774171455021000000,"seq":1305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d14dc-0db8-7975-bd84-b6fa8b2bc5b7","at":1774171459000000000,"seq":1306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d14dc-2528-7ac0-a03d-bad80980a92b","at":1774171465000000000,"seq":1307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d14dc-4922-787d-b97a-ee4c4b5c8ea5","at":1774171474210000000,"seq":1308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d14dc-4c38-7f1e-abe2-d0f90d32ff8c","at":1774171475000000000,"seq":1309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14dc-5fc0-7427-84b1-f3ee725f1ea8","at":1774171480000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d14dc-a228-7708-a63a-d3ab556aab6a","at":1774171497000000000,"seq":1311,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d14dc-b5b0-7a31-9e99-954efcf787c2","at":1774171502000000000,"seq":1312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14dc-b971-7d2c-8793-8bdcb9cc4667","at":1774171502961000000,"seq":1313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d14dd-1758-7bb3-99cd-09b729cfb774","at":1774171527000000000,"seq":1314,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d14dd-2310-75b9-9b36-18516325de73","at":1774171530000000000,"seq":1315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d14dd-5da8-7390-83af-5cc92788b14f","at":1774171545000000000,"seq":1316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d14f1-dbb9-7615-81b5-2d248278313e","at":1774172887993000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d14f2-ca2e-704b-8e62-75d1837a7659","at":1774172949038000000,"seq":1318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d14f3-1058-7c8c-8775-816706690df3","at":1774172967000000000,"seq":1319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d14f3-1c10-708c-899c-5e4bf36cf3a1","at":1774172970000000000,"seq":1320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

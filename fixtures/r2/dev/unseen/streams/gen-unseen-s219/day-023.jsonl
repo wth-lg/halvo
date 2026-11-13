@@ -1,0 +1,14 @@
+{"v":1,"id":"019bea71-7ec1-79cf-a526-581caf533dbe","at":1769164865217000000,"seq":367,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea71-7ec1-7611-a1c4-d4fb3a4b7226","at":1769164865217000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bea71-acc8-7852-a467-2e609d1736e8","at":1769164877000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea72-06a0-7dee-97c2-1789dc57aa7d","at":1769164900000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bea72-4138-7000-a113-935297564bc4","at":1769164915000000000,"seq":371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bea86-8c0c-7eaa-abcf-5621c3be99b8","at":1769166244876000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bea87-3eee-7344-b585-e09eb43a94f4","at":1769166290670000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bea87-f3e8-76ae-b9b9-dc261f07a149","at":1769166337000000000,"seq":374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bea88-053c-7dd5-aebf-4c3fd909cdfd","at":1769166341436000000,"seq":375,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bea88-1ee0-7904-a6f6-f874dd79272b","at":1769166348000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea88-45f0-7ca5-beaa-9d18e8fb857f","at":1769166358000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea88-f2b1-7f88-9cad-1aa56c4bb7d7","at":1769166402225000000,"seq":378,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bea89-0558-77ba-bc52-1ea5b51008c9","at":1769166407000000000,"seq":379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea89-0558-7d13-932f-4b037175667a","at":1769166407000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

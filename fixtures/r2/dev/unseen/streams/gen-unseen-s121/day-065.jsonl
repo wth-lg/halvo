@@ -1,0 +1,45 @@
+{"v":1,"id":"019cc279-2d41-79b9-b9fb-3bf1aecec713","at":1772789247297000000,"seq":833,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc279-2d41-70e8-9616-7545b2384829","at":1772789247297000000,"seq":834,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cc279-4770-7ab3-ab04-8ae74b2e9c36","at":1772789254000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc291-3471-7ca8-becf-db7b12a3bfac","at":1772790822001000000,"seq":836,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cc291-7ea8-7cb3-9ea2-c55ce58c4ecd","at":1772790841000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc291-8971-7633-a92a-6a396c8c823e","at":1772790843761000000,"seq":838,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cc291-ad88-7312-ad57-0d1a9a65fcef","at":1772790853000000000,"seq":839,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc291-c4f8-7674-afea-4e1ca096494b","at":1772790859000000000,"seq":840,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc292-36b5-7bfd-b691-b1fa6370c131","at":1772790888117000000,"seq":841,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cc293-2b2b-7d7d-860e-403c88fdaf3b","at":1772790950699000000,"seq":842,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cc293-5b38-7cf2-b655-bcef2b44e2b1","at":1772790963000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc293-6308-78f7-8288-7ca8d3a28ff6","at":1772790965000000000,"seq":844,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cc293-91e8-7751-8713-4f31618c9ae3","at":1772790977000000000,"seq":845,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc293-a564-7344-8ea5-a73fdabe4064","at":1772790981988000000,"seq":846,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cc293-d068-7c3a-9aeb-7024b717acf1","at":1772790993000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc293-fb60-74c6-8247-0c5b9db805fd","at":1772791004000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc293-ff48-7359-83fd-2b16724fdd32","at":1772791005000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cc294-2e28-7ad7-b6fd-ddb6638983bd","at":1772791017000000000,"seq":850,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc294-5595-7bc5-ac89-5242539fd5b8","at":1772791027093000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cc294-7860-71ac-83a8-d6bcf7239ef3","at":1772791036000000000,"seq":852,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc294-8418-75f5-8645-188f6525f476","at":1772791039000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cc294-9b88-7da2-830f-9ea3e0382ab6","at":1772791045000000000,"seq":854,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc294-a740-7b3c-89d9-d4aa50aaa5f3","at":1772791048000000000,"seq":855,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc2a0-7d01-7e5b-b197-14e617267aab","at":1772791823617000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cc2a0-8268-7d86-b499-fb50703c6c0b","at":1772791825000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2a1-0738-72a0-a855-0d21bba9fbc7","at":1772791859000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2a1-1810-76a5-a6f5-c422bd390f68","at":1772791863312000000,"seq":859,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cc2a1-41d0-7e53-bae0-7ba32ed2c3d2","at":1772791874000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2a1-64f8-7a06-88fa-3c5ab861189d","at":1772791883000000000,"seq":861,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc2a1-cfc5-7480-aba9-9497d4866108","at":1772791910341000000,"seq":862,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cc2a2-0cf0-7d86-8ff5-c19aedbf59ce","at":1772791926000000000,"seq":863,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc2a2-10d8-7edb-a499-2345ca18b3bc","at":1772791927000000000,"seq":864,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2a2-3400-79f4-9e8a-65bf6d167ec1","at":1772791936000000000,"seq":865,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc2a2-8220-7d97-b685-0b1b3c1ab035","at":1772791956000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2a2-9d78-7db9-9a4c-189ce45fe4d9","at":1772791963000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cc2a2-e12d-7827-9389-91d7321d731d","at":1772791980333000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cc2a3-9cbc-7aef-b26e-8c24d62eb37a","at":1772792028348000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cc2a3-c270-7347-9c2a-91a4f8292efa","at":1772792038000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2a3-d5f8-7ca4-ba45-8f57baf760d1","at":1772792043000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cc2a3-f150-7f1b-b000-b181425d4bf2","at":1772792050000000000,"seq":872,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc2a4-0097-7892-bb57-ad1d12f324f8","at":1772792053911000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cc2a4-4740-7377-818f-989471a1e560","at":1772792072000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cc2a4-4b28-7844-a3eb-acc08b2b5334","at":1772792073000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2a4-4f10-78cf-9502-d01352fbb20b","at":1772792074000000000,"seq":876,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc2a4-7a08-74ab-8123-65d946ec6194","at":1772792085000000000,"seq":877,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

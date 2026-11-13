@@ -1,0 +1,13 @@
+{"v":1,"id":"019bb17f-b253-7c2b-9b0b-b911230ffa0e","at":1768209494611000000,"seq":167,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb17f-b253-7b34-9d8c-217aeab2156c","at":1768209494611000000,"seq":168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bb17f-f640-740d-b973-4a4d3d56e03c","at":1768209512000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb180-5400-7815-ad9d-93e46d4b5b1e","at":1768209536000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb180-882c-737a-a601-e4f4b2ee4369","at":1768209549356000000,"seq":171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bb180-9e38-74a3-bf5d-b39708ee0a58","at":1768209555000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bb180-e81c-70c9-8590-aefdea77ef26","at":1768209573916000000,"seq":173,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb180-e81c-76a9-a864-afe8ae4fb54e","at":1768209573916000000,"seq":174,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb181-2ad8-7450-a436-c560b30d7a8d","at":1768209591000000000,"seq":175,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bb181-8d4b-7943-9f14-8a237ad5c6ce","at":1768209616203000000,"seq":176,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb181-8d4b-736e-853e-d6f7e3f929e0","at":1768209616203000000,"seq":177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bb181-a008-7959-91f8-e67af35d2724","at":1768209621000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb181-d2d0-747f-800e-3b6f4e405b1c","at":1768209634000000000,"seq":179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

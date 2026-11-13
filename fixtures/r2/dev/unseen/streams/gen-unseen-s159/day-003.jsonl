@@ -1,0 +1,23 @@
+{"v":1,"id":"019b82b7-f3b9-7988-930a-62f65468ac13","at":1767424652217000000,"seq":12,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b82b7-f3b9-7e56-8cb6-f7d16fc35278","at":1767424652217000000,"seq":13,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b82ba-8e5b-7353-b4b3-ae1441bed6f2","at":1767424822875000000,"seq":14,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b82ba-d910-72f8-9c04-cdeca075e618","at":1767424842000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82bb-0408-7527-b106-e8c4437891e7","at":1767424853000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b82bb-0de7-7f1f-8604-bca11c63d3f7","at":1767424855527000000,"seq":17,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b82bb-3ea0-7bc6-82fe-bce0c125c3c1","at":1767424868000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82bb-4670-7f5d-a370-308bae30cdcb","at":1767424870000000000,"seq":19,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b82bb-8108-7c89-bbda-43015477eed5","at":1767424885000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b82bb-90a8-747a-9078-72911600eefa","at":1767424889000000000,"seq":21,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b82bb-c79e-7f4e-b658-72fbea10b00c","at":1767424903070000000,"seq":22,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b82bb-d6f8-752a-a350-423b29e8a3c7","at":1767424907000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82bc-0da8-705b-a6d1-8f87c241aeff","at":1767424921000000000,"seq":24,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b82bc-89ce-7a62-9a68-5bba86b9d366","at":1767424952782000000,"seq":25,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b82bc-add0-7e0f-8ee6-92c5299a0c0e","at":1767424962000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b82c2-97e7-7db5-82d6-0d2eeb84b2a2","at":1767425349607000000,"seq":27,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b82c2-97e7-7cfa-8199-9cbd3e4a027e","at":1767425349607000000,"seq":28,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b82c3-06d0-7705-9dcb-fb8181c03456","at":1767425378000000000,"seq":29,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b82cd-9af1-789f-961e-60ddfc9141ae","at":1767426071281000000,"seq":30,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b82cd-bd00-77d0-89f3-08fdbf7aacc6","at":1767426080000000000,"seq":31,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82cd-f3b0-7eb8-aed6-e0981dd7a15d","at":1767426094000000000,"seq":32,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82ce-4430-75c4-a2ab-b48a0bdfadae","at":1767426114608000000,"seq":33,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b82cf-37e8-7977-8b33-1d3829abf8c8","at":1767426177000000000,"seq":34,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

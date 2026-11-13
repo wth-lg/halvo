@@ -1,0 +1,11 @@
+{"v":1,"id":"019d38be-bb98-73df-bd83-502bd589536e","at":1774773517208000000,"seq":1316,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d38be-bb98-7e4b-bdbf-8d2eb84c14f1","at":1774773517208000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d38c4-5635-72c3-89fe-cf325b6ed6a5","at":1774773884469000000,"seq":1318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d38c4-5c30-7c2a-babe-61c7f553cae0","at":1774773886000000000,"seq":1319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38c4-8b10-727f-b7c5-924ca19f0ce1","at":1774773898000000000,"seq":1320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d38c4-b220-7834-b34a-6888e4b27864","at":1774773908000000000,"seq":1321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38d4-3391-729d-b0ec-60ecefae74f1","at":1774774924177000000,"seq":1322,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d38d4-3391-75f1-870a-460216fbbf4b","at":1774774924177000000,"seq":1323,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d38d4-59f0-7bf9-bdad-c479538b132e","at":1774774934000000000,"seq":1324,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38d4-9c58-77c3-aaf6-1f65e33a7114","at":1774774951000000000,"seq":1325,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38d4-ee60-7669-89e0-2180d38f34a9","at":1774774972000000000,"seq":1326,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}

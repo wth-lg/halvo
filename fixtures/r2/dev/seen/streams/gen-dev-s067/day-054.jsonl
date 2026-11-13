@@ -1,0 +1,30 @@
+{"v":1,"id":"019c899d-f852-7fbc-88cd-9344d8399378","at":1771835357266000000,"seq":966,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c899d-f852-753b-b788-b47841ee6a29","at":1771835357266000000,"seq":967,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c899d-fb30-77d3-93e5-0ffc0a45e2ba","at":1771835358000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c899e-0eb8-7ab9-bf0d-e62409ea5a62","at":1771835363000000000,"seq":969,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c899e-2628-72b1-b533-216d9d6ee8ac","at":1771835369000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a2-0acc-7b92-b02f-a72550264d96","at":1771835624140000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c89a2-0e28-7588-8272-7e751f7afeee","at":1771835625000000000,"seq":972,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89a2-44d8-7234-881c-e65ad788c772","at":1771835639000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c89a2-6be8-77f7-8dbb-d663037fef60","at":1771835649000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ad-c203-7ed2-80cf-b714202c7e18","at":1771836391939000000,"seq":975,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c89ae-4710-7458-9602-25bb10485235","at":1771836426000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c89ae-b6b2-7c7d-819e-8cdb34fe4cdf","at":1771836454578000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c89ae-eb20-75bc-b068-165c241a0d83","at":1771836468000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c89af-3170-7318-8923-7e0594980b9e","at":1771836486000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c89af-3676-74a8-8130-76fbc85d8710","at":1771836487286000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c89af-6438-77c9-ab4d-02f5311ae096","at":1771836499000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89af-7ba8-7302-a3cb-deeed8944ddd","at":1771836505000000000,"seq":982,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89af-c570-7b02-91be-e38205dc6bdc","at":1771836523888000000,"seq":983,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c89af-dd50-7755-9a75-5477ca70950c","at":1771836530000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c89b0-71c0-767c-9857-7d304317e344","at":1771836568000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c0-06fd-7170-8688-e2774db0322b","at":1771837589245000000,"seq":986,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c89c0-8ec0-7ddf-8d45-8d178bc0c48a","at":1771837624000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c0-d510-7be6-ad98-46389e763e64","at":1771837642000000000,"seq":988,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c0-ede3-7166-a5d8-7353871ff1f7","at":1771837648355000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c89c1-03f0-71d5-b6a0-89debe5595e8","at":1771837654000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c1-07d8-7d24-a8fb-4442314671c2","at":1771837655000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c89c1-2718-7895-88a8-11ac02f65aa4","at":1771837663000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c1-3bad-76bb-bb84-91bf419fb843","at":1771837668269000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c89c1-6d68-78c2-9c80-e7f0fc88b9c7","at":1771837681000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c1-bb88-7900-b4df-27325e6966f6","at":1771837701000000000,"seq":995,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

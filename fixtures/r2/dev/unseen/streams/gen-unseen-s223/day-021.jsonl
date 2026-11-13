@@ -1,0 +1,24 @@
+{"v":1,"id":"019bdfe2-b77f-7fb2-b61e-204713641a99","at":1768987735935000000,"seq":117,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdfe2-b77f-7ea6-b3da-c9d0532dedec","at":1768987735935000000,"seq":118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bdfe2-faa0-77d0-b576-3ef993a52234","at":1768987753120000000,"seq":119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bdfe3-0db0-7861-a444-1f6efd8e1c93","at":1768987758000000000,"seq":120,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bdfe3-cd18-79ce-ba49-907cd836663e","at":1768987807000000000,"seq":121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdfe3-fe2c-74c6-b545-d7061298bdaa","at":1768987819564000000,"seq":122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bdfe4-3e60-78a4-bd1f-1355148c918c","at":1768987836000000000,"seq":123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bdfe4-6958-733e-a7f3-a0c684ff37e5","at":1768987847000000000,"seq":124,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdfe4-8898-7e4d-a28b-daf64baabf72","at":1768987855000000000,"seq":125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfe4-8ed2-781f-babe-c32d3ca132cd","at":1768987856594000000,"seq":126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bdfe4-abc0-7c3d-80b7-afd7a5d28412","at":1768987864000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfe4-f5f8-768f-b0f6-99c0620121cb","at":1768987883000000000,"seq":128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdfe5-1150-7148-9ae1-b16cb1a20e9f","at":1768987890000000000,"seq":129,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdfe5-3c48-71d1-8bb0-ee5a59ac5b56","at":1768987901000000000,"seq":130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bdfe7-2a83-7751-ad05-eea8905b1432","at":1768988027523000000,"seq":131,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdfe7-2a83-7895-a405-0e3f5c57f682","at":1768988027523000000,"seq":132,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdfe7-3c00-7a81-a238-c25e621edc9a","at":1768988032000000000,"seq":133,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bdfe7-4ba0-7e68-9aa5-83ea798f5875","at":1768988036000000000,"seq":134,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bdfe7-8e08-716d-ac70-e9420e5c2665","at":1768988053000000000,"seq":135,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bdfff-bc25-7990-8d33-267185a99c0f","at":1768989637669000000,"seq":136,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdfff-bc25-7c87-827b-18d0e51d4ac7","at":1768989637669000000,"seq":137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bdfff-c540-70af-ac2a-9ad8d8e430d1","at":1768989640000000000,"seq":138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be000-b9cd-70fb-9e89-9b6586a5e887","at":1768989702605000000,"seq":139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019be001-24d0-77f0-8a43-5b5d10bcf798","at":1768989730000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

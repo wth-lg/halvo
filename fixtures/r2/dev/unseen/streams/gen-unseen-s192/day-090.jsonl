@@ -1,0 +1,11 @@
+{"v":1,"id":"019d430c-2b9c-760b-93c9-4512c1291942","at":1774946364316000000,"seq":1401,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d430c-2b9c-7263-8d46-a00fe37e4308","at":1774946364316000000,"seq":1402,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d430c-bed0-7839-b376-b92892278762","at":1774946402000000000,"seq":1403,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d430d-0520-7653-94ad-9fb19572471b","at":1774946420000000000,"seq":1404,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d430d-0cf0-7823-a19a-b75db886cff2","at":1774946422000000000,"seq":1405,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4321-245c-7d41-9d6a-3b03f5a27f1d","at":1774947738716000000,"seq":1406,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4321-245c-71ed-908f-13251e79f95a","at":1774947738716000000,"seq":1407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d4321-929d-7e8d-aaa6-79d85b851989","at":1774947766941000000,"seq":1408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d4321-bdd0-72bb-99cc-5b8dbff47555","at":1774947778000000000,"seq":1409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4321-c1b8-72e9-b4f5-07706980dd84","at":1774947779000000000,"seq":1410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4321-c5a0-7cab-9e7e-de79e7b448e7","at":1774947780000000000,"seq":1411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

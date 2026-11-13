@@ -1,0 +1,21 @@
+{"v":1,"id":"019bb68a-6677-7892-9d51-94ece6729f7d","at":1768294082167000000,"seq":145,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb68a-6677-71b0-819c-57b10f2e8ca5","at":1768294082167000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bb68a-7d40-7b34-9ab3-c693a92087d8","at":1768294088000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb68a-8510-7760-b836-de25bb34d1f5","at":1768294090000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb68a-cb60-7759-8ca7-acce8676f7af","at":1768294108000000000,"seq":149,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb68a-fe28-7fbb-a3d4-a2da1e3ebfb1","at":1768294121000000000,"seq":150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb69f-414a-75e0-8b05-81bf8c000144","at":1768295448906000000,"seq":151,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb69f-414a-705b-9b19-d97ed5a35f89","at":1768295448906000000,"seq":152,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb69f-d230-7e79-a691-a2dd6b3f626e","at":1768295486000000000,"seq":153,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bb6a0-0098-7487-a0f6-024c54870a37","at":1768295497880000000,"seq":154,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb6a0-0098-7bc9-9000-b6c386189805","at":1768295497880000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bb6a0-1c68-7643-842a-826716f4c2f8","at":1768295505000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a0-2820-7a6d-9ab9-6922f3695751","at":1768295508000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a0-2820-7529-9a80-4c3ebc8fa1a5","at":1768295508000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bb6a0-e71e-7448-bb2a-cd0fd8d0738c","at":1768295556894000000,"seq":159,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb6a0-e71e-75b3-b0fb-2e895adfb527","at":1768295556894000000,"seq":160,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb6a1-29f0-7061-9e37-84c1756ccfdc","at":1768295574000000000,"seq":161,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bb6a1-4930-7c24-a5ee-a18c235fd04b","at":1768295582000000000,"seq":162,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6b8-6284-79ab-86e7-9446b64badd9","at":1768297095812000000,"seq":163,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb6b8-6284-742c-8d20-f34ef5128e5f","at":1768297095812000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb6b9-0368-7c46-9b63-63945e9e3a6d","at":1768297137000000000,"seq":165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

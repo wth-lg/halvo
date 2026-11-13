@@ -1,0 +1,19 @@
+{"v":1,"id":"019b87e0-4a20-72f8-9915-2a36b4a57c16","at":1767511181856000000,"seq":58,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b87e0-4a20-7589-a228-adbfad0a0cef","at":1767511181856000000,"seq":59,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b87e0-b040-7104-9274-08955e1d5f46","at":1767511208000000000,"seq":60,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b87e0-ec4f-7718-8f3e-ac570e260cdc","at":1767511223375000000,"seq":61,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b87e1-44b0-7176-8cd4-2e657f4973ca","at":1767511246000000000,"seq":62,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b87ea-7b77-79cb-997f-39350f1bd7cd","at":1767511849847000000,"seq":63,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b87ea-7b77-76df-819c-c5463759e1f8","at":1767511849847000000,"seq":64,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b87eb-08b0-7895-b423-67e825b1224c","at":1767511886000000000,"seq":65,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b87fc-897a-7435-bb44-46d46078744d","at":1767513033082000000,"seq":66,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b87fc-94e0-7d08-90c2-59ad17009de2","at":1767513036000000000,"seq":67,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b87fc-d748-71d4-9002-ea38c6e5a580","at":1767513053000000000,"seq":68,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87fc-eeb8-7c32-a713-4ac3529b4a47","at":1767513059000000000,"seq":69,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87fc-fa70-7e46-8ff1-69cc51ee19fe","at":1767513062000000000,"seq":70,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b87fd-089d-7af9-892a-000bdb6f55ae","at":1767513065629000000,"seq":71,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b87fd-089d-7cd1-b356-d7f99661d57b","at":1767513065629000000,"seq":72,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b87fd-fc40-7b3b-b151-6c18c4804e46","at":1767513128000000000,"seq":73,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87fe-0e83-714e-bbcc-34687a4cbd55","at":1767513132675000000,"seq":74,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b87fe-0e83-7c97-95f6-442fffa73bf5","at":1767513132675000000,"seq":75,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b87fe-2f08-76c3-964a-5146f32b58a4","at":1767513141000000000,"seq":76,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

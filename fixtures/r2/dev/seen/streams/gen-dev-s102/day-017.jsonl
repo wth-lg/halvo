@@ -1,0 +1,26 @@
+{"v":1,"id":"019bcb71-a3bb-7d36-85ea-6a6b68d6f6ab","at":1768644780987000000,"seq":183,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb71-a3bb-7f51-9130-a12a01cb299f","at":1768644780987000000,"seq":184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bcb72-8270-7017-9905-3c18e8b12424","at":1768644838000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bcb72-8e28-795d-a8f4-40fd0e07ad3d","at":1768644841000000000,"seq":186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bcb7a-8224-7974-b924-75ddd5605ff1","at":1768645362212000000,"seq":187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bcb7a-bbe8-76d0-9f57-9362b6189543","at":1768645377000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bcb7a-c3b8-74a0-a049-776bbd20cb15","at":1768645379000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb7b-0df0-73fc-ba71-cc84370508e0","at":1768645398000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb7b-42da-7bc8-968c-8b8195a2ed60","at":1768645411546000000,"seq":191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bcb7b-44a0-7ca1-b63d-37c727da8a77","at":1768645412000000000,"seq":192,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb7b-4888-77dc-b00b-c6e5cb5020e8","at":1768645413000000000,"seq":193,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb7b-7380-7868-a076-5a8fa1816dbc","at":1768645424000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb7b-dcf8-7a56-a1a5-229598e8f9b2","at":1768645451000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bcb7b-e8b0-7c0f-bab6-b208cb79e456","at":1768645454000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb8e-ab21-7c77-931a-b4363ba79ad2","at":1768646683425000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bcb8f-6cc8-7c6e-81fa-dab9d5e1a9ab","at":1768646733000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bcb8f-b129-7d2f-8e2b-491b6aaf3d70","at":1768646750505000000,"seq":199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bcb8f-b318-720d-a20a-bdc0cf2e27bb","at":1768646751000000000,"seq":200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb8f-fd50-79bd-a95f-b12930cbc80a","at":1768646770000000000,"seq":201,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb90-6adc-7c7a-b25f-915766830083","at":1768646798044000000,"seq":202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bcb91-1656-7fcd-a666-646c9d55c982","at":1768646841942000000,"seq":203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bcba0-29b5-71b2-91c8-96acfc243094","at":1768647829941000000,"seq":204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bcba0-29f0-732e-b0e3-1e5708af33d1","at":1768647830000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba0-2dd8-7db8-84cb-dbcea0114fc9","at":1768647831000000000,"seq":206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba0-4548-76ab-a130-7451ed1c0bd2","at":1768647837000000000,"seq":207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcba0-4d18-77ce-848b-4e43842c984a","at":1768647839000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

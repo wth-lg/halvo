@@ -1,0 +1,11 @@
+{"v":1,"id":"019bf49b-4ea6-7fe7-a59e-c7995f2bb943","at":1769335377574000000,"seq":277,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf49b-4ea6-7ab1-96fb-11d9ff891873","at":1769335377574000000,"seq":278,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf49b-6f90-7d92-baf4-406e82606823","at":1769335386000000000,"seq":279,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bf49b-8ed0-7ca5-aea3-2075bd064adf","at":1769335394000000000,"seq":280,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4b0-3181-7eb2-987f-92c9d0626b23","at":1769336746369000000,"seq":281,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf4b0-3181-7249-99b3-18c7f35c87f0","at":1769336746369000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bf4b0-8218-732f-b5cf-c2e32474847c","at":1769336767000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bf4b6-0297-768e-b7c7-faf88346bdbc","at":1769337127575000000,"seq":284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bf4b6-1bb0-7862-8dbd-017fd3040fdb","at":1769337134000000000,"seq":285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf4b6-eab8-7dc4-a43d-6f4888f6bf0c","at":1769337187000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4b6-eea0-7653-8ff5-d7009423c29f","at":1769337188000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

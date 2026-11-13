@@ -1,0 +1,24 @@
+{"v":1,"id":"019b9cb3-b3e4-7b9c-8829-f55ed7f22a26","at":1767860581348000000,"seq":136,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9cb3-b3e4-720f-bf25-42ab7353e32b","at":1767860581348000000,"seq":137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b9cb3-e168-79df-8add-61189626711c","at":1767860593000000000,"seq":138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cb4-1430-79fd-9b02-3898c922ee7e","at":1767860606000000000,"seq":139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cb4-79c0-726e-9305-6ece28ae32da","at":1767860632000000000,"seq":140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9cc5-4e81-72e2-a789-9ad1ce680c2c","at":1767861735041000000,"seq":141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b9cc5-7180-77aa-b6a9-003b6fa15539","at":1767861744000000000,"seq":142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b9cc5-a060-70fb-bebe-18077a2aa956","at":1767861756000000000,"seq":143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cc5-a091-793b-b83d-eec4accff675","at":1767861756049000000,"seq":144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b9cc6-1d60-74e9-a6e6-b3eb0174de27","at":1767861788000000000,"seq":145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9cc6-2918-750d-9b55-d2177775f8ca","at":1767861791000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cc6-2d00-7fe7-be8c-b8ae6fdc4b3c","at":1767861792000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cc6-30e8-72a3-847f-730c3cd0d343","at":1767861793000000000,"seq":148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cc6-6b58-7e43-937d-f3fad3223809","at":1767861807960000000,"seq":149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b9cc6-9e48-7bd2-a0fd-f80391ce11f3","at":1767861821000000000,"seq":150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9cc6-ade8-7523-be47-8b5980a41666","at":1767861825000000000,"seq":151,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cc6-c170-740a-b69d-30dd50181c70","at":1767861830000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cc6-e880-7e7a-9d84-82efa43e9abf","at":1767861840000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cc7-1f46-7264-b4bf-d2fee52e15b4","at":1767861854022000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b9cc7-59c8-78ff-8a71-764fad2541e7","at":1767861869000000000,"seq":155,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9cc7-6968-7360-9af7-80a706d44299","at":1767861873000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cc7-6968-72d0-bfca-8e8870ca70b6","at":1767861873000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b9cc7-d2e0-7a2d-9c42-ebf77a3dfbfe","at":1767861900000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cc7-dab0-7635-b24a-5466e0575989","at":1767861902000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

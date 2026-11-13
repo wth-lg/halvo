@@ -1,0 +1,33 @@
+{"v":1,"id":"019d1f59-ec1a-7874-a2d5-80264f7b9ad8","at":1774347480090000000,"seq":1309,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1f59-ec1a-79a8-8b4e-e0d574926a5a","at":1774347480090000000,"seq":1310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d1f5a-2270-76e5-9c6e-d1b7580ed5d5","at":1774347494000000000,"seq":1311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f5a-64d8-7305-a670-fc496988663e","at":1774347511000000000,"seq":1312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f5a-7165-7a48-8f13-ec41fb41b57a","at":1774347514213000000,"seq":1313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d1f5a-9f70-746b-8a3c-becd7fb90d41","at":1774347526000000000,"seq":1314,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1f5a-a358-7cfc-a8dc-2d0e6d6cbd72","at":1774347527000000000,"seq":1315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f5a-c298-7d47-9cee-b4c2834e298d","at":1774347535000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d1f5a-cb25-7e6b-b957-899623c7d7cd","at":1774347537189000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d1f5a-ddf0-7845-9fe3-10a0ed19a79e","at":1774347542000000000,"seq":1318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f5a-f178-7d7d-a61a-64a1f7c743a9","at":1774347547000000000,"seq":1319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d1f5b-33e0-7ec3-926f-d8848578621a","at":1774347564000000000,"seq":1320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f5b-37c8-7bb9-b0ad-6db6b059f6f8","at":1774347565000000000,"seq":1321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1f5b-4ef6-7bee-8bca-01e3ffbaa312","at":1774347570934000000,"seq":1322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d1f5b-91a0-7686-bb6e-ac76e609bc55","at":1774347588000000000,"seq":1323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1f5b-9d58-7429-8ab4-f772eeaf67fc","at":1774347591000000000,"seq":1324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f5b-a528-729c-bbbc-a6de2faf9288","at":1774347593000000000,"seq":1325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1f66-b90b-70ae-9ce4-4fcd5c0a585f","at":1774348318987000000,"seq":1326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1f67-2678-78af-85f0-1b1cecf78893","at":1774348347000000000,"seq":1327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f67-49a0-75a5-80e3-e06a86727d3f","at":1774348356000000000,"seq":1328,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1f67-49a0-7ea0-b1c1-d463567721e9","at":1774348356000000000,"seq":1329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d1f67-8438-75ec-871b-372a8364a16a","at":1774348371000000000,"seq":1330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f67-a760-75ef-86c3-fa7007253ec0","at":1774348380000000000,"seq":1331,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1f72-6ea2-78af-ba9f-6897313147b8","at":1774349086370000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1f72-bf38-78d1-9f1e-f12e5b024e79","at":1774349107000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f72-d6a8-7a8c-addd-2b6e4b661701","at":1774349113000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f73-7ea0-7e0d-a901-76a64e7fe9f5","at":1774349156000000000,"seq":1335,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1f73-7ea0-7adb-a457-de81f342bd63","at":1774349156000000000,"seq":1336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d1f7a-06b7-7e05-b59d-2eef912e7a1c","at":1774349584055000000,"seq":1337,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1f7a-06b7-7e9f-87d5-af01cd8a5153","at":1774349584055000000,"seq":1338,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1f7a-1238-79f7-84db-84f0bb863257","at":1774349587000000000,"seq":1339,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1f7a-6058-72cd-9767-27543bdc0fcb","at":1774349607000000000,"seq":1340,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f7a-be18-7a79-9cf0-5c5b7a64d1b0","at":1774349631000000000,"seq":1341,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

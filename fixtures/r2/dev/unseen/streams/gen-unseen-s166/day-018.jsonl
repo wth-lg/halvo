@@ -1,0 +1,17 @@
+{"v":1,"id":"019bd06b-e5d7-7151-af01-91034ba714f3","at":1768728290775000000,"seq":201,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd06b-e5d7-7653-8751-7b1df92502c1","at":1768728290775000000,"seq":202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bd06c-2d08-7230-b8f6-540971a660d1","at":1768728309000000000,"seq":203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd06c-63b8-750a-89b9-0e5c7253facd","at":1768728323000000000,"seq":204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bd07f-8db4-7e94-b799-ac9ef794e281","at":1768729578932000000,"seq":205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bd080-7c40-7364-a2b4-02874a42c0d8","at":1768729640000000000,"seq":206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bd080-8410-7f38-a952-b6e829510057","at":1768729642000000000,"seq":207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd080-91ef-7d5a-ba4e-898238977395","at":1768729645551000000,"seq":208,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bd080-93b0-72ce-ae73-a2702e50e156","at":1768729646000000000,"seq":209,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd080-ce48-7779-82b1-1b4769eb9bdd","at":1768729661000000000,"seq":210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd081-88e7-7b0a-bac4-af2d89f06f25","at":1768729708775000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bd081-a908-748d-b798-cd3e2f4e0613","at":1768729717000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bd089-b62c-7495-863b-0a4545dc2bd1","at":1768730244652000000,"seq":213,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd089-b62c-78c4-827d-76dbbe3e37a7","at":1768730244652000000,"seq":214,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd08a-2100-79b6-88e9-1efd001cc5cd","at":1768730272000000000,"seq":215,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd08a-5b98-7b1d-be67-623d0d8f5b06","at":1768730287000000000,"seq":216,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd08a-9a18-7ffc-82e0-ea09ffa6a40a","at":1768730303000000000,"seq":217,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

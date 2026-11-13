@@ -1,0 +1,32 @@
+{"v":1,"id":"019cf066-6af6-7726-946d-36b74f5aaa10","at":1773559769846000000,"seq":1037,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf066-6af6-7e30-bd28-e91a449ecc79","at":1773559769846000000,"seq":1038,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf066-7b30-7640-a5b0-3d449772a3e6","at":1773559774000000000,"seq":1039,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cf066-b1e0-7293-acd1-655e3c50a415","at":1773559788000000000,"seq":1040,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cf066-c180-7040-9ecb-0950dc9a3dd7","at":1773559792000000000,"seq":1041,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf067-2328-7483-94e2-99ea4b05e960","at":1773559817000000000,"seq":1042,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf067-2ee0-749e-a94e-6dad8aeb62a5","at":1773559820000000000,"seq":1043,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cf06e-45b4-780e-874b-f42bc9f2d70b","at":1773560284596000000,"seq":1044,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf06e-45b4-700a-8067-23cda13dcf77","at":1773560284596000000,"seq":1045,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf06f-39fb-7b25-8ed4-20aeaf5d2ebd","at":1773560347131000000,"seq":1046,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf06f-8798-746e-9f37-8c42558bc8a9","at":1773560367000000000,"seq":1047,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf06f-9b20-786c-ae2a-270e03c21c8e","at":1773560372000000000,"seq":1048,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf070-2140-7f12-ad2b-6fa7a8fa0f10","at":1773560406336000000,"seq":1049,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf070-23d8-72d2-8f37-920f575c5437","at":1773560407000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf070-3f30-7496-9be2-2d51be4e3a2a","at":1773560414000000000,"seq":1051,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf070-5bfa-7cc9-a989-686e4b936b37","at":1773560421370000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf070-79c8-78e1-a830-60b69f83f012","at":1773560429000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cf070-9138-79bd-84f4-b621c1ef15e3","at":1773560435000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf070-9cf0-7ad2-a9b0-25b4cc0f8b89","at":1773560438000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf071-e419-7e4a-8e14-d6508ca54bff","at":1773560521753000000,"seq":1056,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf071-f898-7368-a1be-9afdae729153","at":1773560527000000000,"seq":1057,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cf071-fc80-7dec-b9a9-13ce290bca02","at":1773560528000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf078-03a7-78bd-be91-609dad8b76f6","at":1773560923047000000,"seq":1059,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf078-03a7-78cc-993a-bc90dc75bd69","at":1773560923047000000,"seq":1060,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf078-3640-7b4d-b42d-122ebb0eb50d","at":1773560936000000000,"seq":1061,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cf078-3a28-792e-a2a4-2eaf1a9476f7","at":1773560937000000000,"seq":1062,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf078-3e10-73b4-9d78-9aaac6c983b6","at":1773560938000000000,"seq":1063,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf078-45e0-73e8-96b1-fd90feb9ba53","at":1773560940000000000,"seq":1064,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cf078-49c8-74cb-8a0b-1316da752b58","at":1773560941000000000,"seq":1065,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf078-592d-71d3-938e-c6687a0de543","at":1773560944941000000,"seq":1066,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cf078-70d8-7ad1-9d80-94145c380e83","at":1773560951000000000,"seq":1067,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf078-ab70-7fc2-bc19-e50e42ec44ac","at":1773560966000000000,"seq":1068,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

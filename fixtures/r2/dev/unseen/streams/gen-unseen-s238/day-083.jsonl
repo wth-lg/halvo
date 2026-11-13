@@ -1,0 +1,29 @@
+{"v":1,"id":"019d1ec1-7183-7033-8a0d-820eb9bd1498","at":1774337487235000000,"seq":1073,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1ec1-7183-7189-8943-6704f571aabd","at":1774337487235000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec2-0d7c-78dc-82a2-32e991bebac8","at":1774337527164000000,"seq":1075,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec2-bdaf-7549-a162-a965b7644bad","at":1774337572271000000,"seq":1076,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec2-e798-7650-b2cc-79d89ac20d1d","at":1774337583000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec2-eb80-7915-8663-3b454c7c5543","at":1774337584000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec3-0ea8-7dde-8afd-c03511972128","at":1774337593000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d1ec3-1837-7f5f-a458-5aa961c54e25","at":1774337595447000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec4-0062-738d-a600-683421b84874","at":1774337654882000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec4-1460-7c9c-912e-c8f4e8373682","at":1774337660000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec4-5ab0-7757-b7b8-23954ec9b772","at":1774337678000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d1ec4-b488-78a4-a9f9-6c8543679363","at":1774337701000000000,"seq":1084,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1ec4-c428-7ad6-b972-f95b5386bbcd","at":1774337705000000000,"seq":1085,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1ecc-3860-716a-8c18-c0f1ff7a201b","at":1774338193504000000,"seq":1086,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1ecc-3e38-7aea-8308-9b4505badd8e","at":1774338195000000000,"seq":1087,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1ecc-6930-70d3-b503-a7b813eeb783","at":1774338206000000000,"seq":1088,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1ecc-8870-7d03-a6df-abfe709c60b4","at":1774338214000000000,"seq":1089,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ecc-c6f0-7a3c-8516-f4f622b0c342","at":1774338230000000000,"seq":1090,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ecd-35ef-7c1d-82fa-9e338d9bf1be","at":1774338258415000000,"seq":1091,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1ecd-b150-7012-96e1-5c8bf7288aa3","at":1774338290000000000,"seq":1092,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ecd-b920-74e6-a8b8-5dabcde9b1fe","at":1774338292000000000,"seq":1093,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1ecd-ebe8-7f9d-849a-919e8c136940","at":1774338305000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ecd-ff70-718a-95e4-5afe72bf2e35","at":1774338310000000000,"seq":1095,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d1ee8-0e9b-7ad0-a3cf-a3d421ecce43","at":1774340017819000000,"seq":1096,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1ee8-1338-7e95-8c26-c1e267a9fd43","at":1774340019000000000,"seq":1097,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1ee8-1720-72cd-89e2-42c52a43840b","at":1774340020000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d1ee8-4218-7950-97f1-5668bb90abcf","at":1774340031000000000,"seq":1099,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ee8-6928-757a-8679-067584a9febf","at":1774340041000000000,"seq":1100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1ee8-70f8-703b-9faf-c4295928f568","at":1774340043000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

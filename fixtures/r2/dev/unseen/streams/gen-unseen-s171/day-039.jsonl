@@ -1,0 +1,37 @@
+{"v":1,"id":"019c3c12-13db-7b9d-9eb8-3e3ba88586d4","at":1770534343643000000,"seq":492,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c12-13db-73f5-8ff3-45307ab4e75c","at":1770534343643000000,"seq":493,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c3c12-28c8-7095-b851-c7c4fc084aac","at":1770534349000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c12-d890-7616-acd9-269aa4ae9bf6","at":1770534394000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c3c12-dfd4-7540-8d8f-08bd0c17fb8a","at":1770534395860000000,"seq":496,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c3c12-fbb8-776f-ab64-761e8cfd8e6b","at":1770534403000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c13-3e20-77eb-90d6-d22d5784f9ce","at":1770534420000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c13-5dec-7d74-a242-432cc3590b79","at":1770534428140000000,"seq":499,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3c13-5dec-77d0-9fca-ba2a50c3e072","at":1770534428140000000,"seq":500,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3c13-97f8-77cc-a040-f801946bf99c","at":1770534443000000000,"seq":501,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c3c13-bf08-7866-89ea-1a9c80c7b7aa","at":1770534453000000000,"seq":502,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c3c13-c1d9-7b86-a478-ca9c1f2315a5","at":1770534453721000000,"seq":503,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c3c13-c2f0-7a9b-982f-fa53a943f6ca","at":1770534454000000000,"seq":504,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c3c13-e618-770d-a2ab-c101b267b7c3","at":1770534463000000000,"seq":505,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c3c13-ea00-73c3-a33d-3c5aac9a00b5","at":1770534464000000000,"seq":506,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3c13-ede8-720d-b500-74700cf55fb5","at":1770534465000000000,"seq":507,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c14-4c2a-7df1-adbb-c6dfd7b3f7c9","at":1770534489130000000,"seq":508,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c14-4c2a-77f1-be38-a61e504e4697","at":1770534489130000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c3c14-8640-784d-9c04-c65e14cd85b7","at":1770534504000000000,"seq":510,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3c14-99c8-756e-a16a-713eac893513","at":1770534509000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c14-c0d8-7e77-a48a-a626007e48ab","at":1770534519000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c3c15-15dc-7c22-8092-554cc81cb18e","at":1770534540764000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c3c15-4d78-70d8-9186-fa3843a7e253","at":1770534555000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c15-f188-7935-a5d5-ac6328279ae8","at":1770534597000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c16-0219-7ca3-a66b-98d40c0d63cf","at":1770534601241000000,"seq":516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c3c16-1c80-73ee-8018-5a2704e82bf1","at":1770534608000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c16-2068-70b7-9af3-58de9307cdde","at":1770534609000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c3c16-2450-7c64-a7b7-9764e8da4ea5","at":1770534610000000000,"seq":519,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3c16-37d8-7bcc-91b0-097dfe09f5eb","at":1770534615000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c16-3ef1-720b-a66e-0f9475285353","at":1770534616817000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c3c16-4390-7c85-8010-4d3c07c98360","at":1770534618000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c16-6aa0-7a6f-a1da-1b0e935a84f0","at":1770534628000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c3c1f-91c6-7730-a68b-c6b125770be3","at":1770535227846000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3c1f-c528-71cb-a145-ebab6327e803","at":1770535241000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c20-0b78-7beb-906b-748716c36335","at":1770535259000000000,"seq":526,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3c20-80a8-7941-ae83-49a2601df67c","at":1770535289000000000,"seq":527,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3c20-8c60-74b1-85d6-0874f5bb46c1","at":1770535292000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

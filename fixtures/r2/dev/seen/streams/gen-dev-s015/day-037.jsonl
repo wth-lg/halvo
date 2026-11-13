@@ -1,0 +1,28 @@
+{"v":1,"id":"019c3209-6d1c-7e46-a872-bb0c26e8ff69","at":1770366004508000000,"seq":438,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3209-6d1c-7420-acb9-d224872e1125","at":1770366004508000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3209-a5b8-7456-8f5e-0d106642e93f","at":1770366019000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c3209-ccc8-770f-9d6a-d250927c574e","at":1770366029000000000,"seq":441,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3209-d498-7b4b-8dbc-f674742eeb5a","at":1770366031000000000,"seq":442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3220-f153-73ef-974f-ae2ee36c4143","at":1770367545683000000,"seq":443,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3221-4880-7c79-b869-fa353e587df3","at":1770367568000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3221-63d8-7839-b82d-0fb9870d8f56","at":1770367575000000000,"seq":445,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3221-67c0-758e-9a88-30e14dac4a70","at":1770367576000000000,"seq":446,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3221-8ed0-7f2d-bd16-b9f6e72c6799","at":1770367586000000000,"seq":447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c3221-b1f8-78c3-957a-0b3d2b0a3a26","at":1770367595000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3235-b1d4-7a0a-8bdb-28f05e1d7029","at":1770368905684000000,"seq":449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3235-da20-7437-a9a9-13665a2d05e0","at":1770368916000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3235-de08-780b-9255-95e8fd18f566","at":1770368917000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c323c-5079-7635-be25-67a365d2b52a","at":1770369339513000000,"seq":452,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c323c-bbd8-7059-a0e6-5ef1321828e1","at":1770369367000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c323c-d309-71fa-bb0c-0add246789bc","at":1770369372937000000,"seq":454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c323c-db18-7641-bb65-f20aed97affb","at":1770369375000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c323c-e2e8-7030-9334-85f1746afc7f","at":1770369377000000000,"seq":456,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c323d-09f8-75c1-8966-2e8b391f58ce","at":1770369387000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c323d-0eda-759a-b896-f769cbfc9c43","at":1770369388250000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c323d-2168-7280-812b-5f331df04471","at":1770369393000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c323d-2550-7fd1-8195-517ed3c2afc1","at":1770369394000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c323d-3108-7470-b90b-50ec4e6c5ef1","at":1770369397000000000,"seq":461,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c323d-702a-7b72-94e4-f64e94fdacf7","at":1770369413162000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c323d-7f28-7238-a2a7-2c3382426304","at":1770369417000000000,"seq":463,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c323d-92b0-7c2d-be13-cfca0fd1d684","at":1770369422000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c323d-aa20-728a-bb13-13877a63f3f0","at":1770369428000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

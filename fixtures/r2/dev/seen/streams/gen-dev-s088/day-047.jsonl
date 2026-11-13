@@ -1,0 +1,23 @@
+{"v":1,"id":"019c65e6-6f0d-746c-8f12-3af16d99888d","at":1771236126477000000,"seq":665,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65e6-6f0d-772d-8992-21c6660ccb0a","at":1771236126477000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c65e6-8c70-7986-ae48-7618f7f1ace1","at":1771236134000000000,"seq":667,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c65e6-bf38-72bd-a9a2-f8c501d06382","at":1771236147000000000,"seq":668,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65ee-be6a-7118-8641-57d5d7049e77","at":1771236671082000000,"seq":669,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c65ee-be6a-7e61-9456-8e63ba78b855","at":1771236671082000000,"seq":670,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c65ee-c200-75f4-86ef-d5abbf72b1ee","at":1771236672000000000,"seq":671,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65ef-1fc0-763d-becc-afea0d41df91","at":1771236696000000000,"seq":672,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c660a-6b94-751c-b1e0-8747ecf32dd0","at":1771238484884000000,"seq":673,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c660a-6b94-7b4e-b85e-31c124365847","at":1771238484884000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c660a-f4c0-711d-a77e-9c10db7431e5","at":1771238520000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c660a-fd71-7c6a-bbaf-f826637a3efa","at":1771238522225000000,"seq":676,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c660b-42e0-7adf-bdf6-41bd5a477d70","at":1771238540000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c660b-75a8-7fed-9741-554dfe990a96","at":1771238553000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c660b-c3c8-7bb0-a64c-e686a6437b4f","at":1771238573000000000,"seq":679,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c660b-db38-70af-afe1-455f10d0bb23","at":1771238579000000000,"seq":680,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c660b-ff24-7ee4-bff9-43e50cd03b5e","at":1771238588196000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c660c-67d8-78fb-bac0-ca06e85bedac","at":1771238615000000000,"seq":682,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6621-7786-7583-89fa-1d1fbdab7869","at":1771239995270000000,"seq":683,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c6621-bcc8-7808-b572-4be04a8e41df","at":1771240013000000000,"seq":684,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c6621-f760-77b8-9e68-8e18a10a81d7","at":1771240028000000000,"seq":685,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6622-0e16-75ed-9cb6-454145a11e50","at":1771240033814000000,"seq":686,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c6622-8018-7f1a-ac80-9e4663c0b140","at":1771240063000000000,"seq":687,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

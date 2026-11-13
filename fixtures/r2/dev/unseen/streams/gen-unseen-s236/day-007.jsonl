@@ -1,0 +1,24 @@
+{"v":1,"id":"019b9763-ef39-7d33-8d71-62734d8629d4","at":1767771467577000000,"seq":105,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9763-ef39-765e-a908-ee3602d80226","at":1767771467577000000,"seq":106,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9764-3b18-7e8a-8359-f9b10d3f08dd","at":1767771487000000000,"seq":107,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9764-75b0-782a-80dc-f4a1c8cd91a3","at":1767771502000000000,"seq":108,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b9779-0f06-72b2-9984-376a5fa6b23f","at":1767772851974000000,"seq":109,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9779-0f06-75c1-ab70-5be48ad6111c","at":1767772851974000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b9779-9008-7459-8947-aaeb80a09cda","at":1767772885000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9779-b15e-74f4-b0cb-77d24bd4aea9","at":1767772893534000000,"seq":112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b9779-e210-78be-b87b-a389c1f5be4c","at":1767772906000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977a-1ca8-7f88-b662-c9b8281d5f91","at":1767772921000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977a-3fd0-7b7b-b954-83a8ffa2c0ac","at":1767772930000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b977a-66e0-7279-9c4e-8cd274c981bc","at":1767772940000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b977a-737d-7e1e-ab88-3c8d90bf2929","at":1767772943229000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b977a-dc10-721a-8f1c-3fb04fa525b3","at":1767772970000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977a-e7c8-7ce2-84a3-b08b43d9d1b9","at":1767772973000000000,"seq":119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b977b-0320-77f1-8161-30e77d1ef437","at":1767772980000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977b-0708-7781-ad6d-a60e8dbcd592","at":1767772981000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b977b-0779-7c2f-80c8-9ef3111803a7","at":1767772981113000000,"seq":122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b977b-2a30-71cf-808d-6dfc586e25ce","at":1767772990000000000,"seq":123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977b-9bd0-7e82-a63c-ca99866c3d53","at":1767773019088000000,"seq":124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b977b-f550-7810-b68f-0e8f6013543f","at":1767773042000000000,"seq":125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977c-33d0-7fd7-81d8-433e58fd0291","at":1767773058000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977c-6e68-79ec-8f47-ee60d505fb89","at":1767773073000000000,"seq":127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b977c-85d8-7247-a3ce-84ff279b6403","at":1767773079000000000,"seq":128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

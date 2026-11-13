@@ -1,0 +1,31 @@
+{"v":1,"id":"019c6059-95d1-70ce-8ef4-9faf47fdaf86","at":1771143009745000000,"seq":663,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6059-95d1-701c-ab6c-8d129b5268f1","at":1771143009745000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c6059-9ea0-7688-bcc8-3e311437bde1","at":1771143012000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6059-b9f8-7011-955c-ded15820fae3","at":1771143019000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c6059-bde0-712d-8e64-1599c13e9ad0","at":1771143020000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6059-d356-771c-82d9-99b7cf50710c","at":1771143025494000000,"seq":668,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c6059-e4f0-7473-a4a0-2ee9e6b743a3","at":1771143030000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c605a-1f88-73ea-955f-08204e344248","at":1771143045000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c605a-4ebf-78f1-9911-cf1349450311","at":1771143057087000000,"seq":671,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c605a-8130-7306-955b-8ba4e58697a5","at":1771143070000000000,"seq":672,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c605a-92be-7e72-9be6-7988a24fad4a","at":1771143074494000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c605a-a840-74dd-a728-4036c19056da","at":1771143080000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c605a-bbc8-775f-89f4-09051f02cf9c","at":1771143085000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c605c-419a-7fd4-b3be-1916beaade44","at":1771143184794000000,"seq":676,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c605c-e290-793e-a33a-c00f3222b25d","at":1771143226000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6065-68d3-7cc8-8e11-dadfe00ea261","at":1771143784659000000,"seq":678,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6065-8198-7a0b-b16a-9203b1c3fbe1","at":1771143791000000000,"seq":679,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6065-a0d8-7c39-840d-1ec8e266981a","at":1771143799000000000,"seq":680,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6065-a4c0-7cef-8293-8638e33fca5f","at":1771143800000000000,"seq":681,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6080-3ef8-794c-9a68-e83c159830bd","at":1771145543416000000,"seq":682,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6080-9348-79d1-9044-e016c99d71a5","at":1771145565000000000,"seq":683,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c6093-a4e1-7b90-986c-490347ba0e30","at":1771146814689000000,"seq":684,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6093-a4e1-79a1-9ced-f9a4bc9ce5bb","at":1771146814689000000,"seq":685,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6093-d110-724a-a7ff-298dfd5652f0","at":1771146826000000000,"seq":686,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c6094-3e70-7f42-afba-4273a3fce151","at":1771146854000000000,"seq":687,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6094-51f8-7109-b55f-850ca892432c","at":1771146859000000000,"seq":688,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6094-9fc3-7d9b-b455-d2447335d1cf","at":1771146878915000000,"seq":689,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6095-1930-7c7c-824e-8365ef1ee257","at":1771146910000000000,"seq":690,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c6095-5f80-7fa4-9050-cfe071b321e3","at":1771146928000000000,"seq":691,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6095-9e00-7a16-ae2a-34c253ecb44a","at":1771146944000000000,"seq":692,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6095-ada0-708b-b062-883862c13adc","at":1771146948000000000,"seq":693,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

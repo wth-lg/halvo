@@ -1,0 +1,70 @@
+{"v":1,"id":"019c1861-a4a0-7e60-8dcd-a5c17cdaf901","at":1769935578272000000,"seq":459,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1861-a4a0-712d-99b7-0e7e9aafef48","at":1769935578272000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1861-c6b8-75d4-9433-6aad362e1e14","at":1769935587000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1861-e210-76b6-a878-6a55429055df","at":1769935594000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1861-f598-72db-ba3f-ee70ec22d400","at":1769935599000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c1862-5f3b-7648-a021-e8f621b91544","at":1769935626043000000,"seq":464,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1862-99a8-7ab2-aca3-4c0f0c1ecf12","at":1769935641000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1862-a178-7447-86d0-6e0df0eea85e","at":1769935643000000000,"seq":466,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1862-a560-7bf5-8919-e6c67511aab4","at":1769935644000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1862-b840-7d74-b869-8eeefc6420a1","at":1769935648832000000,"seq":468,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1863-2648-71a5-bd37-7bd786e72e1f","at":1769935677000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1863-2a30-7667-902c-0a5597a3c0e5","at":1769935678000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1863-2c68-7729-bfe1-21857e0100eb","at":1769935678568000000,"seq":471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1863-4588-7fd8-af4a-25f36a5f445b","at":1769935685000000000,"seq":472,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1863-68b0-7a40-9dc5-4d82fa100deb","at":1769935694000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c1863-8bd8-7bfd-9c86-29c55e3c652a","at":1769935703000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1863-c288-7b64-90ab-2c64910c860f","at":1769935717000000000,"seq":475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1863-c670-7911-8cb6-bc23ab79c4bb","at":1769935718000000000,"seq":476,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1863-d35b-7528-865a-c1840fce6567","at":1769935721307000000,"seq":477,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1863-ed80-76a2-b1e1-4072e8259ec7","at":1769935728000000000,"seq":478,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1863-f168-7f02-ad0d-fe8f011a7318","at":1769935729000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1864-1c60-7535-8b28-31466f9e5aee","at":1769935740000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1864-9d48-7c6e-8265-12c01328085a","at":1769935773000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c1864-c1fa-7029-9c9e-55365dcdabcf","at":1769935782394000000,"seq":482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1865-1e30-702d-ad2e-51a90cdfce4a","at":1769935806000000000,"seq":483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1865-3d70-7550-8266-7d737e593864","at":1769935814000000000,"seq":484,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1865-6480-7cb1-b240-be2e50f62699","at":1769935824000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1865-b2a0-76c3-94ef-321bea9f718c","at":1769935844000000000,"seq":486,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c187d-6481-747a-82e0-d974c2862b16","at":1769937396865000000,"seq":487,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c187d-6481-7710-9f2c-b02ee777f1fa","at":1769937396865000000,"seq":488,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c187d-74a8-75da-9676-5b3b8feaecfc","at":1769937401000000000,"seq":489,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c187d-ab58-7e23-b12f-473cfba15b27","at":1769937415000000000,"seq":490,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c187d-b328-726d-a957-0d95bff7e20c","at":1769937417000000000,"seq":491,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c187d-c2c8-70d9-8148-095d3918dc53","at":1769937421000000000,"seq":492,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1887-ac04-7bed-98d0-5767774e8089","at":1769938070532000000,"seq":493,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1887-ac04-7392-99f3-0a93daed4f08","at":1769938070532000000,"seq":494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c1888-1750-7978-9235-d462a70ed21b","at":1769938098000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1888-2308-7599-914a-c6072386df40","at":1769938101000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c1888-8561-7b06-a5ec-1142bcb977f7","at":1769938126177000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c1888-9450-7ee5-a859-661fccf60cf8","at":1769938130000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1888-abc0-7017-921b-1311276ac43a","at":1769938136000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c1888-d2d0-7ced-9328-233599db63b1","at":1769938146000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1888-f5f8-7d8f-a2ea-ae1bfa09d4c5","at":1769938155000000000,"seq":501,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1888-fd0e-7db2-a779-39b69439c86e","at":1769938156814000000,"seq":502,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c1888-fdc8-70d3-928a-2eeca89c18b4","at":1769938157000000000,"seq":503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1889-1538-7db3-9253-8d1a91ccbc11","at":1769938163000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1889-20f0-75fd-b82d-a6fe9f4015ab","at":1769938166000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1889-2ca8-7666-b114-925e84225bf9","at":1769938169000000000,"seq":506,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1889-496d-77d9-acf5-51345bae2a13","at":1769938176365000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c1889-76e0-7a66-b27b-d8e82d186084","at":1769938188000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c18a0-d03a-7281-a032-082b98489da3","at":1769939718202000000,"seq":509,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c18a0-d03a-72e8-94d5-4df8eb82db63","at":1769939718202000000,"seq":510,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c18a1-5c10-70b1-a449-dc2f8ea28526","at":1769939754000000000,"seq":511,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18ae-2841-7259-9932-644b196acefb","at":1769940592705000000,"seq":512,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c18ae-2841-7f54-a594-160053c7d3f7","at":1769940592705000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c18ae-6400-7874-8058-263c4bf15141","at":1769940608000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18ae-96c8-7678-a09f-9428e4274c85","at":1769940621000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c18af-01e8-7128-9068-1fe819c6183a","at":1769940648424000000,"seq":516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c18af-3308-7518-9459-337987342b29","at":1769940661000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18af-5248-7721-a3be-7b4e6e47b30f","at":1769940669000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c18af-90c8-76cc-9d54-e360cb97597e","at":1769940685000000000,"seq":519,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c18af-9898-7600-973a-f6a3daf9272f","at":1769940687000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18af-b008-709c-a152-8b225929f513","at":1769940693000000000,"seq":521,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c18af-cf2b-7ed4-a5dd-ae3c1d289609","at":1769940700971000000,"seq":522,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c18b0-09e0-7bd4-9f72-969e461ce2c6","at":1769940716000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c18b0-4c48-727b-a9d5-258fa88cbf2b","at":1769940733000000000,"seq":524,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c18b0-5d94-71e2-a040-134b5d32a5d0","at":1769940737428000000,"seq":525,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c18b0-5fd0-715c-8ce7-896326a19254","at":1769940738000000000,"seq":526,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c18b0-67a0-757f-97d7-d953ecde27e4","at":1769940740000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18b0-8eb0-70c6-b96a-65dba9a03d9c","at":1769940750000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019cc1fa-2dea-7dd2-a4ba-c35bc16c5c7e","at":1772780924394000000,"seq":765,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc1fa-2dea-7059-9ba2-c283fd4b71ad","at":1772780924394000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cc1fa-8638-79a8-b5f2-a1e93690dddb","at":1772780947000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc1fa-bce8-775a-b522-d3cf0c977e81","at":1772780961000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc1fa-ca82-717c-a004-1042d75458b7","at":1772780964482000000,"seq":769,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cc1fa-efb0-7f0d-9f4f-9eb4f0397ea1","at":1772780974000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc1fb-12d8-7bb1-9375-0f9566e52e44","at":1772780983000000000,"seq":771,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc1fb-2278-758c-b921-ed792cb556e4","at":1772780987000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc1fb-38c9-759c-be12-99407c65e76f","at":1772780992713000000,"seq":773,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cc1fb-ca70-73bc-95d5-b10612dff029","at":1772781030000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc1fc-457e-7e80-99b3-c041fd5345e7","at":1772781061502000000,"seq":775,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cc1fc-6a98-76f0-87cb-861f6772388e","at":1772781071000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc206-3940-7e13-b9a4-bfa9a1b0338b","at":1772781713728000000,"seq":777,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc206-d2a8-7c1d-8502-bc7bf1d121b9","at":1772781753000000000,"seq":778,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc218-40fd-707f-b2cd-269fdae7b03d","at":1772782895357000000,"seq":779,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc218-40fd-7bf4-8027-9f41098358e7","at":1772782895357000000,"seq":780,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc218-4380-731f-b48a-26053c1d821d","at":1772782896000000000,"seq":781,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc218-a910-77b7-ae2e-2370cd6b7c38","at":1772782922000000000,"seq":782,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cc218-b0e0-7fe9-83b5-23b3386b5316","at":1772782924000000000,"seq":783,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc222-1e54-7d7b-abc7-e7e6fed88c3f","at":1772783541844000000,"seq":784,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc222-1e54-7493-a6fe-46720c3e3efc","at":1772783541844000000,"seq":785,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc222-3e30-7d04-b18a-7e5aead42ce2","at":1772783550000000000,"seq":786,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

@@ -1,0 +1,44 @@
+{"v":1,"id":"019c0dde-06e1-740f-82da-7d9d713f550b","at":1769759180513000000,"seq":599,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0dde-06e1-7d41-ac4d-e0faddfcb7c8","at":1769759180513000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0dde-2808-709d-927d-d578eb8450a3","at":1769759189000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dde-56e8-7951-b081-8e41b71332e1","at":1769759201000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dde-7628-7116-8347-82ed2f098a15","at":1769759209000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c0dde-c20d-7706-bf81-892fa3b7d6c6","at":1769759228429000000,"seq":604,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0ddf-4d00-77f3-8b8c-e7d4d8874302","at":1769759264000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0ddf-7fc8-7388-ac41-e23644739c33","at":1769759277000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0ddf-83b0-7401-89e3-dc4cfb8ceed2","at":1769759278000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c0ddf-9f08-7096-917b-b0fa6474b06b","at":1769759285000000000,"seq":608,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0ddf-c48e-7688-bf88-e51ccd5febd8","at":1769759294606000000,"seq":609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0de0-2f90-7c3a-846b-d93c1c4191d0","at":1769759322000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0de0-4ae8-7996-8455-cc905c433f10","at":1769759329000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c0de0-8e0e-7d69-9fd4-33254b061ef4","at":1769759346190000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0de0-a0d8-7ea3-ab71-2248b6d7fefe","at":1769759351000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0de0-c018-7e39-81fb-7820a666e43b","at":1769759359000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0de0-c8b6-7287-8a39-23219feed7a6","at":1769759361206000000,"seq":615,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0de0-db70-72c1-ac93-fb190b090179","at":1769759366000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c0de1-1152-7393-b18f-744313b663a2","at":1769759379794000000,"seq":617,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0de1-3548-7530-9a29-37d3bfbca9db","at":1769759389000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0de9-fc35-7b4a-9306-8762a15c7955","at":1769759964213000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c0dea-35f8-7fae-b3e0-2d6442a28e11","at":1769759979000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c0dea-ef79-7d38-8587-f53a9824b29c","at":1769760026489000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c0dea-f178-7116-84bf-2591ec4638e5","at":1769760027000000000,"seq":622,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0deb-0cd0-77e5-8e47-5e01fa39ff1a","at":1769760034000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0deb-10b8-74f3-8c40-4ebd41b81f71","at":1769760035000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0deb-3fac-7302-8cb8-7f2dd20bf104","at":1769760047020000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c0deb-4380-74ba-b3d7-a77ff0d55b7f","at":1769760048000000000,"seq":626,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0deb-7648-719b-baf9-74071331798b","at":1769760061000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0deb-c6f2-773a-930b-83ed424a5132","at":1769760081650000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c0deb-e3a8-7fce-b92e-126df29014c4","at":1769760089000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dec-2de0-7705-b4a7-de88dad806ca","at":1769760108000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dec-35b0-7684-909c-75c0598bdcc2","at":1769760110000000000,"seq":631,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0dec-4168-775e-b153-f63df1d5f537","at":1769760113000000000,"seq":632,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0dec-4a27-7794-8cb1-b3243f7c3045","at":1769760115239000000,"seq":633,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c0dec-d5d8-7fa0-a025-345cdcba642b","at":1769760151000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dec-d5d8-7e93-9c18-55e854832232","at":1769760151000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c0ded-1c28-7d20-ab9b-a6fb46665305","at":1769760169000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0ded-248e-75e2-8fd5-ecae601701e3","at":1769760171150000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c0ded-2fb0-7f98-9482-8133e749fda6","at":1769760174000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0ded-85a0-792f-a4de-c9989fcd4986","at":1769760196000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0ded-9928-7e76-9e86-f299646266f3","at":1769760201000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c0ded-9d10-7f2e-aa67-388fcef82d81","at":1769760202000000000,"seq":641,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0ded-bc50-7d79-b3a6-ccbc670750da","at":1769760210000000000,"seq":642,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

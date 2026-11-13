@@ -1,0 +1,24 @@
+{"v":1,"id":"019cb2b2-9ec0-7396-acd8-87fd3d2ab65c","at":1772524576448000000,"seq":871,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2b2-9ec0-7810-9eaf-42698835ad88","at":1772524576448000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b3-8ff1-7c8d-b555-248f7c132885","at":1772524638193000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b3-c9c8-777f-b349-10bd7b3f6995","at":1772524653000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2b3-d580-7b73-b1e4-00d3632e828e","at":1772524656000000000,"seq":875,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb2b3-d968-7fe1-a09a-208d567ef7af","at":1772524657000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cb2b3-f47a-7cdf-9553-0420ea4f4e7b","at":1772524663930000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b4-0848-75c3-ba5a-4d5584f0c2fd","at":1772524669000000000,"seq":878,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2b4-2788-7f6f-9421-b685877ce1f8","at":1772524677000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2b4-3ef8-7bce-834c-a4ad76c7d0f3","at":1772524683000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2b4-5a50-7900-8ac7-1f9d3061a516","at":1772524690000000000,"seq":881,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb2b4-7355-700a-b5cd-9addb1c86793","at":1772524696405000000,"seq":882,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b4-8d18-7204-a7a3-8898c5620526","at":1772524703000000000,"seq":883,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb2b4-9100-7d80-8c80-85f325a6ed6f","at":1772524704000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2b4-98d0-7d97-955c-863402db6eef","at":1772524706000000000,"seq":885,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2b4-bfe0-7865-aa1c-aad519b007b9","at":1772524716000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cb2c8-60bd-7aaf-9717-6a88adedcbb5","at":1772526002365000000,"seq":887,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cb2c8-9218-743b-a759-deb9fe474156","at":1772526015000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cb2c8-e27b-7393-a053-73812720d464","at":1772526035579000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cb2c8-efd8-73c6-8429-b602e0c372f5","at":1772526039000000000,"seq":890,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb2c9-6120-7435-8c1b-1fc083c1fb0a","at":1772526068000000000,"seq":891,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2c9-6e43-7c79-9cfc-c889ecd69aca","at":1772526071363000000,"seq":892,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cb2c9-c6b0-7163-b674-bc7c7699806b","at":1772526094000000000,"seq":893,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ca-2c40-708a-b969-0379129708df","at":1772526120000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

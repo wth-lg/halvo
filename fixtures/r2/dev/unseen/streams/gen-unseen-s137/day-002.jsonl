@@ -1,0 +1,29 @@
+{"v":1,"id":"019b7de5-eaa4-7316-94e3-c0d113d0f164","at":1767343778468000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7de5-eaa4-7442-84e0-27296e6e50b4","at":1767343778468000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b7de6-d330-7163-9e06-47937b6e8c99","at":1767343838000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de6-e570-7a04-8d76-43d02c5bbe50","at":1767343842672000000,"seq":3,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b7de7-5fd0-7108-beae-25a8a0744a6c","at":1767343874000000000,"seq":4,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7de7-7b28-7b96-ba17-6121ff143619","at":1767343881000000000,"seq":5,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7de7-8eb0-707a-8ea4-06d6ed77e222","at":1767343886000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b7de7-94f0-708b-ac1d-1e2aa1b0d8bf","at":1767343887600000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019b7de7-e0b8-7dac-8724-326f483dbfaf","at":1767343907000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de7-e888-73c2-8642-279202f73aa9","at":1767343909000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b7de8-61a0-7498-92f0-2ac2b0afd982","at":1767343940000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de8-9711-7a7d-9de5-691a61882641","at":1767343953681000000,"seq":11,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019b7de8-e670-74eb-8e46-719f44997c43","at":1767343974000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de9-01de-7505-966d-9da4a759c551","at":1767343981022000000,"seq":13,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b7de9-1938-7f21-b60c-3334b256541b","at":1767343987000000000,"seq":14,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7de9-5ba0-7619-96c8-ec61580171e4","at":1767344004000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b7de9-8698-78bd-bb53-328ce22cfbb1","at":1767344015000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7de9-9250-7d53-b3ea-511d9fbc4052","at":1767344018000000000,"seq":17,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e03-ca06-7668-bba5-45e2d1b4d440","at":1767345736198000000,"seq":18,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b7e03-d110-7e80-803e-88875ac04b63","at":1767345738000000000,"seq":19,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e04-03d8-7064-95d9-5bfdfd2066ab","at":1767345751000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e04-81da-7d58-bd15-c074cc4224b6","at":1767345783258000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b7e04-88a8-77fe-833d-2888e3942bbf","at":1767345785000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e04-8c90-7a45-9ba3-6f6388ae592b","at":1767345786000000000,"seq":23,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e04-9848-7499-b36b-87fbed594a41","at":1767345789000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e04-d2e0-7419-9c15-f435d138975b","at":1767345804000000000,"seq":25,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e04-de60-7c9c-9992-0ecd7fcd6761","at":1767345806944000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b7e05-cacb-79f1-842c-8ce00bb7c193","at":1767345867467000000,"seq":27,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b7e05-f7d8-7471-963c-e3e7875c0277","at":1767345879000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

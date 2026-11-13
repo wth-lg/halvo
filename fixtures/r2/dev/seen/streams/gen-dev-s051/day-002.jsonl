@@ -1,0 +1,24 @@
+{"v":1,"id":"019b7dfc-fbba-7aa6-a28c-839f9f22fd24","at":1767345290170000000,"seq":30,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7dfc-fbba-7eb8-9583-de3d44b355ba","at":1767345290170000000,"seq":31,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7dfd-0e98-73f3-b1ff-4ae3f5b4addc","at":1767345295000000000,"seq":32,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b7dfd-35a8-7eeb-b10d-f4eaaebce70e","at":1767345305000000000,"seq":33,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b7dfd-5cb8-717e-a938-296154232bb0","at":1767345315000000000,"seq":34,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e0b-89a3-74bd-926a-d5872aa9b93c","at":1767346244003000000,"seq":35,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e0b-89a3-7a9a-9142-4d530f397508","at":1767346244003000000,"seq":36,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b7e0b-a4f8-73fd-8243-78ded1b203ec","at":1767346251000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e0b-ef30-7b85-835d-e01c3050b405","at":1767346270000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b7e0c-46f9-7fa5-9e0a-e521d8af5c00","at":1767346292473000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b7e0c-58a8-758a-9acd-09bfbf47b40a","at":1767346297000000000,"seq":40,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e0c-6c30-772f-93f6-77f233a80dac","at":1767346302000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b7e0c-9b10-7d51-9b2a-4233ea0b4d8b","at":1767346314000000000,"seq":42,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e0c-e779-75d4-bcdd-c805e7bced63","at":1767346333561000000,"seq":43,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b7e0d-1040-7fe6-9d6d-68a8126caecd","at":1767346344000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b7e0d-9128-7653-93c4-2b7883f78e54","at":1767346377000000000,"seq":45,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e0d-e6fa-7a18-ad41-a3cfcc5f078b","at":1767346398970000000,"seq":46,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b7e0d-f2d0-74a1-ada1-13ac201ba116","at":1767346402000000000,"seq":47,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e1f-2cdd-7329-b554-64b9f2a6c9f6","at":1767347530973000000,"seq":48,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7e1f-ade0-798b-816e-6011d876da50","at":1767347564000000000,"seq":49,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e25-2622-7e6f-9784-674dd0e284a4","at":1767347922466000000,"seq":50,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e25-66b8-746a-91e4-d88a39c46966","at":1767347939000000000,"seq":51,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e25-6e88-7f24-82ff-6aa5b44e79d4","at":1767347941000000000,"seq":52,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e25-91b0-700a-ad7c-d9f791fe2fa7","at":1767347950000000000,"seq":53,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

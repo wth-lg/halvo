@@ -1,0 +1,33 @@
+{"v":1,"id":"019be49b-d2e3-7961-bff8-0eac047919bd","at":1769066975971000000,"seq":370,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be49b-d2e3-72e2-991c-a517e68c3fee","at":1769066975971000000,"seq":371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be49b-d300-738d-b88b-5ee0f76b6da7","at":1769066976000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019be4ad-72b4-7194-974d-2184b31276eb","at":1769068130996000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019be4ad-bcf0-7ddb-b390-63cc58a08113","at":1769068150000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019be4ad-cc90-7d68-bdcc-f9e4c0fddda0","at":1769068154000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ae-2280-7c46-adad-dbca7d071c68","at":1769068176000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ae-3bc9-796c-9a61-945e05ef8a2d","at":1769068182473000000,"seq":377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019be4ae-4990-7565-aa1d-35eff9c44919","at":1769068186000000000,"seq":378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be4ae-7c58-7b66-844d-a53909d5f9d8","at":1769068199000000000,"seq":379,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019be4ae-97b0-79c8-b4f4-09d5eeeb3c5a","at":1769068206000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ae-bec0-782d-8ef3-a5e4753cb217","at":1769068216000000000,"seq":381,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be4ae-f161-7ae9-bc00-8b3199011bfa","at":1769068228961000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019be4ae-f570-7956-8ff1-ae1d679541d3","at":1769068230000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4af-5330-7b5d-af65-58b7343c0dfe","at":1769068254000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4af-5b00-7e14-8955-63f89e3835c1","at":1769068256000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be4af-f1e9-76e2-8a56-62ee3f81137b","at":1769068294633000000,"seq":386,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019be4af-f358-79a2-a478-0be025008208","at":1769068295000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b0-0ac8-7ae2-a1ff-1d7727fef5c3","at":1769068301000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b0-1680-7790-a630-099afc4822c6","at":1769068304000000000,"seq":389,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be4b0-1e50-73dc-b21c-fbbcb7eebb94","at":1769068306000000000,"seq":390,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019be4b0-3465-7b46-984f-a54969c2a663","at":1769068311653000000,"seq":391,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019be4b0-4948-7748-8708-3fefd651af68","at":1769068317000000000,"seq":392,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be4b0-7828-7790-ab84-ced57d8f3888","at":1769068329000000000,"seq":393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b0-b6a8-70b8-888f-f90fa826bb06","at":1769068345000000000,"seq":394,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4b1-1899-7930-b9fa-73492da5dbdd","at":1769068370073000000,"seq":395,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019be4b1-3b78-7bee-a3ce-cc9a30725292","at":1769068379000000000,"seq":396,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019be4b1-5ea0-7f70-94df-1967536cf495","at":1769068388000000000,"seq":397,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4c7-3ae5-7e0d-a00b-4868f9f7aec9","at":1769069820645000000,"seq":398,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be4c7-4be8-7cc6-a2eb-57a8c6867746","at":1769069825000000000,"seq":399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c7-b948-7dc7-b954-b70fbaca87ba","at":1769069853000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019be4c7-ccd0-7fa3-b77a-6f2b28de3dc7","at":1769069858000000000,"seq":401,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4c7-d888-78cb-ae02-be34db339d38","at":1769069861000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

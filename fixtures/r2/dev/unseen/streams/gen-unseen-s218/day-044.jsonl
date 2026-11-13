@@ -1,0 +1,57 @@
+{"v":1,"id":"019c55dd-b48f-78ec-84a0-741591543f7f","at":1770967118991000000,"seq":621,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c55dd-b48f-76a0-866b-7221cad10dcb","at":1770967118991000000,"seq":622,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c55dd-bc68-72fc-85db-1af009da940f","at":1770967121000000000,"seq":623,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55de-29c8-7fcb-8724-bf77fd5cbb3c","at":1770967149000000000,"seq":624,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c55de-50d8-73ec-8bd0-26c1cb1e8ea1","at":1770967159000000000,"seq":625,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c55de-8f58-7f66-b202-357b8e0f778d","at":1770967175000000000,"seq":626,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ec-77bd-72bb-b322-1fab67be24de","at":1770968086461000000,"seq":627,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c55ec-77bd-7941-a19e-d303a67912d6","at":1770968086461000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c55ec-c028-71b3-aedb-356358492c5e","at":1770968105000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ec-d798-75d3-8efa-38d05d1d2bab","at":1770968111000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ed-1fdc-70b2-a63e-0e9e9d3039fc","at":1770968129500000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c55ed-3d28-79f7-8b24-476f41ecb677","at":1770968137000000000,"seq":632,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c55ed-6050-7ea6-a306-e0e14edffc02","at":1770968146000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c55ed-7f90-71fe-8ff1-9f1b563f6341","at":1770968154000000000,"seq":634,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c55ed-eaba-7d5c-8457-0f04472d8d6f","at":1770968181434000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c55ee-0078-770c-9ee2-1c1ab26d314f","at":1770968187000000000,"seq":636,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c55ee-3b10-7bc1-8001-1bc22902ca04","at":1770968202000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c55ee-42e0-75c6-a5d3-b03f5d494bfe","at":1770968204000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ee-4e98-7301-94c8-6c0105b10905","at":1770968207000000000,"seq":639,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c55f5-bd68-77b9-a164-7e5a06f41895","at":1770968694120000000,"seq":640,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c55f5-c8a8-7821-b409-9a870332b4b6","at":1770968697000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c55f5-d460-7d63-80b3-dd12f9243f05","at":1770968700000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f5-f3a0-7323-a36a-0590212148fb","at":1770968708000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f6-5a7f-79ce-9145-fac804c0177c","at":1770968734335000000,"seq":644,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c55f6-a368-7c3e-8cb2-5d6a658ec5ea","at":1770968753000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f7-0510-7a25-9678-18c87e924944","at":1770968778000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c55f7-0ac2-7b58-a976-1b1e0ab3d6ae","at":1770968779458000000,"seq":647,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c55f7-10c8-7d3f-82aa-8d7392138ea4","at":1770968781000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f7-3008-7915-935c-a3dd39ab4749","at":1770968789000000000,"seq":649,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f7-8d1f-7af2-a2e3-9464cdd6d968","at":1770968812831000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c55f7-8dc8-7387-a7d9-f6cc50d796ad","at":1770968813000000000,"seq":651,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c560a-97b4-7e28-9b81-a41053d6ebfc","at":1770970060724000000,"seq":652,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c560a-9cb0-774d-820d-611ebedbd30b","at":1770970062000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c560a-a868-7de8-8d85-494693f407b8","at":1770970065000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c560b-11e0-7c70-aa6a-f486e9966564","at":1770970092000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c560b-138d-774a-948f-6e5fbcdca2d8","at":1770970092429000000,"seq":656,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c560b-2568-78f7-96aa-a571ac0b2dbd","at":1770970097000000000,"seq":657,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c560b-afe7-7d41-8b9f-30f96c22a29e","at":1770970132455000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c560b-f088-78b9-b3e4-ddb13f0b34a7","at":1770970149000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c560b-fe48-73db-a7b3-d718c2ecfa3c","at":1770970152520000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c560c-5a00-7924-9515-8f0dc01916be","at":1770970176000000000,"seq":661,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c560c-c378-79b2-9d0d-b929c779e984","at":1770970203000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c561e-32f2-7dbc-a08b-00f0c87857d6","at":1770971345650000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c561e-76ee-79e5-9fb0-59a7430bc81e","at":1770971363054000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c561e-8a40-765d-b512-961bea9d9349","at":1770971368000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c561e-ad68-7922-bdca-d1a5c498d7ce","at":1770971377000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c561f-2e50-7765-a574-429938f4af0d","at":1770971410000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c561f-49a8-7df7-9ef3-0945d9b22508","at":1770971417000000000,"seq":668,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c561f-5dd4-7ae9-81cb-603acd25194a","at":1770971422164000000,"seq":669,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c561f-68e8-700c-9dd9-2586a0f13ecb","at":1770971425000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c561f-8828-7f8e-99ff-8fb5c1bcc685","at":1770971433000000000,"seq":671,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c561f-8c10-74e7-931c-c332c13a9ff9","at":1770971434000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c561f-a380-75c5-b7d6-b101c8e96bf0","at":1770971440000000000,"seq":673,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c561f-ba84-7944-a73d-ecfc78578aaf","at":1770971445892000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c561f-f588-79d7-9931-207a661c522e","at":1770971461000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5620-14c8-72e4-a04f-2d1db96aa00a","at":1770971469000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5620-18b0-74cd-a8f4-06469d79f7fc","at":1770971470000000000,"seq":677,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

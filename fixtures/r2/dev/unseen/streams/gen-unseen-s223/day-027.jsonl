@@ -1,0 +1,23 @@
+{"v":1,"id":"019bfe56-2317-737b-b02d-e61044d91849","at":1769498616599000000,"seq":217,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfe56-2317-7ad1-afb3-01ac549ed823","at":1769498616599000000,"seq":218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bfe56-4bb8-7b21-a320-83be240808f2","at":1769498627000000000,"seq":219,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bfe56-8650-7250-bc01-a8b367e0898e","at":1769498642000000000,"seq":220,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfe6d-44dc-7ada-88c5-b8819bf619a5","at":1769500132572000000,"seq":221,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bfe6d-44dc-7e23-8f15-66988c569126","at":1769500132572000000,"seq":222,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bfe6d-5628-78e2-84e3-45bd7f0f1419","at":1769500137000000000,"seq":223,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bfe6d-c388-7724-b05c-89d13acee7df","at":1769500165000000000,"seq":224,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bfe6d-fa38-7b3b-b7d6-26f198934dee","at":1769500179000000000,"seq":225,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bfe6e-1d60-7b4d-9c2a-3bee6ca6fec7","at":1769500188000000000,"seq":226,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe6e-3134-79f5-9322-72e3039bb8ca","at":1769500193076000000,"seq":227,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bfe6e-63b0-7048-ada7-740e4e0f7e12","at":1769500206000000000,"seq":228,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bfe6e-aa00-7d4c-9cbe-c34dcacf09ac","at":1769500224000000000,"seq":229,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe6e-b1d0-785d-9940-cf1cf8827ed9","at":1769500226000000000,"seq":230,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bfe81-94fb-7730-a1aa-46bd94a35a17","at":1769501463803000000,"seq":231,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfe81-94fb-7e22-ad20-1e368ca20caf","at":1769501463803000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bfe81-d058-7b47-8b75-6cc6dd26fccb","at":1769501479000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe81-dc10-7ba1-b456-51dcd6c29a07","at":1769501482000000000,"seq":234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bfe81-ebb0-7fcd-9018-a11f13aff1d5","at":1769501486000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfe8d-de25-781f-9bc1-34a6d40660b9","at":1769502268965000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bfe8d-de48-7d02-9c63-305eae1b5f4a","at":1769502269000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe8d-f5b8-72bb-8873-4a16240a08be","at":1769502275000000000,"seq":238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bfe8d-f9a0-7c35-a4ef-108782974d33","at":1769502276000000000,"seq":239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

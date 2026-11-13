@@ -1,0 +1,18 @@
+{"v":1,"id":"019d0506-e620-7506-ace0-39b50ac5909b","at":1773905831456000000,"seq":1063,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0506-e620-71ac-8d79-fa18d4b9b677","at":1773905831456000000,"seq":1064,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d0506-ffb0-711f-8976-62edc77970cd","at":1773905838000000000,"seq":1065,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0507-6928-759b-8647-ae36a39fe615","at":1773905865000000000,"seq":1066,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d0507-9038-7e16-a1ec-141355395387","at":1773905875000000000,"seq":1067,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0507-dfc4-7fd0-b58c-e5ea71b7781a","at":1773905895364000000,"seq":1068,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d0508-0568-7a14-b8e9-46ea8601cc56","at":1773905905000000000,"seq":1069,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0508-5388-7487-adbe-a3adab4cc9d7","at":1773905925000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d0508-7d5a-7ca9-8bbd-ccc005776fd8","at":1773905935706000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d0508-b530-71e0-96f4-b702e6cf4c16","at":1773905950000000000,"seq":1072,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0508-d858-7909-822d-3000a9f8da30","at":1773905959000000000,"seq":1073,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0509-0350-7d22-a4a6-cfadf12dbc82","at":1773905970000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0509-0738-7290-9ef2-cb19b06f67be","at":1773905971000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0514-e493-7690-a6cd-29c7a08c1aee","at":1773906748563000000,"seq":1076,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0514-ea30-7535-a599-f312396b52e6","at":1773906750000000000,"seq":1077,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0514-fdb8-7fae-ba29-f88ef3096002","at":1773906755000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0515-0588-7def-b2d3-a21b93cb764d","at":1773906757000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d0515-1140-74d9-a3e7-82ae25094f9f","at":1773906760000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

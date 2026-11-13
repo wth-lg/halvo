@@ -1,0 +1,25 @@
+{"v":1,"id":"019d4db0-30c4-7d4c-944b-a7b97a299040","at":1775124885700000000,"seq":1406,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4db0-30c4-7ff5-b177-da7944a2f241","at":1775124885700000000,"seq":1407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4db0-87e0-728c-916b-49d6f233ad5d","at":1775124908000000000,"seq":1408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4db1-1fb9-726e-93cd-690d02b72384","at":1775124946873000000,"seq":1409,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4db1-6e58-76a2-bbfd-c1b03ef51920","at":1775124967000000000,"seq":1410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4db1-c830-7cf0-a210-9c2ac7f977ef","at":1775124990000000000,"seq":1411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4db1-efaa-7a02-8b8c-a47cc6d80c2e","at":1775125000106000000,"seq":1412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4db2-31a8-7690-87db-258b4056b996","at":1775125017000000000,"seq":1413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4db2-7410-79b6-bade-4b4aa3e08ffe","at":1775125034000000000,"seq":1414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4db2-7846-7bd2-9f67-d17b542b25a6","at":1775125035078000000,"seq":1415,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4db2-aea8-71b7-8ef8-b8c408931cef","at":1775125049000000000,"seq":1416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4db2-be48-7662-b6e3-b031f735c303","at":1775125053000000000,"seq":1417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d4db2-e170-7a7a-ad44-fd12a5832f63","at":1775125062000000000,"seq":1418,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4dcc-9e41-7ee3-b7ed-a15c0d56598d","at":1775126748737000000,"seq":1419,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4dcc-9e41-7ec5-9c8a-5211f4f0d675","at":1775126748737000000,"seq":1420,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4dcd-33b8-78e8-a6ab-ec5dad325c0e","at":1775126787000000000,"seq":1421,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dcd-6298-76cf-87e4-5a49fa06b080","at":1775126799000000000,"seq":1422,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d4dcd-7df0-7b0b-9878-1250d03bd9f9","at":1775126806000000000,"seq":1423,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d4dcd-9178-7144-9f09-5c7791b6bf9c","at":1775126811000000000,"seq":1424,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d4ddb-0775-7859-a602-b9f0fc3534fd","at":1775127693173000000,"seq":1425,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4ddb-8f80-7b71-bdc9-ad1f06b6535d","at":1775127728000000000,"seq":1426,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4de6-c2ce-734d-8250-291bb8d191c9","at":1775128462030000000,"seq":1427,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4de7-66c0-72a2-836a-b3efe5820df7","at":1775128504000000000,"seq":1428,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d4de7-7e30-7cb0-a122-fbbada75002b","at":1775128510000000000,"seq":1429,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4de7-8dd0-78f1-b12f-97aa8600d5cd","at":1775128514000000000,"seq":1430,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

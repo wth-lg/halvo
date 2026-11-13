@@ -1,0 +1,21 @@
+{"v":1,"id":"019bea7b-51c4-7855-a442-102aceb3d96a","at":1769165509060000000,"seq":327,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea7b-51c4-7913-a414-38fb4e957080","at":1769165509060000000,"seq":328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bea7b-8068-7790-9683-2d46af5b8d23","at":1769165521000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea7b-bb00-7423-a9b0-bd0d26682d19","at":1769165536000000000,"seq":330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea7b-bee8-7fb6-8efe-9e7f5e5fc550","at":1769165537000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bea7c-2353-7f21-a4b8-38dc2e73afc9","at":1769165562707000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bea7c-3fd0-7be6-ac71-1cb9e56329c5","at":1769165570000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bea7c-43b8-7616-b6fa-26dfbd152994","at":1769165571000000000,"seq":334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bea7c-b500-72a4-805b-c6384aae4018","at":1769165600000000000,"seq":335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea7c-ec43-7740-87a6-27336e99c5ea","at":1769165614147000000,"seq":336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bea7d-0af0-70b9-b6fa-fdcac414f504","at":1769165622000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bea7d-2a30-750c-a888-3d270e965492","at":1769165630000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea7d-2e18-7c73-a7fc-c7b09843a16f","at":1769165631000000000,"seq":339,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bea7d-3db8-7eba-8d26-fc19aa6513a8","at":1769165635000000000,"seq":340,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bea7d-3e96-7d5a-84cc-7a4d3dd78c4b","at":1769165635222000000,"seq":341,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bea7d-4588-7deb-a018-27856e859df0","at":1769165637000000000,"seq":342,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bea7d-64c8-7d86-b971-8fe2a2b37583","at":1769165645000000000,"seq":343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bea7d-e998-7772-861e-1a63564f4be3","at":1769165679000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea7d-fd20-7d96-956d-3d6fb68d0f98","at":1769165684000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea96-2230-7483-8ff0-1d5c40a040e5","at":1769167266352000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bea96-9218-7f40-8e3b-d890e26c600a","at":1769167295000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

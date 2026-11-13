@@ -1,0 +1,23 @@
+{"v":1,"id":"019d056d-6c5a-7164-93a6-4d9a323904f3","at":1773912550490000000,"seq":1247,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d056d-6c5a-759d-bfb5-ad899dca2882","at":1773912550490000000,"seq":1248,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d056d-7a10-73e7-9189-4b0be20cac4d","at":1773912554000000000,"seq":1249,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d056d-a8f0-759e-8de6-8f4ea4d01bc0","at":1773912566000000000,"seq":1250,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d0576-c490-743b-a8df-e343168bdca6","at":1773913162896000000,"seq":1251,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0576-c490-709a-9ab2-783c6e37d42f","at":1773913162896000000,"seq":1252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d0576-f7c0-7442-9a73-2e8414b68f71","at":1773913176000000000,"seq":1253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d0577-97e8-79d5-bfca-009ecdc73a7f","at":1773913217000000000,"seq":1254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0577-b2ef-7559-8dda-6be250da75a0","at":1773913223919000000,"seq":1255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d0577-b340-7f6d-a970-e4d7d1b352ce","at":1773913224000000000,"seq":1256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0577-e9f0-7a94-b605-cc8e5cc4bebe","at":1773913238000000000,"seq":1257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d0578-1100-729d-8421-06d1eaf7bf6b","at":1773913248000000000,"seq":1258,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0578-14e8-781f-80e2-3317e6ec2939","at":1773913249000000000,"seq":1259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0578-9da0-7409-8ba9-de54347d245f","at":1773913284000000000,"seq":1260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0578-b692-7e71-b2ab-2af0aded4a59","at":1773913290386000000,"seq":1261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d0578-cc80-73ed-b6af-cf1bf113c067","at":1773913296000000000,"seq":1262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0578-e7d8-71c5-8bd0-1a04547ca4d0","at":1773913303000000000,"seq":1263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0578-f778-73c0-876b-44483c46e8b8","at":1773913307000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0578-f778-7dac-8d40-b0f4e4438f1e","at":1773913307000000000,"seq":1265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d0579-2812-7302-b963-adf40910a91c","at":1773913319442000000,"seq":1266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d0579-9f70-7fc1-b11c-0b464e8eab31","at":1773913350000000000,"seq":1267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0579-bac8-7f4b-b118-b0fca9c92f4d","at":1773913357000000000,"seq":1268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0579-d238-7def-b001-14233512b2ff","at":1773913363000000000,"seq":1269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

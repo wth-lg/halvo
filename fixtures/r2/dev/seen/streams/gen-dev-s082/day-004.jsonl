@@ -1,0 +1,21 @@
+{"v":1,"id":"019b8888-54d9-75b3-9936-a1a93c50e735","at":1767522194649000000,"seq":47,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8888-54d9-7087-af10-ee98de47fac6","at":1767522194649000000,"seq":48,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8888-ac28-785e-a380-fd8bb43fb502","at":1767522217000000000,"seq":49,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8888-c780-739c-b501-ad55b8ada0f4","at":1767522224000000000,"seq":50,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a1-4713-7052-bc68-9eb51923a68f","at":1767523829523000000,"seq":51,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b88a1-4713-7f7c-86d6-11f863370575","at":1767523829523000000,"seq":52,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b88a1-a2c8-7535-bd78-0b19f439f47b","at":1767523853000000000,"seq":53,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b88a1-d462-7b50-bd64-9078dbc58efa","at":1767523865698000000,"seq":54,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b88a1-d590-7c80-98e0-e4c5a00200ff","at":1767523866000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a2-2049-73da-a383-3830db2c4a0b","at":1767523885129000000,"seq":56,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b88a2-d9b4-7e83-9aa2-222137a764e3","at":1767523932596000000,"seq":57,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b88a2-e318-7111-88d1-2371234676cf","at":1767523935000000000,"seq":58,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a2-f6a0-75ad-b8a1-797d894434ae","at":1767523940000000000,"seq":59,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b88a3-d64f-72f8-84bb-08ce5abc1ec5","at":1767523997263000000,"seq":60,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b88a4-5e00-761f-9af7-8783ee4192db","at":1767524032000000000,"seq":61,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b88a4-65d0-7d40-918f-73f8eef4d267","at":1767524034000000000,"seq":62,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b88a4-94b0-7c5b-86ad-c93fdc2dc714","at":1767524046000000000,"seq":63,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a4-c7e3-7201-b462-3402ba6e8ee6","at":1767524059107000000,"seq":64,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b88a5-9779-7030-862e-ec5d9caf841a","at":1767524112249000000,"seq":65,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b88a5-bd90-7192-b398-07bcc638f6bc","at":1767524122000000000,"seq":66,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b88a6-1f38-708b-ba94-35f20c0f9256","at":1767524147000000000,"seq":67,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

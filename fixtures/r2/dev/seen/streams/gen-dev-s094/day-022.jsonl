@@ -1,0 +1,21 @@
+{"v":1,"id":"019be4c6-66d3-72c7-a8a2-de73eb1b3cac","at":1769069766355000000,"seq":346,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be4c6-66d3-7394-84d6-732c2f3dc445","at":1769069766355000000,"seq":347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019be4c6-7128-7c6b-85b9-76944fd7bd8a","at":1769069769000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019be4c6-84b0-7146-973d-92f5d3291cbd","at":1769069774000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c6-abc0-73c9-af2c-eff10012459a","at":1769069784000000000,"seq":350,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c6-b3ad-773c-a3de-425a9f225629","at":1769069786029000000,"seq":351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be4c7-1d08-74c4-a25c-3904899fe66c","at":1769069813000000000,"seq":352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be4c7-bc8c-7f4a-bfb7-c66e20721997","at":1769069853836000000,"seq":353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019be4c8-8c38-7084-a5f6-a82e39b15dc3","at":1769069907000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019be4c8-923a-75fe-bb57-0cd0b18680c6","at":1769069908538000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019be4c8-9408-77ef-b8f4-b36d6cdcb684","at":1769069909000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c8-c6d0-7baa-b2b2-13a99f1fb701","at":1769069922000000000,"seq":357,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4c8-d670-70b9-83ba-beaad2d730b9","at":1769069926000000000,"seq":358,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4c8-f486-7dd3-ad8d-e0a413e87c88","at":1769069933702000000,"seq":359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019be4c9-3430-7e0f-8fac-3591cb201cbf","at":1769069950000000000,"seq":360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c9-9da8-75f6-a44c-9bef35baf6db","at":1769069977000000000,"seq":361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4c9-ad48-7f35-8f74-634080fdb8e6","at":1769069981000000000,"seq":362,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d7-422b-7586-8977-d1fd776aff2e","at":1769070871083000000,"seq":363,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be4d7-422b-77f6-b3be-b0534e87e7bd","at":1769070871083000000,"seq":364,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be4d7-93e0-782e-a92c-1271cf58e01c","at":1769070892000000000,"seq":365,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019be4d7-e200-72bf-9497-769379c3d395","at":1769070912000000000,"seq":366,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

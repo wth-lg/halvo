@@ -1,0 +1,13 @@
+{"v":1,"id":"019c2cf9-32e9-725b-9bf3-3daf9c09843c","at":1770281054953000000,"seq":457,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2cf9-32e9-777f-92bf-6254a95d8165","at":1770281054953000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c2cf9-b018-7c2f-ac37-f42a22f3f5e5","at":1770281087000000000,"seq":459,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2cf9-c788-74e0-b218-57a2fcf8a097","at":1770281093000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c2d0a-0431-719f-b78f-635d686dcbb5","at":1770282157105000000,"seq":461,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c2d0a-1750-72d6-a022-2e9d5b9c460b","at":1770282162000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d0a-3690-76e7-b942-f086d4d65f01","at":1770282170000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c2d0a-ab5c-73c6-8b87-80b2e553fd79","at":1770282199900000000,"seq":464,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2d0a-ab5c-7328-9fe9-b033afb0ed44","at":1770282199900000000,"seq":465,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2d0b-67a1-78f1-84c7-9020e06d4cb5","at":1770282248097000000,"seq":466,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d0b-67a1-791b-8b31-97b3d22c6def","at":1770282248097000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c2d0b-76e0-7841-883e-b1eae46de308","at":1770282252000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d0b-9620-7ad0-988b-cb1eaf3c88f9","at":1770282260000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,16 @@
+{"v":1,"id":"019c5667-1807-7233-9f74-4ffa416fb9f0","at":1770976122887000000,"seq":434,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5667-1807-76c1-8810-a196ec9d76ea","at":1770976122887000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5667-1c60-7df6-adcd-f9b3cf3d5379","at":1770976124000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c5667-4758-7a0b-bce2-9fc689f911bc","at":1770976135000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5667-56f8-7482-ad5c-4bb5d433332a","at":1770976139000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5667-628b-7b3c-88b7-414f4ece1ba3","at":1770976141963000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5667-7250-7f56-af1a-44d488d4bfbb","at":1770976146000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5667-9578-7c59-97ee-23f12076224b","at":1770976155000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5667-9b43-7917-903d-30a0132cd101","at":1770976156483000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5668-197b-7c47-90df-6e3f5081b0cd","at":1770976188795000000,"seq":443,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5668-1e30-7546-a7ff-a5ced3793e7f","at":1770976190000000000,"seq":444,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5668-4540-7a54-bbf7-4c7f29dd1679","at":1770976200000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5668-54e0-765f-8bf4-e2c3ec0e933e","at":1770976204000000000,"seq":446,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c566c-3759-733b-a8ae-f6394b3a87a3","at":1770976458585000000,"seq":447,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c566c-3759-7508-801d-0efff484dda5","at":1770976458585000000,"seq":448,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c566c-a270-76ba-9b65-2496cff4b7e0","at":1770976486000000000,"seq":449,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019b7923-c6c9-715f-a298-782704d818eb","at":1767263946441000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7923-c6c9-7429-b7b9-701c2494af4d","at":1767263946441000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b7923-d898-7b2c-ab7f-e6bae6e341c6","at":1767263951000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7923-f7d8-7bbb-9116-9ddb9d4bb7b2","at":1767263959000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7923-ffa8-7d77-8492-99dd9dc97b51","at":1767263961000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b7924-020e-707b-9c1f-94bfe16dbe65","at":1767263961614000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7924-0778-7930-8fdf-833d9047037f","at":1767263963000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7924-1330-7909-b69a-2bd6388c2421","at":1767263966000000000,"seq":7,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7924-1b00-7537-8972-0609e0962cd7","at":1767263968000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7924-45f8-724b-bb9a-cf7bd4413e8c","at":1767263979000000000,"seq":9,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7924-5a7e-7c92-b61b-5d02bfb493b4","at":1767263984254000000,"seq":10,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b7924-ceb0-795d-89c0-1357ac4b2769","at":1767264014000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7924-de50-7788-8d54-67d7652561de","at":1767264018000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7924-e44a-79be-925e-10a3762e0bfc","at":1767264019530000000,"seq":13,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b7924-f1d8-710f-a34f-6885a5b9f05c","at":1767264023000000000,"seq":14,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7925-0d30-7e9a-8421-d9004c10bbdc","at":1767264030000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7925-1500-73da-b59f-d90ac00085ac","at":1767264032000000000,"seq":16,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7925-2c70-7b48-bbfa-29796c4582ab","at":1767264038000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b7925-4f98-7f8c-aad7-01db8d91a65f","at":1767264047000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792a-a96a-77b2-8a10-90de3dda648e","at":1767264397674000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b792a-cdd8-772c-b2c3-fc41f071f394","at":1767264407000000000,"seq":20,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b792b-00a0-72cd-92ad-53ead220eb01","at":1767264420000000000,"seq":21,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

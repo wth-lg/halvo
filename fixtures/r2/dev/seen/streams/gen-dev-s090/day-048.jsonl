@@ -1,0 +1,34 @@
+{"v":1,"id":"019c6aa7-7dda-7999-9938-d1a9d361edf7","at":1771315887578000000,"seq":650,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6aa7-7dda-7a64-b921-70d5e08652fb","at":1771315887578000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6aa7-8750-7ca0-a557-171b09387817","at":1771315890000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c6aa8-10ee-7f01-9a88-aafad05c6277","at":1771315925230000000,"seq":653,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6aa8-2778-7ea7-bf9b-84004aa2d873","at":1771315931000000000,"seq":654,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6aa8-5270-7fb1-860f-3b6acc7abcc5","at":1771315942000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aa8-5a40-72ce-8cf4-0a1e059404d9","at":1771315944000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c6ab6-6717-7720-b2cd-9de968d665dd","at":1771316864791000000,"seq":657,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6ab6-6717-7d5a-bbeb-a1a4fbe9d3d7","at":1771316864791000000,"seq":658,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6ab6-8ef8-7ad3-b670-33fc522d86f3","at":1771316875000000000,"seq":659,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ab6-aa50-7f09-91fe-6b3882808578","at":1771316882000000000,"seq":660,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ab6-b9f0-7298-a9b4-2b9cc144c28d","at":1771316886000000000,"seq":661,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c6acc-63f5-7872-8fd7-d88c14ff0df1","at":1771318305781000000,"seq":662,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6acc-bea8-75c8-b53d-df98e90a3cdc","at":1771318329000000000,"seq":663,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c6ae4-5131-7e04-a0c9-fb97b9bfaeed","at":1771319873841000000,"seq":664,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ae4-5131-77a1-ada0-b35c6abbed2b","at":1771319873841000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae4-80b0-7b62-8062-044a3e284b79","at":1771319886000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c6ae4-a7c0-7f02-b298-bb2f786e958d","at":1771319896000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae4-bf30-75a5-b0d5-7163085918ee","at":1771319902000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae4-d58a-7a85-88da-d9fd43a97c5c","at":1771319907722000000,"seq":669,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae5-1cf0-7076-8188-2f31ea5f02b7","at":1771319926000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae5-1cf0-7497-bc3b-a1646cd8cf4a","at":1771319926000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6ae5-4b84-764e-af66-89de189f857f","at":1771319937924000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae5-4bd0-7d37-b42f-c8ded1e4202e","at":1771319938000000000,"seq":673,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6ae5-4fb8-70e2-aa1c-e9187cbcfc4c","at":1771319939000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae5-8e38-7a54-857f-bb3a530b4abc","at":1771319955000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c6ae5-99a7-7edf-ab69-bb70a1db768f","at":1771319957927000000,"seq":676,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae5-b930-7cf6-be57-a6c40dfc16d9","at":1771319966000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae5-d488-75e0-838d-1ab3a5842687","at":1771319973000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae5-e8f1-7765-93c1-625fe266cb3d","at":1771319978225000000,"seq":679,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6ae6-5d40-7d96-a404-8f2eb0b1815a","at":1771320008000000000,"seq":680,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6aef-9614-7a88-98ad-f460d05dea37","at":1771320612372000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6aef-a440-7da6-99f9-07fdbbb6f44d","at":1771320616000000000,"seq":682,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c6aef-b3e0-7ba5-bef8-d99c9746cdd2","at":1771320620000000000,"seq":683,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

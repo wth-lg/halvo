@@ -1,0 +1,13 @@
+{"v":1,"id":"019bf4ba-90a5-7f48-837e-dc33edfdc6db","at":1769337426085000000,"seq":434,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf4ba-90a5-7f05-8a94-3428830617b6","at":1769337426085000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bf4ba-9438-710a-bad6-a0dee3b8156a","at":1769337427000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4ba-a7c0-701b-a771-4ce322fd1aad","at":1769337432000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4ba-cdd8-705d-840d-b70811500ab9","at":1769337441752000000,"seq":438,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bf4ba-e258-7651-949e-c2e546a130c7","at":1769337447000000000,"seq":439,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf4ba-e258-750a-8762-1d211fecd7f1","at":1769337447000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bf4ba-f9c8-73ad-a169-979ba35bac2f","at":1769337453000000000,"seq":441,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf4bb-0d50-75fd-b6bc-78229d6d8384","at":1769337458000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4bb-28a8-7e1d-8d5a-2d5718542752","at":1769337465000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4bb-49a5-7db9-994d-43c682acdc33","at":1769337473445000000,"seq":444,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bf4bb-ebf8-7854-b26d-e33487d37fe1","at":1769337515000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf4bb-f3c8-7b8b-9cf7-8fbaa59d9155","at":1769337517000000000,"seq":446,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

@@ -1,0 +1,34 @@
+{"v":1,"id":"019b978c-b210-7a15-a498-aee170e14c74","at":1767774138896000000,"seq":52,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b978c-b210-7e9b-ada6-50fde0500e34","at":1767774138896000000,"seq":53,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b978c-be30-70ca-91f3-5253e9332738","at":1767774142000000000,"seq":54,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b978c-c600-76bb-9e2d-10816353db9a","at":1767774144000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b978d-26eb-70d9-a3b8-001262c383b0","at":1767774168811000000,"seq":56,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b978d-4ad0-7f9b-8762-70466f7443bc","at":1767774178000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b978d-98b1-72ba-82f8-0254b84d3bcd","at":1767774197937000000,"seq":58,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b978d-db58-7c84-8456-7af4d5769a39","at":1767774215000000000,"seq":59,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b978e-0650-783b-907d-4ca59acca9c7","at":1767774226000000000,"seq":60,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b978e-4ca0-7157-8cee-b753d500a000","at":1767774244000000000,"seq":61,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b978e-7a52-7271-9a4b-bf2a5dd4447c","at":1767774255698000000,"seq":62,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b978e-7f68-7950-bfda-4e9a02c840e4","at":1767774257000000000,"seq":63,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b978e-96d8-7ec0-847a-0db1689ca0fb","at":1767774263000000000,"seq":64,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b978e-9ac0-7207-aebe-25b89a8ec7bd","at":1767774264000000000,"seq":65,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b979e-03d4-7e17-b46e-bc54010993f3","at":1767775273940000000,"seq":66,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b979e-03d4-78de-b15a-b94119c50d03","at":1767775273940000000,"seq":67,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b979e-0410-728f-af16-48c071170cd2","at":1767775274000000000,"seq":68,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b979e-0be0-72a8-a10c-7193a8c37e89","at":1767775276000000000,"seq":69,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b979e-3ea8-71f3-9c24-7f210792711b","at":1767775289000000000,"seq":70,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b979e-5a00-775d-9bbd-d98918d08132","at":1767775296000000000,"seq":71,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97b0-94d1-72df-8809-477176d77c4d","at":1767776490705000000,"seq":72,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97b0-94d1-7af2-8231-0c67537287a8","at":1767776490705000000,"seq":73,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b97b0-cca7-7624-a6a9-75c209079999","at":1767776504999000000,"seq":74,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b97b0-d860-7e98-b8ad-1d87370d209e","at":1767776508000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97b0-f3b8-7e36-bb53-e9db73a5b520","at":1767776515000000000,"seq":76,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b97b1-2298-70f1-b52b-f8e65998a11d","at":1767776527000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b97b1-79ad-7f1c-8035-9837c47e467e","at":1767776549293000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b97b1-9f98-7701-986c-c63dd101aec8","at":1767776559000000000,"seq":79,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b97b1-af38-77e4-9ccc-080ea5bdca8f","at":1767776563000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b97b1-e9d0-7466-a183-8a5a90eafcee","at":1767776578000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97b1-f572-762e-9e64-057275da1eac","at":1767776580978000000,"seq":82,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b97b2-0cf8-7067-a5d6-3d0d2c5c2dd4","at":1767776587000000000,"seq":83,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b97b2-2468-72a5-a565-974bd6c81ac3","at":1767776593000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b97b2-2850-7b19-897d-a70105e570fb","at":1767776594000000000,"seq":85,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

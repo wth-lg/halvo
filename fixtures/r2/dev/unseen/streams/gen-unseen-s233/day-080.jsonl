@@ -1,0 +1,24 @@
+{"v":1,"id":"019d0f73-22d4-7b48-8542-fc773f4d9730","at":1774080697044000000,"seq":1233,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0f73-22d4-7b17-8e7b-8905f847179b","at":1774080697044000000,"seq":1234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d0f73-2a78-7ee4-b06c-96fd76dfa60b","at":1774080699000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0f73-3248-7957-83f5-28f656ee07a7","at":1774080701000000000,"seq":1236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f73-3e00-7247-afab-ae60dfa83688","at":1774080704000000000,"seq":1237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f73-6332-75e1-ad66-4247bfc174e3","at":1774080713522000000,"seq":1238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d0f74-0538-7a34-abcf-a48f22b39a36","at":1774080755000000000,"seq":1239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f74-130e-7fde-aa9b-b6f83ab939e5","at":1774080758542000000,"seq":1240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d0f74-43b8-77cc-b975-4fb73a3f85e7","at":1774080771000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f74-8620-77fb-bbe4-76a110686083","at":1774080788000000000,"seq":1242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0f74-96c3-7d8a-8059-5253b7d34b36","at":1774080792259000000,"seq":1243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d0f74-a948-7853-806c-36f09f3b0d75","at":1774080797000000000,"seq":1244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0f75-0af0-7b71-9c3a-d96710dc9515","at":1774080822000000000,"seq":1245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0f75-2a30-730f-83d8-a0079d22c96c","at":1774080830000000000,"seq":1246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0f83-f1e9-7b2f-9d9b-aaf56b37e047","at":1774081798633000000,"seq":1247,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0f83-f1e9-7b1b-b5f8-33f831e4c8e7","at":1774081798633000000,"seq":1248,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0f84-2238-7c39-8682-ac36d65dabe7","at":1774081811000000000,"seq":1249,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0f84-2620-7ece-bf6c-7e395b1615d5","at":1774081812000000000,"seq":1250,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f84-6888-715d-8678-98c2e531ecc9","at":1774081829000000000,"seq":1251,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d0f84-7440-73c2-bb5b-261ee48d9060","at":1774081832000000000,"seq":1252,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f84-83e0-7613-8db0-64fe18bacda2","at":1774081836000000000,"seq":1253,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d0f84-9ba4-7d19-b402-02e6ac7775ef","at":1774081842084000000,"seq":1254,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d0f84-be78-749e-8d3a-276e8e4c46ee","at":1774081851000000000,"seq":1255,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d0f84-d200-7032-8251-def01ac10ac9","at":1774081856000000000,"seq":1256,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

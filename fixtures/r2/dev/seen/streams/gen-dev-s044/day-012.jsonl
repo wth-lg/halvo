@@ -1,0 +1,25 @@
+{"v":1,"id":"019bb127-5c1e-7754-8b66-3f7d86c59fc0","at":1768203705374000000,"seq":100,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb127-5c1e-7f24-af62-6026055a2aa7","at":1768203705374000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb127-6660-76a6-bdcb-0bc09ce7c375","at":1768203708000000000,"seq":102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb127-8988-7d67-a6df-6f32d52dc6f3","at":1768203717000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb127-8988-7a83-849e-9236e33647b6","at":1768203717000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bb127-9540-718b-9b27-bef54fa8764b","at":1768203720000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb136-f10b-77fc-9df9-93fc0f2a243d","at":1768204726539000000,"seq":106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb136-f2d8-77a7-a294-09f3c38abac6","at":1768204727000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bb136-f6c0-7369-ba4c-7c2f324294fb","at":1768204728000000000,"seq":108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb137-21b8-7fba-b707-ec12ae16d241","at":1768204739000000000,"seq":109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb148-dd6d-7622-82eb-4a50cc9d199d","at":1768205901165000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bb149-50f2-7ba1-9330-4e190d989b84","at":1768205930738000000,"seq":111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bb149-59c8-749d-aacd-aee63f03015e","at":1768205933000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb149-6968-714a-a956-1eb87a09c1e8","at":1768205937000000000,"seq":113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb149-8c90-7348-b76c-502fe7a7aef6","at":1768205946000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb149-ca44-78a4-9603-c02d4f8e26ef","at":1768205961796000000,"seq":115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bb14a-24e8-71b6-9463-58114973e461","at":1768205985000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb14a-d9d8-7fe2-9ff3-883ab57172ac","at":1768206031320000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bb14a-f008-75fc-a525-3a86708e71c7","at":1768206037000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bb14b-1ee8-76bd-92a1-b61bd7f90e5a","at":1768206049000000000,"seq":119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb14b-49e0-7b91-8d13-05e3266d9cd1","at":1768206060000000000,"seq":120,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb14b-8090-7744-9a9b-eb3e6dc76bdc","at":1768206074000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb14b-b740-7f56-bbcb-6cc8b928514d","at":1768206088000000000,"seq":122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb151-4e95-7c70-8d24-e75a09cfe6b1","at":1768206454421000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb151-50d8-7d81-8b02-8590544f2f51","at":1768206455000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

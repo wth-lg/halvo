@@ -1,0 +1,30 @@
+{"v":1,"id":"019c1db4-7aec-777a-b577-efeae1d5832e","at":1770024893164000000,"seq":345,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1db4-7aec-73a6-b10d-43d1f378d353","at":1770024893164000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c1db4-9d70-7ceb-b2ce-a25e830c73b8","at":1770024902000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db4-e3c0-78d0-8227-960af1138802","at":1770024920000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c1db5-74c8-784d-94a6-fbb8a535228e","at":1770024957128000000,"seq":349,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c1db5-8fa0-757b-9551-bb7157111ceb","at":1770024964000000000,"seq":350,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db5-9b58-7b85-af9f-1102491beb8c","at":1770024967000000000,"seq":351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c1db6-792e-7ca9-a729-ebb86e13105f","at":1770025023790000000,"seq":352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c1db7-083f-7248-9f37-a4a0c186a01a","at":1770025060415000000,"seq":353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c1db7-3968-7ea8-8c47-713d2f6a6298","at":1770025073000000000,"seq":354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1db7-3d50-769f-beae-e3d3ae0a28a4","at":1770025074000000000,"seq":355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db7-54c0-7a4d-b697-f68c0e4c78f0","at":1770025080000000000,"seq":356,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1dcc-8897-7b9b-b2ea-1d2c5acea515","at":1770026469527000000,"seq":357,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1dcc-ad98-76fb-bed0-3ce704e46137","at":1770026479000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dcc-c120-7bc7-bb47-8dacbecc1939","at":1770026484000000000,"seq":359,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1dcc-d4a8-7d0e-93c4-6392008f6c40","at":1770026489000000000,"seq":360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c1dcc-f3e8-7041-8cfd-d7913962b027","at":1770026497000000000,"seq":361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1dd9-ac48-7f6a-8172-4df354c64d88","at":1770027330632000000,"seq":362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c1dd9-b1a0-731d-af73-9df63a6be62b","at":1770027332000000000,"seq":363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dd9-ccf8-7a89-9f5a-1ead718fc4be","at":1770027339000000000,"seq":364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c1dd9-e080-7a97-a8a5-b4385b75992a","at":1770027344000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dd9-e385-724f-90c0-cb7062d4d023","at":1770027344773000000,"seq":366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c1dd9-f408-7ee6-aaea-129be95e7643","at":1770027349000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c1dda-26d0-7b75-b542-1101a4651821","at":1770027362000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dda-70a4-7526-b89e-a00c2539fc99","at":1770027380900000000,"seq":369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c1dda-78d8-7c26-a6de-727295de13e4","at":1770027383000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1ddb-3840-7a03-921b-5f2dda78d127","at":1770027432000000000,"seq":371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1ddb-700b-70f0-ab8d-df76c3d33129","at":1770027446283000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c1ddb-76c0-7dc0-a3c0-c87440deb602","at":1770027448000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1ddb-99e8-70fc-9827-850c6ca88582","at":1770027457000000000,"seq":374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

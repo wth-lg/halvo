@@ -1,0 +1,18 @@
+{"v":1,"id":"019d1466-1e94-7cfa-935a-1e2d2e628164","at":1774163730068000000,"seq":988,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1466-1e94-789e-8596-39b40b37650a","at":1774163730068000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d1466-5118-78bd-b7e4-002f417cd9cf","at":1774163743000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1466-f140-70ab-b650-6e40eae66efd","at":1774163784000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1466-f6cd-736f-93c4-259fd5bd5ab8","at":1774163785421000000,"seq":992,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d1467-08b0-758c-ba22-ad2e3fcb9a01","at":1774163790000000000,"seq":993,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d1467-2fc0-7891-85e4-f59b85193d29","at":1774163800000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1467-5059-73d7-ae65-a3272a7d11d4","at":1774163808345000000,"seq":995,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d1467-85b0-70b0-9cc5-e3663a9b2bf5","at":1774163822000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1468-3960-7a6d-86cb-e265dc9c6ed5","at":1774163868000000000,"seq":997,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1468-51c0-72c1-a6f8-24fd1cafa2bf","at":1774163874240000000,"seq":998,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d1468-6840-79f3-a6d2-a180b36898d8","at":1774163880000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1468-8780-75a5-8bbd-efbfca8701ec","at":1774163888000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d146a-e28c-72d3-8ac0-752e51cca90c","at":1774164042380000000,"seq":1001,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d146a-e28c-7a27-8abc-8edb11985d66","at":1774164042380000000,"seq":1002,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d146b-4a88-72a2-b294-cbb56db740d3","at":1774164069000000000,"seq":1003,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d146b-61f8-7514-94da-32fdbb044ebb","at":1774164075000000000,"seq":1004,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d146b-61f8-7cb2-bdb2-8346c8cc0c2f","at":1774164075000000000,"seq":1005,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}

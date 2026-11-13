@@ -1,0 +1,22 @@
+{"v":1,"id":"019c7a2a-4386-7565-9e96-3e554cd1543c","at":1771576116102000000,"seq":784,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a2a-4386-7ac0-b04d-88bee3b2fafa","at":1771576116102000000,"seq":785,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a2a-5a90-7640-adaf-a074f1d1ab0e","at":1771576122000000000,"seq":786,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a2a-9140-7bb1-8c55-f7ba8c519d5d","at":1771576136000000000,"seq":787,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a2a-9fe6-7e67-9e4d-073098c2162a","at":1771576139750000000,"seq":788,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c7a2a-ac98-7366-ba29-f659a50238fc","at":1771576143000000000,"seq":789,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7a2b-0288-7e44-abbc-4c4f94dc9eaa","at":1771576165000000000,"seq":790,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a33-c7e5-7d89-8dde-5fdf19729a02","at":1771576739813000000,"seq":791,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a33-c7e5-7d22-a6ff-dadaa3bcd923","at":1771576739813000000,"seq":792,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a33-efb0-742c-81dc-00ac129a7390","at":1771576750000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a34-2a48-7f59-93c9-5efef931a271","at":1771576765000000000,"seq":794,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c7a34-8bf0-7ab6-bdb7-42e6017ede5a","at":1771576790000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a4f-08c6-78d9-a02f-40beaf21f625","at":1771578525894000000,"seq":796,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a4f-1cb8-7fa5-9400-cd0ce62a10a6","at":1771578531000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a4f-5b38-7a8f-b941-97794d6a8612","at":1771578547000000000,"seq":798,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a4f-66f0-7208-8b01-d68b8b9614b0","at":1771578550000000000,"seq":799,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a4f-bce0-7b5d-aeee-3b794271ee39","at":1771578572000000000,"seq":800,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a67-3b5d-788f-9490-cd24d51e8bc5","at":1771580111709000000,"seq":801,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c7a68-0639-7ed5-abb6-47911cf57e1e","at":1771580163641000000,"seq":802,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c7a68-22f8-79aa-a8fc-9bc954239f0f","at":1771580171000000000,"seq":803,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a68-59a8-76b6-8d65-8ab4833ca61e","at":1771580185000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a68-7500-768d-95b3-9b29a73d0047","at":1771580192000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

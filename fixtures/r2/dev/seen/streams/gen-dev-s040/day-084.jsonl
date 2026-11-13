@@ -1,0 +1,35 @@
+{"v":1,"id":"019d244e-38b4-72de-86df-e61965f794fc","at":1774430599348000000,"seq":1078,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d244e-38b4-75d7-bc69-f55f4adeaaec","at":1774430599348000000,"seq":1079,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d244e-4ec8-7f77-aba7-d4b0247dc88a","at":1774430605000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244e-9ce8-70ff-94bd-7682f3ecd227","at":1774430625000000000,"seq":1081,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d245c-5ff3-7382-8ebc-26455b06f025","at":1774431526899000000,"seq":1082,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d245c-6828-7642-a4a4-3b6dd6fed720","at":1774431529000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d245c-8768-76b4-bc47-24ddcd60474d","at":1774431537000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d245c-c5e8-7298-b295-438e8359413d","at":1774431553000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d245c-f324-74aa-8ed9-0119e714f40d","at":1774431564580000000,"seq":1086,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d245d-3f00-7119-a63f-eb7b347cbb6d","at":1774431584000000000,"seq":1087,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d245d-5e40-7f5f-bf32-1f3d082c8ecd","at":1774431592000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d245d-6a01-7192-9030-7bdca55251c7","at":1774431595009000000,"seq":1089,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d245d-df28-7a81-95c6-8c8dd1f0b5d6","at":1774431625000000000,"seq":1090,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d245d-fe68-75e7-b828-0a6e79076321","at":1774431633000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d245e-110a-73b5-8f2f-10a10cd4972b","at":1774431637770000000,"seq":1092,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d245e-8338-7d55-85a2-82c29cf41665","at":1774431667000000000,"seq":1093,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d245f-182e-78e3-886c-05e96faacc12","at":1774431705134000000,"seq":1094,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d245f-b532-73fc-9e2e-2fdf58958174","at":1774431745330000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d245f-cf40-760f-ac7d-dd38ea02893f","at":1774431752000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d245f-ee80-724a-91f0-37ca79507a0c","at":1774431760000000000,"seq":1097,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2460-05f0-79d2-9b55-f6ee0de4e10e","at":1774431766000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d2469-a9ac-79d6-a4a3-ac516ee0f0c5","at":1774432397740000000,"seq":1099,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2469-a9ac-7381-8e7c-e970df19dfe3","at":1774432397740000000,"seq":1100,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2469-ae98-7528-8165-d5a5e0be06ba","at":1774432399000000000,"seq":1101,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2469-d990-7c37-9ebb-b2f82dfc5b61","at":1774432410000000000,"seq":1102,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2469-f100-7b96-b767-a3a863d81775","at":1774432416000000000,"seq":1103,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2472-1218-778b-bee9-dc63dd3ae1eb","at":1774432948760000000,"seq":1104,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2472-1218-7068-b3f9-ccbdde01314a","at":1774432948760000000,"seq":1105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d2472-16f0-7073-858b-486b3dd06486","at":1774432950000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2472-41e8-7cf9-b4aa-1aa661afe6fc","at":1774432961000000000,"seq":1107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d2472-75bb-758b-9af5-b5da4ca48cd9","at":1774432974267000000,"seq":1108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d2472-93f0-7ecb-8d6a-61989d4e323a","at":1774432982000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d2472-be6c-7374-aad6-5f9bf71ca399","at":1774432992876000000,"seq":1110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d2472-c6b8-7e04-902f-a449cb9da3bd","at":1774432995000000000,"seq":1111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2472-caa0-76ce-b784-75a861c7a42f","at":1774432996000000000,"seq":1112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

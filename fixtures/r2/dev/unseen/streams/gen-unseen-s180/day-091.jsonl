@@ -1,0 +1,6 @@
+{"v":1,"id":"019d4856-ba85-7f80-ae58-4521bb9e07ff","at":1775035136645000000,"seq":1378,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4856-ba85-7c2b-b78a-f744bddceecc","at":1775035136645000000,"seq":1379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d4857-8c82-7d65-b113-2591acb3f210","at":1775035190402000000,"seq":1380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d4857-e4c8-7e6e-badb-42f34d907339","at":1775035213000000000,"seq":1381,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4871-67f8-7f63-9210-e8ead79c2379","at":1775036884984000000,"seq":1382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d4872-2b58-7122-9565-6118f01bb5d3","at":1775036935000000000,"seq":1383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

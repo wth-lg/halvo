@@ -1,0 +1,11 @@
+{"v":1,"id":"019c095f-dd1e-737d-8767-50af41743250","at":1769683803422000000,"seq":281,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c095f-dd1e-73b9-942e-2a9d596c6305","at":1769683803422000000,"seq":282,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0960-3d20-74b2-a561-e1305d958268","at":1769683828000000000,"seq":283,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c097b-4c09-70f1-b782-63309ea7a098","at":1769685601289000000,"seq":284,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c097b-4c09-72c1-8b17-e70a3990cd53","at":1769685601289000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c097b-5e70-769b-ab67-7a8dfbd4575f","at":1769685606000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c097c-3930-71cd-a1a1-3e6c8d9a0174","at":1769685662000000000,"seq":287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c097c-46f9-727c-a99f-6426a1b8e954","at":1769685665529000000,"seq":288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c097c-ae60-78f9-bff2-5fa9c846ce78","at":1769685692000000000,"seq":289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c097c-ba18-7054-a001-6f221a52f7fd","at":1769685695000000000,"seq":290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c097c-d188-76fb-b2f8-871708d6342d","at":1769685701000000000,"seq":291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

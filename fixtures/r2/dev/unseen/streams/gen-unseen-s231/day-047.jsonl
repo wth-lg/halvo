@@ -1,0 +1,6 @@
+{"v":1,"id":"019c6543-66ad-7baa-b30d-aed4b6ee3026","at":1771225441965000000,"seq":729,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6543-66ad-74e4-b624-6c81ff87a86e","at":1771225441965000000,"seq":730,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c6544-1d0b-716b-b349-43106b87b624","at":1771225488651000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c6544-8fb0-7b7f-af66-b1777b2806c3","at":1771225518000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6544-b2d8-75cd-8aca-56ec78c00361","at":1771225527000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6544-c278-7330-932e-ad3ea24339e5","at":1771225531000000000,"seq":734,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

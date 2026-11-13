@@ -1,0 +1,12 @@
+{"v":1,"id":"019d14e0-a625-7cad-9c61-4c0ce2ac83b6","at":1774171760165000000,"seq":1042,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d14e0-a625-7179-a2c3-9afa2a1d0a25","at":1774171760165000000,"seq":1043,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d14e0-b138-7f41-a203-bf8f8da64345","at":1774171763000000000,"seq":1044,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d14e0-c0d8-7b5b-b0f6-e7cdfd6c4c2e","at":1774171767000000000,"seq":1045,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d14e0-e400-7033-8da4-c85f847eded6","at":1774171776000000000,"seq":1046,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d14e0-f796-7e4c-8cb4-db77842e9d7a","at":1774171781014000000,"seq":1047,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d14e1-0b10-7c9e-8cd5-1439e49b348e","at":1774171786000000000,"seq":1048,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d14ec-2732-7cd5-9127-cd8d8dc2c812","at":1774172514098000000,"seq":1049,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14ec-2732-79ad-b881-58cccdda735b","at":1774172514098000000,"seq":1050,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d14ec-2ea0-70ce-ad14-1dfb565e809b","at":1774172516000000000,"seq":1051,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14ec-4de0-7970-a7fe-9cd2ddfef366","at":1774172524000000000,"seq":1052,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14ec-6550-7997-a5e4-c41b58bdd95c","at":1774172530000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

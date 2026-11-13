@@ -1,0 +1,20 @@
+{"v":1,"id":"019c4c21-49e9-76ef-a47f-c015576d5e89","at":1770803775977000000,"seq":552,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c21-49e9-7e14-ad49-21b170a603cd","at":1770803775977000000,"seq":553,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4c21-6940-7d40-80e6-7ffad8ab5ff1","at":1770803784000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c35-6a2b-757b-a5ae-39364cfa4414","at":1770805094955000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c4c35-df88-7578-9395-068c145336d4","at":1770805125000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c36-1a20-73e7-9563-32dbcc929926","at":1770805140000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c4c36-29c0-7ca8-a238-e3ee8785f14f","at":1770805144000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c36-3b98-71aa-908a-e93f92ba1857","at":1770805148568000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c4c36-4ce8-70e5-966d-d181b4d9e700","at":1770805153000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c36-4ce8-7ba9-8365-6a9c6de09374","at":1770805153000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c4c36-7bc8-7ae7-8084-989cf745f627","at":1770805165000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c36-8927-76c0-a3a7-89a103d422db","at":1770805168423000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4c36-ba48-7719-9e3a-7b68538afbdb","at":1770805181000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c4c37-2107-7572-bacd-c34d80c7d47e","at":1770805207303000000,"seq":565,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c4c37-df40-75cb-a3f8-c89d032f270e","at":1770805256000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c4c3b-dc64-73fc-a263-525fed585503","at":1770805517412000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4c3b-e680-79f4-864b-a5b28f131a38","at":1770805520000000000,"seq":568,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4c3c-34a0-7a41-90a0-31cbe96aacc2","at":1770805540000000000,"seq":569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c4c3c-3888-7ae5-896e-c761a7b7b822","at":1770805541000000000,"seq":570,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c3c-4058-7b51-b6ec-e80377618b27","at":1770805543000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

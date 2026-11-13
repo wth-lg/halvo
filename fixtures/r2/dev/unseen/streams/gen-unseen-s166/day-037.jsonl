@@ -1,0 +1,22 @@
+{"v":1,"id":"019c3285-760d-7dd9-9034-9ce0c42db911","at":1770374133261000000,"seq":439,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3285-760d-7296-a8e4-f918df62dbc2","at":1770374133261000000,"seq":440,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c3285-b3be-785d-8e2c-b1843d5a1ae1","at":1770374149054000000,"seq":441,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c3286-28b8-7fa6-b5e4-d992ed634eaa","at":1770374179000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c3286-4410-7fc8-8f85-91d9dd5abb39","at":1770374186000000000,"seq":443,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3286-8678-783f-9bc4-4191ea937675","at":1770374203000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3286-c155-74fc-9aab-eaa043a2d252","at":1770374218069000000,"seq":445,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c3286-e050-760e-a479-0a9ce4821935","at":1770374226000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3286-ec08-74c4-a033-d95b6f1f9246","at":1770374229000000000,"seq":447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3287-1c50-7538-9ad7-016cc7bf49f3","at":1770374241360000000,"seq":448,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c3287-5198-75ca-a3a8-b631b813f0a6","at":1770374255000000000,"seq":449,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3287-70d8-765d-b51d-0d7b38cba823","at":1770374263000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c328e-184a-7b38-a6e5-9f8b610ac81a","at":1770374699082000000,"seq":451,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c328e-3f08-7803-981d-9c21dde5c703","at":1770374709000000000,"seq":452,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c328e-71d0-779c-84dd-23bd3df7b330","at":1770374722000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c328e-8d28-71e5-ab63-238abe015ef3","at":1770374729000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c329c-2d3e-7e1e-b94b-38014bf9df40","at":1770375621950000000,"seq":455,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c329c-3928-72af-ac5f-97486ea275d2","at":1770375625000000000,"seq":456,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c329c-5868-7f3a-bc2d-26f74fcecdc3","at":1770375633000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c32a2-b525-7880-b776-65c5547a22bb","at":1770376049957000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c32a3-22b0-70aa-8b36-6c414dd9eb66","at":1770376078000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32a3-6518-785d-9d7e-81c4a97f6383","at":1770376095000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

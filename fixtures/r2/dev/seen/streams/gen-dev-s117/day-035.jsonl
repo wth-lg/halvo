@@ -1,0 +1,14 @@
+{"v":1,"id":"019c2809-fc94-7fa3-ba3e-d8dd5d841d59","at":1770198269076000000,"seq":589,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2809-fc94-73b8-a2a5-95c9c9a6a726","at":1770198269076000000,"seq":590,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c280a-4680-7301-8ffa-74108bfefaf5","at":1770198288000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c280a-a539-71ee-a50e-7246ab4321d5","at":1770198312249000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c280a-a828-7122-aa1e-b50843a868f5","at":1770198313000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c280a-daf0-7635-90a8-b48288128ce6","at":1770198326000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c280a-ea90-7819-bac9-b4478679f5b0","at":1770198330000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c280a-fe18-7c1b-a3a0-9dc3935deb75","at":1770198335000000000,"seq":596,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c280b-1462-7c6c-82fe-9cef0643f126","at":1770198340706000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c280b-4850-7094-85e5-8d04c8e14455","at":1770198354000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c280b-57f0-75fa-9d27-2e7a2b55bb1a","at":1770198358000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2819-be97-78a3-a999-d3258f35479e","at":1770199301783000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c281a-2118-7b21-8837-8ad2e0a6b835","at":1770199327000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c281a-7708-7330-85d1-6815b0c1cf90","at":1770199349000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

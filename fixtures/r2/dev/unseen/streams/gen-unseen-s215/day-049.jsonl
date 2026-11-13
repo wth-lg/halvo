@@ -1,0 +1,20 @@
+{"v":1,"id":"019c6ffa-2774-7f2e-aaac-a75893c8760e","at":1771405191028000000,"seq":625,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6ffa-2774-7de4-92d3-e6bdb65ef65e","at":1771405191028000000,"seq":626,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6ffa-5e08-7742-8ec0-50d70aa1aae2","at":1771405205000000000,"seq":627,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6ffa-65d8-767c-98de-986ef79f1be6","at":1771405207000000000,"seq":628,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6ffa-69c0-7c4d-9b45-e0a494eb7cf2","at":1771405208000000000,"seq":629,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7005-0e03-7745-bc2a-b0e6acb61237","at":1771405905411000000,"seq":630,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7005-0e03-7a8c-be25-647ff3db99fd","at":1771405905411000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7005-52b8-71cf-82e8-d62b5d569cf5","at":1771405923000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c7005-75e0-7b24-9bee-9397a3b51603","at":1771405932000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7005-7e44-7462-82e9-053b6a3be90a","at":1771405934148000000,"seq":634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7005-9520-7759-a6d9-d916bde08269","at":1771405940000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c7005-a8a8-7ab2-85b9-3d71f9cf8743","at":1771405945000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7006-0e38-7a88-a79e-466703d720f2","at":1771405971000000000,"seq":637,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7009-105f-73df-8c04-3fbfbb39d3b4","at":1771406168159000000,"seq":638,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7009-1790-70b9-8a1e-6bf918b1490f","at":1771406170000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7009-1b78-7987-8cc6-86abe0d8c200","at":1771406171000000000,"seq":640,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7009-2348-786b-b58b-286da80a574f","at":1771406173000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7009-2730-7cfb-a200-b2a669168f3c","at":1771406174000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7022-227f-7d45-a0bb-df5b33908f4c","at":1771407811199000000,"seq":643,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7022-3158-7454-bab7-873ce818e42c","at":1771407815000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

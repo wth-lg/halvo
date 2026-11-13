@@ -1,0 +1,69 @@
+{"v":1,"id":"019cc7c4-3c4c-7645-a58f-f50c936a4a7f","at":1772878052428000000,"seq":886,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc7c4-3c4c-70ea-9197-365aa4977d61","at":1772878052428000000,"seq":887,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc7c4-88c0-74a4-b277-71074f627bdb","at":1772878072000000000,"seq":888,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c4-9478-7e37-aa0c-65f5ce1a1be4","at":1772878075000000000,"seq":889,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cc7da-d777-70b0-bb08-0e2e482fa1ac","at":1772879533943000000,"seq":890,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc7da-d777-77bf-a9fb-fa9942946ca0","at":1772879533943000000,"seq":891,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cc7db-8778-7061-ab7c-a5b790845b6c","at":1772879579000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cc7db-b572-7218-b1bb-33bc6b8e7844","at":1772879590770000000,"seq":893,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cc7db-b658-73bb-9c52-3ad0a8ce32f1","at":1772879591000000000,"seq":894,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc7db-ba40-74a5-9599-16266901e301","at":1772879592000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7db-e538-759e-9529-93027b5bbc0f","at":1772879603000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cc7dc-0478-73cd-9fe5-c67f0a706ea4","at":1772879611000000000,"seq":897,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc7e9-a306-7297-b4bb-f9a1926cd027","at":1772880503558000000,"seq":898,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cc7e9-c018-72ac-abe3-f8a6cb190a8b","at":1772880511000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7ea-5e38-7bf7-9e11-75220a8b62b3","at":1772880551480000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cc7ea-6428-7cab-8154-ea119bc01ebc","at":1772880553000000000,"seq":901,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc7ea-dc10-7723-859a-b81ab54cb6a7","at":1772880583696000000,"seq":902,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cc7eb-0c20-747f-af54-eb7e7d6cb24a","at":1772880596000000000,"seq":903,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc7eb-69e0-75ad-bbed-571ef9a90b5e","at":1772880620000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7eb-9752-7233-ba95-636c12bc0ef7","at":1772880631634000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cc7eb-a860-77bf-b3f7-3f59612d4b08","at":1772880636000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cc7eb-c3b8-7528-a491-5881525ebb15","at":1772880643000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7ec-19a8-75fd-bb69-cd74778454ca","at":1772880665000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7ec-48cb-7934-beb6-935aa078f8e0","at":1772880677067000000,"seq":909,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cc7ec-bdb8-7d40-b304-bbcab603b8f0","at":1772880707000000000,"seq":910,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc7ec-c1a0-7d65-8354-28d2090f2737","at":1772880708000000000,"seq":911,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc7ec-c970-7c07-a0b3-254abaf6c3ac","at":1772880710000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cc7f0-31c6-7e39-9975-25cff5c28314","at":1772880933318000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cc7f0-5f68-7cbc-b941-ef01a38b81b7","at":1772880945000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7f0-9c01-7e99-a90a-33bd2f7585c2","at":1772880960513000000,"seq":915,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cc7f0-bd28-7ffa-a403-27bec3bb21a4","at":1772880969000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7f0-c4f8-7667-801e-b7f0bc727fcd","at":1772880971000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cc7f0-e438-7f65-a1c7-59af130fd1d0","at":1772880979000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7f0-ee00-7a65-a909-84e09efa1868","at":1772880981504000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cc7f1-8078-764a-bcea-42192da0ec89","at":1772881019000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7f1-a3a0-7987-9ed6-ea5eb42237a5","at":1772881028000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc7f1-cab0-773c-bffe-d1c1294dfc79","at":1772881038000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7f1-fa6a-79fc-851b-16e8030a714e","at":1772881050218000000,"seq":923,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cc7f2-2488-7534-b033-ac7ca864e0b8","at":1772881061000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7f2-2870-7935-a3ec-fcbbbd097ccf","at":1772881062000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cc7f2-2c58-7ab2-ac20-35a894a6948d","at":1772881063000000000,"seq":926,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc7f2-3428-73c2-b644-40049e6eb4ab","at":1772881065000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc7fc-e624-7bc5-a160-3e02ce5b1319","at":1772881765924000000,"seq":928,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc7fc-e624-746f-9c40-8830869d1658","at":1772881765924000000,"seq":929,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc7fd-1550-7426-ba78-64d75d805ef9","at":1772881778000000000,"seq":930,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cc7fd-57b8-744c-9b11-f3ec4aab7ad3","at":1772881795000000000,"seq":931,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cc7fd-6758-716f-b161-e3401d4aa909","at":1772881799000000000,"seq":932,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7fd-76f8-75b4-994a-7dd5592eb5b0","at":1772881803000000000,"seq":933,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cc7fd-82b0-7822-a2d6-94238a2450f4","at":1772881806000000000,"seq":934,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc802-f6ad-7be4-98bc-f7f3461847bb","at":1772882163373000000,"seq":935,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc802-f6ad-7151-8d7e-952ba10731f6","at":1772882163373000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cc803-5ac8-70a3-867d-994538ed16dd","at":1772882189000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc803-acd0-74b6-89ef-18c38122f7e2","at":1772882210000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc803-b0b8-7cf8-929c-99288020f1c4","at":1772882211000000000,"seq":939,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cc803-c0f5-75ef-887b-c22e1b2371eb","at":1772882215157000000,"seq":940,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cc803-d7c8-7067-a2af-93f895edb0b3","at":1772882221000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cc804-28d3-7c1c-988a-ace689847ab1","at":1772882241747000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cc804-6080-7ada-8a5c-3d5335127688","at":1772882256000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc804-8790-7dad-9dbc-2012783dfca7","at":1772882266000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cc804-a6d0-730c-8437-d02ac137a3ae","at":1772882274000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc804-b670-7c75-b1d4-1694842f81d9","at":1772882278000000000,"seq":946,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc805-1818-73a6-8f26-dd612bcbacda","at":1772882303000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc805-2041-7fff-be0e-86e027e4214c","at":1772882305089000000,"seq":948,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cc805-23d0-7909-91a9-e515cd1792d6","at":1772882306000000000,"seq":949,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc805-b070-7750-b510-6add1cd05ebc","at":1772882342000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc819-c667-76c7-8911-934fd3d054df","at":1772883658343000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cc819-d898-784e-b62c-84be8a50a69e","at":1772883663000000000,"seq":952,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc819-fbc0-7f06-b258-27da64b7f758","at":1772883672000000000,"seq":953,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc81a-22d0-7262-8da4-c722997d65b7","at":1772883682000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

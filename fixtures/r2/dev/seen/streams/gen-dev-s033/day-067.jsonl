@@ -1,0 +1,43 @@
+{"v":1,"id":"019cccfe-52a4-7671-aac6-9883a74bec8e","at":1772965745316000000,"seq":889,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cccfe-52a4-7ce0-ad17-760fd8daabf2","at":1772965745316000000,"seq":890,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cccfe-5938-7f3a-bef3-2190c029247e","at":1772965747000000000,"seq":891,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccfe-93d0-7f5a-801e-00fd95d34596","at":1772965762000000000,"seq":892,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cccfe-97b8-7bef-b5d5-6a4f1b5cdb92","at":1772965763000000000,"seq":893,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cccfe-d250-73a2-9630-d860b888abe4","at":1772965778000000000,"seq":894,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd19-a749-73d6-8883-4e3eef981adf","at":1772967536457000000,"seq":895,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccd19-a749-7017-a61d-0497e790edbb","at":1772967536457000000,"seq":896,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ccd19-c0d8-7b40-9362-1cf31d82717c","at":1772967543000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ccd19-d848-7dd1-8368-22ccb4ca1df3","at":1772967549000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd19-e7e8-7a88-9f6a-fc73ba9cac0e","at":1772967553000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd19-eef9-750b-8c2a-a53955601b6a","at":1772967554809000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ccd1a-4990-79b6-9a81-50678a53d3aa","at":1772967578000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd1a-6cb8-7b29-baa2-ac7d97db7d2f","at":1772967587000000000,"seq":902,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccd1a-bec0-7aa6-be20-e818d1c2fc3d","at":1772967608000000000,"seq":903,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ccd1a-d56e-722f-abc0-47a64ab4e5d9","at":1772967613806000000,"seq":904,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ccd1b-2068-74f3-9b04-7604282ba336","at":1772967633000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd1b-5b31-7829-818f-da25ad32f64a","at":1772967648049000000,"seq":906,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ccd1b-eb88-7721-93ff-c2e204f94ff0","at":1772967685000000000,"seq":907,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ccd1c-2bcf-77b2-ac5b-9c70bd106551","at":1772967701455000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ccd1c-4178-78c3-a6e9-0630d052316c","at":1772967707000000000,"seq":909,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ccd1c-b2c0-7f2e-85ec-452f24b63b47","at":1772967736000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd1c-f910-7fd5-b247-47506ea47924","at":1772967754000000000,"seq":911,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccd27-5c7c-7ae3-833e-5037fb1db33f","at":1772968434812000000,"seq":912,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccd27-5c7c-7db7-b394-2b4f6211a09c","at":1772968434812000000,"seq":913,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccd27-8c18-7206-87c2-43ecabc0f667","at":1772968447000000000,"seq":914,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ccd2b-e0aa-7c6c-9957-d7200f13eda2","at":1772968730794000000,"seq":915,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccd2b-e0aa-75ae-bbcc-a9c54a5d6d48","at":1772968730794000000,"seq":916,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ccd38-3c00-7af4-88f1-25e8b3702fca","at":1772969540608000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ccd38-7820-7545-ba7d-9ae1755888a6","at":1772969556000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd38-e580-7297-82af-3f12f1e8b7c5","at":1772969584000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd39-34c0-7987-8b80-3682690ffa94","at":1772969604288000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ccd39-4728-731f-957e-5083990acfdb","at":1772969609000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd39-5e98-782f-ad25-315cca38071b","at":1772969615000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd39-6280-787f-b2db-eb0b52440943","at":1772969616000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ccd39-7608-772e-b5e6-727094d57cec","at":1772969621000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccd39-7ec5-7358-8dfe-9df060179eee","at":1772969623237000000,"seq":925,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ccd39-9548-7c6f-9ba4-ea79b932379e","at":1772969629000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ccd39-fec0-7583-9ff4-7375add37e89","at":1772969656000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd3a-21e8-73b7-98a2-9b804c3c3312","at":1772969665000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd3a-4406-7bb8-81c4-cd21d01e16a4","at":1772969673734000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ccd3a-6838-7114-ba43-d25da569a2a0","at":1772969683000000000,"seq":930,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ccd3a-8390-721c-a2d4-270bcb23b8a5","at":1772969690000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

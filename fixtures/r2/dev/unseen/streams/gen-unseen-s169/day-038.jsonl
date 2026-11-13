@@ -1,0 +1,17 @@
+{"v":1,"id":"019c37af-08ce-7178-a342-4ffe9348d893","at":1770460743886000000,"seq":611,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c37af-08ce-7662-88e0-0c2542008557","at":1770460743886000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c37af-3820-7dc5-ae7d-3de4281a62d2","at":1770460756000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c37af-43d8-770d-beae-aad925e9a9c3","at":1770460759000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37af-8258-7b90-9cdf-121543e2f001","at":1770460775000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37af-88d3-74e2-abcd-2e42e4b563e6","at":1770460776659000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c37af-8e10-74b3-8a87-f0e2beaea5dc","at":1770460778000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37af-a198-7085-92c2-129178429e28","at":1770460783000000000,"seq":618,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c37b0-2668-766f-8870-05c37a399c89","at":1770460817000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c37b0-2e38-79b7-82db-9d8770f8fa1f","at":1770460819000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c37b0-2eb9-7318-b31d-29fce28fff6f","at":1770460819129000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c37b0-45a8-7e2c-b0ab-70f5a360ff6e","at":1770460825000000000,"seq":622,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c37c0-24b6-7e4b-a521-1afc21e4ca22","at":1770461865142000000,"seq":623,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c37c0-24b6-7d1f-8ce5-215d57dcc46e","at":1770461865142000000,"seq":624,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c37c0-33c8-71f0-ac4a-1bbc14a0eb79","at":1770461869000000000,"seq":625,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37c0-4750-7c3d-a1aa-07f687a7745a","at":1770461874000000000,"seq":626,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c37c0-5ec0-726e-8917-95144549ec44","at":1770461880000000000,"seq":627,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

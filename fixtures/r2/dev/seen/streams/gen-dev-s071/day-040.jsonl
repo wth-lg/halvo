@@ -1,0 +1,19 @@
+{"v":1,"id":"019c41fa-a2a6-749c-bbf0-059ce26bf8a5","at":1770633470630000000,"seq":537,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c41fa-a2a6-71b7-a226-0b55c37ff530","at":1770633470630000000,"seq":538,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c41fa-afd0-7f4a-8772-90f952e5c07d","at":1770633474000000000,"seq":539,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c41fa-deb0-7e43-9d46-c492394edbd3","at":1770633486000000000,"seq":540,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c41fb-05c0-7760-b51b-ab5ba4a60715","at":1770633496000000000,"seq":541,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41fb-28e8-75f7-8428-2e749644c6c5","at":1770633505000000000,"seq":542,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4216-4bc4-7281-aebe-6a0ecc95fea1","at":1770635283396000000,"seq":543,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4216-4bc4-7114-88a7-60271f246a58","at":1770635283396000000,"seq":544,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4216-a7f8-7f9f-a66e-da911d8c66d1","at":1770635307000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4217-0d2e-7bfa-b2bf-7d3ec0fb4964","at":1770635332910000000,"seq":546,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4217-28e0-72ab-bca4-599f32d9fcbc","at":1770635340000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4217-3498-7108-a721-a0903327d71f","at":1770635343000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4217-4050-7f8d-92db-ac1b1a7a7c37","at":1770635346000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c4217-7b7f-7cda-b4d7-f0559c4ff1e8","at":1770635361151000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4217-a1f8-7cbd-a30b-dff15322289a","at":1770635371000000000,"seq":551,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4217-dc90-7b40-8380-2bbdce12a922","at":1770635386000000000,"seq":552,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4218-00a3-714c-8bf7-4394f41b4082","at":1770635395235000000,"seq":553,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4218-26c8-755e-bf3f-1aa52c0e57a2","at":1770635405000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4218-3668-7665-b58d-38c5ef873a32","at":1770635409000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

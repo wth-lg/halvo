@@ -1,0 +1,37 @@
+{"v":1,"id":"019ca8c8-6b3b-7123-96f1-9f041049e917","at":1772358232891000000,"seq":752,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca8c8-6b3b-7f69-b57c-dd81d7a1bd84","at":1772358232891000000,"seq":753,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca8c8-a258-75de-995e-9811ff0e6d1f","at":1772358247000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ca8c8-a3e3-7298-93e4-e3bcce60f165","at":1772358247395000000,"seq":755,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca8c8-fc30-700e-8356-2b2fca06c1ea","at":1772358270000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ca8c9-635b-7b6f-a9b2-a50c9d2b0bd3","at":1772358296411000000,"seq":757,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca8c9-65a8-7a9d-a297-e2819c554787","at":1772358297000000000,"seq":758,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca8c9-9870-71a4-b98d-73083527b538","at":1772358310000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8c9-afe0-7e50-8406-353bfb86b1f8","at":1772358316000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca8c9-ee60-7de6-acbf-0d1fb9644bfc","at":1772358332000000000,"seq":761,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca8c9-f41d-7312-8727-65d89fc90804","at":1772358333469000000,"seq":762,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca8ca-1188-7107-8188-50be2bcf1107","at":1772358341000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ca8ca-2ce0-7446-9fff-9d7f98707673","at":1772358348000000000,"seq":764,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca8ca-e206-7f1b-9fdb-bc18b6cfee67","at":1772358394374000000,"seq":765,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca8cb-3680-7b62-bf1f-5ea956e7adee","at":1772358416000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca8cb-3a68-70e4-aee6-ee7095c8388c","at":1772358417000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8cb-5d90-7290-a917-d29e06231b62","at":1772358426000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8cb-6357-7ff9-93f9-38a27871dee5","at":1772358427479000000,"seq":769,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca8cb-e260-7eb3-b9ae-04294e3a190c","at":1772358460000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca8e3-4cca-7bbd-ac9c-d98252149d22","at":1772359994570000000,"seq":771,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca8e3-6db8-70cc-bc3e-ebdd10adabc9","at":1772360003000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca8e3-ac38-7dee-aa0f-73ec7d9a8a3b","at":1772360019000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8e3-b443-7ef3-9b40-90b6c6e1b4e3","at":1772360021059000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca8e3-db18-7407-a7c5-4ee3643dec3a","at":1772360031000000000,"seq":775,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca8e3-df00-7e41-9ae4-b2f42e7813e1","at":1772360032000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8e3-e6d0-7c83-a230-690282ee9128","at":1772360034000000000,"seq":777,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca8e4-2df8-7a2c-8be6-5164e1b91fdf","at":1772360052216000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca8e4-40a8-77b6-b362-478758fa1031","at":1772360057000000000,"seq":779,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca8e4-a250-7e7a-bb67-4594abea64ad","at":1772360082000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca8e4-a638-78d1-bcf1-b851f3000db7","at":1772360083000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ca8e4-c190-71e8-bb0e-ccefaeb1df39","at":1772360090000000000,"seq":782,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8e4-dce8-7e08-a8b1-9bea39c23ffd","at":1772360097000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8e4-f2fd-713f-ba39-62b482ffabe9","at":1772360102653000000,"seq":784,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca8e4-fc28-7c6b-aeec-da3470154bd6","at":1772360105000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8e5-03f8-7fe3-bc19-9fe5c9938efd","at":1772360107000000000,"seq":786,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca8e5-32d8-7be1-aafc-d0a0f033376f","at":1772360119000000000,"seq":787,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca8e5-59e8-7e72-8267-bd5df6510aa0","at":1772360129000000000,"seq":788,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

@@ -1,0 +1,15 @@
+{"v":1,"id":"019d2e32-d413-7ef2-83ba-b4705a7ebb6d","at":1774596576275000000,"seq":1267,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2e32-d413-7e00-b253-7c01cb7bcd4a","at":1774596576275000000,"seq":1268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2e32-deb8-787c-a93d-d8fd332247d3","at":1774596579000000000,"seq":1269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d2e33-e2df-7403-8151-1f6e15f4f853","at":1774596645599000000,"seq":1270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2e33-e858-7095-a410-e67528029797","at":1774596647000000000,"seq":1271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2e33-f410-7d6c-b24f-8024dfda650b","at":1774596650000000000,"seq":1272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d2e34-3e48-7d92-aa3b-35401d6c51e1","at":1774596669000000000,"seq":1273,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2e34-8a94-7d22-a516-cdba8e2f9373","at":1774596688532000000,"seq":1274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2e34-b378-7173-87ee-d96903292e54","at":1774596699000000000,"seq":1275,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2e34-cae8-7b88-8712-0c6fcc19f569","at":1774596705000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d2e34-f1f8-7a83-9ff5-8e536104dea3","at":1774596715000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e34-f5e0-7977-b7da-43136510f9ac","at":1774596716000000000,"seq":1278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e34-f7e6-7075-8d1d-a8b613cea885","at":1774596716518000000,"seq":1279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2e35-0198-7e0e-b5b0-09d0a87ed414","at":1774596719000000000,"seq":1280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e35-9608-7ac0-87ec-67dd0ad20ef9","at":1774596757000000000,"seq":1281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

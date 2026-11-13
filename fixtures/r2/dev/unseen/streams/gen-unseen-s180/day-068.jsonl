@@ -1,0 +1,34 @@
+{"v":1,"id":"019cd1b6-6dbf-7dae-8847-ad536c01855e","at":1773044919743000000,"seq":895,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd1b6-6dbf-7782-bc7f-603e3fe7c6b2","at":1773044919743000000,"seq":896,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd1b6-8630-770c-809c-b6dd80c95d93","at":1773044926000000000,"seq":897,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1b6-8a18-7581-b4fd-c590cd7962d5","at":1773044927000000000,"seq":898,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1b6-99b8-74b1-b621-6f234379b7a5","at":1773044931000000000,"seq":899,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cd1c7-af1a-7b60-bbc6-3afd32dce51a","at":1773046050586000000,"seq":900,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd1c7-af1a-7b63-904a-80fad820e9af","at":1773046050586000000,"seq":901,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd1c8-02c0-7996-876a-d4193b3955dd","at":1773046072000000000,"seq":902,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1c8-02c0-79d8-ba39-5e958276af04","at":1773046072000000000,"seq":903,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cd1c8-6c7c-7a9a-a5d8-1d6ed98aa13c","at":1773046099068000000,"seq":904,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd1c9-2180-79ad-b767-af08e04933b8","at":1773046145408000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd1c9-b458-79c6-87ad-5f2bec714ae3","at":1773046183000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1c9-cfb0-7413-b4dd-c2787a2e0584","at":1773046190000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1c9-fa06-7a54-89c3-f5793809ad44","at":1773046200838000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd1ca-19e8-7806-be82-a0898aa69a9f","at":1773046209000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ca-48c8-7677-ae40-82a526a971bf","at":1773046221000000000,"seq":910,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd1ca-7f78-73e2-9b55-89e698e7808f","at":1773046235000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cd1ca-8b30-7ada-8f04-a42618217cfb","at":1773046238000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ca-c239-77d7-bd85-dc6c843b6620","at":1773046252089000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd1ca-cd98-7deb-884f-75a5c69564d9","at":1773046255000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ca-d180-7e94-9cb9-24b855537e30","at":1773046256000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ca-e508-7ab4-80f3-c4ebb61bf438","at":1773046261000000000,"seq":916,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd1ca-f0c0-70ee-8028-e00ffc962bf1","at":1773046264000000000,"seq":917,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd1ca-fc6b-77c0-8948-30127b2c2a6b","at":1773046266987000000,"seq":918,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cd1cb-1fa0-77bb-95f5-3a689b7043d6","at":1773046276000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1cb-7978-7642-9201-67a63852296f","at":1773046299000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1cb-8530-73b0-83d4-b75fde28c099","at":1773046302000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd1d1-89d4-76de-86b8-d1ffdbe8ce17","at":1773046696404000000,"seq":922,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cd1d1-c636-7598-b1ca-2f247487c10d","at":1773046711862000000,"seq":923,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cd1d2-2098-7a17-a9ee-fa64075c4d5d","at":1773046735000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd1d2-6eb8-7615-89f4-5fea33abb070","at":1773046755000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1d2-8a4d-743e-a811-cc5b2cd6de7f","at":1773046762061000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cd1d2-91e0-7a9d-bd93-a748df43adcd","at":1773046764000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1d2-e7d0-726e-b8e3-c022f62893c3","at":1773046786000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

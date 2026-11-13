@@ -1,0 +1,33 @@
+{"v":1,"id":"019c8ef3-f999-71c9-b74a-7d6a081a7884","at":1771924879769000000,"seq":688,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8ef3-f999-7b8a-803b-cf806b962fff","at":1771924879769000000,"seq":689,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8ef4-0250-7430-8609-bc81f74419a1","at":1771924882000000000,"seq":690,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef4-0a20-7214-826c-114d59afd459","at":1771924884000000000,"seq":691,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ef4-2190-7fe6-8157-c1123ca2b277","at":1771924890000000000,"seq":692,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c8ef4-6010-75c0-b5b7-43eb543a6cf8","at":1771924906000000000,"seq":693,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8ef4-67e0-7787-aeae-fd353a52de0e","at":1771924908000000000,"seq":694,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c8efa-66aa-7bdb-9dc5-122eef8b65c9","at":1771925300906000000,"seq":695,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8efa-66aa-7c36-b679-873c54440432","at":1771925300906000000,"seq":696,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c8efa-c0e0-740e-b0c5-a8ed5cd8942c","at":1771925324000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efa-e7f0-7ce4-8290-344d49d14487","at":1771925334000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efa-ea83-7f0c-9a3c-42dadcf04bab","at":1771925334659000000,"seq":699,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c8efb-5938-70cd-a20a-2bc978f4a209","at":1771925363000000000,"seq":700,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efb-5d20-7ef6-8ea8-5adca243337e","at":1771925364000000000,"seq":701,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8efb-b6f8-7e1f-b61d-0729f19d8482","at":1771925387000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efb-c2b0-7dbf-9af6-89f28e4e6361","at":1771925390000000000,"seq":703,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8efb-e32d-7a30-aa28-efc1d35a67b2","at":1771925398317000000,"seq":704,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8efb-e5d8-7924-8217-f75f85b77764","at":1771925399000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efb-f960-79b4-b3a3-e5c91bb8719a","at":1771925404000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c8efb-fd48-7c40-97bc-db5db4736898","at":1771925405000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efc-24a6-7462-9c67-7e9b25cd66f6","at":1771925415078000000,"seq":708,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c8efc-4b68-7273-bc5f-451206b28dab","at":1771925425000000000,"seq":709,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8efc-b906-7034-94bb-af6daab6586e","at":1771925453062000000,"seq":710,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c8efc-dbf0-7a2e-9abf-57d9b5dc089c","at":1771925462000000000,"seq":711,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8efc-ef78-77c9-9750-107066bfda6e","at":1771925467000000000,"seq":712,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c8efd-4568-721c-bffa-31f8ee5bf599","at":1771925489000000000,"seq":713,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8efd-4d38-7172-abb9-f15022179af4","at":1771925491000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efd-7c18-7bfa-9246-bc963c19484c","at":1771925503000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f02-80e6-7719-96de-fd71e9e15df3","at":1771925831910000000,"seq":716,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8f02-80e6-73e5-a93b-2c780c41fe3f","at":1771925831910000000,"seq":717,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8f02-db18-7f0b-a976-0f803c7e596e","at":1771925855000000000,"seq":718,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c8f02-e6d0-748f-947f-6575d19de5ee","at":1771925858000000000,"seq":719,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c8f03-09f8-7e29-9b68-1c4c156393e7","at":1771925867000000000,"seq":720,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

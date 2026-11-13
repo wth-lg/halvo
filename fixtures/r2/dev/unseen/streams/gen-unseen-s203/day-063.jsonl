@@ -1,0 +1,45 @@
+{"v":1,"id":"019cb872-9089-7736-8c96-c4fa469efad1","at":1772621041801000000,"seq":925,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb872-9089-7ea7-8209-985f48bb07f7","at":1772621041801000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb872-9920-7fb5-bcb4-0c0539d6d4d9","at":1772621044000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb872-d3b8-7e37-9615-342d1465a994","at":1772621059000000000,"seq":928,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb872-e358-7fd3-a87f-da79fb1d2cef","at":1772621063000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb873-25c0-7f7b-8695-5044df004df9","at":1772621080000000000,"seq":930,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb889-785d-79c2-9383-3ba395683b02","at":1772622542941000000,"seq":931,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb889-785d-70f5-845d-8f2938a408a3","at":1772622542941000000,"seq":932,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb889-bb00-7a57-b6d5-1a1ad7578fd0","at":1772622560000000000,"seq":933,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb889-e5f8-73f1-8dfa-5615075b92f6","at":1772622571000000000,"seq":934,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cb8a3-5472-7c87-875a-8175d1efdc1a","at":1772624237682000000,"seq":935,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb8a3-5472-72eb-9a29-f9cdcc2c0d5d","at":1772624237682000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cb8a3-6d20-71c2-a156-6fef5aef68f9","at":1772624244000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8a3-6d20-716d-81f6-efdc2364d194","at":1772624244000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cb8a3-9894-7eea-b67c-694a407ea5b5","at":1772624255124000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cb8a3-e250-7209-a460-8b882620658e","at":1772624274000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8a4-93d2-72ec-bc17-8281595dc6bb","at":1772624319442000000,"seq":941,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cb8a4-bd10-7452-a6f1-24e90d9a2152","at":1772624330000000000,"seq":942,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb8a4-cf9b-72f5-9ed1-339d0bee647a","at":1772624334747000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cb8a4-d480-70af-9d92-3f3483aa68aa","at":1772624336000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cb8a5-0b30-7fa2-99a8-91cb8f7da83e","at":1772624350000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8a5-41e0-7e79-838c-133237442a04","at":1772624364000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8a5-8448-7845-9435-cb86f2472d4d","at":1772624381000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb8b0-e43d-7854-842c-04adba944439","at":1772625126461000000,"seq":948,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cb8b1-53b8-7374-98ce-2a30d054506d","at":1772625155000000000,"seq":949,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cb8b1-b652-7fd8-8239-a5039ced46bd","at":1772625180242000000,"seq":950,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cb8b1-c118-7dd6-92e3-ab2b6e1c9528","at":1772625183000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8b2-1708-759b-ad10-ee6af5130976","at":1772625205000000000,"seq":952,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb8b2-5d58-7e34-be4a-137023300290","at":1772625223000000000,"seq":953,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb8b2-68b1-775b-aec7-e0deea55dae6","at":1772625225905000000,"seq":954,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cb8b2-74c8-7205-b3da-e146c56a9eca","at":1772625229000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8b2-97f0-7ae0-b18b-4bf262962c1e","at":1772625238000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8b2-a790-7e08-a587-1e3b6f7ecb83","at":1772625242000000000,"seq":957,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb8b2-e9f8-7cb4-bbd1-26d39a9ab780","at":1772625259000000000,"seq":958,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb8b3-1e58-796e-ab29-e496b15bcf12","at":1772625272408000000,"seq":959,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cb8b3-4ba0-7db3-b060-d02d9aef1f31","at":1772625284000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8b3-d840-7a62-a0c9-9187763b02ad","at":1772625320000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cb8b4-1945-7d42-aa37-1842c508681c","at":1772625336645000000,"seq":962,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cb8b4-2e30-7da4-8ac9-5fc7f950b37e","at":1772625342000000000,"seq":963,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb8b4-4d70-71dd-abb2-895bdf792eec","at":1772625350000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cb8b4-6264-74fd-810e-bbfaba6bea34","at":1772625355364000000,"seq":965,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb8b4-7868-7955-b9c8-ae463f125805","at":1772625361000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8b4-97a8-796f-ba81-3a72ea13f2b4","at":1772625369000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cb8b4-f469-7d35-b4a0-2e0eef705331","at":1772625392745000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cb8b4-f568-7f26-a079-dbcd826523d0","at":1772625393000000000,"seq":969,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

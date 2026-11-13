@@ -1,0 +1,20 @@
+{"v":1,"id":"019bb690-3b65-7fdd-b9d3-5c20d52314d1","at":1768294464357000000,"seq":225,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb690-3b65-7ccd-b184-c994b9939df4","at":1768294464357000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bb690-8c08-7992-95bb-61fab31382bc","at":1768294485000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bb690-97c0-7765-a9a1-fe212d2696cc","at":1768294488000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb690-f22d-7fef-8655-06dfaf4a7306","at":1768294511149000000,"seq":229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bb691-0908-721e-a8c9-5cb185b1051b","at":1768294517000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb691-10d8-7fd5-8efd-b0f071805d5e","at":1768294519000000000,"seq":231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb691-6eec-7766-93ef-1b7b1e70a619","at":1768294543084000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bb691-91c0-7a2d-9a9c-fa4fcba66d4e","at":1768294552000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb693-1356-796c-99ca-341a1b88ee68","at":1768294650710000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb693-4740-7308-bbbb-0c657104a7ee","at":1768294664000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bb6a0-eaa8-7552-9405-8d7e7373c65e","at":1768295557800000000,"seq":236,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb6a0-eaa8-743b-882c-1af2e05800b1","at":1768295557800000000,"seq":237,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb6a1-35a8-763b-9e94-174a4f011669","at":1768295577000000000,"seq":238,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6a1-4160-7172-817d-5a86c65d4190","at":1768295580000000000,"seq":239,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb6ac-21ab-7fcf-a325-9ce189622f92","at":1768296292779000000,"seq":240,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb6ac-21ab-7e49-b541-1b71cba586ee","at":1768296292779000000,"seq":241,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb6ac-8fe8-7232-9659-d6a59ad2d71d","at":1768296321000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6ac-9f88-7ce2-ae95-c7ed229b7c19","at":1768296325000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6ac-bae0-7189-a201-869036495538","at":1768296332000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

@@ -1,0 +1,35 @@
+{"v":1,"id":"019c6056-1b8d-7557-a649-524b0fd2fc32","at":1771142781837000000,"seq":747,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6056-1b8d-7f64-a2fc-10e2b50afbc1","at":1771142781837000000,"seq":748,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c6056-ac88-7800-9b39-35dd22d65bde","at":1771142818952000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c6056-e750-752e-b70d-6b70525dd3be","at":1771142834000000000,"seq":750,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6056-ef20-7c7d-aceb-9eec33adffa9","at":1771142836000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6056-f308-787a-a485-fa16ff2f9613","at":1771142837000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6057-50c8-797a-a26b-adb971414400","at":1771142861000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6057-6068-73af-bac3-6bc947bc42c1","at":1771142865000000000,"seq":754,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6057-6ca2-76a0-a98a-5cf2baf16866","at":1771142868130000000,"seq":755,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6057-8390-7f67-ae62-cfb3a61ebdc7","at":1771142874000000000,"seq":756,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6057-aaa0-73cb-ad36-ded49a9e0a44","at":1771142884000000000,"seq":757,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6057-c9e0-7dee-9e36-6664cae2ab9a","at":1771142892000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c6058-02f7-7079-a769-30b7553eaccc","at":1771142906615000000,"seq":759,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c6058-1fd0-704e-a421-b57a4117cae2","at":1771142914000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6058-1fd0-7591-9f3f-2fe251e3a589","at":1771142914000000000,"seq":761,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c6058-5680-7bc3-8b3e-e1cbbeb6b327","at":1771142928000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6058-6a08-71b2-ab70-f4e83f20030c","at":1771142933000000000,"seq":763,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6058-f8ca-7e7e-bda0-ed2385f01bb0","at":1771142969546000000,"seq":764,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c6059-3140-7a89-bb4c-49027d42ef59","at":1771142984000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6059-d550-74e8-967c-5f9e8880e74d","at":1771143026000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6070-64e0-759e-8a49-a6877bbccd7a","at":1771144504544000000,"seq":767,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c6070-a140-7feb-b9f2-90468cb0a757","at":1771144520000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6070-eb78-7e74-8a5c-04d61bdf91a9","at":1771144539000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c6070-fba3-70ba-a35e-d325417d4c6b","at":1771144543139000000,"seq":770,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c6071-2228-7a27-810a-b41eb787c92b","at":1771144553000000000,"seq":771,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6071-4550-7c1a-b773-285791ce675d","at":1771144562000000000,"seq":772,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6071-8d40-71a0-9f39-5a23433d0acc","at":1771144580416000000,"seq":773,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c6071-9758-7b59-9c6c-14ea25a6d1bc","at":1771144583000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6072-3b68-7487-ad5d-8f32f2a72866","at":1771144625000000000,"seq":775,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6072-52d8-7af5-b0e1-21e1ba6cc1b7","at":1771144631000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c6072-89c2-77f6-a5f0-ff9897fcfbe4","at":1771144645058000000,"seq":777,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c6072-acb0-79d0-b6e0-b27aec39137c","at":1771144654000000000,"seq":778,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6072-db90-772c-b25d-343a4f98e4c1","at":1771144666000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6073-48f0-71de-844e-f3672442e9d7","at":1771144694000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6073-6111-7228-9d8d-9b652dc48c73","at":1771144700177000000,"seq":781,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}

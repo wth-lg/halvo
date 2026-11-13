@@ -1,0 +1,15 @@
+{"v":1,"id":"019d2ea7-85d5-71e6-9fa5-f9f42c28f326","at":1774604223957000000,"seq":1118,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2ea7-85d5-71c6-a7fd-b581269543f7","at":1774604223957000000,"seq":1119,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2ea7-8dd0-7450-a763-c85c88bd97b2","at":1774604226000000000,"seq":1120,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d2ea7-95a0-76c1-b9c5-1f889a4f042c","at":1774604228000000000,"seq":1121,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2ea7-a540-7c2d-8f98-379ecdc573ac","at":1774604232000000000,"seq":1122,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2eaf-eb08-72d5-954e-575a8256db8a","at":1774604774152000000,"seq":1123,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2eb0-6b58-7f9c-a5f1-972f47ea2d1c","at":1774604807000000000,"seq":1124,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2ec4-ebc4-7a44-8dc1-9ff3192a3b2a","at":1774606150596000000,"seq":1125,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2ec5-4730-7cce-a826-59471d4eac4c","at":1774606174000000000,"seq":1126,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2ec5-4b18-7d8f-bbfc-7550f46ad93b","at":1774606175000000000,"seq":1127,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d2ec5-5857-7280-a235-c7c6dffccb71","at":1774606178391000000,"seq":1128,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2ec5-5857-7891-a0fa-4a627de02ac6","at":1774606178391000000,"seq":1129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2ec6-2f8d-7ae7-bc93-44b4e5bd3bd4","at":1774606233485000000,"seq":1130,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2ec6-2f8d-7f4f-b497-a4ddd85542f6","at":1774606233485000000,"seq":1131,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2ec6-7010-7f98-acbb-b00cda856d90","at":1774606250000000000,"seq":1132,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}

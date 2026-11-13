@@ -1,0 +1,29 @@
+{"v":1,"id":"019c2802-4820-70c8-bb35-78f2094ced29","at":1770197764128000000,"seq":401,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2802-4820-77bd-b540-6f08c94f8d24","at":1770197764128000000,"seq":402,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2802-cc70-72c7-b38b-3473ec46ce3e","at":1770197798000000000,"seq":403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2816-b1f7-7221-a160-efc366525757","at":1770199101943000000,"seq":404,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c2817-45b4-769e-b156-96ab2b48b33c","at":1770199139764000000,"seq":405,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c2817-bfb8-75b6-9cf1-89c8248c3da8","at":1770199171000000000,"seq":406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2817-ee98-76f7-8c80-40028c1658c1","at":1770199183000000000,"seq":407,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2817-fe38-790f-9eb0-a45d708da38e","at":1770199187000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2818-4544-7e8e-bbab-f7b8f41a3ac2","at":1770199205188000000,"seq":409,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c2818-c958-7433-9d92-6b5d2b012a16","at":1770199239000000000,"seq":410,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2818-e898-7841-8594-e0009578e922","at":1770199247000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c2819-3305-7149-8b8c-ee4316d812d2","at":1770199266053000000,"seq":412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c2819-bf70-73d0-87b1-9643429c16f2","at":1770199302000000000,"seq":413,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2819-ee50-7bc2-9df1-d4da47902908","at":1770199314000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2822-5ae2-7ccb-a2c5-d8cdd0c987da","at":1770199866082000000,"seq":415,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2822-c408-740f-8e7e-f6614ab5b260","at":1770199893000000000,"seq":416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2822-de87-772a-b987-b42a1242ce6f","at":1770199899783000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2823-1228-790c-ab4f-628c5f19f502","at":1770199913000000000,"seq":418,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2823-1610-7eab-a9bd-59ce11d69a40","at":1770199914000000000,"seq":419,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2823-2d80-7e8d-9392-33b83d3077a1","at":1770199920000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2823-3168-740a-87dc-2a49b5bddc56","at":1770199921000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2823-39b8-7d6c-b0b3-8223c1e9b6dc","at":1770199923128000000,"seq":422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2823-6430-7253-9fab-b5fb4c978376","at":1770199934000000000,"seq":423,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2823-77b8-7bc2-b29b-195ce253933a","at":1770199939000000000,"seq":424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c2823-9310-7aee-ab00-3e213a97ce76","at":1770199946000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2823-9cd9-7080-8c13-a6b3fa4be366","at":1770199948505000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2823-c1f0-7597-8055-3c34c6e28893","at":1770199958000000000,"seq":427,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2824-3338-7dd0-bd0b-dc7991029989","at":1770199987000000000,"seq":428,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2824-4e90-7a7e-a789-75515d0902ae","at":1770199994000000000,"seq":429,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

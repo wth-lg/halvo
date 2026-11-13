@@ -1,0 +1,24 @@
+{"v":1,"id":"019bf461-e6eb-7e94-8ed5-bc89f3303086","at":1769331615467000000,"seq":278,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf461-e6eb-75eb-b855-4ff7ac367802","at":1769331615467000000,"seq":279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf462-75a0-7775-a048-d2ab79eb6434","at":1769331652000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf462-a480-7a28-bd36-11d5a3e24fe9","at":1769331664000000000,"seq":281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf462-b297-7606-bdf8-9c25188a2195","at":1769331667607000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf463-3cd8-77e2-95ed-1768b321ccc7","at":1769331703000000000,"seq":283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf463-4c78-7c5f-a1f5-05335637888c","at":1769331707000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf463-8c81-7f6d-a930-22ca20e86724","at":1769331723393000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf463-8ee0-7563-a476-9fadf675a9fe","at":1769331724000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bf463-96b0-7675-b456-fd7deff4ca5f","at":1769331726000000000,"seq":287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf463-9e80-7e1e-9e8d-eac20486d9b2","at":1769331728000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf463-bdc0-72c3-88c5-960e96180a20","at":1769331736000000000,"seq":289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf463-c7a5-7d5b-89a0-33c01915df04","at":1769331738533000000,"seq":290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf463-d530-712c-8ed1-fb1ba95c5d36","at":1769331742000000000,"seq":291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf464-0fc8-7801-9d2b-8329473f07d7","at":1769331757000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bf464-1f87-7e8b-9e0d-7609c4535c0c","at":1769331761031000000,"seq":293,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf464-4e48-7a4f-aa49-026725294c13","at":1769331773000000000,"seq":294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf464-5618-7c08-8e58-e7c3a6c95c4d","at":1769331775000000000,"seq":295,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf464-7d28-7df1-bfcb-d53dc8045b0d","at":1769331785000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bf47c-e145-72f5-86ea-216f7bbb1ef7","at":1769333383493000000,"seq":297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf47d-1dd8-71f6-a945-3cf76b0dc427","at":1769333399000000000,"seq":298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bf47d-50a0-743c-a95e-20384d1526ec","at":1769333412000000000,"seq":299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf47d-5488-706f-a981-b1189079797c","at":1769333413000000000,"seq":300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf47d-5c58-7532-893f-4bae3d156f86","at":1769333415000000000,"seq":301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

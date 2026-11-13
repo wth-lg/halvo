@@ -1,0 +1,32 @@
+{"v":1,"id":"019d19cd-29ea-7348-ab8d-bb29afdaec61","at":1774254369258000000,"seq":1476,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d19cd-29ea-74d2-bf6e-270b4c8eae18","at":1774254369258000000,"seq":1477,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d19cd-2cd0-7469-8d4d-6fe13a824a11","at":1774254370000000000,"seq":1478,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d19cd-4440-7b20-b2b9-826d1f9815b6","at":1774254376000000000,"seq":1479,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19cd-4c10-7833-ad85-eb5a3963952f","at":1774254378000000000,"seq":1480,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d19cd-6768-7036-8057-2bf0d524a86b","at":1774254385000000000,"seq":1481,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19e8-d94c-7320-a923-633909ed2d29","at":1774256183628000000,"seq":1482,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d19e8-d94c-7add-8655-b889869d9ef9","at":1774256183628000000,"seq":1483,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d19e8-dac0-7b69-871e-458456951085","at":1774256184000000000,"seq":1484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d19e8-ea60-7a39-b115-afc6dcda044f","at":1774256188000000000,"seq":1485,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d19e9-86a0-77ba-826d-759c1d5a901d","at":1774256228000000000,"seq":1486,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d19e9-9a28-7388-bdd5-1c4fb28a2db0","at":1774256233000000000,"seq":1487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19f3-ad98-7ce4-b653-749c31c0ff66","at":1774256893336000000,"seq":1488,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d19f3-c7a0-7925-9dda-114b164dad8d","at":1774256900000000000,"seq":1489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19f4-5c10-7ac2-a898-7181eb4d5318","at":1774256938000000000,"seq":1490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d19f4-9a90-722b-bdbd-d8add876bac9","at":1774256954000000000,"seq":1491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a08-a613-7bbc-8ee9-68afea60689f","at":1774258267667000000,"seq":1492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d1a08-b700-72c2-b8ca-0e45bab97398","at":1774258272000000000,"seq":1493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a08-c2b8-7715-a1f4-6fa318c5ace2","at":1774258275000000000,"seq":1494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d1a09-029a-7b7f-b77c-78721a937058","at":1774258291354000000,"seq":1495,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d1a09-66c8-72b3-80e7-da46acc7a45f","at":1774258317000000000,"seq":1496,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1a09-7280-703a-b09b-8edef3feadca","at":1774258320000000000,"seq":1497,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1a09-91c0-7cf0-a27b-893272a566c1","at":1774258328000000000,"seq":1498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a09-95a8-7c89-b771-c861821382a8","at":1774258329000000000,"seq":1499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d1a09-b8d0-714c-a5b0-f9381f827636","at":1774258338000000000,"seq":1500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a09-c3a6-7272-ae5a-1b3ad6143502","at":1774258340774000000,"seq":1501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d1a09-cc58-7356-a669-47e68620558b","at":1774258343000000000,"seq":1502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d1a09-ef80-7d21-99da-e4d0658b7dd0","at":1774258352000000000,"seq":1503,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1a0a-1ac2-7b47-8b56-4e31828c1c42","at":1774258363074000000,"seq":1504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d1a0a-3da0-775d-8633-7690feef4789","at":1774258372000000000,"seq":1505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a0a-60c8-7d9c-b499-bbf4a8e3ec58","at":1774258381000000000,"seq":1506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d1a0a-9390-7759-9601-d9134b67850b","at":1774258394000000000,"seq":1507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

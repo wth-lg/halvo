@@ -1,0 +1,78 @@
+{"v":1,"id":"019cdbc7-9efa-71e2-85e8-dcba8e2ea110","at":1773213818618000000,"seq":910,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019cdbc7-ade0-7379-81b5-2bf81f0e5606","at":1773213822432000000,"seq":911,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdbc7-ade0-7abc-8481-6cf61dd56de4","at":1773213822432000000,"seq":912,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbc8-8308-7940-9fae-3ca90353c33f","at":1773213877000000000,"seq":913,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbc8-8cd3-7d52-afc6-db2fbb4ea4d7","at":1773213879507000000,"seq":914,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbc8-e0c8-793a-91d8-37a90db08833","at":1773213901000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbc8-e4b0-7278-aff1-d188867eba8e","at":1773213902000000000,"seq":916,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdbc9-0cd7-7865-90cf-bd302aa918d4","at":1773213912279000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbc9-2b00-7993-b737-8ab71d2b3a4f","at":1773213920000000000,"seq":918,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdbc9-a5f7-7e9f-8f95-3ff956739deb","at":1773213951479000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbc9-f343-7806-851a-a495b0294cdd","at":1773213971267000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbca-4c10-7319-836a-142f008eac7d","at":1773213994000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cdbca-5f98-79f2-a14d-88ccb17a469f","at":1773213999000000000,"seq":922,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdbca-6380-7eb8-bc21-935bd8db4871","at":1773214000000000000,"seq":923,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdbca-a200-78ad-b519-879b9336ff94","at":1773214016000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbca-ff6a-718b-a395-2cec782048a7","at":1773214039914000000,"seq":925,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbcb-0f60-732b-9b08-82f10e974583","at":1773214044000000000,"seq":926,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdbcb-3288-7a3b-9eb1-a50e5cfbd80b","at":1773214053000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbcb-5086-729c-ab2a-a7e6f24645ac","at":1773214060678000000,"seq":928,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbcb-6938-736b-9042-2dd470e2f17d","at":1773214067000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbcc-0578-7159-a580-64480ad8e29f","at":1773214107000000000,"seq":930,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbcc-3c20-7792-aa4d-19512cfd1dc2","at":1773214120992000000,"seq":931,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbcc-6338-75d7-a848-dc5f08996a04","at":1773214131000000000,"seq":932,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbcc-9218-7ce3-8236-e8e43f385284","at":1773214143000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbcc-9600-7678-a3ba-de1eeb892b1a","at":1773214144000000000,"seq":934,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdbcc-ad70-7332-a51f-cba51ef39ef1","at":1773214150000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cdbcc-b969-7b57-8040-0fdc49eb1c0b","at":1773214153065000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbcc-c4e0-7474-b7e7-032dd8cb2b62","at":1773214156000000000,"seq":937,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdbcd-1ad0-7d64-840b-f469aa5d8d74","at":1773214178000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbcd-41e0-7fca-8d2b-a380d9ec9e2a","at":1773214188000000000,"seq":939,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdbcd-49b0-7591-b7fb-525c1489873c","at":1773214190000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cdbcd-6120-7e0e-9c02-37f52b2ca51b","at":1773214196000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbcd-9849-742a-b0cc-86d3ab111ca4","at":1773214210121000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbcd-bee0-7c2d-9931-8e39b495acbb","at":1773214220000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cdbce-17e5-7d16-887e-e932f636b3ff","at":1773214242789000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbce-8a00-7e1e-ac77-286ddaeab7a2","at":1773214272000000000,"seq":945,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdbce-9d88-79bb-a085-79b17d31065e","at":1773214277000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbce-b8e0-763c-9a57-84658cd99c5a","at":1773214284000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdbce-dff0-7989-b3c9-3382144c329b","at":1773214294000000000,"seq":948,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbce-e91f-7e00-b2a2-ff6111980fb8","at":1773214296351000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbce-eba8-7aac-913d-a5891189206e","at":1773214297000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdbcf-2e10-7461-8790-383028c031c2","at":1773214314000000000,"seq":951,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdbcf-4d50-7fb3-a741-2a2b20ac909a","at":1773214322000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbcf-d5d0-7f5a-8bdb-45efd2d123fd","at":1773214356944000000,"seq":953,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbd0-0100-747b-b10b-7fc34a8c5793","at":1773214368000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbd0-19a9-7fd5-b7b5-7cbc1a353181","at":1773214374313000000,"seq":955,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbd0-2bf8-75fd-b165-ff5ab467e7b2","at":1773214379000000000,"seq":956,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdbd0-eb60-7883-91b3-b21bd758050c","at":1773214428000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbd1-0672-7eac-a014-7f5d2a3eb52c","at":1773214434930000000,"seq":958,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdbd1-3d68-7646-b117-7f7017c953c4","at":1773214449000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbd1-4d08-7724-843b-19d5fe230091","at":1773214453000000000,"seq":960,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdbd1-90f2-7993-8679-6f75d3047314","at":1773214470386000000,"seq":961,"kind":"run_mark","app":null,"p":{"edge":"end"}}
+{"v":1,"id":"019cdbe5-f2d5-70e4-a47b-405301c3001c","at":1773215806165000000,"seq":962,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe6-1d28-78d9-adfb-6364cbe6863e","at":1773215817000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe6-28e0-7b64-8ea3-0f381b9ee256","at":1773215820000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe6-30b0-754c-9905-550c939b4162","at":1773215822000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cdbe6-3f11-7c11-9bc9-627c0ff42a1f","at":1773215825681000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe6-7700-75cf-86a9-ee6ba2e1a38d","at":1773215840000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe7-223d-7f8e-b773-32cefaecbcf9","at":1773215883837000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe7-3668-753f-9631-a1ba5c31de86","at":1773215889000000000,"seq":969,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdbe7-7cb8-72dc-b128-056bd9e59730","at":1773215907000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe7-dc19-7625-a9e5-006e38bd7dc0","at":1773215931417000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe7-f1e8-7e1a-98b0-83e9bd986d60","at":1773215937000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe8-3068-70b7-9ebc-a48b2daefdaf","at":1773215953000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe8-37d5-7254-b8fb-03a5c36979a5","at":1773215954901000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe8-4fa8-7f8c-a8e7-c9405a01f151","at":1773215961000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe8-76b8-7514-a101-396b1562cefc","at":1773215971000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe8-8529-7aa1-bb50-c3cdf2be9092","at":1773215974697000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe8-95f8-76ae-957e-3586667eb290","at":1773215979000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cdbe8-e418-7234-baf2-a5ffcac40bf9","at":1773215999000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe9-1937-7a11-a818-cd89e71a0a72","at":1773216012599000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe9-1ac8-7620-8228-1d5a4b1c1cf1","at":1773216013000000000,"seq":981,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdbe9-2a68-7bf3-b161-a8ee22e538df","at":1773216017000000000,"seq":982,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdbe9-41d8-7351-8ca5-8bd8381ae215","at":1773216023000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe9-5cff-7577-b970-48b8869eae62","at":1773216029951000000,"seq":984,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe9-7c70-7bd1-b915-6743f6236a8f","at":1773216038000000000,"seq":985,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdbe9-a380-761f-8894-31b64c8915d6","at":1773216048000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cdbe9-b320-7adb-9eeb-b27f975c3577","at":1773216052000000000,"seq":987,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

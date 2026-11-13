@@ -1,0 +1,52 @@
+{"v":1,"id":"019c5b9f-0689-75f2-ba24-5cc2e6e37cf4","at":1771063674505000000,"seq":830,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b9f-0689-7a58-8808-9af1ae85f6f2","at":1771063674505000000,"seq":831,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b9f-1c00-7b23-a8be-7a27e601fcee","at":1771063680000000000,"seq":832,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c5b9f-27b8-7be2-b7b1-567a21d2e660","at":1771063683000000000,"seq":833,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b9f-4ccd-7380-95be-e96afed03c7b","at":1771063692493000000,"seq":834,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5b9f-bc28-769b-85b3-54ea7df094eb","at":1771063721000000000,"seq":835,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba0-21b8-7d97-ac34-b51926104b67","at":1771063747000000000,"seq":836,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb0-e022-7a2d-954d-69d0267c55b2","at":1771064844322000000,"seq":837,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5bb0-e022-7823-8359-fdada0f0ff1f","at":1771064844322000000,"seq":838,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb0-ea98-711d-82c5-b09f6fad0adf","at":1771064847000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb0-fa38-7be2-93a8-e4cf53d60c45","at":1771064851000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bbe-a129-739f-8896-4dfdf5ae8418","at":1771065745705000000,"seq":841,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5bbe-c578-7244-9860-8b3f8d0a674d","at":1771065755000000000,"seq":842,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5bbf-0fb1-7f47-85c5-5dc26484ed8b","at":1771065774001000000,"seq":843,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5bbf-80f8-77e7-ac86-729ff8ec2989","at":1771065803000000000,"seq":844,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bbf-83ed-7d83-86ea-11dddfdef720","at":1771065803757000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5bbf-9480-77f9-9156-506fc7a86be0","at":1771065808000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bbf-abf0-7ace-9c21-2141b785548a","at":1771065814000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bbf-d300-71ef-bd27-9dfa8c66a311","at":1771065824000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5bbf-d300-7b01-a987-40bbf4420ee4","at":1771065824000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5bbf-dd2b-71f4-8e3e-70df146dc24c","at":1771065826603000000,"seq":850,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc0-1d38-71ab-93f3-2d3f671206e9","at":1771065843000000000,"seq":851,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5bc0-30c0-7c9e-a52e-98765d415256","at":1771065848000000000,"seq":852,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc0-6388-7f32-8289-0dc5c00dc224","at":1771065861000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc0-86b0-79c6-9fc2-576af15568c0","at":1771065870000000000,"seq":854,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5bc0-b9f8-7eaf-a6f2-723259e48b12","at":1771065883128000000,"seq":855,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc0-bd60-7b2a-9a33-7ca71bda8830","at":1771065884000000000,"seq":856,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bc0-cd00-7b5e-bb9f-2e7ee6580165","at":1771065888000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5bc1-26d8-7707-85c1-cb6f18cba5ad","at":1771065911000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc1-4381-799f-8865-7a483eb43fb5","at":1771065918337000000,"seq":859,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc1-4618-74c4-b8e9-fae7757def78","at":1771065919000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc1-b378-7e4d-bdb7-01bf0f015a9e","at":1771065947000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c5bc1-ea28-7a23-aab2-faf31161af80","at":1771065961000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd2-b65e-702a-9540-19438305dc19","at":1771067061854000000,"seq":863,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c5bd2-ca78-72d7-b76b-b42487793b30","at":1771067067000000000,"seq":864,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd2-e1e8-7693-99c8-e70126078dfb","at":1771067073000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd3-0ce0-775e-8259-826e69ccd0bd","at":1771067084000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c5bd3-4b6b-704a-9cbb-1789ac56f078","at":1771067100011000000,"seq":867,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c5bd3-6aa0-7f95-b6b6-f1e847a4453c","at":1771067108000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c5bd4-11a6-7100-97bc-00f543d87706","at":1771067150758000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c5bd4-6c70-78c5-a6f2-55738bca1c1b","at":1771067174000000000,"seq":870,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5bd4-83e0-7a91-ab41-c644b6559a03","at":1771067180000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c5bd4-e970-7b1a-bde3-f0ec0a06d4ed","at":1771067206000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd4-ec7a-7a4e-aff0-1b6631366fd2","at":1771067206778000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c5bd5-0c98-7da4-9316-4effb50f80ba","at":1771067215000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bd5-1c38-776d-a830-8f4561857794","at":1771067219000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c5bd5-4348-7a60-9e04-f0cbde6212d0","at":1771067229000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd5-6670-7e89-b36c-9513b3d14153","at":1771067238000000000,"seq":877,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bd5-7228-7fc3-9f22-56806868970e","at":1771067241000000000,"seq":878,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bef-c182-727f-9e04-a5cf4f413149","at":1771068965250000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5bef-c470-75bb-91f8-db32e491b09a","at":1771068966000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5bef-d7f8-7458-b086-23004b6d0e24","at":1771068971000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

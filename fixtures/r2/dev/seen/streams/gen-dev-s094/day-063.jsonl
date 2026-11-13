@@ -1,0 +1,21 @@
+{"v":1,"id":"019cb874-c59e-7ecf-acd1-3a62864979b5","at":1772621186462000000,"seq":1055,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb874-c59e-71d8-ac61-4b62ab782904","at":1772621186462000000,"seq":1056,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cb874-cf88-738e-b182-73ae8ce44f99","at":1772621189000000000,"seq":1057,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb875-46da-738f-8fa3-8440d8cc2919","at":1772621219546000000,"seq":1058,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cb875-4c88-7f92-acbf-f55ab510a1dd","at":1772621221000000000,"seq":1059,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb875-6bc8-7dbe-9865-a3bb941d8731","at":1772621229000000000,"seq":1060,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb875-7b68-78ff-a6de-798a6a84bda9","at":1772621233000000000,"seq":1061,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb875-8ef0-755c-a8eb-7fa9c12f09e2","at":1772621238000000000,"seq":1062,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb875-9ab5-7000-aaff-9cc0af7e26bd","at":1772621241013000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cb876-2f18-721d-83e9-bea02f771384","at":1772621279000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb88d-5c39-7eab-a35f-f5bd3df1f1fd","at":1772622797881000000,"seq":1065,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cb88d-ca10-7a65-bdae-7e6fb846fec5","at":1772622826000000000,"seq":1066,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb88e-0890-709c-ba01-4c92432d6d9c","at":1772622842000000000,"seq":1067,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb899-afae-7181-af78-aef600246382","at":1772623605678000000,"seq":1068,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb899-c090-7760-8ce2-bdc5d9da85bd","at":1772623610000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cb899-d030-7fa3-a72a-54825a4419b7","at":1772623614000000000,"seq":1070,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb8b3-68d3-767f-8753-59c9f16ab959","at":1772625291475000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb8b3-a190-798a-b788-79aba0014a62","at":1772625306000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8b3-e7e0-7d21-86bb-5225b5a32955","at":1772625324000000000,"seq":1073,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb8b3-fb68-7333-a7a9-eecb5f2f6b71","at":1772625329000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb8b3-fb68-7876-819a-c127f71e9ec5","at":1772625329000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

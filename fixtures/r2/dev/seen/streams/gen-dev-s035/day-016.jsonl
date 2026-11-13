@@ -1,0 +1,24 @@
+{"v":1,"id":"019bc648-1567-7523-8089-8df38d4570c3","at":1768558171495000000,"seq":294,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc648-1567-772b-9bf8-ba9fd99e333f","at":1768558171495000000,"seq":295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bc648-6968-7eb3-aaa1-1b6348581696","at":1768558193000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc648-e280-7b7f-a6be-9b501ef40b59","at":1768558224000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc649-1fec-7a27-8c99-2e7f1ebb42ca","at":1768558239724000000,"seq":298,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bc649-4810-741a-9dd1-ed2503c23b2d","at":1768558250000000000,"seq":299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc649-a9b8-76e9-8149-6774e32e499c","at":1768558275000000000,"seq":300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bc649-c510-7289-917d-9c517590af78","at":1768558282000000000,"seq":301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc649-fad7-74ea-a25d-68d5af24b328","at":1768558295767000000,"seq":302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bc64a-0778-70b3-b4c8-5d48d8a042b6","at":1768558299000000000,"seq":303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bc64a-1ee8-7116-a6cd-cd971edbf2ab","at":1768558305000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc64a-3e28-7e82-a4b2-0244ccc1c2e8","at":1768558313000000000,"seq":305,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc64a-4210-7c0b-890a-a762bffca00c","at":1768558314000000000,"seq":306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc64a-5b20-7aa8-ab33-f93fbe216635","at":1768558320416000000,"seq":307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bc64a-6150-7bf5-9609-f08ef6b2eec6","at":1768558322000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc64a-8090-7ec2-b506-ab0c4a3d932f","at":1768558330000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bc64a-bb28-7986-9fb7-e7e0aea5b119","at":1768558345000000000,"seq":310,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc655-7cef-7e48-a7b2-d813493837de","at":1768559049967000000,"seq":311,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc655-7cef-743f-b5f6-9fd900f20250","at":1768559049967000000,"seq":312,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc655-b7a8-7e24-814f-b6a271a46ace","at":1768559065000000000,"seq":313,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bc655-c360-7034-bb30-9de54a40844f","at":1768559068000000000,"seq":314,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc655-c748-726a-87b2-e137dff956ef","at":1768559069000000000,"seq":315,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bc655-ee58-7b4f-84df-ae7b644a2386","at":1768559079000000000,"seq":316,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc656-1180-76eb-ab6a-16157985718a","at":1768559088000000000,"seq":317,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

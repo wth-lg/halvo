@@ -1,0 +1,44 @@
+{"v":1,"id":"019c0e13-4c86-7118-bdab-3c0ee288a0d7","at":1769762671750000000,"seq":386,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e13-4c86-7ff4-a454-4ef53f18d258","at":1769762671750000000,"seq":387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e13-64f0-702d-a2e1-b06403c63888","at":1769762678000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e13-8c00-7234-98a7-ed08bdd33475","at":1769762688000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e13-be3c-738a-b604-da2adebe4f53","at":1769762700860000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 11 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e13-bec8-75eb-9b66-7586b399043e","at":1769762701000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e13-d250-72d5-9fa4-a5bfd0242c4b","at":1769762706000000000,"seq":392,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e14-3010-75d3-a371-8caddfa28375","at":1769762730000000000,"seq":393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e14-95a0-7218-91ef-2efd4778ad81","at":1769762756000000000,"seq":394,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e14-b02e-7fd3-81e9-6c049c677e0c","at":1769762762798000000,"seq":395,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e15-3d98-7a4d-a2e4-dc5ad3d38962","at":1769762799000000000,"seq":396,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e15-5120-7d7d-b37f-9a66b4822f39","at":1769762804000000000,"seq":397,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e15-52b3-7495-9f2e-47ec2811b6f7","at":1769762804403000000,"seq":398,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e15-6890-7db0-9b13-b35b2ced1a13","at":1769762810000000000,"seq":399,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e15-9770-776d-9cb5-bdbcb6f55705","at":1769762822000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e15-b2c8-7cae-a3c1-b787fb76c013","at":1769762829000000000,"seq":401,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e15-fd00-7ec6-95ca-78ae5df49411","at":1769762848000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e16-067c-746e-864f-080e0316a177","at":1769762850428000000,"seq":403,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e16-2028-7e8c-92f5-0645a796b1c1","at":1769762857000000000,"seq":404,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e16-2410-70e6-9781-8e53959208ab","at":1769762858000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c0e17-bab4-77cd-86ac-7e2efd54244f","at":1769762962100000000,"seq":406,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0e18-0c58-77fc-9ff4-d1c74d264779","at":1769762983000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c0e2e-94c6-7cb2-9e0d-acdc5dd42f86","at":1769764459718000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0e2e-bcf0-7782-b3ee-16ceacf78f93","at":1769764470000000000,"seq":409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e2e-d460-745a-bcc7-8561cee85a93","at":1769764476000000000,"seq":410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e2e-f788-7ff1-afe4-a5a9a24c4c9b","at":1769764485000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c0e2f-16c8-7031-b731-eff355323565","at":1769764493000000000,"seq":412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e2f-1e98-7c28-84e7-a7865ccccc88","at":1769764495000000000,"seq":413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e48-8d27-7a49-a1f0-0c9677193cfc","at":1769766161703000000,"seq":414,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c0e48-fbb0-7433-9c6e-210c72c3a32c","at":1769766190000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e49-1af0-7863-a4d6-298e514c6575","at":1769766198000000000,"seq":416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e49-1dbc-76b0-9b23-149e4d81cd4f","at":1769766198716000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c0e49-26a8-724c-8869-5bf6f3834225","at":1769766201000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c0e49-6910-7c30-9f4d-ad4309e65470","at":1769766218000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e49-8468-73ac-96db-812a27d832f5","at":1769766225000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e49-88fa-725c-ac36-ccfa65217953","at":1769766226170000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c0e49-97f0-7289-b02e-58c8f2a074ef","at":1769766230000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e49-9fc0-7dc5-8493-7bffe3d592ee","at":1769766232000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c0e49-a3a8-760e-898e-48d2303dd40c","at":1769766233000000000,"seq":424,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e49-cab8-7a5c-824c-2360b0892247","at":1769766243000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e49-cea0-7fd4-aead-c29d4711f83d","at":1769766244000000000,"seq":426,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e49-f6ce-7296-b514-9c91fa60721e","at":1769766254286000000,"seq":427,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c0e4a-4ba0-7a8b-bd44-f1e4e6e83f91","at":1769766276000000000,"seq":428,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e4a-95d8-70a6-b388-999b8fbc46c0","at":1769766295000000000,"seq":429,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

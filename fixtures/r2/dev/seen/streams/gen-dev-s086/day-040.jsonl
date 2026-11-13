@@ -1,0 +1,14 @@
+{"v":1,"id":"019c4145-2f6e-742c-b9f8-c573879b83dc","at":1770621579118000000,"seq":688,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4145-2f6e-76e2-b06c-774f9b8fc88f","at":1770621579118000000,"seq":689,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4145-a428-7376-ab89-be0637a28ce2","at":1770621609000000000,"seq":690,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4145-e690-7de8-b8fa-90f5926f45fe","at":1770621626000000000,"seq":691,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4153-3450-7477-9fd1-1a840fb19dfd","at":1770622497872000000,"seq":692,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c4153-9678-782a-8965-e49680237edc","at":1770622523000000000,"seq":693,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4153-9e48-7216-b8b5-b315051338a3","at":1770622525000000000,"seq":694,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c4153-b5b8-72d9-a9af-2885d1abc0ff","at":1770622531000000000,"seq":695,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c4154-0268-768a-8125-442c79396a72","at":1770622550632000000,"seq":696,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c4154-1f30-7d7c-b4b9-84b00f29e359","at":1770622558000000000,"seq":697,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c416f-cfb0-7515-b59d-657b87a23dd2","at":1770624372656000000,"seq":698,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c416f-cfb0-7ba9-b477-b51bdc04c2aa","at":1770624372656000000,"seq":699,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4170-07b8-7182-9cda-d7ac75454403","at":1770624387000000000,"seq":700,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4170-6578-7f82-9fb8-14613817b788","at":1770624411000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}

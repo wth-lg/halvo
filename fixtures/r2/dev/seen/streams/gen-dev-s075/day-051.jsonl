@@ -1,0 +1,49 @@
+{"v":1,"id":"019c7a89-90d2-7e8f-bc5f-13cba4819232","at":1771582361810000000,"seq":740,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a89-90d2-735d-9061-1930d119c8b8","at":1771582361810000000,"seq":741,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c7a89-9190-7e44-926f-c204640a2c99","at":1771582362000000000,"seq":742,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a89-9d48-772f-95bc-c5cf3e0d60d5","at":1771582365000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a89-d010-7000-927d-98bc7ae6f295","at":1771582378000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7a89-d322-7d9f-bcbb-145f61346910","at":1771582378786000000,"seq":745,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c7a89-e398-7bf1-abe8-edce7d4cf96d","at":1771582383000000000,"seq":746,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a8a-29e8-7d2e-93d1-d30ed01849e3","at":1771582401000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a8a-90dc-73d3-af29-5e10d3cc9ac0","at":1771582427356000000,"seq":748,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c7a8a-aad0-77fd-87f6-277a990720d4","at":1771582434000000000,"seq":749,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a8b-2000-7ad5-9d8b-055372b23785","at":1771582464000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c7a8b-3388-7dd3-a6dd-0dda7a5602f5","at":1771582469000000000,"seq":751,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a8b-4a1d-7792-8020-6e9d3a98a878","at":1771582474781000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c7a8b-b470-7438-96a9-f9fa630938a7","at":1771582502000000000,"seq":753,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a8b-cbe0-7f67-a309-d30457f3f717","at":1771582508000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a8b-d798-7f63-ac23-50bf47d33310","at":1771582511000000000,"seq":755,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7aa3-2fc7-7617-aea7-3e53a8bbbda7","at":1771584040903000000,"seq":756,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa3-66d8-70ec-8141-a49b3d8fad5f","at":1771584055000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7aa4-0ac5-7f53-ad65-22056a793008","at":1771584096965000000,"seq":758,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa4-16a0-7989-9db1-5f9f88c0ab10","at":1771584100000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c7aa4-5138-7a98-837d-8baabc8a218c","at":1771584115000000000,"seq":760,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7aa4-c142-70ae-9814-0a7962640b3c","at":1771584143682000000,"seq":761,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa4-c280-7659-9926-d8fe4917c52b","at":1771584144000000000,"seq":762,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa4-ce38-7c2c-936f-f374c0403229","at":1771584147000000000,"seq":763,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7aa5-04e8-7248-ab9c-0b1d2dd405eb","at":1771584161000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7aa5-4f20-7fbe-8d41-f7f01187ba50","at":1771584180000000000,"seq":765,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7aa5-cc70-776c-a01d-42e446dfe6a8","at":1771584212080000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa5-e390-7b72-ad8c-1df8ef1538f5","at":1771584218000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c7aa6-3980-7248-a14e-68430898b9df","at":1771584240000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa6-90fe-7f9a-aef7-13816ca94e51","at":1771584262398000000,"seq":769,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa6-9b28-7187-826c-54078acf6b81","at":1771584265000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7aa6-be50-76d4-bd1a-c28ef49054d6","at":1771584274000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa6-c620-76a8-9665-f98854571a82","at":1771584276000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa6-cdf0-76ae-8e0b-2cba2ec19600","at":1771584278000000000,"seq":773,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7aa6-e2d3-7be5-8a6d-6d30917881ad","at":1771584283347000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa7-9140-78d2-a002-6e76b54b4903","at":1771584328000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa7-c7f0-7299-b5b7-64994ab9c548","at":1771584342000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7ac1-961a-727a-b131-65c3ed529912","at":1771586033178000000,"seq":777,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7ac1-a508-789d-b6a3-fc5d8418b3c6","at":1771586037000000000,"seq":778,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7ac1-b4a8-718a-a523-df92083afb01","at":1771586041000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c7ac1-c830-73f6-b855-c6f3d69b31db","at":1771586046000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7ac1-dbb8-7ed0-807b-c49ec09307d6","at":1771586051000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7acb-06b0-7dd7-a615-f542ea0d11c5","at":1771586651824000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7acb-2a88-7a20-87c4-341960aaa031","at":1771586661000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7acb-41f8-7494-b8ec-6da8489eec92","at":1771586667000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c7acf-3256-745e-923b-d30a4ebf8505","at":1771586925142000000,"seq":785,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7acf-6c60-7e10-be0b-34aac1b70d82","at":1771586940000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7acf-7048-709a-97ce-16377256bb76","at":1771586941000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7acf-8ba0-7de8-ba0a-63fe79394ff7","at":1771586948000000000,"seq":788,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

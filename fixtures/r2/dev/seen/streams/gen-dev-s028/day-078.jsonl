@@ -1,0 +1,23 @@
+{"v":1,"id":"019d0521-4f3f-712e-a284-2931c920ed7a","at":1773907562303000000,"seq":1199,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0521-4f3f-7ebf-8741-72a38b10d19e","at":1773907562303000000,"seq":1200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0521-bf58-729b-b80e-84aba97edac2","at":1773907591000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d052c-162f-73bc-a08f-349c2136504e","at":1773908268591000000,"seq":1202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d052c-17c8-73db-9715-db85e818e0fd","at":1773908269000000000,"seq":1203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d052c-61b8-70aa-a44a-eeb163a2e737","at":1773908287928000000,"seq":1204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d052c-71a0-77c8-9309-83d857c9a5af","at":1773908292000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d052c-b408-7659-aca2-bb8bcab216ec","at":1773908309000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d052c-c790-7b27-93aa-97a9dbff2897","at":1773908314000000000,"seq":1207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d052d-1526-7ed7-95ba-b803476bc9b9","at":1773908333862000000,"seq":1208,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d052d-4878-7cb6-b28c-6230cca8b871","at":1773908347000000000,"seq":1209,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d052d-86f8-7130-91f3-4dff0daf17b4","at":1773908363000000000,"seq":1210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d052d-9698-7cd5-a266-662c6c9b6b80","at":1773908367000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d052d-9f65-71c6-84cc-d3fc780d1e79","at":1773908369253000000,"seq":1212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d052d-e0d0-70cc-a256-78b7e1cb9fc4","at":1773908386000000000,"seq":1213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d052e-0010-7a0e-827c-d5695fa29edb","at":1773908394000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d052e-1398-722d-af76-f950e45b9f7d","at":1773908399000000000,"seq":1215,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d052e-4278-7f6b-9365-49089cfd6eaa","at":1773908411000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d052e-43e7-7a97-8f73-d96bc3877252","at":1773908411367000000,"seq":1217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d052e-5218-77f3-b5d3-0d20052c433c","at":1773908415000000000,"seq":1218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d0539-3563-7857-a98a-bcc59155aa69","at":1773909128547000000,"seq":1219,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0539-3563-7ddd-b560-54d8440293bf","at":1773909128547000000,"seq":1220,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0539-8548-768c-a5d5-19624454ee18","at":1773909149000000000,"seq":1221,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

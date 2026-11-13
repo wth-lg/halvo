@@ -1,0 +1,42 @@
+{"v":1,"id":"019c37be-5ad9-74ca-b679-49ca463ef13f","at":1770461747929000000,"seq":513,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c37be-5ad9-7702-bbf3-96dfad6061af","at":1770461747929000000,"seq":514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c37be-8618-74a7-97ac-7ce6c658f485","at":1770461759000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c37be-ad28-7777-a825-b3f85ba344b9","at":1770461769000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c37be-cc68-7aa1-84f1-3cbebad84c8d","at":1770461777000000000,"seq":517,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c37cd-fb01-7024-a5c6-7dac97721b0c","at":1770462771969000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c37ce-3d88-7c0b-aba6-ff7a04ea26c2","at":1770462789000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ce-5162-751c-bbb6-d8eb0a0f7cee","at":1770462794082000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview this week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c37ce-d1f8-7632-9a56-4a023e1c8143","at":1770462827000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c37ce-e198-79fb-84bf-556c8c27543d","at":1770462831000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ce-fcf0-7b0f-92c1-5255e1aa2e1d","at":1770462838000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37cf-2d77-78de-9cb0-92b295dce7aa","at":1770462850423000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c37cf-4728-7fc3-ab46-64d2f9bade90","at":1770462857000000000,"seq":525,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c37cf-52e0-78f1-a6f6-9b2dcd48fa82","at":1770462860000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c37cf-6a50-75a4-af56-3fa8ae59f02f","at":1770462866000000000,"seq":527,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c37cf-fcb2-77c0-a860-f12682bb3436","at":1770462903474000000,"seq":528,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c37d0-1630-7654-b205-aa6b7216518a","at":1770462910000000000,"seq":529,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c37d0-7008-711d-b288-81f6e8635f07","at":1770462933000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c37e8-9286-7bb6-bea2-ce501477aaeb","at":1770464514694000000,"seq":531,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c37e8-9b88-7309-86c9-89c1d7cd98fa","at":1770464517000000000,"seq":532,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c37e8-e1d8-7985-b706-9487015604ff","at":1770464535000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37eb-ca21-7d5a-ab87-916268dafb01","at":1770464725537000000,"seq":534,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c37eb-d3c0-7183-8f12-2deb81db810e","at":1770464728000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ec-2d98-732e-879a-f53e9af65b2f","at":1770464751000000000,"seq":536,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c37ec-3950-7eae-9ec9-c716d3bc20eb","at":1770464754000000000,"seq":537,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c37ec-4508-77cd-976c-2c6ee6dbe926","at":1770464757000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37fe-c76d-74cb-aad7-7b1f6d0be356","at":1770465970029000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c37ff-2ce0-71f5-b7f2-155058ba40fb","at":1770465996000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ff-34b0-7c5b-9fbb-c29b39577044","at":1770465998000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c37ff-5521-7a59-acd5-e5639ab29cc6","at":1770466006305000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c37ff-6390-7e4a-a2ea-9cb693c76067","at":1770466010000000000,"seq":543,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c37ff-82d0-700a-9eea-1a90df60e0ca","at":1770466018000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ff-9270-7cee-8efe-d85b9c599baa","at":1770466022000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ff-9e28-7ef9-bd4c-ba24eae4b28b","at":1770466025000000000,"seq":546,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3800-2807-77ab-9e34-c6fa5cbfc864","at":1770466060295000000,"seq":547,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c3800-9440-7a63-bb61-954e01c136a4","at":1770466088000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3801-0588-773c-934e-c5df7423131f","at":1770466117000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3801-3666-7f8d-959c-984a1bfb05cc","at":1770466129510000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c3801-3c38-7d7d-8d3d-a3465319523c","at":1770466131000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3801-4408-756a-9bc1-fdefeaf950e2","at":1770466133000000000,"seq":552,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3801-6b18-7020-a8f5-da199ec4977a","at":1770466143000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c3801-a998-79e7-a8fb-208ef59a8b50","at":1770466159000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

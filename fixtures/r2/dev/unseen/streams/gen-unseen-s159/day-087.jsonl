@@ -1,0 +1,30 @@
+{"v":1,"id":"019d33a8-6af3-7a4b-a1ff-61b6bde76e45","at":1774688168691000000,"seq":1342,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d33a8-6af3-7aa9-9c71-651bd07d92aa","at":1774688168691000000,"seq":1343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d33a8-73f8-715a-aaf0-d48a5bd1b6b8","at":1774688171000000000,"seq":1344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d33a8-8780-76b4-8d73-949e3484e088","at":1774688176000000000,"seq":1345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d33aa-fe0f-7cb2-90b7-c2d36381c1a2","at":1774688337423000000,"seq":1346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d33ab-89b0-7665-a9c6-af3c2a2f3d79","at":1774688373168000000,"seq":1347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d33ab-fe38-7d73-aa5a-77ab362edc64","at":1774688403000000000,"seq":1348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d33ac-2548-74dd-a40a-5735dd435906","at":1774688413000000000,"seq":1349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d33ac-3cb8-725e-a8d3-3309e2501437","at":1774688419000000000,"seq":1350,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33ac-4488-7c82-9c6a-4d58134c0a62","at":1774688421000000000,"seq":1351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33ba-de32-77f4-8bb4-90f14b0f901b","at":1774689377842000000,"seq":1352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d33ba-ea88-79f0-aa95-2bf036ca92aa","at":1774689381000000000,"seq":1353,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d33bb-5018-7c54-9a6f-9acbaacf34d1","at":1774689407000000000,"seq":1354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33c4-ee4e-7448-8394-95c31ee232d5","at":1774690037326000000,"seq":1355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d33c4-f8c0-7116-b09b-ef19d4e4f3fa","at":1774690040000000000,"seq":1356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33c5-0478-7fe4-9834-1891f18e914e","at":1774690043000000000,"seq":1357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33c5-1418-70a9-be9d-2577fc577ab7","at":1774690047000000000,"seq":1358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d33c5-66c8-76c4-89e9-2353f4043144","at":1774690068168000000,"seq":1359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d33c5-9118-7fe2-9870-c91642157726","at":1774690079000000000,"seq":1360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33c5-a888-715d-89a3-c43400b05452","at":1774690085000000000,"seq":1361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d33c5-ac70-7031-bf9e-7b0809511c41","at":1774690086000000000,"seq":1362,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d33c7-385c-7830-9782-cabbc06b206e","at":1774690187356000000,"seq":1363,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d33c7-42b0-749f-8539-d55a1eb7a8e2","at":1774690190000000000,"seq":1364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d33c7-5e08-7660-91d5-5502cdce843d","at":1774690197000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33c7-69c0-7b64-b644-24ea90644b11","at":1774690200000000000,"seq":1366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33c7-e29e-72b4-87d3-166dc6925a43","at":1774690230942000000,"seq":1367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d33c8-1988-7a48-be84-ec09a497b1c9","at":1774690245000000000,"seq":1368,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d33c8-aa10-71c5-8dd1-99f86614cbc6","at":1774690282000000000,"seq":1369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33c8-bb2d-7f13-8968-d47e20d46b42","at":1774690286381000000,"seq":1370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d33c9-7d00-74f3-ac6c-bef8728521b1","at":1774690336000000000,"seq":1371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

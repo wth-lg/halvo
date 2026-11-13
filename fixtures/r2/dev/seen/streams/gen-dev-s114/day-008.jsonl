@@ -1,0 +1,35 @@
+{"v":1,"id":"019b9cad-44f7-7667-a857-d4f5f5f10cef","at":1767860159735000000,"seq":90,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9cad-44f7-70e0-a469-b2909e35928b","at":1767860159735000000,"seq":91,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b9cae-0b03-7c66-9b9d-0cd97257fc53","at":1767860210435000000,"seq":92,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b9cae-6710-7f63-abcc-c77ce58e04ef","at":1767860234000000000,"seq":93,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cae-dab9-76e9-ab02-aabf49cd434d","at":1767860263609000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b9cae-e028-715f-9857-3f0bc8d1fd55","at":1767860265000000000,"seq":95,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9caf-1ea8-7430-a795-4ef91a960f31","at":1767860281000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9caf-49a0-73a9-9713-ce5ac243ec6d","at":1767860292000000000,"seq":97,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9caf-93a2-7cd2-a1c4-1fd16a9b42f3","at":1767860310946000000,"seq":98,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b9caf-da28-7643-b28d-5f91cc64b8d4","at":1767860329000000000,"seq":99,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9caf-fd50-7bfb-bcc9-416b325f3fbd","at":1767860338000000000,"seq":100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cb0-17e2-74fd-8f1f-2f0839a2ffc0","at":1767860344802000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b9cb0-43a0-764b-a154-606a1a9f860f","at":1767860356000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cb0-66c8-7b59-9ed6-2f4e12bd8312","at":1767860365000000000,"seq":103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cb0-9990-772c-82b6-a40bf1f8272f","at":1767860378000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b9cb0-b4ad-7201-8a63-16f4e559f549","at":1767860384941000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b9cb0-b4e8-7597-9d91-8391b665c876","at":1767860385000000000,"seq":106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9cb0-c488-78a2-b1db-627f2c79dcca","at":1767860389000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9cb0-cc58-74da-949b-ba4c781f5f54","at":1767860391000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cb0-e7b0-7cee-af28-87b7bec5d102","at":1767860398000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cb1-2630-7a51-b2ee-33bc57547beb","at":1767860414000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b9cb1-3a8a-7ea2-ade8-30bb5170f883","at":1767860419210000000,"seq":111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b9cb1-64b0-7e9d-93d7-b5dc49d0f75f","at":1767860430000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b9cb1-7450-7a0b-94b1-390ea522f029","at":1767860434000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cb1-7e67-7dad-a976-2e5056aac54e","at":1767860436583000000,"seq":114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b9cb1-8bc0-700f-87db-6decb679837d","at":1767860440000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b9cb1-9390-7398-ba60-7ff9b53959ca","at":1767860442000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cb1-b6b8-7315-a5ed-4c3a203fcdbd","at":1767860451000000000,"seq":117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cb1-bb40-7d51-968b-ae5af3ebb12a","at":1767860452160000000,"seq":118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b9cb1-c270-7987-84ad-a59fea58be65","at":1767860454000000000,"seq":119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9cb2-5ac8-7d4c-a4e0-b71453e55f67","at":1767860493000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b9cb2-9178-7d95-bd87-6575945a293c","at":1767860507000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cb2-9560-74aa-a4b3-e56067713877","at":1767860508000000000,"seq":122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9cc5-61b4-73f4-b6d2-a185f2acb47e","at":1767861739956000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b9cc5-90c0-7517-9efe-c7bd6a245bf3","at":1767861752000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

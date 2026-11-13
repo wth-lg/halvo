@@ -1,0 +1,14 @@
+{"v":1,"id":"019c89d1-5bd0-7643-b01f-3bb83d204a7d","at":1771838725072000000,"seq":621,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89d1-5bd0-76ff-8029-f487b2d88f28","at":1771838725072000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c89d1-7eb0-7195-a1a2-38dd40193a66","at":1771838734000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89d1-8298-7788-95ff-7a66813618f7","at":1771838735000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89d1-b178-77f6-bd6f-d2e1f4e3413b","at":1771838747000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c89d1-ec10-73f5-9fc3-3ad753f9c3fb","at":1771838762000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89d6-3fdf-751e-82ff-0582dec9b566","at":1771839045599000000,"seq":627,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c89d6-3fdf-73e7-8359-c7f140148192","at":1771839045599000000,"seq":628,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c89d6-83d8-7884-b026-df58a06c2f84","at":1771839063000000000,"seq":629,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89d6-9378-73ee-8c24-f5c1298f32ed","at":1771839067000000000,"seq":630,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c89d6-b2b8-7dba-8ba4-17b96a120464","at":1771839075000000000,"seq":631,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c89d6-f27c-7ca2-99a3-bed5795574cc","at":1771839091324000000,"seq":632,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c89d6-fcf0-72fb-bc67-9a8d30c2fd3a","at":1771839094000000000,"seq":633,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c89d7-00d8-7862-b517-6d4581f3fa32","at":1771839095000000000,"seq":634,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

@@ -1,0 +1,41 @@
+{"v":1,"id":"019bc0b1-d0c6-7eb8-84ca-cf4632501030","at":1768464437446000000,"seq":144,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc0b1-d0c6-7f18-9c30-f0b9b0014d15","at":1768464437446000000,"seq":145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bc0b1-dea8-7ce8-9627-fb09551bda11","at":1768464441000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bc0b2-4050-78cf-b917-c4b0010154fb","at":1768464466000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0b2-4ff0-721f-81e2-94c04581863e","at":1768464470000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0b2-aed4-7b74-a28c-9189e48e5330","at":1768464494292000000,"seq":149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bc0b2-e460-7526-b958-1fa1c336b59e","at":1768464508000000000,"seq":150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc0b3-339d-7fec-9cb6-6af52d18c07d","at":1768464528285000000,"seq":151,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc0b3-339d-7483-b585-52930040fcf0","at":1768464528285000000,"seq":152,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc0b3-4220-7242-b007-9ec2b93fe2c9","at":1768464532000000000,"seq":153,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0b3-5d78-7ff9-bc3a-8bc9e2f46b40","at":1768464539000000000,"seq":154,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0b3-887a-74ab-9b39-96a36445b916","at":1768464550010000000,"seq":155,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc0b3-887a-7ef6-8da6-0fb3dfb6e612","at":1768464550010000000,"seq":156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bc0b3-c5d1-7e12-a3bf-d774e2bedb35","at":1768464565713000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bc0b3-c6f0-7583-945c-c0f4db468bd3","at":1768464566000000000,"seq":158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc0b4-47d8-715a-baa8-424834def6e5","at":1768464599000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc0cc-433a-7e98-9d23-0220a39abf5e","at":1768466170682000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bc0cc-b1d8-7eda-9186-418ce968c710","at":1768466199000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bc0cd-057c-75a6-a761-15817eeb21f9","at":1768466220412000000,"seq":162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bc0cd-3e78-7912-b150-421e86b3bb67","at":1768466235000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bc0cd-84c8-7a91-8d25-febaac0961bb","at":1768466253000000000,"seq":164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc0cd-a020-7e9d-aba8-c50ad9e12f00","at":1768466260000000000,"seq":165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc0cd-f12b-728b-b129-a9fd3d0b8fff","at":1768466280747000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bc0cd-f9f8-7e61-a1a8-bca24cafd771","at":1768466283000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bc0ce-46fb-7d20-bcde-d4de8c4fd9f3","at":1768466302715000000,"seq":168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bc0ce-6b40-766a-91d6-bccbf45c9e69","at":1768466312000000000,"seq":169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc0ce-8698-787a-825c-1ac5b47212fc","at":1768466319000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0ce-a1f0-7595-b7ac-20cabc5ad0c7","at":1768466326000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bc0ce-d4c7-73cf-a0dc-733f888998ff","at":1768466339015000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bc0cf-0780-747a-93c5-7f6cd6118e75","at":1768466352000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0cf-1338-77ba-8b68-6471c2cb0a17","at":1768466355000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bc0cf-3660-7ea3-b7ca-542260ca5a9e","at":1768466364000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0cf-69b9-7b08-a64d-83d1b37b2404","at":1768466377145000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bc0cf-70f8-7bb1-928d-47e11d2b523a","at":1768466379000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc0d0-18f0-7ef2-856f-2eba47d06fab","at":1768466422000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bc0e0-e84e-72ff-bd19-3d07aead763e","at":1768467523662000000,"seq":179,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc0e0-e84e-7586-be15-ae9662dbbc3a","at":1768467523662000000,"seq":180,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc0e1-1880-763a-9003-96db1d0a204d","at":1768467536000000000,"seq":181,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bc0e1-1c68-72bd-8754-3060c3ca9726","at":1768467537000000000,"seq":182,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0e1-3f90-7db7-ab79-12ee7960dc2b","at":1768467546000000000,"seq":183,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bc0e1-5700-7c45-aa09-bb70afbfc819","at":1768467552000000000,"seq":184,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

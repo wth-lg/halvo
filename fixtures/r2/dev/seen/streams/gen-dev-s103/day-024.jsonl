@@ -1,0 +1,25 @@
+{"v":1,"id":"019bef4c-8193-796e-8622-e2c83d7eb7f4","at":1769246327187000000,"seq":447,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef4c-8193-70de-9c45-2de0d4e0c5a8","at":1769246327187000000,"seq":448,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef4c-a400-7308-9271-760b95dc5e1e","at":1769246336000000000,"seq":449,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bef55-d170-7d0d-a016-faa78cf13c93","at":1769246937456000000,"seq":450,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef55-d170-7021-86c0-79b7d7265697","at":1769246937456000000,"seq":451,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bef55-e718-7ebc-a2e5-35f8823859e5","at":1769246943000000000,"seq":452,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bef55-f6b8-75a9-86fa-e000e7b3303e","at":1769246947000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef55-faa0-7b8a-aef4-faa8218f4198","at":1769246948000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bef65-9b6a-77e1-99bc-3ce399ab130d","at":1769247972202000000,"seq":455,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bef65-a270-7fbd-baba-e1cd2cb6ed3b","at":1769247974000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef65-c1b0-7c15-b701-b4013abb408b","at":1769247982000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef65-c980-78c4-9d7a-c678b4d5efc6","at":1769247984000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bef65-dfb2-7f32-a0e8-b4d5f32cf998","at":1769247989682000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bef66-0800-77f7-9a7f-043994f231d6","at":1769248000000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef66-4e50-74af-89fa-44152490ba22","at":1769248018000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bef66-65c0-73ac-934f-f7b81352a4ed","at":1769248024000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef66-7540-72ec-9410-875820840cb9","at":1769248027968000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bef66-8500-73fb-a387-cc87307db186","at":1769248032000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bef66-bbb0-7225-b801-42edcd5f114c","at":1769248046000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef66-d320-7c34-808c-033fa25ff6eb","at":1769248052000000000,"seq":466,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef67-4080-7a97-94ff-38bc36623b56","at":1769248080000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef6d-1087-715d-9af6-38c1f9625d7c","at":1769248460935000000,"seq":468,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bef6d-14b0-7b7c-ba53-3620c0f89dcc","at":1769248462000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef6d-2838-72dc-88f3-45c37b5685c1","at":1769248467000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef6d-b0f0-7989-b4be-bd1fc1fdb80b","at":1769248502000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

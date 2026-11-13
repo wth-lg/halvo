@@ -1,0 +1,28 @@
+{"v":1,"id":"019d42c2-dae2-73c8-bddc-7c10c17b9616","at":1774941559522000000,"seq":1252,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42c2-dae2-7f3c-9179-7bb5be1cf5fa","at":1774941559522000000,"seq":1253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d42c2-f818-7af8-9c98-d76ae662f066","at":1774941567000000000,"seq":1254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d42c3-26f8-75d6-9090-2f15929dd789","at":1774941579000000000,"seq":1255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42c3-88a0-736e-9525-8150d4408e0e","at":1774941604000000000,"seq":1256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42c8-2c1d-7bde-b1fc-4b77ca81462e","at":1774941907997000000,"seq":1257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d42c8-37d8-766a-a0b3-e655da7753aa","at":1774941911000000000,"seq":1258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d42c8-b7f2-70fb-bad7-34f9841e9794","at":1774941943794000000,"seq":1259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d42c8-b8c0-7b17-b304-460f3e1ec9a7","at":1774941944000000000,"seq":1260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d42c8-fb28-7e4a-b903-e93493800809","at":1774941961000000000,"seq":1261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42c9-646b-767c-a4d6-4366f5219f83","at":1774941987947000000,"seq":1262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d42c9-7058-7aff-85fe-8dc71264408c","at":1774941991000000000,"seq":1263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42c9-9f38-7274-8b57-cee0880c8465","at":1774942003000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42c9-a320-7f6a-b988-bb733c7a3a47","at":1774942004000000000,"seq":1265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d42c9-cd1d-7245-b4e1-b5d6aa78eddc","at":1774942014749000000,"seq":1266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d42c9-ed58-7137-81d0-b24d01e57f00","at":1774942023000000000,"seq":1267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ca-1850-7764-99fb-0b7b5f1671ef","at":1774942034000000000,"seq":1268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ca-33a8-770a-86ac-dde4df7eddc4","at":1774942041000000000,"seq":1269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d42ca-4348-7177-9f6d-390b30376f4a","at":1774942045000000000,"seq":1270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d42dd-8330-7f8d-868a-d1d9ccdf231f","at":1774943306544000000,"seq":1271,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d42dd-8330-75bd-bafb-2b75297f2f2a","at":1774943306544000000,"seq":1272,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d42dd-f258-78e3-a0bb-f2e73fc6d190","at":1774943335000000000,"seq":1273,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42eb-b82c-76f9-8547-78c8c7269d79","at":1774944237612000000,"seq":1274,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42eb-b82c-73ff-b3f8-b347367cf50a","at":1774944237612000000,"seq":1275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d42eb-bd98-7029-9b76-7c9dac6f2234","at":1774944239000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d42eb-f448-731e-9e3d-60d0dacff743","at":1774944253000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ec-0fa0-7368-b416-31f179857621","at":1774944260000000000,"seq":1278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d42ec-2710-71c9-a066-eb9fcd27a312","at":1774944266000000000,"seq":1279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

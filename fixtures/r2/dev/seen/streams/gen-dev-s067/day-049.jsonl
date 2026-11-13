@@ -1,0 +1,26 @@
+{"v":1,"id":"019c703b-c2ba-7cf2-a507-99d71e06273f","at":1771409490618000000,"seq":798,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c703b-c2ba-7213-8b65-6b88bd691bc3","at":1771409490618000000,"seq":799,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c703b-df90-74e9-9056-529a352d4555","at":1771409498000000000,"seq":800,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c703c-02b8-760a-99a7-53f6abe8137b","at":1771409507000000000,"seq":801,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c703c-2db0-7195-9e10-6af4ce95f715","at":1771409518000000000,"seq":802,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c7056-74a9-79b2-ab3e-d73fff96f1c3","at":1771411240105000000,"seq":803,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7056-74a9-7fe3-9141-783d8be65fa0","at":1771411240105000000,"seq":804,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c7056-a320-7235-9004-93385dc20655","at":1771411252000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7057-37cc-7bd6-95c5-b155fa015bc2","at":1771411290060000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c7057-6a58-7a00-80f6-185fc62df96a","at":1771411303000000000,"seq":807,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7057-7fb0-7637-a0e8-f28518957ece","at":1771411308464000000,"seq":808,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c7057-8998-7efe-b080-c8e808f777b6","at":1771411311000000000,"seq":809,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7057-9938-7395-8272-b7b183aa1105","at":1771411315000000000,"seq":810,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7057-b0a8-7c23-aa8d-1b58e41790ac","at":1771411321000000000,"seq":811,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7058-1638-7aa7-885f-c89079355826","at":1771411347000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7058-1a20-7960-9966-e95db03d67a5","at":1771411348000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c705a-2639-7f7e-8563-0cddcbed0032","at":1771411482169000000,"seq":814,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c705a-2639-7282-88b2-12219019056c","at":1771411482169000000,"seq":815,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c705a-c9a0-72f6-85a8-bcf2056ae566","at":1771411524000000000,"seq":816,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c705a-d558-74b9-8502-717509e9959e","at":1771411527000000000,"seq":817,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c705a-ecc8-7642-884e-dfef0bcc2d99","at":1771411533000000000,"seq":818,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c705b-2b48-7543-ad08-a75feba9a249","at":1771411549000000000,"seq":819,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c7069-efa7-76d0-b0be-84bb3a862b97","at":1771412516775000000,"seq":820,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7069-efa7-739e-be22-b8f38bb04486","at":1771412516775000000,"seq":821,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c706a-8110-77ab-ad04-bb904088b662","at":1771412554000000000,"seq":822,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c706a-ac08-71b6-b90f-d76cc89c2db5","at":1771412565000000000,"seq":823,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

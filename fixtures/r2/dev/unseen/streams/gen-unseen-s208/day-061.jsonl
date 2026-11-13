@@ -1,0 +1,7 @@
+{"v":1,"id":"019cad94-f049-76e7-bd15-244f54497764","at":1772438745161000000,"seq":924,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cad94-f049-717f-a849-a52f26468dcc","at":1772438745161000000,"seq":925,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cad95-68c0-7966-8535-e33a83ede486","at":1772438776000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad95-b2f8-7703-bec6-19bfc8687061","at":1772438795000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cad95-b880-75f9-a088-782559e1b1ad","at":1772438796416000000,"seq":928,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cad95-e1d8-7236-9182-044a69064188","at":1772438807000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad96-4768-7251-8dd9-9392a51b5c37","at":1772438833000000000,"seq":930,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

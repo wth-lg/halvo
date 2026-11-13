@@ -1,0 +1,3 @@
+{"v":1,"id":"019c98da-1145-7055-8006-d5fff56f47c2","at":1772090954053000000,"seq":937,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c98da-1145-70f0-ae80-dc280ace3b2d","at":1772090954053000000,"seq":938,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c98da-e352-7bff-acce-06d3fc60629b","at":1772091007826000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}

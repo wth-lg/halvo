@@ -1,0 +1,14 @@
+{"v":1,"id":"019c3295-cb11-74f5-8df5-9d826bd94bcf","at":1770375203601000000,"seq":595,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3295-cb11-7ddc-8677-38cd54468240","at":1770375203601000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c3296-2290-783a-94da-c730bfdb94e8","at":1770375226000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c32ab-8714-726d-bcfd-f34e63d42f14","at":1770376627988000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c32ab-9e90-7d18-88a4-d32748a05503","at":1770376634000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ab-bdd0-7f53-b118-64a8d31c85dd","at":1770376642000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32bd-8659-70d1-ae74-ee97b3806cc4","at":1770377807449000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c32be-6340-7027-b963-cabc796b9c56","at":1770377864000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32be-7bf8-7e74-a29c-2cc57f26cf23","at":1770377870328000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c32bf-1308-7877-8b03-bdef07cbdcf9","at":1770377909000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c32bf-22a8-744f-8de0-9252c9d20010","at":1770377913000000000,"seq":605,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c32bf-3d82-7083-83c3-faa311739a0a","at":1770377919874000000,"seq":606,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c32bf-4da0-7f62-a17d-0222b8307731","at":1770377924000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c32bf-9fa8-7d2d-ab4a-c35067d17a6d","at":1770377945000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

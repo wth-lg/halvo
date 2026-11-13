@@ -1,0 +1,28 @@
+{"v":1,"id":"019c5b8e-2b0e-71aa-93ec-e987f539cf06","at":1771062569742000000,"seq":569,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b8e-2b0e-7764-92b3-9c8d36e23c50","at":1771062569742000000,"seq":570,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5b8e-5af0-7409-a570-f55a6c825b2d","at":1771062582000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b8e-66a8-7974-a11a-71788d044535","at":1771062585000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c5b8e-a28d-71ef-9910-4774de9c0a04","at":1771062600333000000,"seq":573,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b8e-a28d-7398-b89d-3484aa9ab161","at":1771062600333000000,"seq":574,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b8e-a910-7b73-b126-19b9c36fdda3","at":1771062602000000000,"seq":575,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c5b8e-dfc0-7ce5-8a0a-26576110819f","at":1771062616000000000,"seq":576,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b8e-eb78-7977-a591-487320219962","at":1771062619000000000,"seq":577,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b8f-0ea0-71ef-8954-0b46d8378d73","at":1771062628000000000,"seq":578,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b8f-18cd-7eb1-9538-615157884bb2","at":1771062630605000000,"seq":579,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5b8f-29f8-782d-998f-20fd7f83301a","at":1771062635000000000,"seq":580,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b8f-35b0-7aca-87f0-a5388a904671","at":1771062638000000000,"seq":581,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b8f-4938-7734-8e3f-e4597590d1ae","at":1771062643000000000,"seq":582,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c5b8f-6490-7762-b516-8441c8c57270","at":1771062650000000000,"seq":583,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c5b8f-a636-7c7e-86fc-351cf9e38635","at":1771062666806000000,"seq":584,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b8f-a636-76a3-88f1-f70498efa941","at":1771062666806000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5b8f-aec8-7c88-aa97-e85a58c0e858","at":1771062669000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b8f-ca20-76f2-954c-f86710fdd808","at":1771062676000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b8f-d9c0-792b-9c93-c5ee62fb11c7","at":1771062680000000000,"seq":588,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5b8f-e960-7d6c-a67f-b586fd14b08e","at":1771062684000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5b8f-f8ee-738c-bd75-1ed91b1ba919","at":1771062687982000000,"seq":590,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5b90-0c88-79f5-92c0-f7d7ada62deb","at":1771062693000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b90-52d8-78d5-a0b6-3356d4e9a155","at":1771062711000000000,"seq":592,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5b90-52d8-793c-89da-e45274e21623","at":1771062711000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c5b90-7f36-7511-930d-599a00511c57","at":1771062722358000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5b90-b098-7d77-bbca-063348542554","at":1771062735000000000,"seq":595,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5b90-c808-7217-985b-c67fc5107e63","at":1771062741000000000,"seq":596,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

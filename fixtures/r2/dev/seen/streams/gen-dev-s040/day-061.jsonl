@@ -1,0 +1,10 @@
+{"v":1,"id":"019cae11-a1b7-7b6d-9477-f135de8ae8b0","at":1772446917047000000,"seq":805,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae11-a1b7-7f37-becc-146f063cb210","at":1772446917047000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cae11-cc80-7b5d-a620-69db5fb1f024","at":1772446928000000000,"seq":807,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae11-d068-79c9-8bdd-466b0457faf0","at":1772446929000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cae11-d838-7a8a-87b1-3dcdd1ced0d0","at":1772446931000000000,"seq":809,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae12-39e0-766b-852c-9b4794142ce5","at":1772446956000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae20-8375-72ab-a117-6fab8aa62167","at":1772447892341000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cae21-5036-71c2-9d51-3461ff72b491","at":1772447944758000000,"seq":812,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cae21-6898-7543-9c9e-a061788a81f6","at":1772447951000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cae21-ce28-759e-976b-251049fbb518","at":1772447977000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

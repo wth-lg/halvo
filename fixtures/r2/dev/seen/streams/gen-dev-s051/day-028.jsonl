@@ -1,0 +1,14 @@
+{"v":1,"id":"019c041d-15a9-7882-a28a-4344a2589adb","at":1769595540905000000,"seq":351,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c041d-15a9-7cd7-a1ca-bff765b27016","at":1769595540905000000,"seq":352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c041d-1608-7526-9847-6c9917ff9a77","at":1769595541000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c041d-a690-78c0-b415-67168c7946af","at":1769595578000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c041d-b220-7bbc-ae3f-450d4ae37b54","at":1769595580960000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c041d-c9b8-785d-ada0-525d27e862eb","at":1769595587000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c041d-e8f8-7c89-babb-122cc1e47aaf","at":1769595595000000000,"seq":357,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c041e-0838-7d45-bed1-03c558440f38","at":1769595603000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c041e-2b60-7410-936e-dedb80cb5422","at":1769595612000000000,"seq":359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c0431-3669-77d9-b496-fac1864d8a92","at":1769596860009000000,"seq":360,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0431-3669-752b-b362-f915071e2f35","at":1769596860009000000,"seq":361,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0431-9808-7381-b002-2d278a6a4822","at":1769596885000000000,"seq":362,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c0431-de58-7bcd-86fd-0c0f4ff303ef","at":1769596903000000000,"seq":363,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0431-f9b0-7766-be89-e085e57d6a39","at":1769596910000000000,"seq":364,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

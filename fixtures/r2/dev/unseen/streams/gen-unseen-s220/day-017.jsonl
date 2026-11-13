@@ -1,0 +1,11 @@
+{"v":1,"id":"019bcb1e-931d-783c-b396-1e275d8f1450","at":1768639337245000000,"seq":300,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb1e-931d-75b4-9052-762f66955f46","at":1768639337245000000,"seq":301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bcb1f-3250-7777-aeb7-895ea031cb8d","at":1768639378000000000,"seq":302,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb1f-5960-7c96-a118-192b94f17b9a","at":1768639388000000000,"seq":303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb1f-6ce8-7098-ae38-06f5c27d9ad1","at":1768639393000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bcb2c-2be1-7422-ab72-a15e2d556775","at":1768640228321000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bcb2d-26c9-7384-8bae-8a7339185c3e","at":1768640292553000000,"seq":306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bcb2d-90ae-759e-b7dc-8c82b6f3dce7","at":1768640319662000000,"seq":307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bcb2d-9db8-7d25-951c-3406da8de359","at":1768640323000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb2d-bcf8-788b-a931-32bc85d68296","at":1768640331000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bcb2d-d080-774a-a52f-f0e578e7f1be","at":1768640336000000000,"seq":310,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

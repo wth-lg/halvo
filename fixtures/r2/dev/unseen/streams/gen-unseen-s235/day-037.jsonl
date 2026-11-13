@@ -1,0 +1,24 @@
+{"v":1,"id":"019c321a-de13-759a-bfc3-881419ef248f","at":1770367147539000000,"seq":470,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c321a-de13-7609-b86a-b74e220b9050","at":1770367147539000000,"seq":471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c321a-e7b0-7e26-82a3-b56cc5e96835","at":1770367150000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c321b-52c3-765f-abbe-769b1669bb6b","at":1770367177411000000,"seq":473,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c321c-5b4b-7397-8e7c-c621b32500fb","at":1770367245131000000,"seq":474,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c321c-6680-7460-80ec-0b458dca6d03","at":1770367248000000000,"seq":475,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c321c-9d30-7318-962e-a088eda0a0d5","at":1770367262000000000,"seq":476,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c321c-c8e5-7eaa-a03f-f3cb688cd6f6","at":1770367273189000000,"seq":477,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c321c-cc10-7695-9472-afcc27259d11","at":1770367274000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c321c-d7c8-7260-93dd-7be52617204f","at":1770367277000000000,"seq":479,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c322d-a3cd-70c5-81ff-75032ee4d83c","at":1770368377805000000,"seq":480,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c322d-e976-7ff7-a80c-20dedddc052d","at":1770368395638000000,"seq":481,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c322e-3ce8-7102-a040-571f06ab90fe","at":1770368417000000000,"seq":482,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c322e-48a0-7e8c-b1e1-fa0eb6f0f2b2","at":1770368420000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c322e-7b68-77b2-a313-995d48784e41","at":1770368433000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322e-e4e0-79cf-b6f4-7405ed0eb6c7","at":1770368460000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322e-e5a5-7a12-9143-f11e010c77af","at":1770368460197000000,"seq":486,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c322f-0038-795b-8941-4804f84e8c4b","at":1770368467000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322f-2748-7286-8dbd-1cac3c65e694","at":1770368477000000000,"seq":488,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c322f-3eb8-76e5-91e2-467f8ddf8262","at":1770368483000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322f-9dc3-7ff0-9b29-e13b962a1972","at":1770368507331000000,"seq":490,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c322f-d710-7505-8f1d-37ac6369f482","at":1770368522000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322f-ee80-7f41-ac77-b673ad504a3b","at":1770368528000000000,"seq":492,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3230-11a8-748d-a793-616a6cd225d9","at":1770368537000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

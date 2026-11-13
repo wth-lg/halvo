@@ -1,0 +1,30 @@
+{"v":1,"id":"019c2ca9-56c9-7e75-be6f-722e0a696afd","at":1770275821257000000,"seq":382,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2ca9-56c9-76b3-afb7-f27c5342983d","at":1770275821257000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c2ca9-d6b0-7956-ba99-8f157b79b6e6","at":1770275854000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2caa-2fe4-7d16-8bd9-ead7d397be5f","at":1770275876836000000,"seq":385,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c2caa-4fc8-750c-9164-49c4efe00411","at":1770275885000000000,"seq":386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2caa-5798-705f-8873-2a11a5e62b28","at":1770275887000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2caa-6f08-7e4a-8405-ac3be3753002","at":1770275893000000000,"seq":388,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2cae-9e15-7f3e-a084-14f86f10edd7","at":1770276167189000000,"seq":389,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2cae-a528-71da-b50c-fbed0848c289","at":1770276169000000000,"seq":390,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2cae-c468-7b7b-b6dc-c91ac71885d8","at":1770276177000000000,"seq":391,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2cb9-08ca-7e78-9703-e464ead21d7c","at":1770276849866000000,"seq":392,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c2cb9-6af8-7edb-a7e1-d93614ae67ba","at":1770276875000000000,"seq":393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cb9-79d6-793a-9c27-06c046008ae0","at":1770276878806000000,"seq":394,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2cb9-8268-76f7-9a6f-76ec0ad60b59","at":1770276881000000000,"seq":395,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2cb9-a978-707e-9c17-7a88080a63ae","at":1770276891000000000,"seq":396,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2cb9-ad60-72f1-9fd7-39b3c1718937","at":1770276892000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cb9-f8ce-7db1-a6ba-b802141a7549","at":1770276911310000000,"seq":398,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c2cba-3230-710a-9c01-de83fab46e0d","at":1770276926000000000,"seq":399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cba-8c08-723e-822e-433c329d7675","at":1770276949000000000,"seq":400,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2cba-93d8-7bdf-9ff8-eccfaf6f89aa","at":1770276951000000000,"seq":401,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c2cba-9d48-7822-aa2c-d112bf9b41ff","at":1770276953416000000,"seq":402,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c2cba-b700-7d0b-8533-1669b1d7bccb","at":1770276960000000000,"seq":403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cbb-43a0-7c2c-8eaf-dde9a2a8b9fd","at":1770276996000000000,"seq":404,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cbb-5cc6-7fac-80e4-e0e7ed0f29ea","at":1770277002438000000,"seq":405,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c2cbb-7e38-76a4-8525-44fcc9e769e4","at":1770277011000000000,"seq":406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cbb-f750-710c-9a36-958f86f96929","at":1770277042000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cbc-0308-7929-ad31-b0f01458dc6b","at":1770277045000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c2ccc-235b-7c85-a1a8-e9d00343dd3a","at":1770278101851000000,"seq":409,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2ccc-3f48-7859-a712-9b5fef169690","at":1770278109000000000,"seq":410,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c2ccc-8598-7a85-973a-835258fc701a","at":1770278127000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

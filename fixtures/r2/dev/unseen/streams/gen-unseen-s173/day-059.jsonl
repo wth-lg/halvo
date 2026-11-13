@@ -1,0 +1,23 @@
+{"v":1,"id":"019ca331-ff50-77e0-885d-686ab084dbde","at":1772264488784000000,"seq":898,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca331-ff50-7a7d-a993-bc3fde11c158","at":1772264488784000000,"seq":899,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca332-81b9-71f1-88fd-65749c729044","at":1772264522169000000,"seq":900,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca332-81b9-74a3-8926-b72005232759","at":1772264522169000000,"seq":901,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ca333-5d06-75ef-9ae5-805685cc7220","at":1772264578310000000,"seq":902,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ca333-7b10-7127-b6ba-1f9451e0c8b6","at":1772264586000000000,"seq":903,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca333-8e98-75de-a321-8821d7962204","at":1772264591000000000,"seq":904,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca333-9a50-7f40-8a94-05cfa8b797ce","at":1772264594000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca333-d100-7285-b127-2250c36fbe16","at":1772264608000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca333-f428-7211-809f-ccda8c6831b1","at":1772264617000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ca333-fec0-71f4-9685-42da1ec390be","at":1772264619712000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ca334-b390-73ea-a58e-bbcc7e28d1ec","at":1772264666000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca334-b778-7c47-b3d4-7eb628f01ad1","at":1772264667000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca334-cee8-75d9-ba08-8ea61ac4521b","at":1772264673000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca334-df29-7bc2-ac6a-549a659a6bf2","at":1772264677161000000,"seq":912,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ca335-1538-7630-b8d3-93228708d720","at":1772264691000000000,"seq":913,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca335-4030-7b33-8220-d10014cbd679","at":1772264702000000000,"seq":914,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca335-8a68-703a-83ad-57ac767d3eeb","at":1772264721000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca335-8fc8-7e99-8c49-beb5d7dc347d","at":1772264722376000000,"seq":916,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca335-8fc8-7c0c-ae5f-674bf7f3fd18","at":1772264722376000000,"seq":917,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca335-ec10-7e15-9ff1-d11ddbce5d4d","at":1772264746000000000,"seq":918,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ca335-eff8-765a-aced-79af9c830fea","at":1772264747000000000,"seq":919,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca335-ff98-7db2-ab41-450964c7254f","at":1772264751000000000,"seq":920,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

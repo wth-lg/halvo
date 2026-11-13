@@ -1,0 +1,13 @@
+{"v":1,"id":"019c6ad9-196d-7f3c-9f5f-76c08fe91ded","at":1771319138669000000,"seq":599,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ad9-196d-7b1a-875d-f195fc916a81","at":1771319138669000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c6ada-10d0-70a6-af70-8ff8c3864af2","at":1771319202000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ada-2750-7639-8037-4c1a09c00c23","at":1771319207760000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c6ada-2840-70d5-864a-560623ea539a","at":1771319208000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ada-4780-78c1-8da7-26a87297771d","at":1771319216000000000,"seq":604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6ada-66c0-7610-a78a-baf878ace27c","at":1771319224000000000,"seq":605,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6ada-b0f8-7c7f-891c-dbc7094a0259","at":1771319243000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c6adb-0300-70cb-9577-e55e65c3b29f","at":1771319264000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6adb-0c37-721b-a82f-418f32f8f74c","at":1771319266359000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c6adb-1e58-7856-b839-c7a0675942b8","at":1771319271000000000,"seq":609,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6adb-3d98-7bd3-aa62-fc9a7b7c8898","at":1771319279000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6adb-4d38-79ab-9417-53fef1b4bdd0","at":1771319283000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

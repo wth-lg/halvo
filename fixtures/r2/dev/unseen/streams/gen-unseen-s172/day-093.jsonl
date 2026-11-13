@@ -1,0 +1,8 @@
+{"v":1,"id":"019d52ee-6ad8-796b-abc3-ce4be0700ab5","at":1775212849880000000,"seq":1081,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52ee-6ad8-7d2f-b775-578cf03decda","at":1775212849880000000,"seq":1082,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d52ee-e468-72dd-a348-23165fd29e03","at":1775212881000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52ef-0b78-75ae-b37f-0355abdf0fa9","at":1775212891000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d52ef-7b92-7945-a73f-f952f13de5e4","at":1775212919698000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d52ef-8490-7063-8d21-730dad6c2eb9","at":1775212922000000000,"seq":1086,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52f9-4ee2-7050-9174-bb9ada021300","at":1775213563618000000,"seq":1087,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d52f9-7f40-7874-8d14-9be140796a88","at":1775213576000000000,"seq":1088,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

@@ -1,0 +1,38 @@
+{"v":1,"id":"019c277a-a5f0-7106-937b-a63215288a87","at":1770188875248000000,"seq":420,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c277a-a5f0-7407-9032-0c995ee0eb32","at":1770188875248000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c277a-c820-7caf-b85d-bd775cfd8678","at":1770188884000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c277a-cc08-7d6c-ad10-eb42ab037ab9","at":1770188885000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c277a-cff0-7701-9fe6-fcd19a3f7a5a","at":1770188886000000000,"seq":424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c277a-fdd0-7bca-bbf9-265e8f1527f1","at":1770188897744000000,"seq":425,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c277b-6f16-7961-a83a-5f7d83ce2a99","at":1770188926742000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c277b-7400-7bd5-8c53-cf99e52adcbd","at":1770188928000000000,"seq":427,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c277b-9b10-7767-a8b9-9f724c5722ae","at":1770188938000000000,"seq":428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c277b-aab0-7bea-83d6-aac0a1829742","at":1770188942000000000,"seq":429,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c277b-b280-7b96-802e-6b2082f7c92e","at":1770188944000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c277b-bc95-757f-b684-712c19501bfa","at":1770188946581000000,"seq":431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c277b-d990-71d1-83bf-4c26da0c50eb","at":1770188954000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c277c-1040-78d9-a4ed-ae95ee352779","at":1770188968000000000,"seq":433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2784-9982-7749-bd40-34e3e5962d2f","at":1770189527426000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c2785-0d08-7d40-9376-b963f4e14cb8","at":1770189557000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c279b-aaae-7b1d-8e51-f050ca4c7e90","at":1770191039150000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c279c-2ee8-737e-9e52-462a18ed0943","at":1770191073000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c279c-3f8e-71c5-977d-24bfa62a128e","at":1770191077262000000,"seq":438,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c279c-59e0-7304-9988-6fbecabf2175","at":1770191084000000000,"seq":439,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c279c-9860-7ba2-9724-7b153a5c206a","at":1770191100000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c279d-09a8-72b1-8e38-4eb66d70dc02","at":1770191129000000000,"seq":441,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c279d-43b0-78e1-959e-9bc7b649f380","at":1770191143856000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c279d-4c10-75f2-baaf-65187b8dcf36","at":1770191146000000000,"seq":443,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c279d-86a8-7f1f-a022-58025c5a8622","at":1770191161000000000,"seq":444,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c279d-a298-7cb6-8664-bcb755ced2b5","at":1770191168152000000,"seq":445,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c279e-3a58-7704-ae81-14ba8787df53","at":1770191207000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c279e-adc1-7ab9-a505-14fdc14e7994","at":1770191236545000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c279f-0578-7b66-88e3-681eff444241","at":1770191259000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c279f-1130-795d-96b1-65f50b03d8b0","at":1770191262000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c279f-2c88-7d7c-9417-ad61efc3082a","at":1770191269000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c279f-7060-7834-8c1f-47cbd90073de","at":1770191286368000000,"seq":451,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c279f-72d8-7247-af1d-8857810961ab","at":1770191287000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c279f-76c0-7df8-a1f0-67a0ea834b2b","at":1770191288000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c279f-8e30-7830-807f-415124685f1d","at":1770191294000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c279f-a1b8-7a48-b5d3-df4c13aa3e95","at":1770191299000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c279f-ac20-7e2f-92da-af97ceaf3350","at":1770191301664000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c27a0-4d98-7a9e-82da-4bbe55870a62","at":1770191343000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}

@@ -1,0 +1,30 @@
+{"v":1,"id":"019b9798-84ea-74ee-a7f1-3b8b1c95dd15","at":1767774913770000000,"seq":117,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9798-84ea-7bb8-a9d1-ffff2c495447","at":1767774913770000000,"seq":118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b9798-85d0-7a7d-9775-ad0d02ff084e","at":1767774914000000000,"seq":119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9798-8da0-7f1a-a4ad-d6bf7198aff1","at":1767774916000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b9799-57e0-7748-8c0c-800a6988d82c","at":1767774967776000000,"seq":121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b9799-9358-7172-9ae6-57363123e09a","at":1767774983000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9799-e178-7697-81b5-929a0efc3285","at":1767775003000000000,"seq":123,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b979a-17b7-71a8-b214-a63596b6c8cc","at":1767775016887000000,"seq":124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b979a-2f98-7d91-a188-239c3f001066","at":1767775023000000000,"seq":125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b979a-6648-70f3-a87a-05fec2058c2c","at":1767775037000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b979a-6e18-74af-b47d-b595a3781c6f","at":1767775039000000000,"seq":127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b979a-cfc0-7dca-a200-c2815fde4b6e","at":1767775064000000000,"seq":128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b979a-fab8-79b1-9924-f3f0eb01b598","at":1767775075000000000,"seq":129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b979b-014d-7289-b22f-e62d5dbec269","at":1767775076685000000,"seq":130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b979b-21c8-7f2d-a818-3d15b9250fff","at":1767775085000000000,"seq":131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b979b-5c60-7afa-a7eb-18e3e32dcdb1","at":1767775100000000000,"seq":132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b979b-6c00-75c0-ae2c-ecd6fc599715","at":1767775104000000000,"seq":133,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b979b-6fe8-7722-b51e-aa08dd1b57e2","at":1767775105000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b979f-c839-7d72-b27e-7f4ae9cf4786","at":1767775389753000000,"seq":135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b979f-cd18-791e-9456-d41043aabd2b","at":1767775391000000000,"seq":136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b979f-f810-7da7-8ff8-482946159fc1","at":1767775402000000000,"seq":137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b97b5-b254-7208-b936-af0f93f7cf50","at":1767776825940000000,"seq":138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b97b6-99d9-75c2-8611-9942ddd097cb","at":1767776885209000000,"seq":139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b97b6-b078-7f97-bd68-49c6a60238c4","at":1767776891000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97b6-b848-7851-ac6d-8013eabb8433","at":1767776893000000000,"seq":141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97b6-c7e8-7b9a-a882-500c8c41cf62","at":1767776897000000000,"seq":142,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b97b6-f2e0-7779-84b4-3fe0401b5d5e","at":1767776908000000000,"seq":143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b97b7-07ae-7455-8a73-b428134c8aa5","at":1767776913326000000,"seq":144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b97b7-e21e-71ce-ba53-4dd4a23002bc","at":1767776969246000000,"seq":145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b97b8-3330-7fb5-a64e-e6118b9de3d3","at":1767776990000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

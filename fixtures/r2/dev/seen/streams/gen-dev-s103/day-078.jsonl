@@ -1,0 +1,25 @@
+{"v":1,"id":"019d0559-c280-7fa2-8cbc-52740256e87b","at":1773911261824000000,"seq":1207,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0559-c280-74e0-9000-97dfa330d76c","at":1773911261824000000,"seq":1208,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0559-e658-7bfc-a6ee-840f365d2bcf","at":1773911271000000000,"seq":1209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d055a-0980-7566-a6c4-fb8af439ac1c","at":1773911280000000000,"seq":1210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d055a-1538-763a-bd9b-f12b3529ded7","at":1773911283000000000,"seq":1211,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0570-cf3a-7f3e-8c6c-e99e22814b79","at":1773912772410000000,"seq":1212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0571-2390-7981-a150-85b1fb078629","at":1773912794000000000,"seq":1213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0571-4aa0-7a6b-93f9-1b6bd4dfaded","at":1773912804000000000,"seq":1214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d058a-a019-7af9-b7f7-2f832fd5adca","at":1773914464281000000,"seq":1215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d058b-0c60-7243-95a9-a5c127d9f041","at":1773914492000000000,"seq":1216,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d058b-46f8-72b6-9e16-c5919c766d0d","at":1773914507000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d05a1-0d5a-7b17-9304-df42e35c23ce","at":1773915934042000000,"seq":1218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d05a1-e6ce-7abc-8563-15a1571b388c","at":1773915989710000000,"seq":1219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d05a1-ff60-790a-aee3-53124cf12a52","at":1773915996000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d05a2-1ab8-701e-921b-25d1e69570b6","at":1773916003000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a2-5d20-7e17-ac67-d47e9bf62ea4","at":1773916020000000000,"seq":1222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a2-a00b-777f-8680-0fb9cf9ac56b","at":1773916037131000000,"seq":1223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d05a2-a370-75a2-a6d9-7176acb2b2be","at":1773916038000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d05a2-ca80-787e-bbc1-4e542e74b95e","at":1773916048000000000,"seq":1225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d05a2-e9c0-73f6-a592-625828ae44e0","at":1773916056000000000,"seq":1226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d05a2-ebb1-747c-bf71-fccced901264","at":1773916056497000000,"seq":1227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d05a3-0130-7a9f-8b91-99b2115c88d3","at":1773916062000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a3-14b8-7290-8e10-56df58d44cb5","at":1773916067000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d05a3-2458-7743-8496-4e44c1309f63","at":1773916071000000000,"seq":1230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d05a3-4398-7c1c-aa0a-8b129c763c46","at":1773916079000000000,"seq":1231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

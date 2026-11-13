@@ -1,0 +1,23 @@
+{"v":1,"id":"019d3891-d7a9-7beb-b55d-bde9495a955c","at":1774770575273000000,"seq":1247,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3891-d7a9-742d-ba37-d25903554361","at":1774770575273000000,"seq":1248,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3891-e250-7b96-8a3d-605aa8416dee","at":1774770578000000000,"seq":1249,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3892-5780-7058-9287-c0cd3ae5913a","at":1774770608000000000,"seq":1250,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ad-a489-7c5f-a58a-da1342fa225d","at":1774772397193000000,"seq":1251,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d38ad-a489-7a69-813e-e6655eaf23dc","at":1774772397193000000,"seq":1252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d38ad-b368-741c-9f8d-be6aecdba4f2","at":1774772401000000000,"seq":1253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ae-47d8-7986-90d1-6e1f2e3627c0","at":1774772439000000000,"seq":1254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d38ae-75af-79a1-b82d-fce08a4f02df","at":1774772450735000000,"seq":1255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d38ae-ad68-73c9-9f76-12eeb44c98fb","at":1774772465000000000,"seq":1256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ae-b150-7e27-9bcb-726dc57d5e59","at":1774772466000000000,"seq":1257,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d38ae-d860-7c63-a58a-05910b9b8e1f","at":1774772476000000000,"seq":1258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d38ae-e030-73ea-be0d-4f3d3ea1c6b3","at":1774772478000000000,"seq":1259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ae-e418-7c9e-935e-d2f6c8c099ae","at":1774772479000000000,"seq":1260,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d38af-1454-719f-b94a-d7a8a1bb4382","at":1774772491348000000,"seq":1261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d38af-3a08-7e5f-9c2b-1be15e6061f6","at":1774772501000000000,"seq":1262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d38af-68e8-7b05-869e-ac1fb14953a7","at":1774772513000000000,"seq":1263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38af-74a0-7cb7-9841-2de92dffcd05","at":1774772516000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d38af-9bb0-7937-a09a-9922d5a0e703","at":1774772526000000000,"seq":1265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38af-9f98-7dd0-a845-1b1602e682b1","at":1774772527000000000,"seq":1266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d38b6-3e14-7c31-870f-58b9c95b56f6","at":1774772960788000000,"seq":1267,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d38b6-3e14-73d8-a9e1-f23ccb5334b9","at":1774772960788000000,"seq":1268,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d38b6-5658-77cf-b482-f5ec87edffb5","at":1774772967000000000,"seq":1269,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

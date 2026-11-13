@@ -1,0 +1,54 @@
+{"v":1,"id":"019bf9d5-1dac-77aa-a64f-4159e48a83c7","at":1769423052204000000,"seq":396,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf9d5-1dac-7e26-9330-7d8254f1fdd2","at":1769423052204000000,"seq":397,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf9d5-20c8-7a22-a4d3-cac412a330f0","at":1769423053000000000,"seq":398,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bf9d5-4fa8-7c4c-ba6f-3d5376650e9b","at":1769423065000000000,"seq":399,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bf9d5-5390-72f1-a548-3af63b38e270","at":1769423066000000000,"seq":400,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bf9ed-78b3-704c-b2f0-573dd2edf95d","at":1769424648371000000,"seq":401,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf9ed-78b3-7d8b-9cf5-f6413d39ef83","at":1769424648371000000,"seq":402,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ed-a620-7b3c-942e-eb5bce5d3682","at":1769424660000000000,"seq":403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ee-32c0-72c1-9e0c-76be647dd42a","at":1769424696000000000,"seq":404,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bf9ee-3dcc-7f0a-9bd2-cfe00babcc4f","at":1769424698828000000,"seq":405,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ee-3e78-7faa-b2e9-55f80386d624","at":1769424699000000000,"seq":406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf9ee-5db8-7b4e-a907-f976ab1afbeb","at":1769424707000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bf9ee-61a0-7fd1-9c95-2a87084e8e26","at":1769424708000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ee-7cf8-7db2-b77c-489479a1bc76","at":1769424715000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ee-afc0-7a5a-bc03-c82c070dc212","at":1769424728000000000,"seq":410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf9ee-f1b0-7836-97c2-2164630c41bd","at":1769424744880000000,"seq":411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ef-4048-755d-9e09-9c757047f279","at":1769424765000000000,"seq":412,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf9ef-6438-73f2-9b3e-04b50415bbd1","at":1769424774200000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ef-a5d8-75c6-97e8-8fdb11b42163","at":1769424791000000000,"seq":414,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf9ef-cce8-70d0-95b3-bb4f3245f726","at":1769424801000000000,"seq":415,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bfa0b-2a67-7b8f-9504-e80fe531bbe6","at":1769426594407000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bfa0b-90c8-7d4d-8f23-d6c936b3271f","at":1769426620616000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bfa0b-9248-7e0c-87da-387e37e2d739","at":1769426621000000000,"seq":418,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bfa0b-ada0-756c-9af2-69c33838f391","at":1769426628000000000,"seq":419,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfa0b-cce0-75a2-8b45-10465e4e00b6","at":1769426636000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa0b-e450-7206-963b-5378205c89fc","at":1769426642000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa0c-281d-7088-ad9b-9efd1cb17d43","at":1769426659357000000,"seq":422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bfa0c-4210-7967-bf58-d74356faadf6","at":1769426666000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa0f-6904-78a1-ac7a-eca357bdca2a","at":1769426872580000000,"seq":424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bfa0f-9988-79a5-a19c-9438fd1ea3f3","at":1769426885000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa0f-d7e5-71d5-bf22-7e58446f6bf4","at":1769426900965000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bfa0f-fb30-757a-be04-4b41754c0f49","at":1769426910000000000,"seq":427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa10-7060-7428-a862-21400c42d39c","at":1769426940000000000,"seq":428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa10-845c-7cdf-bb60-b8a90c6c6a31","at":1769426945116000000,"seq":429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bfa10-ce20-7a98-b20f-21da325c3db8","at":1769426964000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bfa10-e978-7c4d-998c-a11f5b5f6307","at":1769426971000000000,"seq":431,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bfa11-049b-7683-b911-0d105998e00f","at":1769426977947000000,"seq":432,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bfa11-08b8-7854-9cd2-9bd0ba8eabce","at":1769426979000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa11-27f8-7f61-9116-b3b8daca3d76","at":1769426987000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa11-6290-7672-9977-87c0362b6add","at":1769427002000000000,"seq":435,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bfa21-e5cc-7ac4-940d-ac5b6fc792e1","at":1769428084172000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bfa21-ecf0-7764-8397-5573449ea796","at":1769428086000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa22-2788-7ffd-a5d5-c11c7e6d5d63","at":1769428101000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bfa22-4e98-7f14-855b-e4c3c966ae96","at":1769428111000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa22-5810-7c58-ab94-653d327f0e57","at":1769428113424000000,"seq":440,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bfa22-b040-7b62-80ca-6d8447b7b4f6","at":1769428136000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bfa23-12b2-7b61-b8b8-6d3fed9ae3f0","at":1769428161202000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bfa23-2188-7e0d-8d7b-d100768c0608","at":1769428165000000000,"seq":443,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfa23-4c80-7ef3-8405-f0b3e7d3291d","at":1769428176000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bfa23-6fa8-7ea1-8ceb-ef940c695437","at":1769428185000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa23-832b-7bb5-aafa-910684cb71a0","at":1769428189995000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bfa23-9e88-7ef5-83cd-44d52b84f687","at":1769428197000000000,"seq":447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bfa23-aa40-7f8b-a859-59fc73a37226","at":1769428200000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfa23-f478-7967-acd7-50a35229bebc","at":1769428219000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

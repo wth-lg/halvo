@@ -1,0 +1,15 @@
+{"v":1,"id":"019bac3e-5fdf-708b-81a3-924c00dbae78","at":1768121327583000000,"seq":145,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac3e-5fdf-7a62-b735-5f2f91251431","at":1768121327583000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bac3e-a830-70a1-b53d-fb9e983da71c","at":1768121346096000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bac3e-caf8-7e86-a059-6a151d49350f","at":1768121355000000000,"seq":148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bac3e-ee20-75a1-aebd-980e90067afa","at":1768121364000000000,"seq":149,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac3e-fdc0-7790-bbcf-e9e39c7c5dad","at":1768121368000000000,"seq":150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bac3f-260d-71e6-9f40-9cef925cd84d","at":1768121378317000000,"seq":151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bac3f-5b80-7bd2-8fb7-4f8492caa9fb","at":1768121392000000000,"seq":152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac3f-c8e0-7de1-ba77-82fcb2d23c44","at":1768121420000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac3f-d498-7cca-9064-014490ef6d66","at":1768121423000000000,"seq":154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bac3f-d498-7444-a467-70f41f3705af","at":1768121423000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bac3f-f3d8-72c3-9030-1cd50e8963bd","at":1768121431000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac40-0ad5-7f37-98e7-a0d378744277","at":1768121436885000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bac40-70d8-71a1-947c-83a8c69ccc87","at":1768121463000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bac40-9bd0-7c01-9919-5e3cdc99914c","at":1768121474000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

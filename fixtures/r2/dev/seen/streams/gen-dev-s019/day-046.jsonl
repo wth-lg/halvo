@@ -1,0 +1,14 @@
+{"v":1,"id":"019c60de-d978-7613-aafa-59e75a7c1629","at":1771151743352000000,"seq":655,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60de-d978-7f54-99f9-4c9ac1c9af51","at":1771151743352000000,"seq":656,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c60df-4960-752d-a73b-89dff0ae0b24","at":1771151772000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c60df-cf30-78c5-b40c-29739e9de736","at":1771151806256000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c60e0-40e8-7119-a0cf-f1f319f6d717","at":1771151835368000000,"seq":659,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c60e0-4f18-7ca8-bf68-1a1b16d5c122","at":1771151839000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c60e0-9950-7d03-b733-027d2857ec61","at":1771151858000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60e1-09dc-7a3e-a917-ebae9732a3c6","at":1771151886812000000,"seq":662,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c60e1-25f0-7bd6-93cc-5c02ff0e0d92","at":1771151894000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60e1-2dc0-7597-81a9-365be3113172","at":1771151896000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c60e1-6088-7de5-930a-ecaed1a274ec","at":1771151909000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60ea-12fc-7c97-93ee-4c67fe584ed6","at":1771152478972000000,"seq":666,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c60ea-12fc-7456-ad23-11b833f86b3a","at":1771152478972000000,"seq":667,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c60ea-26a0-70d4-8206-bb13026bbdee","at":1771152484000000000,"seq":668,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

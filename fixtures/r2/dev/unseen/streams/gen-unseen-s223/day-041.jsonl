@@ -1,0 +1,57 @@
+{"v":1,"id":"019c46d9-ca4a-77d6-95a2-3af9fae0b286","at":1770715204170000000,"seq":471,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c46d9-ca4a-7d9c-906e-f95793aec1c0","at":1770715204170000000,"seq":472,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c46da-42b8-7449-9d1c-03ae2b03c432","at":1770715235000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46da-5640-7313-8006-c8023f82c5da","at":1770715240000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46da-69c8-7a45-9353-6c7a62a26b03","at":1770715245000000000,"seq":475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c46da-a3eb-73e0-83ff-a11af6e2cf1d","at":1770715259883000000,"seq":476,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c46da-a848-77cc-94fc-71e403f1f67a","at":1770715261000000000,"seq":477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46da-bfb8-7494-98b7-26d65a4d4ab0","at":1770715267000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46da-c788-7660-91f9-eb5641671a42","at":1770715269000000000,"seq":479,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c46f1-0f25-7ac7-9157-332d47b287ef","at":1770716729125000000,"seq":480,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46f1-1a60-7ca5-8c68-f8aa2990445a","at":1770716732000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f1-35b8-7494-ae4c-7128cdb3bc21","at":1770716739000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f1-cf43-717d-a62e-e55e9b068ae9","at":1770716778307000000,"seq":483,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46f1-d1f8-709a-9ce8-a0b091fe3676","at":1770716779000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c46f2-4ef8-7ce0-a8a5-337991fcdc6d","at":1770716811000000000,"seq":485,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c46f2-c99d-757d-a9d4-30577750c8d8","at":1770716842397000000,"seq":486,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46f2-d7b0-7971-97c8-35af321d6491","at":1770716846000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f3-2da0-7911-ab09-af2e211343bf","at":1770716868000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f3-841e-7438-91c9-fe48bae7f6e9","at":1770716890142000000,"seq":489,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46f3-a6b8-763c-a366-67d06a53db50","at":1770716899000000000,"seq":490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c46f3-e538-7b9f-9730-a0efdd7924f2","at":1770716915000000000,"seq":491,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c46f4-586e-72fa-b23c-60ce2242a9e4","at":1770716944494000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46f4-6238-73d0-a7ec-5636d957222c","at":1770716947000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f4-6df0-7a6d-a7e9-3fc3772b951c","at":1770716950000000000,"seq":494,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c46f4-8560-7db6-92ef-19cd30efeb13","at":1770716956000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c46f4-8d30-7c17-b77d-649bbc6959eb","at":1770716958000000000,"seq":496,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c46f4-9755-79ad-9358-52fb85130a47","at":1770716960597000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46f4-e708-74d2-9330-9b5d8f527939","at":1770716981000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4700-9057-712c-93de-706d7ca9db19","at":1770717745239000000,"seq":499,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c4700-ba60-78de-a73f-9dabb0a4e41e","at":1770717756000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4701-3378-785b-9926-afa6eff89522","at":1770717787000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4701-6258-775d-b80a-6ddc21477c36","at":1770717799000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c4701-96de-789d-8458-17123396994e","at":1770717812446000000,"seq":503,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c4701-a0d8-7a90-a186-a3efe6408704","at":1770717815000000000,"seq":504,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4702-3d7c-74a2-9bc8-2f51a4bf2234","at":1770717855100000000,"seq":505,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4702-3d7c-7777-b778-58c198148071","at":1770717855100000000,"seq":506,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4702-a2a8-751f-b971-522bd80107fb","at":1770717881000000000,"seq":507,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c4702-afc2-7309-a197-73eae3e1de7c","at":1770717884354000000,"seq":508,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4702-afc2-71d7-b98b-c9c6dc3130b5","at":1770717884354000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c4702-e8f8-7f32-a3e0-9baa23af1212","at":1770717899000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4703-2390-7cc5-8680-55d9644437b1","at":1770717914000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4703-3b00-745d-b048-2ce83a0164bb","at":1770717920000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c4703-98c0-7eab-8b2f-1cbe7f27b6bf","at":1770717944000000000,"seq":513,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4703-a4fb-7584-9c51-b2c484add3ad","at":1770717947131000000,"seq":514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c4704-5440-71d9-81f5-08734ac2a287","at":1770717992000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4704-5ff8-7604-9d5f-3886b73bceda","at":1770717995000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c471b-d487-73b0-b6a0-cb6baeaffc80","at":1770719532167000000,"seq":517,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c471b-d487-7f40-ac80-dd21ec45bf2a","at":1770719532167000000,"seq":518,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c471b-f708-79a5-8da7-8320adc49d31","at":1770719541000000000,"seq":519,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c471b-fed8-70e0-9fe2-650c0d07c86a","at":1770719543000000000,"seq":520,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c471c-25e8-7a81-b489-48c0050cea26","at":1770719553000000000,"seq":521,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c471d-85fd-752b-9461-bd698e652002","at":1770719643133000000,"seq":522,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c471d-85fd-716c-8ff8-24052e16f850","at":1770719643133000000,"seq":523,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c471d-8960-7030-b99b-779669c71954","at":1770719644000000000,"seq":524,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c471e-2988-7085-bb30-e6da999268d1","at":1770719685000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c471e-3540-711e-88f1-e6a9d3a3bf59","at":1770719688000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c471e-44e0-7405-83ee-f248b70ad49a","at":1770719692000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

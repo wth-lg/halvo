@@ -1,0 +1,12 @@
+{"v":1,"id":"019d3358-809e-7788-bce7-0aa5c43078c5","at":1774682931358000000,"seq":1285,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3358-809e-7d4f-b3c7-2a88d67219b3","at":1774682931358000000,"seq":1286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d3358-ec98-7379-ad79-c8288d2e853d","at":1774682959000000000,"seq":1287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d3359-1790-7d1f-904a-5af10d739c64","at":1774682970000000000,"seq":1288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3359-79cd-76f0-8193-ebe2df2690ba","at":1774682995149000000,"seq":1289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d3359-8cc0-78a9-8dd5-bbaf1b87e2ba","at":1774683000000000000,"seq":1290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d335a-1960-7091-b0c6-f46b54ca2857","at":1774683036000000000,"seq":1291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d335a-1c1d-77d3-9bdf-9733a9cbb7a8","at":1774683036701000000,"seq":1292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d335a-57e0-7be3-91c3-a69b5be6e0cf","at":1774683052000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d335a-6b68-77b8-9793-fa962d612fa9","at":1774683057000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d335a-a1e4-7619-9f1a-e05a9dde8964","at":1774683070948000000,"seq":1295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d335a-f420-710d-bcf1-2c23690d34d8","at":1774683092000000000,"seq":1296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}

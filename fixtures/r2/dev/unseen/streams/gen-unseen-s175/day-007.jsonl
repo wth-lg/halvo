@@ -1,0 +1,18 @@
+{"v":1,"id":"019b97b2-98be-7751-8f0d-16734d7c5dfd","at":1767776622782000000,"seq":95,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97b2-98be-7ee1-824e-940d6d70bd8f","at":1767776622782000000,"seq":96,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b97b2-9d80-7946-a105-ad52476b9928","at":1767776624000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b97b2-a550-71df-ade6-b1777177e6f7","at":1767776626000000000,"seq":98,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b97b2-b8d8-7727-a5b4-128a5ded5b16","at":1767776631000000000,"seq":99,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97bc-5df8-7660-843b-5df0c386b7b0","at":1767777263096000000,"seq":100,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b97bc-5df8-7890-908d-048ddacc30ac","at":1767777263096000000,"seq":101,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b97bc-6568-7b41-a1a3-9fec323c0f4f","at":1767777265000000000,"seq":102,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97bc-ea38-7fd5-9716-25af4db16924","at":1767777299000000000,"seq":103,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b97bd-0d60-7b0a-8eff-24f15d959ec0","at":1767777308000000000,"seq":104,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97d1-b1c5-705d-b7e3-c935b2e7b18f","at":1767778660805000000,"seq":105,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97d1-b1c5-78cc-b9cc-ec8200135764","at":1767778660805000000,"seq":106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b97d1-cde0-7164-8ca9-d2c14d9a3eaa","at":1767778668000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97d2-1818-7d78-9306-d33f2896cb25","at":1767778687000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97d2-1a44-7d9d-ae23-33eaa6674414","at":1767778687556000000,"seq":109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b97d2-3f28-7393-bb0e-afb91cb4775f","at":1767778697000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97d2-c7e0-7bd4-a285-c5c6cc12d2a7","at":1767778732000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97d2-db68-78cb-a019-75cb2fbd25bd","at":1767778737000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

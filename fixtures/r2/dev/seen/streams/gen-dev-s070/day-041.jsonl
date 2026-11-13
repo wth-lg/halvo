@@ -1,0 +1,28 @@
+{"v":1,"id":"019c46cd-b437-72bd-99f0-40a005f0a7f1","at":1770714412087000000,"seq":497,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c46cd-b437-7640-b840-51439ff75a1d","at":1770714412087000000,"seq":498,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c46cd-cb50-7bb1-8e53-6ee124ef8690","at":1770714418000000000,"seq":499,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c46ce-6f60-7c81-bf8e-6ce27a1d0f8c","at":1770714460000000000,"seq":500,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46ce-7e81-71d1-a915-4e1332395f98","at":1770714463873000000,"seq":501,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c46ce-9288-7e43-b3d0-dafff28e7144","at":1770714469000000000,"seq":502,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c46ce-9e40-7248-810b-c3f8593d5eef","at":1770714472000000000,"seq":503,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c46cf-51f0-7b59-8a92-c9dc3ee0349a","at":1770714518000000000,"seq":504,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46e6-c9d9-7196-a68f-44069a097100","at":1770716056025000000,"seq":505,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c46e6-c9d9-7bd6-8af1-e2901c7f28fe","at":1770716056025000000,"seq":506,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c46e6-e900-7ccc-9812-ca3dd5b4ed75","at":1770716064000000000,"seq":507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c46e7-8d10-73f9-b746-3b1eb9b23fdc","at":1770716106000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46e7-b808-7165-9081-2245192499c0","at":1770716117000000000,"seq":509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46e7-bd97-763e-9f3f-3a89652c2b1e","at":1770716118423000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c46e7-c7a8-7984-ba63-ef3ce137f556","at":1770716121000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c46e7-d748-7218-ac82-0a6d55598437","at":1770716125000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46e7-fe58-73ff-a087-105fc6725aa0","at":1770716135000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46e8-11e0-785b-9b57-d2146da6b636","at":1770716140000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c46e8-2260-7572-a579-ac32cc3208ae","at":1770716144224000000,"seq":515,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c46e8-44a8-759b-a7d4-b4c34a080a46","at":1770716153000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c46e8-5c18-72c8-9323-0557e521c832","at":1770716159000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c46e8-bddb-73fe-bff0-22813a47fec4","at":1770716184027000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c46e9-1b80-7cad-b044-fbc437cc9f74","at":1770716208000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46e9-3ac0-7544-b1f3-7315b8de702e","at":1770716216000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4703-e2d6-7a6e-aa54-62e561272a54","at":1770717962966000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4704-2948-74ed-88ab-fbf1a449f9a1","at":1770717981000000000,"seq":522,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4704-5058-7c16-9dae-09147f6989d3","at":1770717991000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4704-63e0-7e91-871b-7f06508b0036","at":1770717996000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

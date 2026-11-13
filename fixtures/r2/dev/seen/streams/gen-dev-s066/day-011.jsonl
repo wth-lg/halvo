@@ -1,0 +1,27 @@
+{"v":1,"id":"019bac8b-4753-7324-b98e-9ea9d6049647","at":1768126367571000000,"seq":135,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac8b-4753-781e-81fe-4485e7b7f4fb","at":1768126367571000000,"seq":136,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bac8b-ae90-7f49-bea9-7f9557c21d00","at":1768126394000000000,"seq":137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bac8c-0098-7fdb-9119-bca6464100cb","at":1768126415000000000,"seq":138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac8c-2035-72ca-bf24-23813c963dfa","at":1768126423093000000,"seq":139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bac8c-3b30-7b3f-a1db-a68583b4d1a0","at":1768126430000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac8c-be56-7325-85b6-c8b10d6ec503","at":1768126463574000000,"seq":141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bac8c-c7d0-7ced-a64d-8cdb8ca1399b","at":1768126466000000000,"seq":142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bac8c-f6b0-7ee6-9170-127c1ba5fa39","at":1768126478000000000,"seq":143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bac8d-25fa-744c-851e-e3e1f37c85d2","at":1768126490106000000,"seq":144,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bac8d-25fa-7270-beb0-c6d4f983150e","at":1768126490106000000,"seq":145,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bac8d-67f8-7070-8b86-209abe218dff","at":1768126507000000000,"seq":146,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bac8d-b230-7160-8f74-553988c74a6a","at":1768126526000000000,"seq":147,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac8d-b56b-7318-bf4e-6a010e345080","at":1768126526827000000,"seq":148,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac8d-b56b-7169-ad6e-7dd5b3bd8ef1","at":1768126526827000000,"seq":149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bac8d-f498-71ce-b9f5-c16480148878","at":1768126543000000000,"seq":150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bac8e-5e10-7b1c-820e-a2c57abc07f0","at":1768126570000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019baca8-53cb-796b-936d-db741d0cc2a5","at":1768128271307000000,"seq":152,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019baca8-53cb-7a61-a1eb-4b223066f9bf","at":1768128271307000000,"seq":153,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019baca8-cbb0-7485-9ef4-6163c2f7251e","at":1768128302000000000,"seq":154,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019baca8-fa90-7fbf-bb56-2889d23f268f","at":1768128314000000000,"seq":155,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bacaa-95b2-7061-a631-7da05efa1542","at":1768128419250000000,"seq":156,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bacaa-95b2-7107-8f02-7d5363e81e15","at":1768128419250000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bacaa-bbc8-7d24-bc82-a189a3ead799","at":1768128429000000000,"seq":158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bacab-4480-758a-a057-7d964ff95ecb","at":1768128464000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bacab-4868-7961-9bf2-e20925b37d02","at":1768128465000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bacab-4c50-78f2-b7a7-88632d528e7e","at":1768128466000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

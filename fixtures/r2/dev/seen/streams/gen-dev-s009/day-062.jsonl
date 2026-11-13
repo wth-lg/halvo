@@ -1,0 +1,15 @@
+{"v":1,"id":"019cb315-80eb-76a3-a341-e7df1fba57ce","at":1772531056875000000,"seq":1147,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb315-80eb-7c20-9b3c-68f3bc827d95","at":1772531056875000000,"seq":1148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cb315-a490-7f7f-87ad-95b40a3e445d","at":1772531066000000000,"seq":1149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb315-eded-7b00-a6e2-e0156dc1b824","at":1772531084781000000,"seq":1150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cb315-fe68-7499-89c8-e164aa1faf9e","at":1772531089000000000,"seq":1151,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb316-5458-79c6-9d9a-6bfffa479f92","at":1772531111000000000,"seq":1152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb316-63f8-7b9e-8c98-9d053e2a5634","at":1772531115000000000,"seq":1153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb316-8b08-789d-b4f5-44c76a5c4d92","at":1772531125000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb316-cada-73ae-a707-f515976c7b6b","at":1772531141338000000,"seq":1155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cb317-b7e5-735a-9ab8-bdc5ec33152f","at":1772531202021000000,"seq":1156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cb317-bbb8-72d2-87ed-1ab07f075beb","at":1772531203000000000,"seq":1157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb317-c388-7c47-8906-01c5bf68734a","at":1772531205000000000,"seq":1158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb317-dee0-7441-a776-1d8b3b1407db","at":1772531212000000000,"seq":1159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb321-353a-74c2-9eb0-ef804ac493be","at":1772531823930000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb321-6460-79cc-81b6-ed5014eebcaa","at":1772531836000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

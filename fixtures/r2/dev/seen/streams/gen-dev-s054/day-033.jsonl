@@ -1,0 +1,20 @@
+{"v":1,"id":"019c1d4a-450b-7e21-bbfb-50f76b9a7a45","at":1770017932555000000,"seq":316,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1d4a-450b-772c-819c-94e79bd70e81","at":1770017932555000000,"seq":317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c1d4a-a870-7f71-9422-b24ada898fd8","at":1770017958000000000,"seq":318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d4a-b428-70a2-8d39-0672ad0af81b","at":1770017961000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c1d4b-2a49-78e9-9aff-7a25f970e2d2","at":1770017991241000000,"seq":320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c1d4b-7390-7536-8db1-c304afe72ebe","at":1770018010000000000,"seq":321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1d4b-8636-7108-8869-ca586cceb650","at":1770018014774000000,"seq":322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c1d4b-b9e0-7b2a-9032-a01f2e6ee84e","at":1770018028000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d4b-fc48-7e10-88ab-ecc2f284faf1","at":1770018045000000000,"seq":324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c1d4c-0800-7795-abb0-38a2b5dc9315","at":1770018048000000000,"seq":325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1d4c-6573-7aa6-a20e-5709e2f4b2de","at":1770018071923000000,"seq":326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c1d4c-7178-737c-b99a-373e0bde76d3","at":1770018075000000000,"seq":327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d4c-ac10-7056-989e-683e045143b6","at":1770018090000000000,"seq":328,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1d4c-cb50-7d6b-943d-a4c76beddabc","at":1770018098000000000,"seq":329,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1d4c-fe18-7345-84d9-7ea15414a243","at":1770018111000000000,"seq":330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d4d-20df-718c-b418-478156d1d19f","at":1770018119903000000,"seq":331,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c1d4d-8ea0-7512-afca-a71403b1bdeb","at":1770018148000000000,"seq":332,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c1d4d-9e40-79a4-a72e-9883f9df27b0","at":1770018152000000000,"seq":333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1d4d-aeb1-7838-b95c-cfc4973f1528","at":1770018156209000000,"seq":334,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c1d4d-ec60-77a2-9035-8d44a771cdaf","at":1770018172000000000,"seq":335,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

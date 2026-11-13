@@ -1,0 +1,21 @@
+{"v":1,"id":"019bd524-26b5-799c-bdf0-90a39203c28d","at":1768807474869000000,"seq":277,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd524-26b5-7c3a-9d4b-a9741498c9b3","at":1768807474869000000,"seq":278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd524-2738-7ab2-818e-05a6cbee761b","at":1768807475000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd524-4678-70ec-9c08-15ff9e8a49c5","at":1768807483000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd524-780d-7b3f-bdde-8f926fd5cf6d","at":1768807495693000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd524-7d28-7ab5-9c60-0bfa205e97da","at":1768807497000000000,"seq":282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd524-aff0-7d8a-a413-6b0eb623a88d","at":1768807510000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd525-1d50-7547-bd93-60c5861e5574","at":1768807538000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bd525-5fb8-7977-9c80-0f0ccb303ea6","at":1768807555000000000,"seq":285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd525-8610-7c18-816a-f5e1b3cd617d","at":1768807564816000000,"seq":286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd525-8e98-76cf-b8f7-c61963af87b2","at":1768807567000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd525-fbf8-763c-812d-b236fed357b7","at":1768807595000000000,"seq":288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd526-6a11-757a-96f5-bc170f9b7cf9","at":1768807623185000000,"seq":289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd526-a3f0-7101-a22a-a48a1ee1042a","at":1768807638000000000,"seq":290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd527-01b0-7c43-a764-64d92566861e","at":1768807662000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd527-0a38-76ba-8175-9a2fd3a91c51","at":1768807664184000000,"seq":292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd527-1538-7e58-b231-b5f3bc43141e","at":1768807667000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bd527-4418-73a5-91bd-d14282bc1bd5","at":1768807679000000000,"seq":294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd527-4be8-7766-b095-ffb723b6757d","at":1768807681000000000,"seq":295,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd527-6105-7f78-8c88-1a949db6f70d","at":1768807686405000000,"seq":296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd527-c118-7ef1-b824-886d2d5e556b","at":1768807711000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

@@ -1,0 +1,49 @@
+{"v":1,"id":"019c98e8-3eed-7d7b-b3ae-36db135affab","at":1772091883245000000,"seq":730,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c98e8-3eed-7648-b6b2-c60cf8e9cfbb","at":1772091883245000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c98e8-8c18-7bc9-a80e-d0a9b6924185","at":1772091903000000000,"seq":732,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c98f3-32f7-7e97-82a0-5f14d7bdd3e4","at":1772092601079000000,"seq":733,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c98f3-32f7-70a3-a86e-a7100090fcc4","at":1772092601079000000,"seq":734,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c98f3-4248-7ada-9e63-f9154f0145a2","at":1772092605000000000,"seq":735,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98f3-4248-7566-94dc-62c8d6b6df8f","at":1772092605000000000,"seq":736,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c98f3-4e00-7bb3-9627-353c723c5b49","at":1772092608000000000,"seq":737,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c98f3-7063-709d-bc7d-285a6e14d0bb","at":1772092616803000000,"seq":738,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c98f3-9068-7e92-837b-5774d104401d","at":1772092625000000000,"seq":739,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98f3-9838-7d1e-a341-09d4a01f387e","at":1772092627000000000,"seq":740,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c990f-863b-7ff5-8ff6-339cc766083a","at":1772094457403000000,"seq":741,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c990f-863b-74c2-9a89-e83f56513d2f","at":1772094457403000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c990f-cee0-7549-a482-98b7f4ee63f5","at":1772094476000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c990f-f653-7227-b0c6-56c4f0244326","at":1772094486099000000,"seq":744,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c990f-f653-7ea3-8338-55aa3115602f","at":1772094486099000000,"seq":745,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c990f-f9d8-780a-8e55-53132cfa3a73","at":1772094487000000000,"seq":746,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c9910-47f8-79dd-b78d-5b3c21ec94dd","at":1772094507000000000,"seq":747,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c9910-6b20-7e7e-94a3-e9df57e0644b","at":1772094516000000000,"seq":748,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9910-8f53-7a70-8641-4b3911d1b7e8","at":1772094525267000000,"seq":749,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9910-8f53-7dfe-89be-fd519e87e525","at":1772094525267000000,"seq":750,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9911-1ae8-7b57-8452-9b3c02b9f7ef","at":1772094561000000000,"seq":751,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9911-3258-7c86-915c-1ef07c073e4b","at":1772094567000000000,"seq":752,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9911-6c47-7e8e-b79a-f14077f0ae69","at":1772094581831000000,"seq":753,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9911-af58-73cd-a4a4-12f46cfed583","at":1772094599000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c9912-1100-760e-8007-912e3f395c32","at":1772094624000000000,"seq":755,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9912-243e-79d4-a0f2-d8efd4b1519a","at":1772094628926000000,"seq":756,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9912-4b98-7cb1-b7be-69d9aa2b46ad","at":1772094639000000000,"seq":757,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9912-8e00-7854-acb8-e70b82b28317","at":1772094656000000000,"seq":758,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9912-af8e-7296-8929-784eca7f042a","at":1772094664590000000,"seq":759,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9912-cc80-73d4-a270-68fff00309c1","at":1772094672000000000,"seq":760,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9913-2270-724b-bbf9-2af5d4087bd1","at":1772094694000000000,"seq":761,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9913-25ec-79a2-a91a-2c8e47d4cfae","at":1772094694892000000,"seq":762,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9913-2a40-76d1-8264-03ea941d80c1","at":1772094696000000000,"seq":763,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9913-5d08-7f3b-8773-01037da81e69","at":1772094709000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9913-93b8-782d-8294-911dc291a457","at":1772094723000000000,"seq":765,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9925-23db-7014-85ce-503441b4067a","at":1772095874011000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9925-6aae-7b57-a84c-7aba6590c70c","at":1772095892142000000,"seq":767,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c9925-71f0-7f54-8bd9-7b10aefae33b","at":1772095894000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9925-a0d0-7439-bcc4-627f67ec317d","at":1772095906000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9925-bc28-73ff-89e1-5e73ebe269a9","at":1772095913000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9926-2733-713f-b975-ddc881a02cc7","at":1772095940403000000,"seq":771,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9926-3928-7f24-b39b-33963b3cdb0e","at":1772095945000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9926-6fd8-77f8-aaf9-df881b99ddff","at":1772095959000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9926-d525-7653-8ac3-4b77107b67be","at":1772095984933000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9927-1000-73d3-acc4-419befe2a537","at":1772096000000000000,"seq":775,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9927-1fa0-7935-9249-9c450c703789","at":1772096004000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c9927-65f0-7f01-b94a-756ed1698619","at":1772096022000000000,"seq":777,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9927-66a9-7011-bdaa-05d74e78fdbe","at":1772096022185000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}

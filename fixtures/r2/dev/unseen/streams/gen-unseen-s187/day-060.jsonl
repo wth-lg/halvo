@@ -1,0 +1,14 @@
+{"v":1,"id":"019ca8e3-4b1d-730d-9341-bdacca78f82d","at":1772359994141000000,"seq":1097,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca8e3-4b1d-76ae-a4ef-d830e1644a92","at":1772359994141000000,"seq":1098,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca8e3-69d0-7477-85bd-4c6a7adccfad","at":1772360002000000000,"seq":1099,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ca8e3-7588-7e22-a787-9d3f68751ca8","at":1772360005000000000,"seq":1100,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8e3-c506-74cc-9b77-6438867f8bf8","at":1772360025350000000,"seq":1101,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ca8e4-2d20-7ba3-9d54-208781c1eb76","at":1772360052000000000,"seq":1102,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8e4-5fe8-7fab-9f86-dc9de852a7ff","at":1772360065000000000,"seq":1103,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca8ea-1549-7fae-9219-2b70e33a2be8","at":1772360439113000000,"seq":1104,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca8ea-1549-730e-867a-c03096974882","at":1772360439113000000,"seq":1105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ca8ea-99a8-77b7-af71-ece3f3eb8cf8","at":1772360473000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8ea-ad30-7252-bf04-1d6336cb8a6d","at":1772360478000000000,"seq":1107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca8ff-a4bb-7a56-ae3f-834cd72b0a88","at":1772361852091000000,"seq":1108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca8ff-fe38-7e37-8a1c-f828404d8dc6","at":1772361875000000000,"seq":1109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca900-5428-76c2-a892-97f00eb8e1e7","at":1772361897000000000,"seq":1110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

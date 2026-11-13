@@ -1,0 +1,23 @@
+{"v":1,"id":"019c1d6d-2986-7bc9-b069-36d8f2cc1504","at":1770020219270000000,"seq":457,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1d6d-2986-7330-9d4d-4207e7624850","at":1770020219270000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1d6d-2c60-792a-89ab-a0cbac5fa1ea","at":1770020220000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d6d-3fe8-714e-9bd4-5f1c35315718","at":1770020225000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c1d6d-9918-7c20-b054-cd9bc23912ad","at":1770020247832000000,"seq":461,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1d6d-a960-7dd8-a610-a51fc6cc3fb7","at":1770020252000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c1d6e-2e30-7b5c-a954-01e2e4226b07","at":1770020286000000000,"seq":463,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1d6e-7376-7278-b37b-d20ebd5f1b57","at":1770020303734000000,"seq":464,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1d6e-7480-79d7-a99e-0ad3896abdf2","at":1770020304000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d6f-37d5-70e9-b607-17eaf1590b92","at":1770020354005000000,"seq":466,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1d6f-3bb8-71c4-9140-f47817bb113e","at":1770020355000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c1d6f-66b0-7e67-bfb9-2237966437df","at":1770020366000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d83-fd3f-7c7f-978d-450eb7f230ba","at":1770021715263000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c1d84-4288-7a57-957a-234d4edbefcf","at":1770021733000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d84-5de0-71b4-b5a0-218bb05a4a0b","at":1770021740000000000,"seq":471,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1d84-8108-7981-bbf2-11aa10013f9a","at":1770021749000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c1d84-dae0-77f6-9abe-47e78556d3bf","at":1770021772000000000,"seq":473,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1d93-cb25-7f94-83b7-5aeb8f592799","at":1770022751013000000,"seq":474,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1d93-cb25-7808-91d3-9938b6377398","at":1770022751013000000,"seq":475,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1d94-1168-714f-bf7a-d19c30d05b26","at":1770022769000000000,"seq":476,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d94-8698-7668-8390-6b0e13772ef4","at":1770022799000000000,"seq":477,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1d94-b960-7619-a231-3d75335036b0","at":1770022812000000000,"seq":478,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c1d94-c900-76b2-bf0c-5a277f83d6d6","at":1770022816000000000,"seq":479,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

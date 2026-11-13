@@ -1,0 +1,9 @@
+{"v":1,"id":"019d33ef-f2a2-748f-b2c4-12e759f39ce3","at":1774692856482000000,"seq":1332,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d33ef-f2a2-7564-89c4-9e88505a9c17","at":1774692856482000000,"seq":1333,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d33f0-0c18-7dda-9686-4e376ec71b6d","at":1774692863000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33f0-2f40-70e3-aef9-2789db47c423","at":1774692872000000000,"seq":1335,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d33f0-2f40-791f-bbed-d6f5893e5e8a","at":1774692872000000000,"seq":1336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d33f3-2ef7-753a-8630-2a196def6df0","at":1774693068535000000,"seq":1337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d33f3-3c80-7536-885b-38860408b7ab","at":1774693072000000000,"seq":1338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33f3-5fa8-75c9-abe4-353298707481","at":1774693081000000000,"seq":1339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d33f3-d9b1-7dd4-9382-23badb2955fa","at":1774693112241000000,"seq":1340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}

@@ -1,0 +1,13 @@
+{"v":1,"id":"019c130c-20f3-7a84-bd98-1b574c13af0a","at":1769846087923000000,"seq":574,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c130c-20f3-7fd1-9b52-6ee65b5afc41","at":1769846087923000000,"seq":575,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c130c-30e0-7c38-bb51-8959a5f64856","at":1769846092000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c130c-82e8-7fda-8ae9-a827cead4c2d","at":1769846113000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c130c-a331-782a-8b99-c964a0f47c16","at":1769846121265000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c130c-d4f0-7580-ab76-a7fdc77192b0","at":1769846134000000000,"seq":579,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c130c-e0a8-7e75-86d8-d7cc9779caf0","at":1769846137000000000,"seq":580,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1325-c41e-7f72-8f76-ea35116a39f5","at":1769847768094000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c1326-a268-7d0c-99c6-d2fde1348bc5","at":1769847825000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c132e-5e70-7efe-be43-7a982d4f9849","at":1769848331888000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c132e-6a98-7e8f-9aa8-e30ed496fe57","at":1769848335000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c132e-85f0-7988-a083-9f2dc3c5986d","at":1769848342000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c132e-a530-7045-b6a0-358fc44e2811","at":1769848350000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

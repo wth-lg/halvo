@@ -1,0 +1,42 @@
+{"v":1,"id":"019bf433-45cb-790a-8e57-6d18081f6e1a","at":1769328559563000000,"seq":348,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf433-45cb-772b-8840-f2cf859309eb","at":1769328559563000000,"seq":349,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bf433-c098-7049-a013-2c71bac10bbe","at":1769328591000000000,"seq":350,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bf433-d420-7db9-b108-fcf6f1732172","at":1769328596000000000,"seq":351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf434-080a-724c-9003-68831893a2f7","at":1769328609290000000,"seq":352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bf434-5508-7302-8d5d-46cf82dfeb73","at":1769328629000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bf435-0202-73aa-950d-ec14335a4773","at":1769328673282000000,"seq":354,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bf435-4b20-7577-b958-1c8fa0f17686","at":1769328692000000000,"seq":355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf435-6678-74e3-8c19-faa553a5f1d0","at":1769328699000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bf435-fd8a-7e2e-91ce-7c195cd0e22c","at":1769328737674000000,"seq":357,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bf436-06a0-773c-b2c8-d19d8438e0a9","at":1769328740000000000,"seq":358,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf436-0e70-722e-82e4-e468cff0c732","at":1769328742000000000,"seq":359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf436-0e70-7d25-afcb-1daef746f7f7","at":1769328742000000000,"seq":360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bf436-1e10-70da-98d9-9b2699146222","at":1769328746000000000,"seq":361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf436-38f0-704f-942d-c9ebc1e45225","at":1769328752880000000,"seq":362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bf436-4cf0-777f-a928-00c5db4738ee","at":1769328758000000000,"seq":363,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf436-8f58-7c77-9bee-9af3d43a339d","at":1769328775000000000,"seq":364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf436-c9f0-77c0-8136-2ef38ceca371","at":1769328790000000000,"seq":365,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf436-e930-748d-9ded-47f9d9bf05b1","at":1769328798000000000,"seq":366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf437-0e28-7404-bdf4-5b5e3d23e90e","at":1769328807464000000,"seq":367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bf437-4308-7af0-ab34-49cc5743849e","at":1769328821000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf437-cd02-75b9-8c72-aa3d43ed040c","at":1769328856322000000,"seq":369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bf437-db60-7c6b-b811-126ff8752742","at":1769328860000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf437-db60-7ab2-878c-069bb5a924f1","at":1769328860000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf437-eb00-7c50-9723-9272ae01fc40","at":1769328864000000000,"seq":372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf438-0658-752e-9ce1-16c94f1432a0","at":1769328871000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf438-15f8-7de8-a384-965b39b389c2","at":1769328875000000000,"seq":374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf438-47ff-7392-b2d3-919d4789cf93","at":1769328887807000000,"seq":375,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bf438-92f8-7f28-8362-24ee7e9720c6","at":1769328907000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf438-a298-742e-b906-0764d9ce5437","at":1769328911000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bf438-c1d8-73b0-a63c-21f4ece28b07","at":1769328919000000000,"seq":378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf438-cd72-78fc-9944-fbfcf4b4298a","at":1769328921970000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bf439-0ff8-7c4a-892c-86a179a8e0a9","at":1769328939000000000,"seq":380,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf439-2f38-7cce-be11-3887b02d2f2c","at":1769328947000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf439-4e78-76ee-9ac4-a82f1f2f00c3","at":1769328955000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf439-60f3-7b7f-bfbd-f1159a4739d8","at":1769328959731000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bf439-9c98-7b22-8304-57010d44bfde","at":1769328975000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf439-b408-7224-802e-af3b53e338a6","at":1769328981000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf439-bfc0-736f-bd85-1db897975f59","at":1769328984000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf43b-4417-798b-b27b-4224195289f1","at":1769329083415000000,"seq":387,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf43b-4417-7b79-940b-65c072fc800b","at":1769329083415000000,"seq":388,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf43b-cb30-7502-b04a-ae5f1fb4c4e6","at":1769329118000000000,"seq":389,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

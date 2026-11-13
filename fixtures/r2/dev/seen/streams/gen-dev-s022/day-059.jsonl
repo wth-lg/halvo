@@ -1,0 +1,45 @@
+{"v":1,"id":"019ca38b-66f8-7da3-9002-e450c89b8020","at":1772270348024000000,"seq":904,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca38b-66f8-7857-b202-bb599a0043ac","at":1772270348024000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca38b-a178-70f3-b771-4d158c5fc625","at":1772270363000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca38b-c4a0-7ddb-9e67-03c0e00de61a","at":1772270372000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca38b-e3e0-7a48-9f00-06ef5b03b8a2","at":1772270380000000000,"seq":908,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca393-bea1-73e0-b5a1-78d1fdcc4271","at":1772270894753000000,"seq":909,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca393-bea1-7371-a633-cd9a815d6134","at":1772270894753000000,"seq":910,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca393-f648-7389-8688-1fff8de195c3","at":1772270909000000000,"seq":911,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca394-7f00-725e-a37e-f91bb40389ef","at":1772270944000000000,"seq":912,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ca3a6-d3b6-7c40-9db7-6ab50598f863","at":1772272145334000000,"seq":913,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca3a6-d3b6-7cf1-9a89-cbf7d10cb61c","at":1772272145334000000,"seq":914,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a6-d650-7695-bf63-82c11add6f16","at":1772272146000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ca3a6-e9d8-7190-847c-086a73802469","at":1772272151000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3a7-0d00-7d23-8f9f-fdf1879f1134","at":1772272160000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3a7-0e2a-7268-9cff-7ff495125d4f","at":1772272160298000000,"seq":918,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a7-3fc8-75d1-bf55-632d3e333ad5","at":1772272173000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ca3a7-66d8-7f33-83c5-0aa500e33c60","at":1772272183000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3a7-6ea8-7339-9186-3233c75b4dc6","at":1772272185000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3a7-a940-7b35-ae99-f12313abaeaa","at":1772272200000000000,"seq":922,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca3a7-ad28-77bc-bcb4-c0d63e59f510","at":1772272201000000000,"seq":923,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca3a7-e523-7498-92e4-eeba681e5d6e","at":1772272215331000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a7-eba8-7fca-beae-c2ff0b08acef","at":1772272217000000000,"seq":925,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca3a8-8fb8-7aab-8df4-fc0fec8a0b6d","at":1772272259000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca3a8-cf1b-73bf-9c5b-90b8067b0183","at":1772272275227000000,"seq":927,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ca3a8-ddd8-7bed-a548-90c838241083","at":1772272279000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3a8-ed78-7f22-aab3-9391a338cba0","at":1772272283000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca3a9-4368-7c7b-b404-aff27154643b","at":1772272305000000000,"seq":930,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca3ab-0a69-7448-8852-758b339e956e","at":1772272421481000000,"seq":931,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ca3ab-1c10-784c-a6e2-61ac8558ff3e","at":1772272426000000000,"seq":932,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3ab-2f98-725c-b15e-b3b603f45a91","at":1772272431000000000,"seq":933,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3ab-3b50-7140-b797-a177d15edb00","at":1772272434000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3ab-7200-7042-a492-472607b41ec8","at":1772272448000000000,"seq":935,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca3c0-25e1-7ce1-8233-f6930433ef30","at":1772273804769000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ca3c0-3e38-72ce-bc2c-66582e48f1c6","at":1772273811000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3c0-6d18-71b8-b677-5ea9ff559c22","at":1772273823000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca3c0-723d-7f16-bca0-2d1485fd3604","at":1772273824317000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ca3c0-b368-7359-b5a1-f36c94bda5f8","at":1772273841000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ca3c0-fda0-776a-a16a-dceb3cb342cf","at":1772273860000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3c1-651f-7e75-bdaa-ad6159dd26b5","at":1772273886495000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ca3c1-8e28-7e9e-aaab-7ee9b7b88105","at":1772273897000000000,"seq":943,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3c1-99e0-7f16-86bb-c0422f145a52","at":1772273900000000000,"seq":944,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3c1-e0ca-7b80-b564-5d23bbb5fdc6","at":1772273918154000000,"seq":945,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ca3c2-1eb0-7673-9dc1-2532c425cac0","at":1772273934000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3c2-5560-796c-a2e5-57d2b9faef68","at":1772273948000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ca3c2-c6a8-7e05-92f7-fb3e38c5b12a","at":1772273977000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

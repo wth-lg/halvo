@@ -1,0 +1,22 @@
+{"v":1,"id":"019c9414-8118-7b01-8983-b109ab6fdd52","at":1772010897688000000,"seq":926,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9414-8118-710f-ba0c-4f9bd2f8e6d2","at":1772010897688000000,"seq":927,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c9414-8250-784d-a641-2bc16e0be031","at":1772010898000000000,"seq":928,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9414-9da8-7ff9-9adb-59b1e0e5c816","at":1772010905000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9414-fb68-77d4-942e-77f1a62df0ce","at":1772010929000000000,"seq":930,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9415-12d8-759d-917d-23cc1f043427","at":1772010935000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c9426-d9d9-717c-bc04-13ba67deae6d","at":1772012100057000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c9426-e558-743a-b0c3-540f2d342571","at":1772012103000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9426-fcc8-7a5b-8cac-aef36b780bd9","at":1772012109000000000,"seq":934,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9427-4ae8-796e-a272-ab43d0abea67","at":1772012129000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c9427-6640-7952-a0c8-eb2012aa46af","at":1772012136000000000,"seq":936,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c943c-adf1-74c6-8b72-f73f1fc37e9f","at":1772013530609000000,"seq":937,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c943c-e628-7864-9802-501860f36fbe","at":1772013545000000000,"seq":938,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c943d-4bb8-7e0e-9ee6-f25c847f33b1","at":1772013571000000000,"seq":939,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c9458-4aca-75a2-ba66-e009f763bfec","at":1772015340234000000,"seq":940,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9458-5980-7fdf-ac32-b29a934c8c90","at":1772015344000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c9459-0896-7c66-a76d-5d3499fcf173","at":1772015388822000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9459-20b8-7659-b9c0-7ce0fbb1431a","at":1772015395000000000,"seq":943,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9459-8e18-771c-a40f-8accd6194162","at":1772015423000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9459-b140-73d7-a2d8-1b18de25b27a","at":1772015432000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9459-d214-7343-9e21-02c30fab99fd","at":1772015440404000000,"seq":946,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c945a-c698-783b-a5d1-d38f48afc3d9","at":1772015503000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

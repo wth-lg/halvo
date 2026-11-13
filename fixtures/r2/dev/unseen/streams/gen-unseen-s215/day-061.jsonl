@@ -1,0 +1,31 @@
+{"v":1,"id":"019cad5b-e57e-78f0-840b-9c53dc92590f","at":1772435006846000000,"seq":917,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cad5b-e57e-7b83-913e-2c8aee193f67","at":1772435006846000000,"seq":918,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cad76-97b4-7936-afe0-65fe475db73f","at":1772436756404000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cad76-a5c0-7646-9eac-00298d6f4c33","at":1772436760000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad76-c500-7b9a-936a-7979926a35fb","at":1772436768000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cad81-c7b6-746e-8175-3d586c541f81","at":1772437489590000000,"seq":922,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cad81-c950-75ac-8a54-6bbad13fc48f","at":1772437490000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad81-dcd8-75d6-b92e-3401f3804473","at":1772437495000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad82-2c3b-7e49-bd4b-92a0fa331a6e","at":1772437515323000000,"seq":925,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cad82-4e20-7047-b8fd-556c487d8274","at":1772437524000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad82-59d8-7782-a55d-786714c62af0","at":1772437527000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cad8c-d6ca-7e19-856a-8c5d4349f9e5","at":1772438214346000000,"seq":928,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cad8c-e128-724a-a705-d588cc44def9","at":1772438217000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad8d-1008-741a-a4e4-c9dd48d6f6db","at":1772438229000000000,"seq":930,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad8d-27a9-740a-b6c1-3e594c2193d8","at":1772438235049000000,"seq":931,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cad8d-27a9-7ffc-b461-13a926780cd1","at":1772438235049000000,"seq":932,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cad8d-3ee8-7537-ade6-13c4633110e1","at":1772438241000000000,"seq":933,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cad8d-5658-71d1-8f3e-ca341d6710ea","at":1772438247000000000,"seq":934,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cad8d-7598-7cc8-b948-b0b4acae0ed7","at":1772438255000000000,"seq":935,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad8d-8538-7cd8-bdf9-fcbe593dc92d","at":1772438259000000000,"seq":936,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cad8d-e3fa-70f4-a456-64777179dc56","at":1772438283258000000,"seq":937,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cad8d-e3fa-7d88-a9ca-f4e373cce2fb","at":1772438283258000000,"seq":938,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cad8d-eeb0-739f-b06c-522c2027e05f","at":1772438286000000000,"seq":939,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad8d-f680-72a4-9857-b3454ce5aa64","at":1772438288000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cad8e-0a08-7bc3-bc5f-b4b173303c21","at":1772438293000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cad8e-38e8-78d1-b7b0-6d7c800090c6","at":1772438305000000000,"seq":942,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cad8e-3995-728b-916b-e2398bbfd6ff","at":1772438305173000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cad8e-3cd0-75ee-b30d-5a678ff29203","at":1772438306000000000,"seq":944,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cad8e-5ff8-7e3c-9859-34cd393f3628","at":1772438315000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad8e-8af0-7d9f-9171-9403c57e0a5b","at":1772438326000000000,"seq":946,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cad8e-e0e0-786e-bc0b-a1c787729e8f","at":1772438348000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

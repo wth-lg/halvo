@@ -1,0 +1,28 @@
+{"v":1,"id":"019be9f4-cfbb-731f-a53e-0f691866d2ab","at":1769156693947000000,"seq":340,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be9f4-cfbb-7f99-a33c-3d71ddd5ff58","at":1769156693947000000,"seq":341,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be9f4-dba8-78c8-8816-91609166d7b0","at":1769156697000000000,"seq":342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f4-e760-7ce6-a011-cc3785efb511","at":1769156700000000000,"seq":343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f5-06a0-7379-869a-d03217a033ef","at":1769156708000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019be9f5-e078-7838-8e6c-9c984bf28b70","at":1769156763768000000,"seq":345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be9f5-e930-7be1-bb25-ffa067579cfd","at":1769156766000000000,"seq":346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be9f6-daef-7fd2-ade6-d2cb3df0bb3b","at":1769156827887000000,"seq":347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be9f6-e330-7ca2-b7ef-62263b2456bf","at":1769156830000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f7-2d68-73a5-890f-7df959526424","at":1769156849000000000,"seq":349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be9f7-3538-794f-9750-37761c9b0070","at":1769156851000000000,"seq":350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be9f7-4ca8-7395-8866-926dd2521d49","at":1769156857000000000,"seq":351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f7-58eb-7fa6-9d07-03ab27fedb44","at":1769156860139000000,"seq":352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be9f7-bdf0-7f75-a0e2-8a9e12bdea1a","at":1769156886000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019be9f7-f4a0-7bed-b6b3-b45ee2e16fe9","at":1769156900000000000,"seq":354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bea01-1e4c-7051-8c05-42a8a19c0e07","at":1769157500492000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bea01-e60d-7091-a20d-916f31b8a6f1","at":1769157551629000000,"seq":356,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bea02-1278-7c7c-8b41-b03b54b5f993","at":1769157563000000000,"seq":357,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bea02-6c50-760d-8d8b-f83bacb40dc6","at":1769157586000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bea02-a6e8-76ee-8528-7d4272a91a60","at":1769157601000000000,"seq":359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea02-d846-74df-914b-032850556896","at":1769157613638000000,"seq":360,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bea02-d846-7b94-b0ad-15273da222fd","at":1769157613638000000,"seq":361,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bea02-f508-7d71-b9c2-6c9539f274e0","at":1769157621000000000,"seq":362,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bea03-970d-7497-9663-67d8c6cc75c0","at":1769157662477000000,"seq":363,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea03-970d-7b20-b099-0a7da97d379d","at":1769157662477000000,"seq":364,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bea03-bc40-7c73-9eca-f5d09f89f589","at":1769157672000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea03-ef08-7b65-aefa-83cd477957d5","at":1769157685000000000,"seq":366,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea03-f2f0-7a62-beb2-e8ee2f84f63f","at":1769157686000000000,"seq":367,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

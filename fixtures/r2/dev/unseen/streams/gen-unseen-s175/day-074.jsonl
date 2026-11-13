@@ -1,0 +1,22 @@
+{"v":1,"id":"019cf0a1-5869-7482-b626-f39dc7ec569a","at":1773563631721000000,"seq":1125,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf0a1-5869-7473-bcf0-a2ec2d9a01f8","at":1773563631721000000,"seq":1126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cf0a1-8478-796a-a6d3-5f8e7d82d045","at":1773563643000000000,"seq":1127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0a1-9be8-701d-a602-54f66b2feade","at":1773563649000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf0a1-c352-7a47-9ee8-ae6893d9ee41","at":1773563659090000000,"seq":1129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cf0a1-de50-73e1-b56c-2bffb1b7a6f4","at":1773563666000000000,"seq":1130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf0a1-ea08-7acc-bd95-b16fb5c4bf77","at":1773563669000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0a2-0178-75b1-8db5-6cbfd8574461","at":1773563675000000000,"seq":1132,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf0a2-0948-768f-a1e0-19a13ccfe7ce","at":1773563677000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cf0a2-0d30-71c3-8fc2-915d8e54216b","at":1773563678000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0a2-1091-7960-b0e1-08342659c9e1","at":1773563678865000000,"seq":1135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cf0a2-6af0-7480-83e9-f9b845ea6c11","at":1773563702000000000,"seq":1136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf0a2-9db8-7820-8dea-f7cc3d0299fe","at":1773563715000000000,"seq":1137,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf0a2-ad58-7073-8c4a-e9ad775a9fd9","at":1773563719000000000,"seq":1138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0a2-df1e-73cd-894b-1cbb912035be","at":1773563731742000000,"seq":1139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cf0a3-12e8-7084-95b2-a38f9b819717","at":1773563745000000000,"seq":1140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf0a3-5d20-7afd-8e90-47a9ea187b31","at":1773563764000000000,"seq":1141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0a3-7490-70d6-b9bb-69f9853d2ef5","at":1773563770000000000,"seq":1142,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf0a7-758d-79f7-a162-0bbdc3b249fc","at":1773564032397000000,"seq":1143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf0a7-ae98-7db2-9ea2-cbb29a01499d","at":1773564047000000000,"seq":1144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0a7-c220-7683-bfd7-706eef936cdc","at":1773564052000000000,"seq":1145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf0a7-dd78-7a8c-8d4b-7e511974745a","at":1773564059000000000,"seq":1146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

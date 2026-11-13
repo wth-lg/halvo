@@ -1,0 +1,31 @@
+{"v":1,"id":"019ce133-654b-7547-b4f8-9d64ab24819b","at":1773304767819000000,"seq":844,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce133-654b-7afe-a40a-45b2e1e8805b","at":1773304767819000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce133-8158-705f-8a99-914ac39d8b50","at":1773304775000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce133-9cb0-7bdd-b04d-05f471f76271","at":1773304782000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ce133-b420-718c-a5b1-e394aee7471a","at":1773304788000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce133-df18-77b0-8ba5-520e96f39c29","at":1773304799000000000,"seq":849,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce133-e300-7236-8ca6-30aa5a863d53","at":1773304800000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce14d-ac84-70a0-9301-ffa749049cc6","at":1773306489988000000,"seq":851,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce14d-ac84-7b19-8a3e-7317d0a073f4","at":1773306489988000000,"seq":852,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce14d-db70-787a-8aa7-f62e31bc877a","at":1773306502000000000,"seq":853,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce14d-e728-7de4-8df5-2569b745df38","at":1773306505000000000,"seq":854,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce159-c49f-7402-8e44-ef9cc13ac72d","at":1773307282591000000,"seq":855,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce159-c49f-7aa7-9eef-1a27fa0a7726","at":1773307282591000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce159-d9c0-77b8-bb6e-f98927b95048","at":1773307288000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ce15a-3735-7607-bbde-983f8001672c","at":1773307311925000000,"seq":858,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce15a-5e90-7458-9df0-bad8e1c16965","at":1773307322000000000,"seq":859,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15a-6e30-7c0f-ae49-73a7e63d531e","at":1773307326000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15a-7e72-756c-9856-ec728d55ece3","at":1773307330162000000,"seq":861,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce15a-a0f8-71fe-b2ae-0c7706ea34b3","at":1773307339000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15a-a4e0-7b26-b56a-059ec8a40b49","at":1773307340000000000,"seq":863,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce15a-b868-7d7c-bbff-3c4f8bd44b62","at":1773307345000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce15a-b8b6-7494-a9a5-242e456626f5","at":1773307345078000000,"seq":865,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ce15b-1df8-78b1-9544-f978bc0289f2","at":1773307371000000000,"seq":866,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce15b-4120-782d-90fa-d3d284a16a5d","at":1773307380000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15b-50c0-71c3-aa1c-bd8e24b3d455","at":1773307384000000000,"seq":868,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce160-b9d0-755c-ac9a-09a1b721f935","at":1773307738576000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ce161-4048-73c0-9219-1a31412696e0","at":1773307773000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce161-bbf3-7c19-a8fe-ea0ce9b94906","at":1773307804659000000,"seq":871,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ce161-c130-74bc-ac83-86f9000927ee","at":1773307806000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce161-f3f8-7bd9-b6ae-f0e85820ba46","at":1773307819000000000,"seq":873,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce162-0780-7e1e-a5e8-55082771a4f6","at":1773307824000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

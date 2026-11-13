@@ -1,0 +1,42 @@
+{"v":1,"id":"019be4d8-36ca-74ad-8b63-3c5ca7da25c6","at":1769070933706000000,"seq":344,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be4d8-36ca-7ad2-9483-3ac7a934070e","at":1769070933706000000,"seq":345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4d8-7a58-756d-9ebe-618838afa1e0","at":1769070951000000000,"seq":346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d8-7a58-7543-a36e-d3f94469b325","at":1769070951000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019be4d8-8600-7abd-8323-cc89b29d7cb8","at":1769070953984000000,"seq":348,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4d8-d430-739c-ac57-7086b4d5af71","at":1769070974000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d8-dfe8-743e-b551-32fc3b54a75c","at":1769070977000000000,"seq":350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be4d8-ef88-795f-9e8d-e851c4301335","at":1769070981000000000,"seq":351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4d9-0687-7713-b74b-4e1c056f5e7a","at":1769070986887000000,"seq":352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4d9-06f8-7cec-b3c5-dafc1c43b05a","at":1769070987000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d9-5ce8-7325-8a7f-bb8b8754d589","at":1769071009000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d9-7d25-7fa0-bc99-700627adf210","at":1769071017253000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4da-2cec-7fbf-94d7-67b2ce29b8b9","at":1769071062252000000,"seq":356,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4da-33c0-7022-a205-3bcba511eb5e","at":1769071064000000000,"seq":357,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4db-3ba1-7430-812a-f7ab44f38bb3","at":1769071131553000000,"seq":358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019be4db-9350-7fa3-a5f3-d0b6866e6f51","at":1769071154000000000,"seq":359,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4db-e558-7da4-b90e-0131efbb93c4","at":1769071175000000000,"seq":360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019be4db-f110-79af-94ac-c7c604d81763","at":1769071178000000000,"seq":361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4dc-0498-7940-bd62-315f8ed43238","at":1769071183000000000,"seq":362,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ea-38a1-75a1-83e9-d2de8ab59b37","at":1769072113825000000,"seq":363,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be4ea-3d38-76e9-9f6e-61f5f0a66102","at":1769072115000000000,"seq":364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ea-73e8-7aa2-9506-bc5a3a5734c1","at":1769072129000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019be4ea-8770-7265-a504-8ca024dd9974","at":1769072134000000000,"seq":366,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be4ea-9af8-7107-9fef-dc53a9afeaab","at":1769072139000000000,"seq":367,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4ec-c974-7881-9763-d862caf6da24","at":1769072281972000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019be4ed-12b0-711c-a731-a90a99f01fae","at":1769072300720000000,"seq":369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019be4ed-2368-76f4-bdd6-b704f5a087c3","at":1769072305000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4ed-4e60-7b58-a531-c6bc4742d95f","at":1769072316000000000,"seq":371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be4ed-8056-7862-94eb-6418dd0d16f5","at":1769072328790000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019be4ed-9c80-7865-b6d2-b443203cb0f9","at":1769072336000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ed-cf48-7a5c-a4c4-41d96ec74e56","at":1769072349000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ed-d330-7fc5-860a-f784ffc8adf7","at":1769072350000000000,"seq":375,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be4ed-e8c0-78a1-9117-2d428da345f2","at":1769072355520000000,"seq":376,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019be4ee-09e0-7f9d-b784-895b16b03548","at":1769072364000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ee-1d68-7388-ab61-8595cbb3d5f0","at":1769072369000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ee-30f0-77e2-9262-f3e547a7706f","at":1769072374000000000,"seq":379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be4ee-6511-7995-89d9-a4b6f25573bd","at":1769072387345000000,"seq":380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019be4ee-6b88-77b3-8657-aacb85c6e0c5","at":1769072389000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ee-7740-774c-86ac-264f05a13088","at":1769072392000000000,"seq":382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ee-8ac8-766b-b56e-694e3a441f38","at":1769072397000000000,"seq":383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be4ee-8ac8-7d94-8f8b-e4d9a53c15c6","at":1769072397000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019be4ee-9298-7f87-8de6-575810764b47","at":1769072399000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

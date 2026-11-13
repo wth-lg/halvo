@@ -1,0 +1,36 @@
+{"v":1,"id":"019bf99b-5e48-7683-a26b-097437e46f5a","at":1769419267656000000,"seq":232,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf99b-5e48-76ca-ab9a-a1f1c3bc0504","at":1769419267656000000,"seq":233,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf99b-6388-7898-b96d-1371a155453f","at":1769419269000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf99b-d4d0-7d68-962e-64ca8643cb6d","at":1769419298000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf99c-4de8-7f2c-88b7-a1d9d39529fe","at":1769419329000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bf99c-4e2a-7416-bb36-7feb7e3bf2c8","at":1769419329066000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf99d-4422-78f6-bfa6-c8099f187176","at":1769419392034000000,"seq":238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf99d-5788-7a8c-aa48-2bac1a585aac","at":1769419397000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf99d-6340-7caa-a271-36bc8cfae097","at":1769419400000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bf99d-6ef8-7a83-a00a-125a2495e7aa","at":1769419403000000000,"seq":241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf99d-7e98-7cc9-b201-184add689746","at":1769419407000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf99d-93eb-7209-969a-d4cadfda8c88","at":1769419412459000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf99e-74b0-7474-b9d3-8b24304542d3","at":1769419470000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bf9ab-24ff-7ac2-add5-56439b8a5712","at":1769420301567000000,"seq":245,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf9ab-24ff-77b2-8957-f355d6b85432","at":1769420301567000000,"seq":246,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf9ab-26b0-76be-a6d9-960becaef85a","at":1769420302000000000,"seq":247,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bf9ab-2a98-71e3-8334-1c1215311ec9","at":1769420303000000000,"seq":248,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bf9ab-49d8-7ba8-8df5-1b0a2a2e1fde","at":1769420311000000000,"seq":249,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bf9ac-777d-7ff4-8f86-334bc4bb5c2a","at":1769420388221000000,"seq":250,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf9ac-777d-7fae-9e67-8e249809ab10","at":1769420388221000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ac-8640-779d-8d57-a9bfea960fbb","at":1769420392000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bf9ac-a968-7871-abbe-c6d61d687600","at":1769420401000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ac-b908-7913-bb1e-217d4f8c653e","at":1769420405000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ad-21af-7e94-b2c9-0993ddae64be","at":1769420431791000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ad-2280-7585-abdf-54bac7d2453e","at":1769420432000000000,"seq":256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf9ad-3dd8-7650-93a2-df745c34c9f0","at":1769420439000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ad-6cb8-773d-a70d-45bf24fe60fc","at":1769420451000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf9ad-8810-7ec9-9dcb-47e816b129e4","at":1769420458000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ad-9d4d-7be8-bf09-5357a87661c8","at":1769420463437000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ae-0128-776b-824c-4404e4f527c4","at":1769420489000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ae-66b8-7f82-bc61-022c28c1cc3e","at":1769420515000000000,"seq":262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf9c8-0ac0-795f-b41e-dda78b492c16","at":1769422195392000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf9c8-2c60-7531-af2f-9b2dbb55ec45","at":1769422204000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c8-91f0-717b-bbc2-c8d0770aeb5c","at":1769422230000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9e4-017e-7a5f-bc1a-ccd314377241","at":1769424028030000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf9e4-7e60-71db-a251-5e4539f197f9","at":1769424060000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

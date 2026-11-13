@@ -1,0 +1,23 @@
+{"v":1,"id":"019bb162-93c3-7289-9ece-4019277d7aee","at":1768207586243000000,"seq":99,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb162-93c3-7967-8c79-fe8be8d1a739","at":1768207586243000000,"seq":100,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb162-a658-722c-af93-dca84aeb5d2e","at":1768207591000000000,"seq":101,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb162-b5f8-760b-a0b4-ebd56f89fe06","at":1768207595000000000,"seq":102,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb162-cd68-75a7-bed9-d18bc17cc173","at":1768207601000000000,"seq":103,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb162-e4d8-7878-8403-4e298f8aeb6c","at":1768207607000000000,"seq":104,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bb163-16a3-7167-9667-36c986565ddf","at":1768207619747000000,"seq":105,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb163-3ac8-7f3d-8603-e50686389222","at":1768207629000000000,"seq":106,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bb163-3eb0-7d0f-95bf-5a48e0e02017","at":1768207630000000000,"seq":107,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb163-4680-7dd7-9b07-d5b79dbe86f5","at":1768207632000000000,"seq":108,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb163-5620-720c-b578-c7da61310bef","at":1768207636000000000,"seq":109,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bb163-7178-7b5e-acd0-08c287cdd2d8","at":1768207643000000000,"seq":110,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bb17d-0cdc-7ea2-90b9-b9b804b495d7","at":1768209321180000000,"seq":111,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb17d-0cdc-7af6-8b04-be1662adb8d4","at":1768209321180000000,"seq":112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bb17d-1010-7272-b5ac-f267054c3394","at":1768209322000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17d-3720-740b-82d5-79a1a7ec705d","at":1768209332000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bb17d-4aa8-77d1-a9a1-4bd8dc2ae1e7","at":1768209337000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17d-55c6-7615-9f4c-17cec83391f5","at":1768209339846000000,"seq":116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bb17e-2935-76c9-ab94-a1148075b712","at":1768209393973000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bb17e-5c18-747d-88ce-92039f980007","at":1768209407000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17e-a2b9-7d70-9493-7272b1d4c8f2","at":1768209425081000000,"seq":119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bb17e-cd60-772f-9783-5105265c302e","at":1768209436000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17e-f470-7cf8-8a48-f10e2afa3f3c","at":1768209446000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

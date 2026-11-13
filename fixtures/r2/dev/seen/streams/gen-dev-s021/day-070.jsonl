@@ -1,0 +1,23 @@
+{"v":1,"id":"019cdc38-03e5-7e3b-8f3b-64890844b301","at":1773221184485000000,"seq":912,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc38-03e5-7dbf-b116-29bc007078d3","at":1773221184485000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cdc38-05e8-7acd-bed9-d9ee5fcbb4e2","at":1773221185000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cdc38-2910-7f0b-9b0f-0cb4587a2a66","at":1773221194000000000,"seq":915,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdc38-2cf8-7487-8ffa-6f3f1c721720","at":1773221195000000000,"seq":916,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdc3c-b28b-7d8e-a5e1-0e60feacb451","at":1773221491339000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cdc3c-cc90-7de9-b217-4750bcb5feae","at":1773221498000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc3c-d848-78bb-b21d-ccc291af8c51","at":1773221501000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cdc3c-ebd0-7c07-a759-9701c0c2ff7a","at":1773221506000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc47-7ab4-7aa0-b575-8e5337f97451","at":1773222197940000000,"seq":921,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc47-7ab4-754d-a09c-3a1554117c01","at":1773222197940000000,"seq":922,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc47-7af0-7884-912c-c2c809ddbf02","at":1773222198000000000,"seq":923,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc47-c140-73f9-8d04-f63b4b23623a","at":1773222216000000000,"seq":924,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cdc47-e850-7d6a-83e3-d24685bb362d","at":1773222226000000000,"seq":925,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cdc5b-ac84-7b5c-abda-1271def4a2ae","at":1773223521412000000,"seq":926,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc5b-ac84-7341-b95f-9077c08a16d7","at":1773223521412000000,"seq":927,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cdc5b-b2b8-75c5-8e4b-53db8653429b","at":1773223523000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc5b-f908-75cb-9cdd-9d0e4f7f8082","at":1773223541000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc5c-00d8-79fa-89d4-06ec09754511","at":1773223543000000000,"seq":930,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cdc5c-13f5-7865-a611-3c4c0cbef041","at":1773223547893000000,"seq":931,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cdc5c-1848-7444-86f4-3e9bee263f38","at":1773223549000000000,"seq":932,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc5c-5ab0-7f03-ad89-c8dfab57cc6e","at":1773223566000000000,"seq":933,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdc5c-9160-73b0-b6bd-7edd5e333835","at":1773223580000000000,"seq":934,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

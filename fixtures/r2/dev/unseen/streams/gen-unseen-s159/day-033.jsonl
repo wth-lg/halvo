@@ -1,0 +1,5 @@
+{"v":1,"id":"019c1d61-a19a-7096-9ea0-4232d77736c3","at":1770019463578000000,"seq":639,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1d61-a19a-7809-954e-ca5bdf0ed93d","at":1770019463578000000,"seq":640,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1d61-f548-744d-a042-ffab67018d3f","at":1770019485000000000,"seq":641,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c1d62-2287-7ab8-b975-cac8eee8d5fa","at":1770019496583000000,"seq":642,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c1d62-3f80-7cbd-a53c-6d2603d66161","at":1770019504000000000,"seq":643,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

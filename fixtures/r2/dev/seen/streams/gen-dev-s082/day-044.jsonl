@@ -1,0 +1,34 @@
+{"v":1,"id":"019c5626-b0b9-728c-8c96-6235e75f8883","at":1770971902137000000,"seq":548,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5626-b0b9-727d-9ccc-bad3b4749071","at":1770971902137000000,"seq":549,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5626-bfd0-7cbf-bd34-8252d68e3396","at":1770971906000000000,"seq":550,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5629-79c5-7d25-898d-b95645697667","at":1770972084677000000,"seq":551,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5629-79c5-7907-ae76-0f197cedabfa","at":1770972084677000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c5629-7ef0-7ef4-8e4e-da8424f7ade9","at":1770972086000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5629-8aa8-7d6f-92a1-c1ff002bda2b","at":1770972089000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c5629-9660-7f05-8c4f-cad0b1f8a57d","at":1770972092000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5629-c277-7c9a-900f-e0308f4f3b5d","at":1770972103287000000,"seq":556,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c562a-3e58-7e13-8a21-cf42a147f853","at":1770972135000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562a-84a8-7249-a035-121bbc1e303b","at":1770972153000000000,"seq":558,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c562a-a3e8-7b2f-b6c2-ce27ca384bad","at":1770972161000000000,"seq":559,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562a-ab11-7da7-bd4b-9688f9e7fbfb","at":1770972162833000000,"seq":560,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c562b-1148-71dc-b3ee-4d2438165a71","at":1770972189000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c563e-7f75-7783-b344-94fe50eebce7","at":1770973462389000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c563f-4cf8-7ca8-a4b6-7c7b56fa56e6","at":1770973515000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c563f-6080-7744-8a65-bdda39e0b0de","at":1770973520000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c563f-72c3-7864-bc9c-e45366d99645","at":1770973524675000000,"seq":565,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c563f-9730-79b5-b246-dfd15efb23e1","at":1770973534000000000,"seq":566,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c563f-c228-745a-a780-04662ad0a158","at":1770973545000000000,"seq":567,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5640-0fed-73de-8a08-4a18a2e8ff0a","at":1770973564909000000,"seq":568,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5640-0fed-7e32-9377-a3a57dd0bf95","at":1770973564909000000,"seq":569,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5640-2ba0-78c0-9f42-eeffa222263e","at":1770973572000000000,"seq":570,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c5640-4310-772f-893d-089b0fe3cabf","at":1770973578000000000,"seq":571,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5640-52b0-7812-9633-2853ac9a1f74","at":1770973582000000000,"seq":572,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5640-5561-7d2b-a10a-ee82b97b060a","at":1770973582689000000,"seq":573,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5640-5561-721f-a1d3-6c2e4fd7caa8","at":1770973582689000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c5640-71f0-7a6d-b090-505db7f69b01","at":1770973590000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5640-8960-791c-923e-5ac3fdcb6584","at":1770973596000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5640-925e-7239-a30e-c405eb6db45c","at":1770973598302000000,"seq":577,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c5640-d780-7a8c-b3cd-1cc90c75fc25","at":1770973616000000000,"seq":578,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5641-0a48-7ddb-bf3c-98ddc7e85739","at":1770973629000000000,"seq":579,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5641-40f8-7384-a1aa-142752e502f0","at":1770973643000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5641-4cb0-71c5-86a7-73e17cbbdf1f","at":1770973646000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

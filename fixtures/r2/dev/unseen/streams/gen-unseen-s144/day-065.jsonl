@@ -1,0 +1,18 @@
+{"v":1,"id":"019cc2bf-4f79-790f-88b0-7b8584e186cc","at":1772793843577000000,"seq":931,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc2bf-4f79-72ba-80f3-4f00d03343c2","at":1772793843577000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cc2c0-5da6-7766-aecb-3ad3179fb00c","at":1772793912742000000,"seq":933,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc2c0-5da6-7189-a8f0-7cadba3b6d92","at":1772793912742000000,"seq":934,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc2c0-7a00-7e64-9e19-b5e30eacbe76","at":1772793920000000000,"seq":935,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cc2c0-89a0-74f4-8d14-331817c930ac","at":1772793924000000000,"seq":936,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc2c0-a52c-72e1-822b-36d438f1477a","at":1772793931052000000,"seq":937,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc2c0-a52c-75e5-adfd-4123631029c8","at":1772793931052000000,"seq":938,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cc2c0-e760-794a-bb4c-42a0208d5529","at":1772793948000000000,"seq":939,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc2c0-f318-70e5-912b-0c7253001194","at":1772793951000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2c1-1258-7b06-8215-982497a26880","at":1772793959000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2c1-3198-7d74-8ad4-9b9d1d6821ac","at":1772793967000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cc2c4-6d21-727a-b055-b0136003276b","at":1772794178849000000,"seq":943,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc2c4-6d21-78b1-8a38-36e0f82bc51d","at":1772794178849000000,"seq":944,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc2c4-e6d0-7f59-845a-bc3f5dcc52c3","at":1772794210000000000,"seq":945,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2c7-ff0e-786d-a116-0142bf5218a7","at":1772794412814000000,"seq":946,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cc2c8-8c68-7d9c-89ee-b1f688ddb0b5","at":1772794449000000000,"seq":947,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2c8-9ff0-739f-b1ff-b03f12a9e15c","at":1772794454000000000,"seq":948,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

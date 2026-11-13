@@ -1,0 +1,14 @@
+{"v":1,"id":"019d4856-d978-74d1-8f98-e3ada4296dc8","at":1775035144568000000,"seq":1301,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4856-d978-787a-994f-7f7d95c48472","at":1775035144568000000,"seq":1302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d4857-b471-7307-a4df-2d820ddcfa01","at":1775035200625000000,"seq":1303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d4857-b5e8-7efa-86aa-e9372222029d","at":1775035201000000000,"seq":1304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4857-e4c8-76a7-98f1-b63b580e5468","at":1775035213000000000,"seq":1305,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4858-07f0-730f-b628-37e93e70a86e","at":1775035222000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d4858-0fc0-7eb2-9beb-99f3abee2046","at":1775035224000000000,"seq":1307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4858-0ff2-710c-8dcb-91e25506d22b","at":1775035224050000000,"seq":1308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d4858-f680-7d54-aad8-e406fc36d2d0","at":1775035283072000000,"seq":1309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d4858-fa20-7e51-8dbb-fdd85ff55efe","at":1775035284000000000,"seq":1310,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4859-01f0-7292-b6c7-2f1e5f22e88f","at":1775035286000000000,"seq":1311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4859-2ce8-72e3-a0fe-ee3748630930","at":1775035297000000000,"seq":1312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d4859-6780-7207-8e2c-8448c762c2e3","at":1775035312000000000,"seq":1313,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4859-9a48-71d5-ae07-1fd5d4f9039e","at":1775035325000000000,"seq":1314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

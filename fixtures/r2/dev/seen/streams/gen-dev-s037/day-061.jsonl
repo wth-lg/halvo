@@ -1,0 +1,27 @@
+{"v":1,"id":"019cae1b-bf6f-7567-b13b-fd5c0778b89f","at":1772447580015000000,"seq":1003,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cae1b-bf6f-7978-9383-26a1a6455411","at":1772447580015000000,"seq":1004,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cae1c-0998-76ce-8515-ee6463e61878","at":1772447599000000000,"seq":1005,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cae37-dc5b-7ce4-8a4b-e690fe0bbf9d","at":1772449422427000000,"seq":1006,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae37-dc5b-7680-b51b-a961b3d7f453","at":1772449422427000000,"seq":1007,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cae38-28d0-7da0-8496-254622b4883d","at":1772449442000000000,"seq":1008,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cae38-8690-737f-a455-3cf5653e831c","at":1772449466000000000,"seq":1009,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cae53-2506-739c-9a94-097cba343e76","at":1772451210502000000,"seq":1010,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cae53-5da8-724e-a292-8fded37b8031","at":1772451225000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cae53-8c88-7764-8a29-2f4886bb08b4","at":1772451237000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae53-98d4-742b-8bc3-d911919c2fcf","at":1772451240148000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cae53-f218-7297-97b8-eef4757ce4a5","at":1772451263000000000,"seq":1014,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cae54-4038-7e71-a539-6202db7d2520","at":1772451283000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae54-4808-7f1e-980f-11ec106846f2","at":1772451285000000000,"seq":1016,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae54-4808-7af1-91ca-8e7e55fd3b67","at":1772451285000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cae54-6ce8-7f14-a5d0-eacdfdd7663c","at":1772451294440000000,"seq":1018,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cae54-7300-738b-a33b-78c9286b1fa0","at":1772451296000000000,"seq":1019,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cae54-c326-780e-bfe0-ad8149f693f3","at":1772451316518000000,"seq":1020,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cae54-ccd8-7d9a-a661-110a87df6209","at":1772451319000000000,"seq":1021,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cae55-0388-7c05-9500-7c20e6916b34","at":1772451333000000000,"seq":1022,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae55-0b58-7d25-90c7-32f8c6c4ae7e","at":1772451335000000000,"seq":1023,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cae55-1ac6-7e6b-ac32-d1bc4c3daf79","at":1772451338950000000,"seq":1024,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cae55-c2f0-767a-b060-924765be7357","at":1772451382000000000,"seq":1025,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae55-f1b3-7a49-af5c-34f910acb83e","at":1772451393971000000,"seq":1026,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cae56-4f90-70e0-92b5-8c48b111daac","at":1772451418000000000,"seq":1027,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cae56-5760-7f80-bb05-1a5cbd38d9cf","at":1772451420000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cae56-ad50-7e7a-a59b-be9e78733c32","at":1772451442000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

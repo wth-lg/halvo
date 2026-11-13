@@ -1,0 +1,26 @@
+{"v":1,"id":"019bcb8a-c9bd-79e6-995a-5c7a6e8718cc","at":1768646429117000000,"seq":199,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb8a-c9bd-7d4b-8445-f072063a681f","at":1768646429117000000,"seq":200,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb8b-03e0-74e0-9ad4-0b157da6e791","at":1768646444000000000,"seq":201,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb8b-36a8-72a3-abf4-410e0534b9ae","at":1768646457000000000,"seq":202,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bcb8b-7910-7148-bfbe-67ec859a4e24","at":1768646474000000000,"seq":203,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bcb8b-9080-718d-8321-528e1269e2ce","at":1768646480000000000,"seq":204,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bcb90-39c9-79e3-8b31-cb2c26a18798","at":1768646785481000000,"seq":205,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb90-39c9-77e3-bccb-0f80da5ccda2","at":1768646785481000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bcb90-5ef8-7270-abd5-6d224eef6e0b","at":1768646795000000000,"seq":207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb91-0e65-7169-9d2a-4663f77bb100","at":1768646839909000000,"seq":208,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bcb91-35d0-785b-9502-d3309b0f3e82","at":1768646850000000000,"seq":209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb91-5510-7903-bd75-c85cb887483d","at":1768646858000000000,"seq":210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb91-64b0-7551-a02e-f298539ceb06","at":1768646862000000000,"seq":211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb91-6c80-7810-af24-7a967fffcfcf","at":1768646864000000000,"seq":212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb92-1bcb-764a-88f5-7e59048de79f","at":1768646908875000000,"seq":213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bcb92-37a0-79e0-9237-adacdddd8d2c","at":1768646916000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb92-4b28-77b2-aab2-d6ee45eab900","at":1768646921000000000,"seq":215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb92-8639-7e5f-8714-ee3dd40728ba","at":1768646936121000000,"seq":216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bcb93-0ff2-7b91-bba1-6e29a92c6ce1","at":1768646971378000000,"seq":217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bcb93-4910-7f86-9ab7-9ec1e2070b9d","at":1768646986000000000,"seq":218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb93-54c8-7c83-babd-a7ca06035a3f","at":1768646989000000000,"seq":219,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bcb93-7bd8-7fa0-b641-1a49e18fd0cd","at":1768646999000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb93-ed20-752f-a3bb-4e7260074544","at":1768647028000000000,"seq":221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb9e-6a4b-7179-952c-1f9aedc8d664","at":1768647715403000000,"seq":222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bcb9e-7088-70ac-a6d4-0fe5db99b80c","at":1768647717000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb9e-af08-72ff-bac1-24ce1f81bd34","at":1768647733000000000,"seq":224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

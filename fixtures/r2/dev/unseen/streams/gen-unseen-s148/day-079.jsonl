@@ -1,0 +1,22 @@
+{"v":1,"id":"019d0a6b-8d48-790c-ba8d-d0850f228c22","at":1773996313928000000,"seq":1048,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0a6b-8d48-76a3-b915-b526754d0fef","at":1773996313928000000,"seq":1049,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0a6b-acd0-7920-8e1c-62e10a610fd0","at":1773996322000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d0a6b-b0b8-79c5-9e78-048101a9105d","at":1773996323000000000,"seq":1051,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a72-25cb-7ac0-b004-837bb856975a","at":1773996746187000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0a72-bc74-7e4f-9001-090bde7afa06","at":1773996784756000000,"seq":1053,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0a72-e860-7ab3-b8fe-b2e2ff49535c","at":1773996796000000000,"seq":1054,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0a73-1b28-78e3-9744-028973f0f243","at":1773996809000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a73-1f10-7551-8b48-d4a7858a64b1","at":1773996810000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a73-2ad1-74cf-b45d-4d87b7ceebeb","at":1773996813009000000,"seq":1057,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0a73-4df0-7c64-93fc-26508cd93659","at":1773996822000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0a73-bf38-789d-98dd-40638078c09e","at":1773996851000000000,"seq":1059,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0a74-0f9b-71bc-b831-786685268955","at":1773996871579000000,"seq":1060,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0a74-8288-7d15-afcb-a5e836f40a8a","at":1773996901000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a83-8725-74e6-ac63-23ffcbd0c6d0","at":1773997885221000000,"seq":1062,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0a84-0f00-7150-9c16-caa7064e6bd6","at":1773997920000000000,"seq":1063,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a84-2a58-75b5-a70e-3ea59db8f6f5","at":1773997927000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a9f-2bbc-7a31-8b96-015d5c703bf5","at":1773999696828000000,"seq":1065,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0a9f-2bbc-7293-8d42-549af2ca8bea","at":1773999696828000000,"seq":1066,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0a9f-3438-7f00-93bc-58a89046231a","at":1773999699000000000,"seq":1067,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a9f-4ba8-7fce-abc5-53e5a8a14dc5","at":1773999705000000000,"seq":1068,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a9f-e7e8-7930-bd86-cd2c38e12e79","at":1773999745000000000,"seq":1069,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}

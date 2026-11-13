@@ -1,0 +1,18 @@
+{"v":1,"id":"019cf11d-14e0-71c3-a745-e3ecebf381ac","at":1773571740896000000,"seq":1116,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf11d-14e0-776b-b2b8-05055b9921e3","at":1773571740896000000,"seq":1117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cf11d-4bf8-76ba-b4fd-90e544b0b5eb","at":1773571755000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cf11d-c128-7771-9dbc-74288e5922e6","at":1773571785000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf12b-9c26-7925-83f1-c843e9fe3093","at":1773572693030000000,"seq":1120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cf12c-4bd0-745a-b4ff-753a5a2143e7","at":1773572738000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cf12c-ac86-72e9-ac58-d94e8b5da93a","at":1773572762758000000,"seq":1122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cf12c-ebf8-75e7-af42-91fb452aeb3c","at":1773572779000000000,"seq":1123,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf12d-22a8-7a9d-a622-c54488b841d4","at":1773572793000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf12d-3248-7973-8999-72878e68887a","at":1773572797000000000,"seq":1125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cf12d-3e00-7fe7-b691-28077142d16e","at":1773572800000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf12d-a0f3-7e11-ad31-da6d77e242f8","at":1773572825331000000,"seq":1127,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cf12d-a778-7417-837f-ce68a03e478c","at":1773572827000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf12d-ce88-7d0e-84ab-7fb2b8de823f","at":1773572837000000000,"seq":1129,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf12d-de28-758a-9450-9835544701a8","at":1773572841000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf12e-2090-7626-8c05-3d42e4253f16","at":1773572858000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf134-66a8-7965-a589-74e0c9786764","at":1773573269160000000,"seq":1132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cf134-a870-7f46-9050-3275ddd90626","at":1773573286000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

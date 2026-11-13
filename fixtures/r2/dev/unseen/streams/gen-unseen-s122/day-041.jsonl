@@ -1,0 +1,20 @@
+{"v":1,"id":"019c4709-de43-775b-b04d-1779bd72d5d3","at":1770718355011000000,"seq":452,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4709-de43-7133-8ec6-812bc0b2b6f2","at":1770718355011000000,"seq":453,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c4709-e608-7c1c-a824-ea40a6f65a26","at":1770718357000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c470a-2870-758b-9678-e7e298ae672e","at":1770718374000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c470a-2a31-717b-bb82-6f83ff78f0ac","at":1770718374449000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c470a-bce0-754d-bf37-e560d25db410","at":1770718412000000000,"seq":457,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c470a-ebc0-7cce-92f3-49394f8a5053","at":1770718424000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c470b-0b00-70a4-b727-f7011a063d38","at":1770718432000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c470b-2270-7c72-ae63-6c73ac825f2b","at":1770718438000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c470b-2735-77b5-a190-42ce708435de","at":1770718439221000000,"seq":461,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c470b-2a40-7746-87c7-d548c761b57e","at":1770718440000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c470b-2e28-71a1-9b0a-eb25aa5ca10a","at":1770718441000000000,"seq":463,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c470b-41b0-7357-a92e-a0e652fb488a","at":1770718446000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c470b-60f0-70ca-bd7f-0f404e39afd9","at":1770718454000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4719-2b04-7354-901b-f3e2b34a1563","at":1770719357700000000,"seq":466,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c4719-4788-7661-9af5-e5e7aca00aee","at":1770719365000000000,"seq":467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4719-4f58-7c03-a721-7be15a98a518","at":1770719367000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4719-8dd8-79da-a6bd-5e835b82a141","at":1770719383000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4719-a930-7b42-b291-7cb25b6d94c3","at":1770719390000000000,"seq":470,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4719-a930-7564-98b7-5730a94fc329","at":1770719390000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}

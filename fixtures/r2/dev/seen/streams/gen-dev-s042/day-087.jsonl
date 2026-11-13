@@ -1,0 +1,15 @@
+{"v":1,"id":"019d3410-9c7c-794b-a1c2-3be6949c49de","at":1774694997116000000,"seq":1232,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3410-9c7c-72d3-8b1e-db9226b984b9","at":1774694997116000000,"seq":1233,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3410-d2b8-79e9-b32f-b6e77ce91c9b","at":1774695011000000000,"seq":1234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d3410-ee10-70f4-bb99-9a9ea3e3b265","at":1774695018000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3411-3b83-714d-94a5-52969c1289a7","at":1774695037827000000,"seq":1236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3411-4bd0-7f67-915e-9209e8826217","at":1774695042000000000,"seq":1237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3411-6b10-7188-b4f2-5be93c799382","at":1774695050000000000,"seq":1238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3411-76c8-7552-b63d-cec7a95686c8","at":1774695053000000000,"seq":1239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3411-8668-7ad4-94ca-5ffae09c5acc","at":1774695057000000000,"seq":1240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d3411-b548-7d95-a2a6-2c64fbe1a5ee","at":1774695069000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3411-db24-777c-ab20-90994f827e42","at":1774695078692000000,"seq":1242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3411-e040-735a-9fcd-00b11fefa777","at":1774695080000000000,"seq":1243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3412-0750-71fa-83f8-c72189ff53c3","at":1774695090000000000,"seq":1244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3412-3248-7107-9c01-e9116bb9df52","at":1774695101000000000,"seq":1245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3412-93f0-703c-84cc-68fc4d2081c1","at":1774695126000000000,"seq":1246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

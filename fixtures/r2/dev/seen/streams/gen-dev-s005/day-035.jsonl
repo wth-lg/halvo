@@ -1,0 +1,22 @@
+{"v":1,"id":"019c2781-aa93-78c1-9740-016351feb520","at":1770189335187000000,"seq":484,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2781-aa93-7e71-a7c9-02fea8482ead","at":1770189335187000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2781-b978-7a4f-a430-fe75ee30e414","at":1770189339000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c2781-c148-7db0-b15e-2210d65a9e3e","at":1770189341000000000,"seq":487,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2781-e470-71d8-856a-933699425163","at":1770189350000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2785-5a51-7de4-927f-8b60d06000b4","at":1770189576785000000,"seq":489,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2785-a560-767e-a177-7602be02a80b","at":1770189596000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2785-b8e8-79ae-9908-43efb143db30","at":1770189601000000000,"seq":491,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2785-bcd0-78ce-9c9e-ad45f581db85","at":1770189602000000000,"seq":492,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2785-d828-786a-904e-ef945a7a1fdd","at":1770189609000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c2785-e7d5-7048-8afc-a3f74d27398b","at":1770189613013000000,"seq":494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2785-f768-71da-9977-a380d4ecaf89","at":1770189617000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c2786-2648-7f7c-bce3-e41d138e849a","at":1770189629000000000,"seq":496,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2786-e998-7db4-9616-24bcfd101679","at":1770189679000000000,"seq":497,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2786-f6a9-77cc-8950-f76417ac2c33","at":1770189682345000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2787-6698-718d-bee1-5217fa8385de","at":1770189711000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2787-ef50-7da1-9221-9e07133015fd","at":1770189746000000000,"seq":500,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c279c-2da3-723b-bc92-8b59452bad2c","at":1770191072675000000,"seq":501,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c279c-2da3-722d-9a25-2ffb0eb8d6aa","at":1770191072675000000,"seq":502,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c279c-6d68-70dd-ab67-7391fa20bc99","at":1770191089000000000,"seq":503,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c279c-7150-7596-a3be-08d05135d71e","at":1770191090000000000,"seq":504,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c279c-8ca8-7b5d-843f-c5bfca55d477","at":1770191097000000000,"seq":505,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}

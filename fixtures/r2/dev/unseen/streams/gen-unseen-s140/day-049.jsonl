@@ -1,0 +1,47 @@
+{"v":1,"id":"019c6feb-fafb-77f9-b281-542ea706c803","at":1771404262139000000,"seq":923,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6feb-fafb-7203-a820-c18ea48ca029","at":1771404262139000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6fec-0a10-73a5-bfc0-aeef7166c189","at":1771404266000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fec-3120-78c5-a245-97ef30593ae7","at":1771404276000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6fec-327b-7eab-a93e-0899c1ea4fd8","at":1771404276347000000,"seq":927,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6fed-2f08-7778-9a77-3958c9176f98","at":1771404341000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fed-3bde-75c4-ac5a-4bd3c3ed18a3","at":1771404344286000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6fed-4678-782b-9b42-dc8eb2498edd","at":1771404347000000000,"seq":930,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fed-7170-75cb-8efb-2acb174ab9fc","at":1771404358000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c6fed-9498-7745-a7a6-78e24e04435e","at":1771404367000000000,"seq":932,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6fed-df18-7de1-a289-682fb2ce70d3","at":1771404386072000000,"seq":933,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6fed-e2b8-7cf6-b410-960c3ab2266c","at":1771404387000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c6fed-ee70-7e92-8a73-fb57ed500982","at":1771404390000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fed-f640-72bf-85ed-3e309c76039d","at":1771404392000000000,"seq":936,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fee-1968-7ec1-bd4d-bfcd46227e0b","at":1771404401000000000,"seq":937,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6fee-238a-7192-aa2e-413e2e8c38b0","at":1771404403594000000,"seq":938,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6fee-2908-76c8-aadd-6321be63461f","at":1771404405000000000,"seq":939,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6fee-4460-77e2-8563-7b78edef50f9","at":1771404412000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6fee-f428-74de-ac48-21ea101cc401","at":1771404457000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c6fef-07b0-79ed-8152-03c5952131cd","at":1771404462000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fef-1610-7167-a81e-fd7dfb388dbf","at":1771404465680000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6fef-6570-7bd1-99eb-a2efb28dc4e8","at":1771404486000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fef-8c80-7cc6-a566-584f1ab9b136","at":1771404496000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fef-8f17-7726-af39-644053a94385","at":1771404496663000000,"seq":946,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6fef-e658-7e59-bd06-4536b75ff59d","at":1771404519000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ff0-0d68-73db-9695-478ac8f5210c","at":1771404529000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6ff0-24d8-77de-9264-e2d92ff16859","at":1771404535000000000,"seq":949,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6ff0-3c48-76ed-9111-c307eb878f0c","at":1771404541000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6ff0-5b88-7048-80d4-8b6df1ff6936","at":1771404549000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ffe-3891-7599-beca-4d0d94b1eeaa","at":1771405457553000000,"seq":952,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c6ffe-4220-7260-8887-a797c6b32ee4","at":1771405460000000000,"seq":953,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6ffe-6d18-7d8e-8e8b-0027502baf68","at":1771405471000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ffe-9fe0-7931-bc94-88841e200e3b","at":1771405484000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ffe-b368-73bd-9e33-2b46175f1214","at":1771405489000000000,"seq":956,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7005-31a3-7bd6-9905-185f020c8c85","at":1771405914531000000,"seq":957,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c7005-56a0-710f-be96-06cc1c4e18f2","at":1771405924000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7006-1dc8-7cb8-b044-779291c7bde3","at":1771405974984000000,"seq":959,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c7006-25a8-77dd-b30f-7a6cb759a7a0","at":1771405977000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7006-2d78-7f5e-a1d7-7c126c340b03","at":1771405979000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c7006-9ad8-76c4-b448-114be94aa566","at":1771406007000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7006-e510-77a8-a4f8-b8ffd1a6d211","at":1771406026000000000,"seq":963,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7007-1ad1-7758-ab30-02f9610f5713","at":1771406039761000000,"seq":964,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c7007-42d0-7b11-a065-9c2f4189ceb8","at":1771406050000000000,"seq":965,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7007-6dc8-7d3b-92d6-fb0ad12e617d","at":1771406061000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c7007-80d7-793b-8053-1165d096b4d7","at":1771406065879000000,"seq":967,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c7007-a478-7d6d-85ec-1ef933518d65","at":1771406075000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c7008-15c0-7eb6-8a28-ad996b5ac150","at":1771406104000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

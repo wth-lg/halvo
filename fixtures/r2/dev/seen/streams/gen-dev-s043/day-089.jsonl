@@ -1,0 +1,15 @@
+{"v":1,"id":"019d3da2-8136-77e1-b748-edf49f687958","at":1774855553334000000,"seq":1364,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3da2-8136-7701-a80e-5d8fc731e423","at":1774855553334000000,"seq":1365,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d3da2-9b40-7351-8b17-8de3542c3de5","at":1774855560000000000,"seq":1366,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3da2-b2b0-7eb3-b637-26f48583163c","at":1774855566000000000,"seq":1367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3da2-d9c0-7c8b-9d39-372ea4fb23c5","at":1774855576000000000,"seq":1368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d3dbd-0a89-7f2a-bd86-f172cb09676b","at":1774857292425000000,"seq":1369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d3dbd-c078-76ff-850b-2706994c7d7d","at":1774857339000000000,"seq":1370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d3dbd-cc30-7de2-a9f6-fd2f33ce8383","at":1774857342000000000,"seq":1371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dbd-fef8-75a6-9505-b7b0d0028681","at":1774857355000000000,"seq":1372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dbe-1855-7dfa-a746-e743594d7633","at":1774857361493000000,"seq":1373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d3dbe-1a50-7775-a494-4e1411f1bf58","at":1774857362000000000,"seq":1374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3dbe-7810-7a76-a979-93e90a025579","at":1774857386000000000,"seq":1375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dbe-c248-76a7-8b75-5d33c5ba7da2","at":1774857405000000000,"seq":1376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d3dbf-0c4e-7241-b62c-75dfa1b9edab","at":1774857423950000000,"seq":1377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d3dbf-3390-7bd3-8b9a-20180b442204","at":1774857434000000000,"seq":1378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

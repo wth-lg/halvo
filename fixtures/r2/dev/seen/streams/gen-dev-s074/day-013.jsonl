@@ -1,0 +1,12 @@
+{"v":1,"id":"019bb699-62d6-7e4a-9599-a6e2aa5abf3f","at":1768295064278000000,"seq":197,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb699-62d6-7cc1-aa10-4fce8089ae0c","at":1768295064278000000,"seq":198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bb699-90a0-713d-a7e6-e59f59291587","at":1768295076000000000,"seq":199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb6ab-6be9-727b-b7b7-6d48e82bbb5f","at":1768296246249000000,"seq":200,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb6ab-6be9-7cc0-8996-faae8738c3ad","at":1768296246249000000,"seq":201,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb6ac-16d0-7aae-9542-52d433538e70","at":1768296290000000000,"seq":202,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bb6ac-3610-77e5-b8d6-013bfafbe4f1","at":1768296298000000000,"seq":203,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bb6ac-39f8-727b-bbb5-945ace545992","at":1768296299000000000,"seq":204,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bb6ac-4b7b-730a-9f34-5ebf31d2ad9e","at":1768296303483000000,"seq":205,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb6ac-9ba0-7fe6-b0b8-06a4add23c9c","at":1768296324000000000,"seq":206,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bb6ac-e5d8-707c-855e-48816acb97bc","at":1768296343000000000,"seq":207,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bb6ac-e9c0-71ca-9bee-441d4edc1f67","at":1768296344000000000,"seq":208,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019bd59e-6c56-73b2-9a94-6d52005d98c0","at":1768815488086000000,"seq":330,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd59e-6c56-7820-8e84-f350e5e35b8a","at":1768815488086000000,"seq":331,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bd59e-73d0-7f6a-bc85-c1ef40c03697","at":1768815490000000000,"seq":332,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd59e-a698-742f-a66a-d9132e99a9db","at":1768815503000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bd59e-aa80-7110-9e5b-f212a2aa7bf6","at":1768815504000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd59e-dd71-74cc-aa29-0f2ebcfd426c","at":1768815517041000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bd59f-46c0-7ae7-83fc-9cd9c85fb94f","at":1768815544000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bd59f-5660-7061-9c9f-3712e5a8f8e0","at":1768815548000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd59f-94e0-7cf4-af84-da8dea1a2742","at":1768815564000000000,"seq":338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd5a1-d3bf-718b-87bb-90e364691629","at":1768815711167000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bd5a2-1580-7536-8e8d-00a63deab8f6","at":1768815728000000000,"seq":340,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd5a2-34c0-7f62-83c7-bdda491d3a3f","at":1768815736000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5a2-4078-7735-8643-78db821245a7","at":1768815739000000000,"seq":342,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd5ba-e4b3-771f-85f0-425d5a0d426e","at":1768817353907000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bd5ba-f4b0-7d9f-b5b6-b6f77ac08f3d","at":1768817358000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bd5bb-8150-7be1-a04d-162f89118dae","at":1768817394000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5bb-d5eb-755f-8179-7f3effd57122","at":1768817415659000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bd5bb-df10-7a55-a948-7bf2a7a24713","at":1768817418000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5bc-b9d0-73f3-8228-de99d9ad654d","at":1768817474000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bd5bc-c7b9-74d2-abc3-f1a8670c5e97","at":1768817477561000000,"seq":349,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bd5bd-13a8-72fa-b914-5ece56c4cb27","at":1768817497000000000,"seq":350,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

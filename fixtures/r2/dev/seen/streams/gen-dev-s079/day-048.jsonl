@@ -1,0 +1,22 @@
+{"v":1,"id":"019c6a72-a3ce-7700-8549-801292948395","at":1771312423886000000,"seq":692,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6a72-a3ce-7237-959f-5332ca62b09f","at":1771312423886000000,"seq":693,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c6a72-aff8-7d77-af67-137b89c6e194","at":1771312427000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a72-d708-7aca-8bbd-f9804516622c","at":1771312437000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a72-f260-7ee6-bf0b-c376adb0a607","at":1771312444000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6a73-2b09-73d2-8154-a8ceec40b5de","at":1771312458505000000,"seq":697,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c6a73-5020-79db-83b1-ff77f3d9aa5d","at":1771312468000000000,"seq":698,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6a73-9670-7d80-8afa-a5a028397584","at":1771312486000000000,"seq":699,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6a73-adfb-77b9-91e9-e44aa5022fcf","at":1771312492027000000,"seq":700,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c6a73-c938-74a7-af65-617f95a7b307","at":1771312499000000000,"seq":701,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6a74-1758-7627-a7c3-783cbcd344d1","at":1771312519000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c6a74-6a70-7af8-827b-316347346437","at":1771312540272000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c6a74-88a0-7c8c-a1e3-9cb6d063d204","at":1771312548000000000,"seq":704,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6a74-a010-780f-883d-9400623ed165","at":1771312554000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c6a75-01b8-7365-8a4d-bd996d836ec5","at":1771312579000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a75-05a0-7b7c-b3a7-0b1f50167eb4","at":1771312580000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a77-c535-7f88-8cee-75a5946a8afe","at":1771312760117000000,"seq":708,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6a77-dc30-7a99-9b66-1807d52cc6a8","at":1771312766000000000,"seq":709,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a77-efb8-70cf-9386-d1ddf2c4debc","at":1771312771000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c6a78-1e98-7bea-887e-e62d99b7f27a","at":1771312783000000000,"seq":711,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a78-8fe0-7533-ae7f-1a0b3e7fa050","at":1771312812000000000,"seq":712,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6a78-bad8-7529-86e3-329474245123","at":1771312823000000000,"seq":713,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

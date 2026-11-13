@@ -1,0 +1,46 @@
+{"v":1,"id":"019bb141-5894-7c0a-811a-774b41554119","at":1768205408404000000,"seq":175,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb141-5894-7c80-94b5-1f9a0554629a","at":1768205408404000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bb141-9198-7401-aadd-81e9f7c47f51","at":1768205423000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bb142-2b76-77e9-98d1-a553a38d94f5","at":1768205462390000000,"seq":178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bb142-5100-7da4-8ba0-ff3286ab8cdb","at":1768205472000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bb142-a6f0-723a-b11c-7457a3af8609","at":1768205494000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb142-e570-76c8-9348-1e13db7a05df","at":1768205510000000000,"seq":181,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb143-0c80-7d3e-bfda-c7addd0df099","at":1768205520000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb143-23f0-7a11-9976-ba6b2a9581d4","at":1768205526000000000,"seq":183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb143-2dde-77eb-a7b7-1f8aa33a852a","at":1768205528542000000,"seq":184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 3 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bb143-6e28-7381-afcd-fc52e34e1052","at":1768205545000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb143-81b0-7802-ac0a-ba88fecd0a2a","at":1768205550000000000,"seq":186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb143-9538-7aed-9116-9c697130675b","at":1768205555000000000,"seq":187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb143-db88-7103-8094-1d82cb29881e","at":1768205573000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bb143-e55e-7b0d-9226-5665d07cfa09","at":1768205575518000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bb144-0e50-7e56-bbf9-1f4c6c3b272d","at":1768205586000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb144-1a08-7fa5-803d-8f75e74bba90","at":1768205589000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bb14b-5ab5-77db-b7af-f81241680036","at":1768206064309000000,"seq":192,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb14b-5ab5-75ae-a41b-97dec466afd3","at":1768206064309000000,"seq":193,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb14b-5d68-7a55-8f33-dcb08be99ac2","at":1768206065000000000,"seq":194,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bb14b-7ca8-7601-98f3-cbffb78a11b6","at":1768206073000000000,"seq":195,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bb150-2535-7db4-815c-74837f6ac3a4","at":1768206378293000000,"seq":196,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb150-2535-759c-8747-82035dbaabf9","at":1768206378293000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bb150-3798-777c-b19d-14433932ce89","at":1768206383000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb150-84fd-7b42-8128-129f48a2ef7e","at":1768206402813000000,"seq":199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bb151-2db0-7bc6-9230-9a4d1ed0fd6f","at":1768206446000000000,"seq":200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bb151-5401-7988-b351-e234beaa9f7e","at":1768206455809000000,"seq":201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bb151-6848-748f-87a3-e3c41c791e59","at":1768206461000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb151-d990-77f3-8f40-0973ee93456c","at":1768206490000000000,"seq":203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb152-0488-780d-a4b5-bf311d53ca66","at":1768206501000000000,"seq":204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb152-0c18-754f-ad6f-0250019f635b","at":1768206502936000000,"seq":205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bb152-1428-72ff-8286-eb3aa0c22479","at":1768206505000000000,"seq":206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb152-1810-7f96-968c-e5dbaf6070c1","at":1768206506000000000,"seq":207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb152-23c8-73c7-af35-594452c96be8","at":1768206509000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb152-79b8-7346-85d2-64301d272b39","at":1768206531000000000,"seq":209,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb15e-1951-7b49-b0f9-649dde16648c","at":1768207292753000000,"seq":210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb15e-1a48-7840-a918-aeed342b1798","at":1768207293000000000,"seq":211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15e-2600-71cf-b964-6491753a78df","at":1768207296000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bb15e-2dd0-7e02-aa43-e191cb0fdeaf","at":1768207298000000000,"seq":213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15e-4d10-7fb0-af4d-99a92b3de487","at":1768207306000000000,"seq":214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb15e-7038-7a35-988c-1046d5531422","at":1768207315000000000,"seq":215,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb15f-fe3d-7739-a9eb-6e8b4c1a348e","at":1768207416893000000,"seq":216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb160-1618-734b-91c5-985ecda05469","at":1768207423000000000,"seq":217,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb160-4110-7fde-9b49-878751b369f3","at":1768207434000000000,"seq":218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb160-9ae8-7074-b3a2-bebb366b5d64","at":1768207457000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb160-aa88-7f35-84bb-de890fc6a5e7","at":1768207461000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

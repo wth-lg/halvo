@@ -1,0 +1,26 @@
+{"v":1,"id":"019cc756-1946-79fa-94a7-5183eb909a55","at":1772870834502000000,"seq":962,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc756-1946-7cce-ade0-df705758fefa","at":1772870834502000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cc757-0598-7dc1-ba45-ada0e81d34bb","at":1772870895000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc757-1d08-71b3-82b5-079a2f3b8cae","at":1772870901000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc757-2927-7eb9-9636-0ee492375d02","at":1772870904103000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cc757-4418-7bcb-9be6-e17c286e64af","at":1772870911000000000,"seq":967,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc758-0519-795f-8052-a8f33c45b347","at":1772870960409000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cc758-0768-75e5-aa3b-e6d2587cd72d","at":1772870961000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cc758-5970-7766-92d5-95b9a5f37603","at":1772870982000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc758-70e0-71de-83aa-75ec72dacb79","at":1772870988000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc758-ed54-726c-bc87-c8e562c2d34e","at":1772871019860000000,"seq":972,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cc759-3c00-7e2a-a3fa-a139f78d15e6","at":1772871040000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc759-91f0-77f1-9b5b-5a7822497527","at":1772871062000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc759-c8a0-7951-896c-e55f8acbba72","at":1772871076000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc759-f348-7b69-9e49-86429f2a7d58","at":1772871086920000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cc75a-8808-7e2e-acf5-2b6ab7394d0d","at":1772871125000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc75a-abb6-73dd-86db-5c62e2fead05","at":1772871134134000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cc75b-0120-7263-a213-9ab76a37899a","at":1772871156000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc75b-0cd8-7092-a597-a460fbbd9a19","at":1772871159000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc75b-1890-7ac9-8591-5e0d00eb9fe7","at":1772871162000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cc75b-62c8-74da-836d-a4ebad9c46ba","at":1772871181000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc75b-9756-7195-829c-f590cfd08af1","at":1772871194454000000,"seq":983,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cc75b-b8b8-73ed-8e0c-fccc61b8bc4e","at":1772871203000000000,"seq":984,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc75c-1678-7558-86d2-2788db88d9b6","at":1772871227000000000,"seq":985,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc75c-35b8-7bb5-af22-a2fed1b32d5c","at":1772871235000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc75c-3d88-7b81-8360-0c1d118c8cdc","at":1772871237000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

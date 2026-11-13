@@ -1,0 +1,26 @@
+{"v":1,"id":"019c515b-8f4a-71b4-b5e2-283c6ca0bff9","at":1770891480906000000,"seq":586,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c515b-8f4a-7c6f-af2b-3f9dcbbc8986","at":1770891480906000000,"seq":587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c515c-301b-7fd9-970c-99ca1017c6f3","at":1770891522075000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c515c-9560-742c-a29a-83a5aaca5bc4","at":1770891548000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515c-a8e8-7039-8075-502b80e6050f","at":1770891553000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c515d-0e78-770c-9108-ab2394b5c7dc","at":1770891579000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515d-3d18-7b9b-a438-efa9fcd400f2","at":1770891590936000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c515d-7bd8-7272-bb4b-2f09072debe0","at":1770891607000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515d-7d98-703d-9e48-243408f44d63","at":1770891607448000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c515d-8790-73c8-bb5f-9596ea4d878c","at":1770891610000000000,"seq":595,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c515d-8f60-78d7-b6dc-6ad052e5696f","at":1770891612000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515d-aea0-714a-b9a0-b9c6ba6b68fa","at":1770891620000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515d-c146-76bb-bac4-6efabf12ddc8","at":1770891624774000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c515d-c228-70ac-9d28-45f93dbf73ba","at":1770891625000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c515d-d1c8-7238-a200-1c80688a8ad1","at":1770891629000000000,"seq":600,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c515e-2f88-74fd-9a82-2180133d0162","at":1770891653000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515e-9900-7087-8896-e2c0fb759336","at":1770891680000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515e-bfbc-7340-a419-8a6ad6ab109f","at":1770891689916000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c515e-e338-7c77-ac72-a0e05a04f780","at":1770891699000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c515f-0a48-703e-9842-39f73a1181c9","at":1770891709000000000,"seq":605,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c515f-1600-7bee-bdff-611d76c78a79","at":1770891712000000000,"seq":606,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c515f-2988-758b-a8ab-8bf602e4bfbc","at":1770891717000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515f-4248-73ad-a86c-4a6bd8661cd1","at":1770891723336000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c515f-77a8-71db-b24a-30252833fe15","at":1770891737000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c515f-dd38-799b-b37e-84739225dcd6","at":1770891763000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5160-1000-7c10-97a8-f9d532a87cc9","at":1770891776000000000,"seq":611,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

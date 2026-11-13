@@ -1,0 +1,18 @@
+{"v":1,"id":"019b78ec-7a25-7ddb-8be0-c7f26fa5bf81","at":1767260322341000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b78ec-7a25-7947-bf20-823920217f0f","at":1767260322341000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b78ec-a7b0-77db-a674-9914b83f172c","at":1767260334000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ed-6b00-7fef-8026-94b4e95337d3","at":1767260384000000000,"seq":3,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b78ff-bb6f-713c-9837-cc132fb62924","at":1767261584239000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7900-2010-7443-9372-7a81d951dbdd","at":1767261610000000000,"seq":5,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7900-6a48-7e7c-a9fd-2d100a7d3bef","at":1767261629000000000,"seq":6,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7907-b8ac-7c07-9a3e-2408cd68380f","at":1767262107820000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7907-c130-7837-9faf-d5f6978af838","at":1767262110000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7908-a3c0-7e1b-bb3f-1a79832c6042","at":1767262168000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b790b-b208-79ae-a34a-fc9d8268c10f","at":1767262368264000000,"seq":10,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b790b-ef80-7a17-b997-c2c14660fd81","at":1767262384000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b790c-5ce0-7ca0-8ec7-60a9668407f3","at":1767262412000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b790c-7068-7f61-b530-42b9d243ef22","at":1767262417000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b790c-73a0-7435-8c3a-9f1e67e95d87","at":1767262417824000000,"seq":14,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b790c-8bc0-79a1-b774-3c88296304bd","at":1767262424000000000,"seq":15,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b790c-8fa8-7c11-afa7-e63c1b809e88","at":1767262425000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b790c-9390-7b76-8e0a-840de3baf663","at":1767262426000000000,"seq":17,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

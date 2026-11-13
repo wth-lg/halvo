@@ -1,0 +1,21 @@
+{"v":1,"id":"019ce6c8-44a1-7a14-b3ac-827bd28539a0","at":1773398410401000000,"seq":1059,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6c8-44a1-7e60-bbc5-4b0e77b46152","at":1773398410401000000,"seq":1060,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce6c8-9518-7ddc-96a7-9275d4ad1631","at":1773398431000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6c8-a8a0-7966-8d89-489d96649623","at":1773398436000000000,"seq":1062,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce6d8-39ac-7d6b-abb6-a3d5f7ea239b","at":1773399456172000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce6d8-5458-7bfd-a988-c97a28eae815","at":1773399463000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce6d8-7780-7bf7-9820-f85c2b5ed0cc","at":1773399472000000000,"seq":1065,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d8-7f50-706d-9bbf-4388dac5b71a","at":1773399474000000000,"seq":1066,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce6d8-9aa8-725c-90e4-d3bf11e3bbd8","at":1773399481000000000,"seq":1067,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d8-9e90-79b1-83b3-662626745eae","at":1773399482000000000,"seq":1068,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce6e5-9724-705c-81ef-2b1a7c9deda3","at":1773400332068000000,"seq":1069,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ce6e5-e659-74eb-b740-7d7a8d792ef9","at":1773400352345000000,"seq":1070,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ce6e6-7588-7ed1-8e9d-66e3ceaf7571","at":1773400389000000000,"seq":1071,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6e6-ac38-7124-9255-2182f751d19b","at":1773400403000000000,"seq":1072,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6e6-ac48-71bd-86f3-3b2e04a5e5eb","at":1773400403016000000,"seq":1073,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ce6e6-bbd8-7f4d-8cfb-4bd0315fb0f6","at":1773400407000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6e6-eab8-7ee4-b1f3-6a076b072eda","at":1773400419000000000,"seq":1075,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6e7-38d8-7773-b05d-1a78c1e5cd76","at":1773400439000000000,"seq":1076,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6e7-ab4a-79b7-8cbd-9002729b9ea6","at":1773400468298000000,"seq":1077,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ce6e7-d900-73c0-ad63-7a05c62eb7df","at":1773400480000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ce6e8-2338-743c-b4a6-63b3c3f2e66f","at":1773400499000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

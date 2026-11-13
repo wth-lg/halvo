@@ -1,0 +1,23 @@
+{"v":1,"id":"019c8ee3-49e3-7bd2-b532-1fafedac5c14","at":1771923786211000000,"seq":721,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8ee3-49e3-7b80-8261-64a7d8172b48","at":1771923786211000000,"seq":722,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee3-6c38-7a2d-8db2-2acedaabff12","at":1771923795000000000,"seq":723,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee3-f8ef-701c-bf24-2474db41b1fb","at":1771923831023000000,"seq":724,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee4-7627-72a2-864d-1f0ffe535336","at":1771923863079000000,"seq":725,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee4-8578-7d34-8890-a48bdac3e77b","at":1771923867000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee4-9130-7b96-b6b1-2ec8ebce6fb5","at":1771923870000000000,"seq":727,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8ee4-9130-7aa7-9933-dd393da6d78c","at":1771923870000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c8ee4-cbc8-75fa-a8a4-384e1413fb1b","at":1771923885000000000,"seq":729,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8ee4-dcaf-78ab-b303-9e8c00512cf2","at":1771923889327000000,"seq":730,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee4-fe90-715c-bdd0-7b435505c723","at":1771923898000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee5-48c8-7b1c-abce-a13ca756dee4","at":1771923917000000000,"seq":732,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8ee5-8f18-74ed-8b05-fe6117d2e3c0","at":1771923935000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c8eed-9c91-7da3-890d-c8a8dec1d171","at":1771924462737000000,"seq":734,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8eed-9c91-7d45-9c2e-be90fe4fbbf6","at":1771924462737000000,"seq":735,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8eed-9d98-745b-a46c-0ddd03edb646","at":1771924463000000000,"seq":736,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c8eed-a568-7363-90b6-466fc7c94d08","at":1771924465000000000,"seq":737,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eed-d060-7eec-8329-8fad4fa66078","at":1771924476000000000,"seq":738,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eed-e7d0-7180-9ad8-788be45cd303","at":1771924482000000000,"seq":739,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c8efe-5b8f-79c7-8430-53a609ec92c7","at":1771925560207000000,"seq":740,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8efe-5b8f-7cd8-bd11-533abc8592f9","at":1771925560207000000,"seq":741,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8efe-6e48-72ab-9bbe-3d3f1f1b4395","at":1771925565000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8efe-9940-70ef-820f-8168013a1e82","at":1771925576000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

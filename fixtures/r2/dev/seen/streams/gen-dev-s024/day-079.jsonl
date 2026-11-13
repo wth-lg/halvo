@@ -1,0 +1,12 @@
+{"v":1,"id":"019d0a7b-c653-76e2-a6d7-a6a650b97876","at":1773997377107000000,"seq":976,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0a7b-c653-7a72-9fb0-94f18c9f8979","at":1773997377107000000,"seq":977,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0a7c-0c38-730f-b7e7-bc970cc3b5ec","at":1773997395000000000,"seq":978,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d0a7c-3b18-7b85-bf4f-196adaa2ace9","at":1773997407000000000,"seq":979,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d0a7c-57f3-7d28-9e64-e0cfd5accab8","at":1773997414387000000,"seq":980,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d0a7c-71c8-7a7b-8ed6-06f7b4d9353c","at":1773997421000000000,"seq":981,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a7c-90ed-7c33-98b1-067496182d18","at":1773997428973000000,"seq":982,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d0a7c-a490-7b3a-b773-e9c04dc8eb72","at":1773997434000000000,"seq":983,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a7c-c3d0-79ff-b352-48589546b027","at":1773997442000000000,"seq":984,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0a7c-eae0-78b6-9bbf-c2bded5832cf","at":1773997452000000000,"seq":985,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a7c-f2b0-768e-8cc7-9749bc651faa","at":1773997454000000000,"seq":986,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0a7c-fa80-7498-876e-a7d5b12d801c","at":1773997456000000000,"seq":987,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

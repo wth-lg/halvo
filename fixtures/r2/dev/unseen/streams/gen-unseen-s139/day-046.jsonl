@@ -1,0 +1,35 @@
+{"v":1,"id":"019c6068-ff9d-751a-9804-cdb8fac446f1","at":1771144019869000000,"seq":631,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6068-ff9d-79dd-9f9c-fb23fb0436fb","at":1771144019869000000,"seq":632,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6069-0bd8-76f2-9793-26929c148875","at":1771144023000000000,"seq":633,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6069-13a8-7868-814e-b49eeeb35c6e","at":1771144025000000000,"seq":634,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c6069-1f60-78da-863d-2570b2f5f260","at":1771144028000000000,"seq":635,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6073-a2bf-7241-bea6-e04098091dd6","at":1771144716991000000,"seq":636,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6073-a2bf-776c-854b-aedfefff856b","at":1771144716991000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6074-1028-71b3-90d8-21e92620c92f","at":1771144745000000000,"seq":638,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6084-b3bc-7289-bc51-2be36a8fc646","at":1771145835452000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c6085-5dd8-7f1a-883c-a5ac3602df4d","at":1771145879000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6085-9870-748a-a600-ddbd6cee15ad","at":1771145894000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6085-9b9b-78fd-a181-5f176a0466bb","at":1771145894811000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c6085-afe0-7b52-9625-8c1ee51706db","at":1771145900000000000,"seq":643,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6085-b7b0-75cc-afb0-611194cf0c8a","at":1771145902000000000,"seq":644,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6085-bf80-708b-a5fa-248688e3a343","at":1771145904000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c6085-ea6f-7d41-8aa3-188b09248129","at":1771145914991000000,"seq":646,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c6085-f630-74f3-a8e6-5a400a06e5c1","at":1771145918000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6086-4068-7916-876e-3ff74fc1f86c","at":1771145937000000000,"seq":648,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6086-8ee0-7a6b-a5d5-db5e5a58a497","at":1771145957088000000,"seq":649,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c6086-d0f0-7459-9f0c-5ed80270c4ae","at":1771145974000000000,"seq":650,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6086-f800-789f-8212-d7eb7bd235ec","at":1771145984000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6086-fbe8-73c6-a5ac-62e6114d83bb","at":1771145985000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6089-11e8-7871-9231-7878e048602b","at":1771146121704000000,"seq":653,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c6089-6130-75e6-a135-51652e615278","at":1771146142000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c6089-9bc8-7e72-b3aa-134ade5d28fc","at":1771146157000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6089-d8cd-7b13-b846-7d7be50be0b7","at":1771146172621000000,"seq":656,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"School messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c608a-0158-771f-90f1-c775e56295ba","at":1771146183000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c608a-5360-7b41-87cf-dae667cb17bb","at":1771146204000000000,"seq":658,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c608a-5c99-74d3-995a-fd136d047134","at":1771146206361000000,"seq":659,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c608a-7e58-76ec-8885-3251d1212940","at":1771146215000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c608a-b120-747f-a3d1-96a4d28c0849","at":1771146228000000000,"seq":661,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c608b-3dc0-756b-833e-75c73f607612","at":1771146264000000000,"seq":662,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c608b-42cf-7c07-b17a-339e3c5f936a","at":1771146265295000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c608b-f940-7482-93bf-253ac80dfb0e","at":1771146312000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c608c-140c-7986-82cf-9f91fc2466af","at":1771146318860000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}

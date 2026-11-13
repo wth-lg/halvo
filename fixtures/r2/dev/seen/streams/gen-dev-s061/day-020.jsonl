@@ -1,0 +1,22 @@
+{"v":1,"id":"019bdaef-171d-74f9-ac9e-5c1877add5d0","at":1768904660765000000,"seq":239,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdaef-171d-72eb-bda1-32d7c9b91c36","at":1768904660765000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bdaef-1808-7117-a2f3-9a55403662fc","at":1768904661000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaef-e81e-7040-b71f-5d406e317315","at":1768904714270000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bdaf0-6fc8-7fef-bfcc-25c673a582e0","at":1768904749000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaf0-6ff3-7fbd-a490-a4f8d521f304","at":1768904749043000000,"seq":244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bdaf0-9ea8-7681-96d8-579fa929c654","at":1768904761000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bdaf0-a678-75d7-8aeb-d6b18b01574c","at":1768904763000000000,"seq":246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdaf0-ba00-7c3c-af62-2f4dd9d3374c","at":1768904768000000000,"seq":247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdaf0-d8f2-779e-92ce-61514f92400d","at":1768904775922000000,"seq":248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bdaf0-ecc8-7e37-979d-bd8f99201c91","at":1768904781000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaf0-f0b0-7aec-b211-ecc0e74874ec","at":1768904782000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaf1-7515-75b6-b740-b665dd8479cc","at":1768904815893000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bdaf2-09f0-7c5f-9ee0-177d581ac0ca","at":1768904854000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdaf2-2d18-703b-8cfe-3c11669ec77b","at":1768904863000000000,"seq":253,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdaf2-4488-717f-ad08-ba544724380a","at":1768904869000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bdb01-f386-76f3-87bb-a1dfb45b7ed3","at":1768905896838000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bdb02-07b0-79d7-ab32-e768865e368c","at":1768905902000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb02-0f80-7f9d-87c9-2d223801c761","at":1768905904000000000,"seq":257,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdb02-1368-70fa-8079-2ca19c926682","at":1768905905000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bdb02-1b38-7949-ac46-5c2c236d2829","at":1768905907000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdb02-26f0-7b2d-aaef-64c03bf9e172","at":1768905910000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

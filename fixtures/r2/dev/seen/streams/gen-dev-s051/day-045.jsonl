@@ -1,0 +1,11 @@
+{"v":1,"id":"019c5b2c-324a-71b0-b3ff-8e320112930d","at":1771056149066000000,"seq":558,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b2c-324a-79f6-9cf0-bb80fda9a16a","at":1771056149066000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5b2c-9798-787a-b54a-a06c9c7826c8","at":1771056175000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b2d-2d7b-7940-b14c-d1481a7c4084","at":1771056213371000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5b2d-4378-7b62-a9c1-7cf9ef75c597","at":1771056219000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5b2d-8db0-747c-9c3b-6ae64f555016","at":1771056238000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b2d-d54c-7c2d-973a-bbb99247990f","at":1771056256332000000,"seq":564,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5b2e-0ab0-7064-a83a-1c134cde5ff9","at":1771056270000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c5b2e-1668-7c49-bd00-91b41e04bee7","at":1771056273000000000,"seq":566,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b2e-2220-7373-bf49-173d9709a99f","at":1771056276000000000,"seq":567,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b2e-2608-7d4a-aa97-91050930818c","at":1771056277000000000,"seq":568,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

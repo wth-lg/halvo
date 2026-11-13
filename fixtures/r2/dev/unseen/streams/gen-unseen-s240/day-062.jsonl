@@ -1,0 +1,19 @@
+{"v":1,"id":"019cb2a7-dba9-78b5-856c-20a185b25254","at":1772523871145000000,"seq":881,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2a7-dba9-7de2-83c1-154a4af0534d","at":1772523871145000000,"seq":882,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb2a7-f670-7eed-b858-c32c24b3719a","at":1772523878000000000,"seq":883,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2ac-4b9e-7e42-8664-a843853d5c99","at":1772524161950000000,"seq":884,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ac-9608-7aec-8349-799b9b71f156","at":1772524181000000000,"seq":885,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ac-e040-7129-be96-2a459c744a0f","at":1772524200000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cb2b5-5458-7188-a23c-c8ee3d65dd9f","at":1772524754008000000,"seq":887,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb2b5-5458-754e-8190-6dcd2d1fc4dd","at":1772524754008000000,"seq":888,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb2b5-7b60-76b0-8b23-69dc3957523a","at":1772524764000000000,"seq":889,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2b5-c598-7f87-ac78-d7f0bf69ae35","at":1772524783000000000,"seq":890,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cb2b5-d920-7a38-bd73-f679ea7ce69f","at":1772524788000000000,"seq":891,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2b6-1f70-77e8-93be-9d55283800c6","at":1772524806000000000,"seq":892,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2b7-afaf-7901-8ec2-5849ce74a6fa","at":1772524908463000000,"seq":893,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2b7-afaf-787b-bc3f-968d6a947b0f","at":1772524908463000000,"seq":894,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b7-e878-7b5c-9900-98dedf6a5868","at":1772524923000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cb2b8-3bb9-78ce-82a7-123b3ac04dde","at":1772524944313000000,"seq":896,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cb2b8-4e08-74eb-97b3-0f5fabf34dd4","at":1772524949000000000,"seq":897,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb2b8-5da8-7261-9ce4-04d8ee2d8490","at":1772524953000000000,"seq":898,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb2b8-80d0-7494-9414-79dc8e10df41","at":1772524962000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

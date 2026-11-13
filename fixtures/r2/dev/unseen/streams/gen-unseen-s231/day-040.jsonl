@@ -1,0 +1,41 @@
+{"v":1,"id":"019c41cd-2bba-7016-850d-b6238b6dd69c","at":1770630491066000000,"seq":645,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c41cd-2bba-7c88-951b-179d3ea692a3","at":1770630491066000000,"seq":646,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c41cd-5288-78c3-a343-0d1a24d4185f","at":1770630501000000000,"seq":647,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41cd-5e40-7657-9538-e1f2548020bd","at":1770630504000000000,"seq":648,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c41cd-6228-7b40-b63e-eda98878cfc3","at":1770630505000000000,"seq":649,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c41cd-6610-78ae-ab9e-4cdc3f519577","at":1770630506000000000,"seq":650,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41cd-94f0-7351-8ca0-851086e88d68","at":1770630518000000000,"seq":651,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c41cf-5de1-7dbc-b04a-a7191df76c4e","at":1770630634977000000,"seq":652,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41cf-5de1-72b1-a0ac-9eba3e607e28","at":1770630634977000000,"seq":653,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c41cf-7950-75a5-a0f9-1cc70b2d1626","at":1770630642000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41cf-ac18-71a2-90b0-dad46251b285","at":1770630655000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41cf-ccb1-7a13-a115-94d1240c607b","at":1770630663345000000,"seq":656,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c41d0-0208-79cf-b791-90fe1c866569","at":1770630677000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d0-09d8-7397-ba00-2f22bd03000f","at":1770630679000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d0-2148-7c61-b5f2-48bc654479fc","at":1770630685000000000,"seq":659,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c41d0-3fec-7c4e-9f40-5e146442ffad","at":1770630692844000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c41d0-4c40-7767-9d12-660042fd0d24","at":1770630696000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d0-5028-72f4-92c0-92229c54fb96","at":1770630697000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d0-5fc8-7d04-85a1-ddf2b9b03faa","at":1770630701000000000,"seq":663,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c41d0-8839-7518-991e-e746d7bfe66f","at":1770630711353000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c41d0-f820-7e59-89f5-2a38ae41d3ac","at":1770630740000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c41e4-f696-7002-a763-df463706b79b","at":1770632050326000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c41e5-56f8-7e95-ad4e-0680c4166feb","at":1770632075000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41e5-85d8-745d-a033-0bbbdb11fd11","at":1770632087000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41e5-cf1a-74cc-aaf0-260fc6e4a53b","at":1770632105754000000,"seq":669,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c41e5-fb08-7d4b-8fbd-021859e56776","at":1770632117000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41e6-1660-720e-9b02-939be7aef0c8","at":1770632124000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41e6-3d70-7115-b183-669a93edca7f","at":1770632134000000000,"seq":672,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c41e6-8a55-7447-ae3e-c64becdcae43","at":1770632153685000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c41e7-56b0-76f6-adf3-4993e9231a97","at":1770632206000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41e7-6e9a-7a1f-8b53-cec72f608772","at":1770632212122000000,"seq":675,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c41e7-8590-777b-9827-633b2c9f4c62","at":1770632218000000000,"seq":676,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c41e7-c7f8-7701-9407-90792667f33e","at":1770632235000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41e7-e350-7da5-9928-bc523b3527cb","at":1770632242000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c41e8-3558-7b7e-a187-f2817307b4a6","at":1770632263000000000,"seq":679,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41f1-763f-7233-a34b-5e0b56ea62a4","at":1770632869439000000,"seq":680,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c41f1-7870-7ac1-b552-588e4a719684","at":1770632870000000000,"seq":681,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41f1-97b0-7428-b1b2-91f1fd16dffb","at":1770632878000000000,"seq":682,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41f1-c690-796e-aa17-70b5b9db4e14","at":1770632890000000000,"seq":683,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41f1-de00-789a-90a8-a388adad96ab","at":1770632896000000000,"seq":684,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c41f1-e9b8-7587-9373-262a3dbf2b8e","at":1770632899000000000,"seq":685,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

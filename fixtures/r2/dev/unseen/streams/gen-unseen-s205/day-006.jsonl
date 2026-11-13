@@ -1,0 +1,21 @@
+{"v":1,"id":"019b92ba-b7c3-7c9e-ad0d-ffe26d10ed4c","at":1767693268931000000,"seq":188,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b92ba-b7c3-7f12-b714-8c361b4f7dc7","at":1767693268931000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019b92ba-e6e8-7359-a0eb-2f21f4282ea5","at":1767693281000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92bb-9edb-7874-b8ce-c71320ab7fa7","at":1767693328091000000,"seq":191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019b92c7-4051-7296-9f06-6bc371d08c79","at":1767694090321000000,"seq":192,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b92c7-4051-7d43-bac8-e0d5277d11f7","at":1767694090321000000,"seq":193,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b92c7-42f8-7a84-abce-f8d7e45f1cf4","at":1767694091000000000,"seq":194,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b92c7-46e0-7cbe-85b2-5f9309380d74","at":1767694092000000000,"seq":195,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b92c7-4ac8-7781-b854-fe7410a21265","at":1767694093000000000,"seq":196,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b92c7-5680-72ad-a37f-b64d28ed5fd5","at":1767694096000000000,"seq":197,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92c7-5fda-729e-91d6-04d2998201e0","at":1767694098394000000,"seq":198,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b92c7-6238-73c9-a751-c9fc73064cf2","at":1767694099000000000,"seq":199,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92c7-8948-7ee8-b917-ad1d06b03643","at":1767694109000000000,"seq":200,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b92c7-a4a0-7cd6-84b5-9c113d9404dd","at":1767694116000000000,"seq":201,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b92c7-a560-7696-b3d8-b31684431fc7","at":1767694116192000000,"seq":202,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b92c7-ac70-75d2-b860-8820a85b0042","at":1767694118000000000,"seq":203,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92c7-c3e0-71a1-889f-82fc0c5dad69","at":1767694124000000000,"seq":204,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92de-22d7-75ce-ad43-629fd764570a","at":1767695590103000000,"seq":205,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b92de-22d7-7412-8d02-fac68ea814ef","at":1767695590103000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b92de-2658-71b3-b638-3b2ec9e11d89","at":1767695591000000000,"seq":207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92de-35f8-7408-8ce4-d30da8346a52","at":1767695595000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

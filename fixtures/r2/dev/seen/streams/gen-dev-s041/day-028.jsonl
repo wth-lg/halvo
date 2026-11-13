@@ -1,0 +1,31 @@
+{"v":1,"id":"019c043c-16af-7fa8-ade1-77f5aeb403c9","at":1769597572783000000,"seq":327,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c043c-16af-743a-be8f-ed32c41f430f","at":1769597572783000000,"seq":328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c043c-52d9-73f8-9902-910fb392771b","at":1769597588185000000,"seq":329,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c043c-9870-77a5-a660-b760a8e94deb","at":1769597606000000000,"seq":330,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c043c-9c58-7760-a859-de0c0f370452","at":1769597607000000000,"seq":331,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c043c-be44-768f-8595-4eeac2896204","at":1769597615684000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c043d-7f3d-7b92-9502-e886f1c3e367","at":1769597665085000000,"seq":333,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c043d-dca8-7a39-86fc-0ca2627ccf6f","at":1769597689000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043e-2826-7409-b0c7-aaa4ec27eb5e","at":1769597708326000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c043e-de78-752f-a6fe-bb46dae4cfb9","at":1769597755000000000,"seq":336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c043f-1fef-7df0-b1e3-b54230ecf244","at":1769597771759000000,"seq":337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c043f-72e8-7fd3-8e05-e28d778c68b7","at":1769597793000000000,"seq":338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c043f-8e40-7f3d-a2ec-42e3dd5775b8","at":1769597800000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043f-b168-704a-8ed8-ca61459eab6a","at":1769597809000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c043f-dc60-723f-9317-66e061a81f39","at":1769597820000000000,"seq":341,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c043f-e048-7978-9e2e-40eea1f43ba0","at":1769597821000000000,"seq":342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c044d-892e-780c-9f46-c25ba1367ded","at":1769598716206000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c044d-fd90-7ffc-a7db-73fcc4ee841c","at":1769598746000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c044e-62bc-7b26-8548-f1d1b5153520","at":1769598771900000000,"seq":345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c044e-72c0-762e-ab0a-e7c3b3edc7e0","at":1769598776000000000,"seq":346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c044e-8a30-7045-aaa6-f506d4a7ed2a","at":1769598782000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c044e-9db8-7c4a-a303-c90d793b43c2","at":1769598787000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c044e-a970-7148-b85b-23584b858b92","at":1769598790000000000,"seq":349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c044e-ad0a-7a3b-a3c7-c230d4be94a6","at":1769598790922000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c044e-ff60-7ad7-982e-1f200eab4659","at":1769598812000000000,"seq":351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c044f-0f00-7da0-95d8-4dec0345bfee","at":1769598816000000000,"seq":352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c044f-3610-78df-a9f1-0623ebf689b3","at":1769598826000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c044f-76c9-794b-914f-fb46a2abbae4","at":1769598842569000000,"seq":354,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c044f-9ba0-7d6a-9323-e42ce8315227","at":1769598852000000000,"seq":355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0450-2070-763e-9dd8-baa4fd3d52eb","at":1769598886000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c0450-3010-7c15-b931-d0a6aff07aef","at":1769598890000000000,"seq":357,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

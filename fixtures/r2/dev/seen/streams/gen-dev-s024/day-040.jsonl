@@ -1,0 +1,29 @@
+{"v":1,"id":"019c41de-79a1-756b-ab57-f0feb484e9ea","at":1770631625121000000,"seq":465,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41de-79a1-714e-a400-e79585faff4e","at":1770631625121000000,"seq":466,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c41de-9098-7d4a-b3c7-ea76af47e391","at":1770631631000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41de-9c50-7778-a7fa-fd0acb0ddea6","at":1770631634000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41de-a808-7b3d-8d19-4e00e33b4a26","at":1770631637000000000,"seq":469,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41de-abf0-7490-bb2d-bc70c6c7ab34","at":1770631638000000000,"seq":470,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c41eb-f1e3-7888-b65e-a639d429eea4","at":1770632507875000000,"seq":471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c41ec-5020-77e8-9a1b-d65469ca2555","at":1770632532000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ec-7348-7cce-9c50-47a9decf4bca","at":1770632541000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ec-c168-701d-bc23-0aefffe985c4","at":1770632561000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c41ec-d568-7534-93fd-72bca5096b5b","at":1770632566120000000,"seq":475,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c41ec-d8d8-763d-b7dc-c9f8ed844efe","at":1770632567000000000,"seq":476,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c41ec-f818-7cf2-9606-58d5d956e629","at":1770632575000000000,"seq":477,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c41f0-62ed-7552-8f57-93ac46b63b35","at":1770632798957000000,"seq":478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c41f1-2a50-7101-b063-0836435a081b","at":1770632850000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c41f1-39f0-791a-ac91-3094513ef6d7","at":1770632854000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41f1-42cb-7bf0-af60-0aec65aee81d","at":1770632856267000000,"seq":481,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c41f1-6cb8-7505-96e1-3120df9f6358","at":1770632867000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41f1-7488-71a0-b340-078668f5708b","at":1770632869000000000,"seq":483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41f1-7c58-7af5-8b26-56d036e6a416","at":1770632871000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c41f1-8428-787d-a409-5f38ffe34301","at":1770632873000000000,"seq":485,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c41f1-85bb-7715-ae84-34eaa87e42b8","at":1770632873403000000,"seq":486,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c41f1-ab38-7d68-bf9f-0609fa6e14a7","at":1770632883000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c41f1-bad8-7a70-84a3-3d6fff746df0","at":1770632887000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41f2-4778-781a-b689-f56b2866c66a","at":1770632923000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41f2-74a4-710c-b514-c777a2cecabb","at":1770632934564000000,"seq":490,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c41f2-f358-70d5-9483-06120a500619","at":1770632967000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c420e-bcca-7ba0-a3e8-3b78e3ff85db","at":1770634788042000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c420f-35b8-72cc-8474-952713966688","at":1770634819000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

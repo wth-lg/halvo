@@ -1,0 +1,27 @@
+{"v":1,"id":"019cc253-6611-7e63-bc49-1e948e6383e0","at":1772786771473000000,"seq":973,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc253-6611-719b-ac4d-e96f4b933a50","at":1772786771473000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc253-6820-789b-be6f-4670e96eb483","at":1772786772000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc253-6ff0-780b-93b4-17d685624580","at":1772786774000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cc253-9318-7db5-aafe-33933308611c","at":1772786783000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc253-cf14-7aff-b429-9e876cca2393","at":1772786798356000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cc254-0848-7229-b8e0-f4edbf798963","at":1772786813000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc254-0c30-787e-b536-753738ba8023","at":1772786814000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc254-17e8-7aa9-9743-720331521e69","at":1772786817000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cc254-c129-7653-a62e-665280b9f15d","at":1772786860329000000,"seq":982,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc254-e308-7b93-bd7d-b05bac7e065c","at":1772786869000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc255-11e8-72c3-aee9-092a545acae5","at":1772786881000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cc255-32f6-7dbb-b009-e9a60e15b2ed","at":1772786889462000000,"seq":985,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc255-40c8-7c7d-8dd6-1668dc33617e","at":1772786893000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc255-7390-7194-b76b-54acee906f73","at":1772786906000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc256-345a-7d8b-b577-a6cbca7fa198","at":1772786955354000000,"seq":988,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc256-9c70-7dd6-b2d7-3a1b5fcf5496","at":1772786982000000000,"seq":989,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc25f-f677-7999-8719-907d7c53926f","at":1772787594871000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cc260-1e08-7450-ad76-efbef25d28a0","at":1772787605000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc260-25d8-7291-8edb-75b7b3c3e14f","at":1772787607000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc260-3578-7a09-97a7-8a365fffdce0","at":1772787611000000000,"seq":993,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc260-3d48-7103-aab4-9af183208312","at":1772787613000000000,"seq":994,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc26d-2ca0-73cf-970e-15a61cc3ee99","at":1772788460704000000,"seq":995,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cc26d-31b0-7a36-a941-c11a1096bb65","at":1772788462000000000,"seq":996,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc26d-4920-73ee-99be-e5b7bc45f894","at":1772788468000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cc26d-6478-7065-afe8-4b0920a78ac7","at":1772788475000000000,"seq":998,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc26d-a6e0-7167-b132-08e8a9878080","at":1772788492000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,31 @@
+{"v":1,"id":"019c6fdb-1a56-7e4d-9aea-4025ceb101f9","at":1771403156054000000,"seq":645,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6fdb-1a56-7970-9d97-75a68a155921","at":1771403156054000000,"seq":646,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6fdb-21f0-7fd4-9717-740ef6d3756d","at":1771403158000000000,"seq":647,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c6fdb-6c28-70d6-8d49-db7bce274eca","at":1771403177000000000,"seq":648,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe2-5e02-7596-956e-367abe0320f9","at":1771403632130000000,"seq":649,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fe2-5e02-7bba-a1c3-e08494873502","at":1771403632130000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe2-cae0-7aef-a336-f92f7686ff24","at":1771403660000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe3-3070-7845-9966-94f44f7eac93","at":1771403686000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c6fe3-4563-7833-8045-ee6da480f7ef","at":1771403691363000000,"seq":653,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe3-8278-7624-980e-dead4899b29f","at":1771403707000000000,"seq":654,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6fe3-8590-788d-bb84-74a6248bfd35","at":1771403707792000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe3-8e30-7aa5-a2fa-e25893597916","at":1771403710000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe3-9218-79a8-bdcf-079f141abc4d","at":1771403711000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe3-c8c8-7853-ae50-d747d2c848f2","at":1771403725000000000,"seq":658,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6fe3-c8c8-7c37-8905-e37989690599","at":1771403725000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6fe5-76bb-7c40-939c-b588bbe74292","at":1771403835067000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe5-c498-7445-afb6-ddc4a4e0a11d","at":1771403855000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c6fe5-c78b-7dd9-8fca-a36493fd6ab7","at":1771403855755000000,"seq":662,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe5-fb48-7138-8713-4360073fe1aa","at":1771403869000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe6-0700-7f6d-b08f-a956cd750a48","at":1771403872000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe6-0ae8-7c18-b7d6-2992690887e0","at":1771403873000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6fe6-0ae8-7d32-ad84-5dd7d96ff341","at":1771403873000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6fe6-0b04-72ec-a0ad-f7f6a66fec9b","at":1771403873028000000,"seq":667,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe6-16a0-7b23-b9c8-dafb5940bbb8","at":1771403876000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c6fe6-4198-7d78-ab9c-9927387031e0","at":1771403887000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6fe6-48b2-779e-a3ed-f61f88777177","at":1771403888818000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe6-7c30-7a6e-80dc-d9a817b38786","at":1771403902000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c6fe6-87e8-7e3d-be56-6604c9541009","at":1771403905000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe6-ab10-7fb7-8ffc-284a8d8fbcf4","at":1771403914000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ff6-77b5-798a-828f-44b510842d5e","at":1771404949429000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6ff6-cfe0-7473-93df-0e1104497e5f","at":1771404972000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

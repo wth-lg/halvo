@@ -1,0 +1,15 @@
+{"v":1,"id":"019c13af-dc56-76f7-8fdc-f0d17cd2e956","at":1769856818262000000,"seq":434,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c13af-dc56-735f-b08c-ed18dff860c9","at":1769856818262000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c13b0-67f0-7f3f-88c6-2768b5bbaaf1","at":1769856854000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c13b0-91e6-7d65-b037-644379ef83d5","at":1769856864742000000,"seq":437,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c13b0-ec19-7adb-9040-771bdb32cd5a","at":1769856887833000000,"seq":438,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c13b1-17b8-7ea4-be46-364808b4107a","at":1769856899000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c13b1-2370-739a-a9b1-0f5e66d4b546","at":1769856902000000000,"seq":440,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c13b1-5a20-7e49-8394-db09f12af462","at":1769856916000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c13c2-eb00-733d-9e67-5a6e49394145","at":1769858067200000000,"seq":442,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c13c2-eb00-760f-a033-ce82cdd3d14e","at":1769858067200000000,"seq":443,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c13c2-f5f0-73aa-af92-6b6b0aecd603","at":1769858070000000000,"seq":444,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c13c3-4410-768e-b791-5ff52b783121","at":1769858090000000000,"seq":445,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c13c3-5b80-7bc2-987e-e45786431ab0","at":1769858096000000000,"seq":446,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c13ce-9df8-75eb-8dd0-ff409c3ed156","at":1769858833912000000,"seq":447,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c13ce-d500-7f24-8a5a-0bc58ddac889","at":1769858848000000000,"seq":448,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

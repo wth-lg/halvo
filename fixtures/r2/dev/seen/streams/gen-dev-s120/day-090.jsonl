@@ -1,0 +1,11 @@
+{"v":1,"id":"019d42f5-314f-7898-9f7a-ca5832897bee","at":1774944858447000000,"seq":1410,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42f5-314f-7e12-9eb5-40a46370ead6","at":1774944858447000000,"seq":1411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d42f5-4318-70d3-a339-bc5fafe82601","at":1774944863000000000,"seq":1412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f5-4700-77dd-83c1-4fd6c386512a","at":1774944864000000000,"seq":1413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f5-6258-737f-9488-e3b898fb73f4","at":1774944871000000000,"seq":1414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d42f5-6bb0-7fc2-a23e-fc041ef4c779","at":1774944873392000000,"seq":1415,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d42f6-0668-7248-a0f0-a4b24ba80ad0","at":1774944913000000000,"seq":1416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d42f6-08d1-7a36-8f5e-151078970795","at":1774944913617000000,"seq":1417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d42f6-2d78-7b23-9d01-fa85d2fd2d75","at":1774944923000000000,"seq":1418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f6-79b8-7686-bf12-dd1d5d3b3f55","at":1774944942520000000,"seq":1419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d42f6-f898-70cf-bc7a-4e3e798e97a5","at":1774944975000000000,"seq":1420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

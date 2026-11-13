@@ -1,0 +1,39 @@
+{"v":1,"id":"019cf0e4-f40d-70d6-b667-547bce21605c","at":1773568062477000000,"seq":914,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf0e4-f40d-749b-b294-c12bba655dcb","at":1773568062477000000,"seq":915,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf0e5-a1f8-77ee-ad43-68b5e925ea0b","at":1773568107000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0e5-a9c8-7572-b165-b436c297ccc2","at":1773568109000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cf0e5-add7-7807-be91-2186f1877ffd","at":1773568110039000000,"seq":918,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf0e5-e460-7338-a411-25baeb6e5357","at":1773568124000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0e6-3668-7b19-85c5-e685c0fb3d47","at":1773568145000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0e6-59bd-780d-a424-77b84d673782","at":1773568154045000000,"seq":921,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf0e6-6160-76ed-b364-804a39518b5e","at":1773568156000000000,"seq":922,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf0e6-6d18-7d7c-9802-f776b02ccf77","at":1773568159000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0e6-a7b0-7736-b9e5-0d053b6e0c39","at":1773568174000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf0e6-ea18-7fd6-877b-1ebf4ba95206","at":1773568191000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0e7-3521-74fa-8576-2ac791766287","at":1773568210209000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf0e7-99e0-783a-b79e-77a8d842d4d3","at":1773568236000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0e7-a980-744c-9dcb-772f1438c335","at":1773568240000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cf0e7-b025-7a67-8d3d-1dfadaa98c31","at":1773568241701000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf0e7-f3b8-7ba7-b99d-89538dda5c6d","at":1773568259000000000,"seq":930,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf0e8-70b8-7331-b489-d51d1670846d","at":1773568291000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cf0e8-b7d0-77b7-b4ba-e0f0313fa7b9","at":1773568309200000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf0e8-d648-7792-bbfa-4163ca6aa7c0","at":1773568317000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0e8-f1a0-775e-b7db-4e9e0d65e61b","at":1773568324000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cf0e9-66d0-7631-9936-ff2b6a75278f","at":1773568354000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0e9-749a-7800-af2a-b660210417d8","at":1773568357530000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cf0e9-bcc0-7bfb-8bd4-8825588f040f","at":1773568376000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0e9-dc00-784c-9a92-2eb984d0588d","at":1773568384000000000,"seq":938,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf0e9-e7b8-7f7f-b57c-6f06f0427c58","at":1773568387000000000,"seq":939,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf0ea-06ef-7513-bf0a-9cce3277576a","at":1773568394991000000,"seq":940,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ea-1e68-746a-972c-60521c2ab8e2","at":1773568401000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cf0ea-492f-7ab1-a545-04b3bcc2f8d7","at":1773568411951000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ea-7458-77e9-a968-0b528ba764f6","at":1773568423000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cf0ea-7c28-7ed5-b67a-41aae6408fe5","at":1773568425000000000,"seq":944,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf0ea-81f7-7b60-b392-f1f628268563","at":1773568426487000000,"seq":945,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ea-b6c0-70f4-b72f-9bd79782c7f4","at":1773568440000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cf0ea-ed70-7b13-b58f-0d0fc371d212","at":1773568454000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf0eb-04e0-70fc-a501-adfd5eb69b9d","at":1773568460000000000,"seq":948,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0eb-2808-7a3c-b972-6a0a4595e6bf","at":1773568469000000000,"seq":949,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf0f6-52a5-71bc-8806-2b5a72b12989","at":1773569200805000000,"seq":950,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cf0f6-b8f8-7eba-a595-a2858f9521c8","at":1773569227000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0f6-bce0-7a19-b475-52525cea0f46","at":1773569228000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

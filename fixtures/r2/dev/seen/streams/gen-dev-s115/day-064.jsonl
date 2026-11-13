@@ -1,0 +1,12 @@
+{"v":1,"id":"019cbd35-fc82-7799-b778-f8ffc7906ee6","at":1772700957826000000,"seq":896,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd35-fc82-7d82-a0c7-6a5eeb7ad9f1","at":1772700957826000000,"seq":897,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd36-10b8-7c4b-8c06-5bac7accba41","at":1772700963000000000,"seq":898,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd36-66a8-793d-b914-b2debbcfff32","at":1772700985000000000,"seq":899,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cbd36-7e18-791b-8efa-0c774726f4ad","at":1772700991000000000,"seq":900,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd36-c080-7486-b0bf-2e06b3765d70","at":1772701008000000000,"seq":901,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cbd47-7c69-7432-9c14-55c16ac53b2e","at":1772702104681000000,"seq":902,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd47-7c69-758a-a682-c703d569bd06","at":1772702104681000000,"seq":903,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cbd47-fe90-75c6-8352-975150593acb","at":1772702138000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd48-3e12-7c95-83e3-127ffeb78b6c","at":1772702154258000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cbd48-48c8-7be2-8d5d-67e496843cb8","at":1772702157000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cbd48-a688-7779-903d-28ad3b5dbcd7","at":1772702181000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

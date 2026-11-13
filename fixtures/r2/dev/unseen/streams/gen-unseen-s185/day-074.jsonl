@@ -1,0 +1,20 @@
+{"v":1,"id":"019cf104-3b88-71bc-867e-d77b9f2fee90","at":1773570112392000000,"seq":1000,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf104-3b88-7c64-9c67-5b1e43c9ffc7","at":1773570112392000000,"seq":1001,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cf104-5940-7200-b6e7-4e7a23b465a6","at":1773570120000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf104-a378-779d-bc56-85fe74845c3b","at":1773570139000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf108-ff3f-7c6e-86e8-4d53a8eb3182","at":1773570424639000000,"seq":1004,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cf109-1fe8-71e7-a111-9a103a76831f","at":1773570433000000000,"seq":1005,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf109-71f0-7e78-8253-53f9f8f5d0e7","at":1773570454000000000,"seq":1006,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf109-9900-70d3-bc7f-ba3b0d0d5c24","at":1773570464000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf119-063e-7530-b75e-09f11f800378","at":1773571475006000000,"seq":1008,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cf119-3518-71b9-aac0-0a915b7a7114","at":1773571487000000000,"seq":1009,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf119-5458-7783-a908-35bce69238cd","at":1773571495000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cf119-bf31-7d37-a9a0-ec06acdaa6a6","at":1773571522353000000,"seq":1011,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"School messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cf119-f480-7fd7-87e3-5afb00005158","at":1773571536000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf11a-2b30-715b-bd73-2d616d4a3877","at":1773571550000000000,"seq":1013,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf11a-5976-79c1-b718-ae2ae17307b8","at":1773571561846000000,"seq":1014,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cf11a-7950-70ac-95d3-e3e462b5b954","at":1773571570000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf11a-a060-7d1c-b7dc-0f0ec5dfdf7d","at":1773571580000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf11a-c238-7e0a-9c92-f4b9472cf7dc","at":1773571588664000000,"seq":1017,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cf11a-cf40-7cd5-b4f0-d893e86aa22e","at":1773571592000000000,"seq":1018,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf11b-1d60-7e6f-9792-8d376e577d1b","at":1773571612000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

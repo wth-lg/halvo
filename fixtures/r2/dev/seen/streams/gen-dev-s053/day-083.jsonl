@@ -1,0 +1,36 @@
+{"v":1,"id":"019d1f19-56ff-7e0f-a079-db12d80d4485","at":1774343247615000000,"seq":1403,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1f19-56ff-7f8b-b311-1552e1caa55d","at":1774343247615000000,"seq":1404,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1f25-bdee-72ad-9365-aa53b75ef9df","at":1774344060398000000,"seq":1405,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1f25-bdee-7dfc-b98f-b0d004514df8","at":1774344060398000000,"seq":1406,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1f26-7010-7132-a045-266d03df4f18","at":1774344106000000000,"seq":1407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d1f2a-7270-7cd0-a9c5-f03fcebefa3f","at":1774344368752000000,"seq":1408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d1f2a-8308-79af-8865-068919f6fe55","at":1774344373000000000,"seq":1409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f2a-f3c9-7ce3-bfd3-5ff4a2a91e75","at":1774344401865000000,"seq":1410,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d1f2b-2718-7a86-ac00-daeb0d4e3401","at":1774344415000000000,"seq":1411,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1f2b-84d8-70af-b931-d53cbb55859c","at":1774344439000000000,"seq":1412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d1f2b-b505-7597-af3e-15b840bbdd8c","at":1774344451333000000,"seq":1413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d1f2b-e680-7846-8391-f45a712f6b08","at":1774344464000000000,"seq":1414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f2c-1178-722f-8eb0-5b0bfd3e216e","at":1774344475000000000,"seq":1415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f2c-4c10-7a3b-bf77-9ed05e6bb41c","at":1774344490000000000,"seq":1416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1f2c-8e78-77c8-b7f8-d6f1a1d87347","at":1774344507000000000,"seq":1417,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1f2c-a741-75e6-a264-5ff63491aa74","at":1774344513345000000,"seq":1418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d1f38-d386-7bae-8a97-29e662d61dc1","at":1774345311110000000,"seq":1419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d1f39-7840-750f-84d7-5cc5973dbad5","at":1774345353280000000,"seq":1420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d1f39-b1c0-76d3-8907-ba8dafcf7494","at":1774345368000000000,"seq":1421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1f39-c160-7b54-a610-909ec354a8f2","at":1774345372000000000,"seq":1422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f39-c930-7621-b5d2-5ee66fc54413","at":1774345374000000000,"seq":1423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d1f39-cd18-7918-86f0-9ebfa7b09e0c","at":1774345375000000000,"seq":1424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f39-dcb8-7af6-9912-805f06c288da","at":1774345379000000000,"seq":1425,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1f39-e86c-7499-9fa1-bb7ad9a1e9ec","at":1774345381996000000,"seq":1426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d1f39-f428-700d-bb45-dff83c978430","at":1774345385000000000,"seq":1427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f3a-1750-7e66-85e2-f094904feb53","at":1774345394000000000,"seq":1428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f3a-1f7f-730a-aaf5-3071e3a554c7","at":1774345396095000000,"seq":1429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d1f3a-4a18-7ea0-b4c3-d929a502c9d3","at":1774345407000000000,"seq":1430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d1f3a-7510-7071-861b-48051a128f69","at":1774345418000000000,"seq":1431,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1f3a-80c8-7b4f-b7ad-c493a7dab5f5","at":1774345421000000000,"seq":1432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f3a-a7d8-79fe-8ab1-c93df9c43426","at":1774345431000000000,"seq":1433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1f3b-0598-7b5d-bbff-1394df21469b","at":1774345455000000000,"seq":1434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f46-f020-76e7-a065-8dd0ce4a06a4","at":1774346235936000000,"seq":1435,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1f46-f020-73fc-8257-6e465421c1c1","at":1774346235936000000,"seq":1436,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1f47-2328-79d2-93c1-fa951776906d","at":1774346249000000000,"seq":1437,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1f47-e290-79e6-8186-e1b80135a3df","at":1774346298000000000,"seq":1438,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}

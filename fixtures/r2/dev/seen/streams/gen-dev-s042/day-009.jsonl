@@ -1,0 +1,29 @@
+{"v":1,"id":"019ba197-99fd-7318-b9ea-f1d9082f2bdb","at":1767942625789000000,"seq":119,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba197-99fd-7e24-8c0d-0d91dfd5613b","at":1767942625789000000,"seq":120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ba197-c1e0-7025-9152-e9dfabe3c40c","at":1767942636000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba198-3630-7e1f-bb50-4127beded2d8","at":1767942665776000000,"seq":122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ba198-4e80-7527-b802-b8ab4531cabb","at":1767942672000000000,"seq":123,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba198-7d60-778f-8788-179910c21d7f","at":1767942684000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ba198-94d0-71ef-86b2-c8864d2a7fac","at":1767942690000000000,"seq":125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba19e-591f-7ac8-8a23-01a4f021e04f","at":1767943067935000000,"seq":126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba19e-78a0-7281-b889-0907b6baf0ee","at":1767943076000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba19e-9bc8-7ce9-b72a-da8d4b94ffcc","at":1767943085000000000,"seq":128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba19e-ce90-7e2e-ac68-58eaea39a626","at":1767943098000000000,"seq":129,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba19e-de30-743c-a256-b5a9167c8479","at":1767943102000000000,"seq":130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1a9-d89d-70e8-9506-9bdb04654de9","at":1767943821469000000,"seq":131,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ba1aa-01c0-7cbf-a3c9-25cbd900dce5","at":1767943832000000000,"seq":132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1aa-05a8-7fb5-ad19-41a4ade1aa75","at":1767943833000000000,"seq":133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ba1aa-1192-7a37-850c-2a40eb2a68d1","at":1767943836050000000,"seq":134,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ba1aa-3488-7ec8-9bba-071d98d2f5f5","at":1767943845000000000,"seq":135,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba1aa-5f80-745c-b9d0-dfeb4d949807","at":1767943856000000000,"seq":136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1aa-7ec0-7932-8749-337aa5066b9b","at":1767943864000000000,"seq":137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1aa-a5d0-7e4c-acde-95476095016c","at":1767943874000000000,"seq":138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba1aa-dc5b-79a3-aa20-8665a2e5eb4c","at":1767943887963000000,"seq":139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ba1aa-ec20-7d69-af5b-a6bb24798e24","at":1767943892000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ba1ab-1718-75b7-9274-5eb176a340b8","at":1767943903000000000,"seq":141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba1ab-49e0-7c93-a353-7eba27f68062","at":1767943916000000000,"seq":142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ab-7ca8-7444-875d-6b804b957cfa","at":1767943929000000000,"seq":143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba1ab-ca52-742c-8c78-1bcf7bc24900","at":1767943948882000000,"seq":144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ac-1118-7d12-8c24-598b1ab03242","at":1767943967000000000,"seq":145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba1ac-1cd0-7795-9e00-b62984c14869","at":1767943970000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba1ac-8e18-7bdf-8419-6d0bb611b660","at":1767943999000000000,"seq":147,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

@@ -1,0 +1,28 @@
+{"v":1,"id":"019ba6f6-8ebc-7004-86ad-8c45b374f141","at":1768032734908000000,"seq":100,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba6f6-8ebc-77b1-b263-8409e685f274","at":1768032734908000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ba6f7-0448-77ff-bfe4-432e705be140","at":1768032765000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ba6f7-0830-7f94-a5f6-0508d8badd66","at":1768032766000000000,"seq":103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6f7-3f76-75f5-b2d8-0b5e4dfedc59","at":1768032780150000000,"seq":104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ba6f7-6208-7241-8081-06c07d8c63ba","at":1768032789000000000,"seq":105,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba6f7-b028-723d-baf0-ae9e47ccd36a","at":1768032809000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ba6f7-cf68-7ad3-95e7-5cb9ddde7679","at":1768032817000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6f7-df08-7dd6-b688-0519bbf63f93","at":1768032821000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6f7-f03a-74a6-98f1-c99320470370","at":1768032825402000000,"seq":109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ba6f8-0230-77e2-8ebb-7c81ff052154","at":1768032830000000000,"seq":110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba6f8-11d0-7f47-8bed-4095583aac06","at":1768032834000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ba6f8-7378-7eb2-a186-cc70c33bb384","at":1768032859000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6f8-7b48-795e-b814-fa727e24b528","at":1768032861000000000,"seq":113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba6f8-7f30-7048-9bf2-680c1c5ba754","at":1768032862000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6f8-8668-7ed8-89b0-5460afa7311d","at":1768032863848000000,"seq":115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ba6f8-b5e0-70d4-9893-05b4d8b003ad","at":1768032876000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6f9-1f58-7fe1-a367-4d28d91d430d","at":1768032903000000000,"seq":117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba6f9-36c8-71df-b79c-aee63b81e926","at":1768032909000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba713-409f-7c7a-81d9-fb193ce142a8","at":1768034615455000000,"seq":119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ba713-a468-7c10-8339-7a84695ba39b","at":1768034641000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ba713-e6d0-7195-b70b-51a83861f2d0","at":1768034658000000000,"seq":121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba714-2168-76b6-ae10-796f0a5aaa12","at":1768034673000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba714-38d8-7f32-81c6-cc9c3cd717c0","at":1768034679000000000,"seq":123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba714-40a8-7100-98b4-0ab2bceebfac","at":1768034681000000000,"seq":124,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba72c-e624-77aa-8fd7-a52cabef1aca","at":1768036296228000000,"seq":125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba72d-0c50-7b89-ad8f-2ca80b742312","at":1768036306000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba72d-1038-702a-a3aa-390e924ca7fc","at":1768036307000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,20 @@
+{"v":1,"id":"019c3cc0-91da-7f9d-a1f1-77b4f3a0e2ef","at":1770545779162000000,"seq":373,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3cc0-91da-79e9-9faa-526cad8edca5","at":1770545779162000000,"seq":374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3cc1-0280-714f-8a48-accf2d51a7b1","at":1770545808000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cc1-1dd8-7896-ad08-fffda2666f23","at":1770545815000000000,"seq":376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3cc1-3930-71a3-84d7-caf91e96e38d","at":1770545822000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cc8-57ac-7603-9302-5bc6dec63466","at":1770546288556000000,"seq":378,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3cc8-6138-777e-83ed-9afb680517ee","at":1770546291000000000,"seq":379,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cc8-8c30-7e75-81f6-49c83db67cc9","at":1770546302000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c3cc8-9018-7be5-a50c-6ccafd210205","at":1770546303000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ce2-8cb2-71f8-9b3d-868e0e121044","at":1770548006066000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce2-e648-798b-92c9-c09caed51026","at":1770548029000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c3ce3-20e0-7ebd-9953-39b5a1f6c1e9","at":1770548044000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ce7-6a6d-729f-8029-4953572a6bc0","at":1770548324973000000,"seq":385,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce7-cc30-7e07-99fd-d3a02300523d","at":1770548350000000000,"seq":386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ce8-2af3-77f9-8113-5e70678f565a","at":1770548374259000000,"seq":387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce8-e570-77a0-8071-393664c9f1d2","at":1770548422000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c3ce9-2620-7973-a552-a03c8f9d3511","at":1770548438560000000,"seq":389,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce9-6e28-76d7-a543-29f57e464bce","at":1770548457000000000,"seq":390,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ce9-cfd0-7d3f-8ed9-3b7937d28601","at":1770548482000000000,"seq":391,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3cea-0298-78c5-8788-4604d5971c58","at":1770548495000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

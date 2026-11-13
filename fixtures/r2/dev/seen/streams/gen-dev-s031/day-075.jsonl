@@ -1,0 +1,12 @@
+{"v":1,"id":"019cf5b8-750e-7d56-81ad-d41855752239","at":1773649032462000000,"seq":866,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5b8-750e-78a1-8d2d-e54ad425f2bc","at":1773649032462000000,"seq":867,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf5b8-ec58-74d4-86fb-78a0176f9445","at":1773649063000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5b9-55d0-702f-a9ce-8f8923837721","at":1773649090000000000,"seq":869,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cf5b9-5750-7e81-beaf-7e540ac7692c","at":1773649090384000000,"seq":870,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf5b9-5750-73ec-bea8-02918cba8350","at":1773649090384000000,"seq":871,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf5ba-5c92-72fc-b455-11dfea1167af","at":1773649157266000000,"seq":872,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5ba-5c92-729b-a18d-6d27c47050e8","at":1773649157266000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ba-c118-7e30-8734-806bf482a373","at":1773649183000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf5bb-34db-7983-a47c-9f9dd3a33ba8","at":1773649212635000000,"seq":875,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf5bb-70e0-722b-9eff-c97578f98108","at":1773649228000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5bb-9020-7011-8ab5-bed99378c512","at":1773649236000000000,"seq":877,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

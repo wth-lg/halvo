@@ -1,0 +1,39 @@
+{"v":1,"id":"019d3354-40d2-7d23-8ca0-b69a2923b191","at":1774682652882000000,"seq":1405,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3354-40d2-779b-9687-8f46814ecd0f","at":1774682652882000000,"seq":1406,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d3354-be36-7b00-ac40-1b10fada5e01","at":1774682684982000000,"seq":1407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d3354-d9a0-7a80-972e-2162d0e417ce","at":1774682692000000000,"seq":1408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d3354-f4f8-71f1-a4e5-ea7c8bb4b53a","at":1774682699000000000,"seq":1409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3355-0880-72b1-aa18-64d42d86d72c","at":1774682704000000000,"seq":1410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3355-2e30-7740-a876-4d61bf90e012","at":1774682713648000000,"seq":1411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d3355-4ae8-73e4-b097-b6d75ca3b7dc","at":1774682721000000000,"seq":1412,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3355-5a88-783d-9ec5-fe6f0d19f687","at":1774682725000000000,"seq":1413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3355-dec7-7295-8553-f981b807f87d","at":1774682758855000000,"seq":1414,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d3356-19f0-7947-a7cb-021ae98e4c1c","at":1774682774000000000,"seq":1415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3356-3160-76bc-ab6e-4f581309bfb0","at":1774682780000000000,"seq":1416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3356-44e8-7066-a613-5596d4dfa61e","at":1774682785000000000,"seq":1417,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3356-9d3e-7994-a059-3037662c877d","at":1774682807614000000,"seq":1418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d3356-ba18-7c81-b227-3a5f437c361e","at":1774682815000000000,"seq":1419,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3356-cda0-74bc-840e-8a9e2d7db85f","at":1774682820000000000,"seq":1420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d3357-0c20-7473-b13e-9343ff57f44f","at":1774682836000000000,"seq":1421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3357-25e3-74e1-b02c-712cf676fc82","at":1774682842595000000,"seq":1422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d3357-e6e0-7a0a-bcdc-d84751e934e3","at":1774682892000000000,"seq":1423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d3372-9862-798d-b7d2-d952f1046872","at":1774684641378000000,"seq":1424,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3372-9862-728d-9c23-a7ee8f062785","at":1774684641378000000,"seq":1425,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3372-ae58-74ac-8179-eaa778d2308e","at":1774684647000000000,"seq":1426,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3373-0eaa-7bfe-9609-2e8a6bf6e1c6","at":1774684671658000000,"seq":1427,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3373-6dc0-7185-9dbd-f7bc329d0645","at":1774684696000000000,"seq":1428,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d338e-0edf-7ac0-9194-24449081fb43","at":1774686441183000000,"seq":1429,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d338e-0edf-71f4-9166-3e634146de3d","at":1774686441183000000,"seq":1430,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d338e-4f86-7666-9d15-6f9c7b1b94cf","at":1774686457734000000,"seq":1431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d338e-7f70-77fb-b633-c8e1f733df36","at":1774686470000000000,"seq":1432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d338e-d948-7fd7-ad7d-738a7965b3a6","at":1774686493000000000,"seq":1433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d338f-0828-7e93-98b5-253f3ad62f21","at":1774686505000000000,"seq":1434,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d338f-2d90-7473-bdf4-548f610cb9b5","at":1774686514576000000,"seq":1435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d338f-3708-75df-b61a-07f3b0714615","at":1774686517000000000,"seq":1436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d338f-3af0-7c2b-9aaa-ff460cb3e0cc","at":1774686518000000000,"seq":1437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d338f-5260-753b-abc6-20ee63563a43","at":1774686524000000000,"seq":1438,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d338f-6eb9-7995-934e-d75edf058bda","at":1774686531257000000,"seq":1439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d338f-8528-78b7-8b56-74c9450117d0","at":1774686537000000000,"seq":1440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d338f-a080-704f-82dd-292ec2629d37","at":1774686544000000000,"seq":1441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d338f-a468-7d6f-97b2-09adf0ef3127","at":1774686545000000000,"seq":1442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d338f-b408-7e21-b3bf-31240480297c","at":1774686549000000000,"seq":1443,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

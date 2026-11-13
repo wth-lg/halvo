@@ -1,0 +1,13 @@
+{"v":1,"id":"019ba6be-77e8-730b-a04a-09b2defc031d","at":1768029059048000000,"seq":122,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba6be-77e8-7f5c-9b66-a39e5250dfe8","at":1768029059048000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ba6be-8758-71ed-89ec-48cf28f6355b","at":1768029063000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ba6be-b638-7338-9830-fe927be2087f","at":1768029075000000000,"seq":125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6be-d0cd-75e7-adca-e83680b51ce6","at":1768029081805000000,"seq":126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ba6bf-3ef0-7b5d-be81-e6ee0d196bbd","at":1768029110000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba6bf-71b8-72fd-80ef-41a574984166","at":1768029123000000000,"seq":128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba6bf-ac1c-7c66-a4a9-20224496b156","at":1768029137948000000,"seq":129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ba6bf-cf78-7638-9fa1-96096acd2b71","at":1768029147000000000,"seq":130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6c0-0240-75f7-b523-1e3937f521fa","at":1768029160000000000,"seq":131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba6c0-0a10-7494-b1d1-886f9f3d2550","at":1768029162000000000,"seq":132,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba6c0-332d-7ea4-bb6c-a6c77f403ab2","at":1768029172525000000,"seq":133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ba6c0-c978-7a39-adbe-ca6f3bc7db53","at":1768029211000000000,"seq":134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

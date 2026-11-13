@@ -1,0 +1,25 @@
+{"v":1,"id":"019b7916-4833-72c9-b163-61e2b72c46d9","at":1767263062067000000,"seq":0,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7916-4833-7a6b-a7cc-b47f589ffc0a","at":1767263062067000000,"seq":1,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7916-bd20-769f-8dd2-115bba5c2675","at":1767263092000000000,"seq":2,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b7916-c8d8-7a22-a20d-5a6fec4260da","at":1767263095000000000,"seq":3,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7916-cebe-7394-a853-12d872462a6d","at":1767263096510000000,"seq":4,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7916-cebe-70c3-9afa-894938efc044","at":1767263096510000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b7916-d0a8-78e1-8997-b4d2b1be0635","at":1767263097000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7916-d878-7bb5-8a79-bbb9f907e152","at":1767263099000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b7916-e430-7cb2-b69e-a24632dbc6ab","at":1767263102000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7917-5542-7e59-b265-2b90b660824e","at":1767263130946000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b7917-5578-7406-bde3-24b701b39de6","at":1767263131000000000,"seq":10,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7917-bef0-713e-8ec7-725af5709fb1","at":1767263158000000000,"seq":11,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7917-edd0-7875-be11-87ecc03d96a8","at":1767263170000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b7917-f5a0-7f9e-9c97-1ec4df1e0535","at":1767263172000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7918-247a-7c9d-b479-883dd959b3ef","at":1767263183994000000,"seq":14,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b7918-3bf0-7fbc-997d-79af4a737597","at":1767263190000000000,"seq":15,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7918-6ad0-7155-91d8-24998f7481af","at":1767263202000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7918-9d98-7df2-9daa-dd41771f9677","at":1767263215000000000,"seq":17,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7918-a609-7d68-898d-2fb794ff9f87","at":1767263217161000000,"seq":18,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b7919-2650-7a12-8c0f-fcab21cacce8","at":1767263250000000000,"seq":19,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7919-9d09-7d45-b249-6523ccd18bea","at":1767263280393000000,"seq":20,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7919-9d09-729b-80b0-74ec48aff5a4","at":1767263280393000000,"seq":21,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7919-af08-7109-8916-2e5f07c3d380","at":1767263285000000000,"seq":22,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7919-ca60-7775-a059-150189fa2607","at":1767263292000000000,"seq":23,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7919-ce48-79a5-b0d1-d3e8b889968a","at":1767263293000000000,"seq":24,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

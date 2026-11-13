@@ -1,0 +1,13 @@
+{"v":1,"id":"019b82be-75de-7153-bc66-e844e96a774c","at":1767425078750000000,"seq":39,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b82be-75de-7d1d-8e08-55eb79da7f25","at":1767425078750000000,"seq":40,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b82be-8a60-784c-8136-bcf38e6f3818","at":1767425084000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b82d0-5a03-7928-8eae-87de664c6008","at":1767426251267000000,"seq":42,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b82d0-6c80-75a5-a637-58e1970a6140","at":1767426256000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b82d0-a942-7a44-93c0-50e06009db03","at":1767426271554000000,"seq":44,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b82d0-fd08-70e9-8291-1ce9f2bef0a9","at":1767426293000000000,"seq":45,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b82d1-1090-7680-ad10-640e0ba85dc0","at":1767426298000000000,"seq":46,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b82d1-7238-7663-a281-10a53423d646","at":1767426323000000000,"seq":47,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b82e2-0e07-76f0-9175-019119a4ccf2","at":1767427411463000000,"seq":48,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b82e2-0e07-7d44-9352-f5ee3ffc7692","at":1767427411463000000,"seq":49,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b82e2-69f8-7865-a5b4-c2302f1532e9","at":1767427435000000000,"seq":50,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b82e2-8550-7c61-b510-caebaa020a8f","at":1767427442000000000,"seq":51,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}

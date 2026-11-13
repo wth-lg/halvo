@@ -1,0 +1,31 @@
+{"v":1,"id":"019ce136-2c30-7eed-84e3-b5ef6bff92d8","at":1773304949808000000,"seq":916,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce136-2c30-7ea6-a447-bea360a4285f","at":1773304949808000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ce136-f428-705b-a9bb-0f0eba625bb9","at":1773305001000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ce136-fa5b-750b-8bd1-af374690338c","at":1773305002587000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ce137-2ad8-7f54-9135-d0d5f25b37a3","at":1773305015000000000,"seq":920,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce137-4aec-78d3-bbd0-a65db9aa1725","at":1773305023212000000,"seq":921,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ce137-5da0-796c-894d-4094acad073f","at":1773305028000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce137-6188-75c9-b52f-a2b8b28e1b69","at":1773305029000000000,"seq":923,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce137-6958-7d13-9f4a-edc6cf219e6e","at":1773305031000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce137-8d4c-77d5-8ed4-9bbfb93af0cd","at":1773305040204000000,"seq":925,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ce137-a008-7622-a3d9-cb33c86645c4","at":1773305045000000000,"seq":926,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce137-abc0-7d0e-aec9-184acaec0c72","at":1773305048000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce137-c718-74e6-b76e-9918c8ed7fd3","at":1773305055000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce14a-5fd2-7aea-a3e2-1d25e46d19e7","at":1773306273746000000,"seq":929,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce14a-5fd2-7c8e-9b5f-275f9e68b4d5","at":1773306273746000000,"seq":930,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce14a-6c88-7409-b22c-1e91ac20f73b","at":1773306277000000000,"seq":931,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce14a-9b68-7569-a275-92e479fda3e5","at":1773306289000000000,"seq":932,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce14a-a338-76a6-8d78-b0b897c7a3d4","at":1773306291000000000,"seq":933,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ce14a-a338-74a6-927c-50655e29c562","at":1773306291000000000,"seq":934,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce14a-a720-744b-a789-1601f6406a82","at":1773306292000000000,"seq":935,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ce163-9fb6-713d-b1b6-8fc6b6161ed2","at":1773307928502000000,"seq":936,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ce163-d470-7c9f-83b2-074c23b5a854","at":1773307942000000000,"seq":937,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce163-d858-79fc-ae87-8f5b34659e44","at":1773307943000000000,"seq":938,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce163-e410-7565-a88e-748c07d7c260","at":1773307946000000000,"seq":939,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce17b-d243-7419-8af1-caec58e78d26","at":1773309514307000000,"seq":940,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce17b-d243-7a9d-8f48-4af84a1fe7d5","at":1773309514307000000,"seq":941,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ce17c-2ae8-734c-9132-3662588e607a","at":1773309537000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ce17c-4bad-754a-9675-cff62d489581","at":1773309545389000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ce17c-51f8-7b83-ae51-cf2e07020cf3","at":1773309547000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce17c-6968-7b23-96b0-cec6d2d2fb1f","at":1773309553000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce17c-8c90-76f1-b47e-58cc80c2f19c","at":1773309562000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

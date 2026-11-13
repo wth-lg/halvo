@@ -1,0 +1,19 @@
+{"v":1,"id":"019c98d6-fb0c-7bc8-9582-64e6abf2f913","at":1772090751756000000,"seq":867,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c98d6-fb0c-73c1-8444-b76f592ffff8","at":1772090751756000000,"seq":868,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c98d7-03d0-7c4f-ab29-17eb374a43a1","at":1772090754000000000,"seq":869,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c98d7-32b0-7dd1-9519-ebb408e9e179","at":1772090766000000000,"seq":870,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98d7-3698-7725-b67f-ee520f79f272","at":1772090767000000000,"seq":871,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c98d7-38e4-70a8-bbd9-9a4b407da63e","at":1772090767588000000,"seq":872,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c98d7-4250-7d50-89d5-55ac0b3e64c9","at":1772090770000000000,"seq":873,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98d7-afb0-74eb-94b6-300b1d220bcb","at":1772090798000000000,"seq":874,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c98d8-01b8-7bc1-87cb-f76c8b6077c1","at":1772090819000000000,"seq":875,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c98e8-44f0-7fbf-8c4b-ec231190005d","at":1772091884784000000,"seq":876,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c98e8-74a8-7f87-9523-cc24000b70c1","at":1772091897000000000,"seq":877,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98f7-b5b4-7217-9356-464f5d099928","at":1772092896692000000,"seq":878,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c98f7-b5b4-7464-a7d0-4e2a361906a5","at":1772092896692000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c98f7-c2a0-7314-855a-ea2cec756ae0","at":1772092900000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c98f7-eeb3-712a-ab62-e95e99f3e761","at":1772092911283000000,"seq":881,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c98f8-f84c-7646-8dcc-85f12c0fb31d","at":1772092979276000000,"seq":882,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c98f9-3d88-77fc-bac2-f04da4844e73","at":1772092997000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98f9-bdc1-74d8-a176-6f140119cf5a","at":1772093029825000000,"seq":884,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c98fa-85a8-7d4e-a6ea-53e0b591d1a9","at":1772093081000000000,"seq":885,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

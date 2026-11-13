@@ -1,0 +1,25 @@
+{"v":1,"id":"019c1db9-7072-7cec-bf31-200e157e0101","at":1770025218162000000,"seq":559,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1db9-7072-7cc9-bb3d-48ec640204e6","at":1770025218162000000,"seq":560,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1db9-f14e-70aa-ac5d-4aa2ad77aa00","at":1770025251150000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1dba-0ff8-721b-a2ae-d05bdb9203d5","at":1770025259000000000,"seq":562,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1dba-1f98-7af1-8a3f-b2203fdd4d90","at":1770025263000000000,"seq":563,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1dba-4a90-7a87-9aa2-93851d272005","at":1770025274000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dba-741d-7adb-9af8-b63c713821da","at":1770025284637000000,"seq":565,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c1dba-90e0-7b04-b7f2-7ff6126d174f","at":1770025292000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dba-98b0-7471-ab0b-d78a808aa085","at":1770025294000000000,"seq":567,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1dba-f670-791c-afda-9185c2d70bd2","at":1770025318000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dcd-cf5f-77a9-8adc-e633dfee597a","at":1770026553183000000,"seq":569,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1dcd-de48-7f18-90fe-e2f4587e69ed","at":1770026557000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dce-1110-7407-a42c-da2a89cef1d2","at":1770026570000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c1dce-1cc8-71e6-8065-a87a22b3b580","at":1770026573000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dce-3820-7df5-85f7-ddec636c226d","at":1770026580000000000,"seq":573,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1dce-4f90-7c3f-a2be-5206a9c95823","at":1770026586000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1dd4-85be-7ae4-b8b8-5de977f3321c","at":1770026993086000000,"seq":575,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1dd4-85be-749e-89b5-fd6ef4b2acd0","at":1770026993086000000,"seq":576,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1dd4-b830-7b4c-bafb-20142a4b6399","at":1770027006000000000,"seq":577,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c1dd4-cfa0-710c-b727-d4a88f564ca3","at":1770027012000000000,"seq":578,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c1dd4-f2c8-71db-aa26-b93ce7a9e355","at":1770027021000000000,"seq":579,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c1dd5-3d00-7a8b-9de3-598491e4f4d8","at":1770027040000000000,"seq":580,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dd5-85aa-7056-bee8-f54e114a6251","at":1770027058602000000,"seq":581,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c1dd6-0820-7c9d-9796-e3907b0016f0","at":1770027092000000000,"seq":582,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c1dd6-1ba8-7b1c-9529-fe62f5eca1e7","at":1770027097000000000,"seq":583,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}

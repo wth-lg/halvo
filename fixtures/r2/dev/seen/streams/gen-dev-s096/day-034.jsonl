@@ -1,0 +1,13 @@
+{"v":1,"id":"019c22f4-6ef0-7c0a-86ad-44d674b3793d","at":1770112970480000000,"seq":434,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22f4-6ef0-7d7b-bb69-2545e5331263","at":1770112970480000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c22f4-b50b-7f85-929d-11d7b88dea35","at":1770112988427000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c22f4-ceb8-7fb2-b63c-601565d277ce","at":1770112995000000000,"seq":437,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c22f4-ea10-7c87-b519-bcf85f1c5345","at":1770113002000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22f5-4da4-7f74-bdfb-e20b6bfb23da","at":1770113027492000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c22f5-5388-7c0a-b028-986e77b52e97","at":1770113029000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22f5-a590-7b82-81c3-d81ae33d568f","at":1770113050000000000,"seq":441,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c22f5-a978-750d-a0e3-22d7c3eaa31e","at":1770113051000000000,"seq":442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22f5-d470-7682-9461-873dbabd06c6","at":1770113062000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c230d-e3b8-76e1-91c5-fb92c10a5692","at":1770114638776000000,"seq":444,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c230d-e3b8-73fa-8bdb-ac91a82afea7","at":1770114638776000000,"seq":445,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c230e-6968-7b2b-b3e6-c03b4c354ad8","at":1770114673000000000,"seq":446,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

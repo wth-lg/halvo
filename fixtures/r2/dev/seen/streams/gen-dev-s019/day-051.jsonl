@@ -1,0 +1,28 @@
+{"v":1,"id":"019c7a00-417c-7ba9-9650-0e771ccccba5","at":1771573363068000000,"seq":779,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a00-417c-79b2-86a7-5178528563f2","at":1771573363068000000,"seq":780,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a00-8b70-789b-a9b9-b97e1c0cde93","at":1771573382000000000,"seq":781,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a00-8f58-7982-8584-e5b2e2b235c8","at":1771573383000000000,"seq":782,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a1a-6e78-7a98-bb51-c65631546acb","at":1771575078520000000,"seq":783,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a1a-6e78-7b5e-9c26-cb173fead93a","at":1771575078520000000,"seq":784,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7a1a-7c10-7bc0-b56d-17918f46bec3","at":1771575082000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a1a-7ff8-78b6-a67f-bb91cb111aed","at":1771575083000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7a1a-aed8-7ca7-b003-807ed183fe6d","at":1771575095000000000,"seq":787,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a26-e4cf-79a8-bb13-e77912ea78d0","at":1771575895247000000,"seq":788,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c7a27-2258-7499-ada9-a160bc917d22","at":1771575911000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a27-39c8-7c5b-bc38-889370369189","at":1771575917000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7a27-9f58-7b76-beec-2bcf99b0cc68","at":1771575943000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a27-bc19-7dd9-bc5a-dbd032f00069","at":1771575950361000000,"seq":792,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7a27-d220-71f0-99a3-ee96b3025ab8","at":1771575956000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a28-3205-76c9-8deb-87433303b9c7","at":1771575980549000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c7a28-5308-7915-a403-55690d1edd92","at":1771575989000000000,"seq":795,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a28-ef48-7083-944f-243bd348ea49","at":1771576029000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c7a29-2755-7918-b020-36ac196f8d4d","at":1771576043349000000,"seq":797,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c7a29-87a0-79a3-9d64-ef737778d02a","at":1771576068000000000,"seq":798,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a29-8b88-7d4f-b6c9-f13ba16752c2","at":1771576069000000000,"seq":799,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a29-9358-78da-bfe4-2b0edf14b80f","at":1771576071000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a29-aeb0-735f-a5ca-9c6fb4eaf1b2","at":1771576078000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a29-c02b-7119-9ed3-20ea07a7d57f","at":1771576082475000000,"seq":802,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c7a29-c620-71d4-83c3-4375145d0dc5","at":1771576084000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a2a-27c8-77ad-9ff7-19c59288477a","at":1771576109000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a2a-7db8-7423-b5a6-0316a5b2a90e","at":1771576131000000000,"seq":805,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7a2a-b468-7ef6-886c-fc8b5d9a0c18","at":1771576145000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019b832d-0892-753c-acc5-420f39f1ad6c","at":1767432325266000000,"seq":21,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b832d-0892-78e9-a2d3-f8bbbb875a57","at":1767432325266000000,"seq":22,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b832d-0f58-7f6c-9f72-28d99de670cb","at":1767432327000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b832d-3e38-71d4-aea3-d7a29de5b263","at":1767432339000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b832d-6160-769c-9dbf-19f2ae7d9290","at":1767432348000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b833e-477c-743e-8c73-8e7eddf54ec1","at":1767433455484000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b833e-60f0-7d00-9452-86bb48587be8","at":1767433462000000000,"seq":27,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b833e-a740-77cf-993d-2563fd8598ea","at":1767433480000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b833e-b6e0-7f19-820b-1f9fde3aff37","at":1767433484000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8341-4536-78cf-9580-277f354e81b0","at":1767433651510000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b8341-56c0-7193-b44d-98dab6e1c7a8","at":1767433656000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8342-02a0-76b1-ab81-2121797410d1","at":1767433700000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8342-0ec9-738d-ac7d-42ae83faa84e","at":1767433703113000000,"seq":33,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b8342-77d0-732a-9ee9-3e15a633a6e1","at":1767433730000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b8342-be20-7599-84c8-fa4771aa18a7","at":1767433748000000000,"seq":35,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8342-d4c0-7286-90a5-c1d1327b3567","at":1767433753792000000,"seq":36,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b8342-e530-727f-8b8f-08e859040639","at":1767433758000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8342-f4d0-7bbb-8c9c-efbaf689e9a6","at":1767433762000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b8343-1926-7d9d-b489-251c59a02853","at":1767433771302000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b8343-23b0-70c3-ae9d-fce6d672b3dd","at":1767433774000000000,"seq":40,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8343-71d0-7255-92d3-3aef6ae4cf1e","at":1767433794000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

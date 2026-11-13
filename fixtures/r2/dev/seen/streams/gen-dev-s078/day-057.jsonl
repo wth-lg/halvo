@@ -1,0 +1,11 @@
+{"v":1,"id":"019c9906-ead2-79bc-838f-c309e3831f89","at":1772093893330000000,"seq":777,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9906-ead2-7c56-a456-99bf01d86f05","at":1772093893330000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c9907-1868-7e29-aaf5-3cb5c03e3b16","at":1772093905000000000,"seq":779,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9907-2bf0-74bf-9d6e-c0b8fd06a49c","at":1772093910000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c991a-cddc-79e5-ac99-7e69ac510b50","at":1772095196636000000,"seq":781,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c991b-1d68-75fc-9406-1fd3076fd49b","at":1772095217000000000,"seq":782,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c991b-2920-7869-b162-c2be8c81c92a","at":1772095220000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c991d-09e1-77e2-b9a3-50d8a330eabd","at":1772095343073000000,"seq":784,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c991d-e458-7862-998b-a352b8cffce1","at":1772095399000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c991e-0569-7d78-80eb-6bb9ddf7187f","at":1772095407465000000,"seq":786,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c991e-6928-74d5-85a7-b004eed77b2c","at":1772095433000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

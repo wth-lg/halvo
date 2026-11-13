@@ -1,0 +1,18 @@
+{"v":1,"id":"019bdf6c-ce49-79b7-bf55-4286c067c761","at":1768980008521000000,"seq":380,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdf6c-ce49-72a5-ab4c-1d8759e9bebc","at":1768980008521000000,"seq":381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdf6c-eb80-7e8c-9638-3a82a1400855","at":1768980016000000000,"seq":382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bdf6c-ff08-75dd-9f16-d47f49cf2fd9","at":1768980021000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdf6d-994f-77cb-81cc-2924c48d8aad","at":1768980060495000000,"seq":384,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdf6d-a318-766e-9fc8-b7e0775617d4","at":1768980063000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdf6d-d5e0-7071-b615-df87657724b2","at":1768980076000000000,"seq":386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdf6e-705a-7853-9fca-f0ffd0c06fda","at":1768980115546000000,"seq":387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bdf6e-db98-7b52-a421-d30ad91634ef","at":1768980143000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdf6f-3188-7fa0-b9a2-c2c4fb87d826","at":1768980165000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bdf6f-3442-75f4-8715-f1c4e53aee31","at":1768980165698000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdf6f-5c80-7822-8316-83ea8ed331d0","at":1768980176000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bdf6f-9330-7e19-89f6-56bfdedc1a1b","at":1768980190000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdf6f-ce6f-7807-8544-b30744972ee0","at":1768980205167000000,"seq":393,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdf6f-fca8-7efc-85f1-5ecd7a06b7ef","at":1768980217000000000,"seq":394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bdf70-1030-76e8-bba5-212bfa086461","at":1768980222000000000,"seq":395,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdf70-27a0-7ac4-aad0-8bf65327c00d","at":1768980228000000000,"seq":396,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdf70-46e0-7d6b-9d82-70d9cfc28c81","at":1768980236000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

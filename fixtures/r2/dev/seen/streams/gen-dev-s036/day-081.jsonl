@@ -1,0 +1,19 @@
+{"v":1,"id":"019d14c7-be41-7ad3-be1c-8a2448cd9fe9","at":1774170127937000000,"seq":1152,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14c7-be41-716a-b6da-ebe23a5a8bdb","at":1774170127937000000,"seq":1153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d14c8-00e8-7a92-868e-c4dd7666836d","at":1774170145000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14c8-56d8-78aa-975d-90ffb60b6805","at":1774170167000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14c8-729d-7b32-8bd6-b6ec41bbec6a","at":1774170174109000000,"seq":1156,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d14c8-729d-7fff-a486-c7a753966f4b","at":1774170174109000000,"seq":1157,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d14c8-9558-7d85-b7e2-c0db89a6b2c4","at":1774170183000000000,"seq":1158,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d14c9-3d50-74bd-87c8-34e38937d18f","at":1774170226000000000,"seq":1159,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14c9-4138-72b6-bf08-4196ba52ea93","at":1774170227000000000,"seq":1160,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d14c9-4ac1-760b-a9ac-f350b6094fc2","at":1774170229441000000,"seq":1161,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14c9-4ac1-7083-a266-21a495ac3808","at":1774170229441000000,"seq":1162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d14c9-50d8-795a-b8c7-fa520eee5b04","at":1774170231000000000,"seq":1163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14c9-58a8-784a-aa5b-682b5ecb33eb","at":1774170233000000000,"seq":1164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14c9-6c30-7f7a-834e-0260756608b6","at":1774170238000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d14c9-77e8-7812-b128-5883838bc566","at":1774170241000000000,"seq":1166,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d14c9-9032-7187-af3d-2b86d1c5e1fe","at":1774170247218000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d14c9-d990-76f3-88a7-b4ee385d6ede","at":1774170266000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14ca-0870-7ec8-87ac-4216e3e90691","at":1774170278000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14ca-27b0-76d7-9e1b-4608a7b88856","at":1774170286000000000,"seq":1170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

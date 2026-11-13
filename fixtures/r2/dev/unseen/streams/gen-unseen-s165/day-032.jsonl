@@ -1,0 +1,29 @@
+{"v":1,"id":"019c1805-06a7-7db0-a349-2b6bf4d1834a","at":1769929508519000000,"seq":479,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1805-06a7-719c-b587-14e5013a20d5","at":1769929508519000000,"seq":480,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c1805-6de0-751b-92d4-ad8413424e67","at":1769929534944000000,"seq":481,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c1805-7200-7f42-89de-a0efad0354d9","at":1769929536000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1805-a8b0-788f-a1c7-51a5ca00dd10","at":1769929550000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1806-19f8-744a-b4f2-de48f7329da0","at":1769929579000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1806-7b7d-7b9d-af8e-500b46e26dfd","at":1769929603965000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c1806-b638-747a-8b1a-15cf6faefd94","at":1769929619000000000,"seq":486,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1806-d578-7865-8342-6ec562d35e8c","at":1769929627000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c1806-f423-709c-90ed-e872825ec80c","at":1769929634851000000,"seq":488,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c1806-f8a0-70cb-8098-1a121e07d369","at":1769929636000000000,"seq":489,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1807-71b8-74e6-844a-c7945b20310c","at":1769929667000000000,"seq":490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1807-8540-76d6-af30-9ba31e9e73ad","at":1769929672000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1807-a480-7ab1-9d09-3cd6f3f4a985","at":1769929680000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c181b-2b11-7b5a-8c1e-3d08f0a8ce4b","at":1769930959633000000,"seq":493,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c181b-2b11-7492-a6b4-83cd5da3afcb","at":1769930959633000000,"seq":494,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c181b-3838-7e36-9702-b215ccae9aad","at":1769930963000000000,"seq":495,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c181b-bd08-7579-86bb-235ed8b01a92","at":1769930997000000000,"seq":496,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c181b-c0f0-7568-8b15-cc01f611a33f","at":1769930998000000000,"seq":497,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c181b-cca8-73f5-9f3e-61cecd3f99e7","at":1769931001000000000,"seq":498,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c1827-0d32-755c-b9ce-98284efae8e0","at":1769931738418000000,"seq":499,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1827-0d32-7f7e-942f-ccbd93593df4","at":1769931738418000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c1827-4240-7ee0-961e-aa3b7b273172","at":1769931752000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1827-97f7-71aa-a38c-b101dc588c2d","at":1769931773943000000,"seq":502,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c1827-afa0-7f20-b24b-f77c13fec0a2","at":1769931780000000000,"seq":503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1828-5b80-7b73-81c1-2e7c5d3fc52d","at":1769931824000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1828-6f08-7c38-9198-d10ef55b369b","at":1769931829000000000,"seq":505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1828-a4d6-779a-87bf-1f9d2ace24fa","at":1769931842774000000,"seq":506,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c1829-0378-715c-bcee-d5277fc5ccf7","at":1769931867000000000,"seq":507,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

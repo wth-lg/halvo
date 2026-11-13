@@ -1,0 +1,25 @@
+{"v":1,"id":"019c7f1a-37e2-7d2e-a5c6-c8a04502e44a","at":1771658950626000000,"seq":802,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f1a-37e2-7259-bd58-e3d82e1d2154","at":1771658950626000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c7f1a-50c8-76e7-a9da-243ecaa490ab","at":1771658957000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f1a-7bc0-717b-8cd6-e1e1c9fe7da9","at":1771658968000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f1a-7bc0-735a-b362-79ffb7b90048","at":1771658968000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7f1a-9800-7494-8ff3-f6572791bf48","at":1771658975232000000,"seq":807,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c7f1a-ed08-7ada-b553-d00df2b8eb99","at":1771658997000000000,"seq":808,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7f1b-6620-7f10-a96f-2497f044c751","at":1771659028000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7f1b-7485-712b-b9f1-bae61d6293da","at":1771659031685000000,"seq":810,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c7f1b-cf98-71cf-977a-b200a978fe34","at":1771659055000000000,"seq":811,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f1c-5442-7570-bf0e-efb3b88afd2a","at":1771659088962000000,"seq":812,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c7f1c-7790-7494-9484-665057264816","at":1771659098000000000,"seq":813,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7f1c-8348-76f9-ae79-94764a5b2203","at":1771659101000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c7f1c-ae40-72d7-b342-84e22309679c","at":1771659112000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f1c-b610-726d-87b3-af11ec80e668","at":1771659114000000000,"seq":816,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f1d-42b0-7601-9b6f-b0f4712264fa","at":1771659150000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f1d-574d-7e4d-9347-5fb51cb85c13","at":1771659155277000000,"seq":818,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c7f1d-69c0-7b2f-95be-2ab030616657","at":1771659160000000000,"seq":819,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7f1d-8130-7824-a9fc-cebee99aa629","at":1771659166000000000,"seq":820,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7f35-0b19-7f20-a757-408ed793e9d3","at":1771660708633000000,"seq":821,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7f39-a8f0-7c0e-8f13-ce9f9e09a6d3","at":1771661011184000000,"seq":822,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7f39-a8f0-7e3a-90e1-534f1f8eb7bd","at":1771661011184000000,"seq":823,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7f39-f270-715e-86b3-864cc8ef998c","at":1771661030000000000,"seq":824,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7f3a-1980-7d69-b11b-20e37df80069","at":1771661040000000000,"seq":825,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c7f3a-8eb0-7ca3-88d7-2c372b2a9254","at":1771661070000000000,"seq":826,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

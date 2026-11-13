@@ -1,0 +1,40 @@
+{"v":1,"id":"019c601c-3ffe-7be0-b56f-612c07370598","at":1771138990078000000,"seq":726,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c601c-3ffe-7dd7-b83e-2a296125420f","at":1771138990078000000,"seq":727,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c601c-4398-7785-97ce-b3c25ab95e25","at":1771138991000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c601c-4b68-705c-adcd-2e47322002c8","at":1771138993000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c601c-5ef0-77df-8602-5b811433de8c","at":1771138998000000000,"seq":730,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c6033-64ac-7cfd-bb16-2e33db9207ca","at":1771140506796000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6034-2cb0-7be0-b683-baae78380bf9","at":1771140558000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6034-6766-7a7b-a3e3-1600be36fa9d","at":1771140573030000000,"seq":733,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6034-6b30-7d3a-b8a6-9c20a6909d8c","at":1771140574000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6034-ad98-74a7-aa63-af25ba940d6a","at":1771140591000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6034-b4f3-7d91-8988-f3d60999349d","at":1771140592883000000,"seq":736,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6034-e060-720a-a872-b234f2a23f50","at":1771140604000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c6035-88b2-7223-a6d9-147080442bd2","at":1771140647090000000,"seq":738,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6035-9fc8-7db0-93bf-3e812da1ff40","at":1771140653000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c6035-a3b0-7893-af81-fb50274edeab","at":1771140654000000000,"seq":740,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6035-b738-771e-b0ff-5232116e51f5","at":1771140659000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6035-bf08-756f-a991-1ab4e498f3a8","at":1771140661000000000,"seq":742,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c603d-037b-7ead-91b7-5798fb6e6099","at":1771141137275000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c603d-59b8-7026-a85e-0766a4b38771","at":1771141159352000000,"seq":744,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c603d-8b20-706d-8ae1-dda704d3fe14","at":1771141172000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c603d-9ac0-78ec-8b1c-e0afea1423c2","at":1771141176000000000,"seq":746,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c603d-a290-7a22-be75-cfa5703f059f","at":1771141178000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c603e-3700-74bb-abce-a7cce881c94a","at":1771141216000000000,"seq":748,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c603f-fc5a-7030-889e-c133c4fe6d0d","at":1771141332058000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6040-0008-75ed-b71e-0e674983bdc7","at":1771141333000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6040-1778-7634-8cea-eedb8c199cef","at":1771141339000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6040-32d0-7c16-a7d9-4493b6758b6d","at":1771141346000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6059-0453-74bf-a36c-54df7764ac81","at":1771142972499000000,"seq":753,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c6059-1200-7730-a246-307b068e936a","at":1771142976000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6059-8056-72d8-b082-4b5c2fc7e0f6","at":1771143004246000000,"seq":755,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6059-8056-72a7-9c94-4d2faa787dfb","at":1771143004246000000,"seq":756,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6059-d938-737a-afb4-1080c70d2309","at":1771143027000000000,"seq":757,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6059-dd20-7098-9d81-72b544f3d100","at":1771143028000000000,"seq":758,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c605a-2487-7efa-a83d-c1c6b2e9e12a","at":1771143046279000000,"seq":759,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c605a-2487-75a6-9f66-d55bf7902991","at":1771143046279000000,"seq":760,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c605a-2f28-7ad1-b32a-9690c8f10473","at":1771143049000000000,"seq":761,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c605a-36f8-743b-997a-109e53b2172a","at":1771143051000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c605a-5e08-7810-a78e-a0f82cab4f02","at":1771143061000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c605a-7578-7635-a356-3b16e31f8a83","at":1771143067000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c605a-7960-7256-bb39-e0e1c24ca63e","at":1771143068000000000,"seq":765,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

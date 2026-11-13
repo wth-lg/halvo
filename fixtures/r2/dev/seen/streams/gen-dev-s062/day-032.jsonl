@@ -1,0 +1,23 @@
+{"v":1,"id":"019c189d-7df6-729d-857b-819764e64cd1","at":1769939500534000000,"seq":413,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c189d-7df6-7616-aeea-0c346e646630","at":1769939500534000000,"seq":414,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c189d-d9a0-7b07-bb29-7a9196b874fd","at":1769939524000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c189d-e9e2-79da-96a4-98964d79aed8","at":1769939528162000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c189e-73ed-7eab-afa7-b5aa6cc2cf37","at":1769939563501000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c189e-a0d8-74c5-bcbe-26c1f4c5cf16","at":1769939575000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c189e-d3a0-71d2-903b-8c1286a4afe1","at":1769939588000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c189e-e340-7721-a572-aa1386cf921b","at":1769939592000000000,"seq":420,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c189e-fab0-7de6-8ca5-bc874886b4dc","at":1769939598000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c189f-0668-7aa7-af2e-e12050e59e1c","at":1769939601000000000,"seq":422,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c189f-0772-7942-a87b-13b32b0289a9","at":1769939601266000000,"seq":423,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c189f-8b38-778e-aa1d-4611ff3952f8","at":1769939635000000000,"seq":424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c189f-fc34-7b51-a8bb-2ab08fe2a460","at":1769939663924000000,"seq":425,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c18a0-3718-7f08-971f-22c59f0c4fb7","at":1769939679000000000,"seq":426,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c18a0-71b0-7ec0-96b7-07291933a514","at":1769939694000000000,"seq":427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a0-7598-79b5-a652-c2274ea8ba76","at":1769939695000000000,"seq":428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c18a0-ac48-7cda-9060-d4ac85f1912e","at":1769939709000000000,"seq":429,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c18a0-b418-759b-b428-79f6021ef5d2","at":1769939711000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18a0-c22f-7052-b249-922bf50715b7","at":1769939714607000000,"seq":431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c18a1-7380-7ae0-9189-f4409d5866e1","at":1769939760000000000,"seq":432,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c18a1-9e78-796e-9b07-f44db075b5de","at":1769939771000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c18b1-6d5d-7414-b487-a558772753f7","at":1769940807005000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c18b1-88b0-74f7-bbbd-2f69f34ddb12","at":1769940814000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

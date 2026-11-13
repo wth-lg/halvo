@@ -1,0 +1,20 @@
+{"v":1,"id":"019bf429-d0a0-7864-944e-0da29461c00c","at":1769327939744000000,"seq":303,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf429-d0a0-7422-a101-3ab89f2881a1","at":1769327939744000000,"seq":304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bf42a-4663-7920-8ce8-06d4df5d2373","at":1769327969891000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf42a-98d8-7396-8b7e-917332e01e68","at":1769327991000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bf42b-2770-796d-9ca5-51e1fc25b6fb","at":1769328027504000000,"seq":307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf42b-3900-7dd9-bed9-b4539cc85de0","at":1769328032000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf42b-6bc8-7a07-85ba-a24bcbea5380","at":1769328045000000000,"seq":309,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf42b-b7ff-7951-8e19-0f8b5c699ae0","at":1769328064511000000,"seq":310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf42b-c988-727c-a479-9301994d0d81","at":1769328069000000000,"seq":311,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf42c-15cd-7165-8a68-7812f3f3d5ec","at":1769328088525000000,"seq":312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bf42c-2b30-79ae-b2c8-1874c2f967d9","at":1769328094000000000,"seq":313,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf42c-3300-7b1b-bb82-40da42a36afb","at":1769328096000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf42c-7d38-7f8b-9828-714f07e71383","at":1769328115000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bf42c-82e4-7eae-9dec-50aa82af0de6","at":1769328116452000000,"seq":316,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bf42c-9c78-7b83-ae2a-a6ab2080b900","at":1769328123000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bf42d-57f8-7daa-8104-db2d6276cc7c","at":1769328171000000000,"seq":318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf42d-841a-7431-9c08-1ecf34090593","at":1769328182298000000,"seq":319,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bf42d-8ea8-7396-8a27-2d79eabbbdd6","at":1769328185000000000,"seq":320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf42d-ade8-708c-999d-12831fc29ab0","at":1769328193000000000,"seq":321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf42d-e0b0-71b3-86da-b785c5d0c42b","at":1769328206000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

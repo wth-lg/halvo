@@ -1,0 +1,27 @@
+{"v":1,"id":"019ce125-81f8-7252-9fdb-a17490a55bdf","at":1773303857656000000,"seq":1120,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce125-81f8-72bd-b8ac-fd107323a543","at":1773303857656000000,"seq":1121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ce125-9ac0-719d-bbf5-20d74bd836ad","at":1773303864000000000,"seq":1122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ce125-c5fa-7e8c-a7a4-19a9869583e8","at":1773303875066000000,"seq":1123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ce125-d558-7786-9afc-66ebbef7c3a2","at":1773303879000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ce125-d940-7898-b1a4-a0d2df143190","at":1773303880000000000,"seq":1125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce125-ecc8-72c9-b3d6-2725a72daa09","at":1773303885000000000,"seq":1126,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce125-fc68-7696-8a3a-6179b21871df","at":1773303889000000000,"seq":1127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce126-0820-7159-9dfe-0cc7ccd23f00","at":1773303892000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce126-1d7f-77f7-a940-22bf6793592b","at":1773303897471000000,"seq":1129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ce126-2378-7f60-8be3-1c1c0b0ff738","at":1773303899000000000,"seq":1130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce126-4a88-78c8-a0fc-3fb2f575f54f","at":1773303909000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ce127-171d-7186-8007-123d1b39d9fa","at":1773303961373000000,"seq":1132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ce127-5428-7428-967b-37bcb5a3a228","at":1773303977000000000,"seq":1133,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce127-7b38-7c68-b297-d31fb20ec53f","at":1773303987000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ce12b-13dc-77b8-a543-347773accdef","at":1773304222684000000,"seq":1135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ce12b-3c28-74a3-a8ef-516fbd973858","at":1773304233000000000,"seq":1136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce12b-4bc8-7e73-a6a9-5877d73f71f8","at":1773304237000000000,"seq":1137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce12b-5ea2-7c3a-b99e-62dc33e460d7","at":1773304241826000000,"seq":1138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ce12b-7aa8-72bf-af51-e9723b78bb88","at":1773304249000000000,"seq":1139,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce12c-021e-7c4b-9af3-9a82114c8e3b","at":1773304283678000000,"seq":1140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ce12c-45c8-781f-9e97-b2d94417ab2b","at":1773304301000000000,"seq":1141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ce12c-8c18-734e-96a3-023db55e000d","at":1773304319000000000,"seq":1142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce12c-8cc9-78d7-9f57-b90c42003bdd","at":1773304319177000000,"seq":1143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ce12d-2088-780d-ba0d-78660d18891a","at":1773304357000000000,"seq":1144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce12d-5350-7f44-b90e-4a82988d43a1","at":1773304370000000000,"seq":1145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce12d-6ea8-780f-9c98-7bfd83bf078a","at":1773304377000000000,"seq":1146,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

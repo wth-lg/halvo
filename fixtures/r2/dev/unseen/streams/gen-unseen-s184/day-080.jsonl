@@ -1,0 +1,30 @@
+{"v":1,"id":"019d0fdd-55ae-7bab-bd78-0f4bbcab8f23","at":1774087656878000000,"seq":1099,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fdd-55ae-72f2-aee8-0f2a842c0997","at":1774087656878000000,"seq":1100,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0fdd-65c8-746f-940a-457a0a9cfc45","at":1774087661000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fdd-8cd8-737d-b7a9-7e986cb6710d","at":1774087671000000000,"seq":1102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d0fde-0208-7b6e-9e87-62ad1d4d3263","at":1774087701000000000,"seq":1103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fde-4d38-764d-8500-92cf59386abd","at":1774087720248000000,"seq":1104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0fde-5be0-7dd1-8075-7644ea101c78","at":1774087724000000000,"seq":1105,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0fde-7738-7296-a2b9-6a09c57b8446","at":1774087731000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fde-b5b8-79dc-a56c-926122273a71","at":1774087747000000000,"seq":1107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0fde-fc08-7b21-a9c9-6fb33cf9c39b","at":1774087765000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fdf-39fc-78a5-a1d1-a90e3876aba5","at":1774087780860000000,"seq":1109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d0fdf-3a88-7880-86a1-140d72fc528a","at":1774087781000000000,"seq":1110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fdf-a018-72b7-a69f-550cb4daef42","at":1774087807000000000,"seq":1111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d0fe0-0981-7a5f-978a-d05cca74e806","at":1774087833985000000,"seq":1112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d0fe0-2100-7d30-aae0-3f4ad8040f23","at":1774087840000000000,"seq":1113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0fe0-4810-7196-ba7c-075eb72dcc0d","at":1774087850000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fe0-4810-7a57-a2cf-db1ee1bcc7e3","at":1774087850000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d0fe0-4bb1-7e56-a0c2-851490ab1587","at":1774087850929000000,"seq":1116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d0fe0-bd40-761d-a5c3-ffa585018a7d","at":1774087880000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d0fe1-4854-76f3-aa10-62d85ec22738","at":1774087915604000000,"seq":1118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d0fe1-bb28-7bc1-a29d-d4b7eb44334e","at":1774087945000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fe2-3182-71f4-84ff-10baa5f9a806","at":1774087975298000000,"seq":1120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0fe2-3c10-7450-b646-dc1783f0aea6","at":1774087978000000000,"seq":1121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0fe2-5380-78f4-83ba-d21e447036ca","at":1774087984000000000,"seq":1122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fe2-6af0-7713-8b1b-40b13f7c1183","at":1774087990000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fe2-95e8-722c-b005-cec12d9754b9","at":1774088001000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d0fe2-99d0-73cd-918d-8a930f591478","at":1774088002000000000,"seq":1125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0fe2-b49d-76df-a80b-47c824a2a5ca","at":1774088008861000000,"seq":1126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d0fe2-c0e0-7a24-b8a7-138c2bbc73b6","at":1774088012000000000,"seq":1127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0fe3-5550-7202-a258-8e9dcbc7b032","at":1774088050000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

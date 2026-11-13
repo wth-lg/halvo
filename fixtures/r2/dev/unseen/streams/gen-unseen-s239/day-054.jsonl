@@ -1,0 +1,27 @@
+{"v":1,"id":"019c8993-f1cb-7c5a-9a3a-16caa3d03201","at":1771834700235000000,"seq":596,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8993-f1cb-7b6b-bc32-950bdf12cc33","at":1771834700235000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8994-1bd8-7a18-8915-2774d8b58d49","at":1771834711000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8994-3b18-7ede-ad35-c828cb7a3bf0","at":1771834719000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8994-75b0-7879-8490-5c6c77b2c6c8","at":1771834734000000000,"seq":600,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8994-94f0-7721-ab07-b7261f461830","at":1771834742000000000,"seq":601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8999-8cd6-7423-9d40-cf3bbc07ed89","at":1771835067606000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c899a-8d53-76a7-87f9-63d07bdaa94b","at":1771835133267000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c899a-9030-777e-a664-71437906b8fa","at":1771835134000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c899a-9418-7535-b01c-a2e0209ddffd","at":1771835135000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c899a-bb28-7b1e-82dc-c1f9bacda197","at":1771835145000000000,"seq":606,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c899a-f5ce-7b80-9e7e-f87697184290","at":1771835160014000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c899b-0948-7bb2-b3dc-0c429f1fb12c","at":1771835165000000000,"seq":608,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c899b-1cd0-749c-ad24-a5964ddc9102","at":1771835170000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c899b-24a0-7d22-be20-7542565c5037","at":1771835172000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c899b-3440-7f6a-82f4-c8210e65678c","at":1771835176000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c899b-3c10-7961-a50b-a6932a1fe6b9","at":1771835178000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c899b-3ca0-78ca-a3cd-ca07b5e0f662","at":1771835178144000000,"seq":613,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c899b-3ff8-7f0e-894f-2f2b946fdb2b","at":1771835179000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c899b-6708-7426-b9c3-69b250c81bd1","at":1771835189000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c899b-d850-728c-b03f-75ddfef7cf7a","at":1771835218000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c899e-ea1a-75ec-833a-a0a03b9f4a37","at":1771835419162000000,"seq":617,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c899f-bc68-7120-b647-81078182dc04","at":1771835473000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c899f-ee76-7d0f-ba4d-a2dcf374daef","at":1771835485814000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c89a0-58a8-73cc-866d-ed95b58cfb83","at":1771835513000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a0-f7a1-713f-be64-1fac1b23bf71","at":1771835553697000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c89a1-2f80-7e55-93f2-5e929c3a2379","at":1771835568000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

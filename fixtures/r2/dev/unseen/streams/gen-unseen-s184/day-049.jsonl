@@ -1,0 +1,21 @@
+{"v":1,"id":"019c6fbf-b4e5-7c42-bff9-5255bbbfc8d1","at":1771401360613000000,"seq":726,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fbf-b4e5-7fd4-87f1-7dac17b277e3","at":1771401360613000000,"seq":727,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6fbf-c608-7729-a771-9afd4d264039","at":1771401365000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fbf-dd78-752b-b168-c26f794b43ea","at":1771401371000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c6fbf-f100-763a-8c89-70c33fe8a88b","at":1771401376000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6fc0-23c8-7e07-8a24-6175e8b88d88","at":1771401389000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fca-63ae-745d-9b0c-105b523a021a","at":1771402060718000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c6fca-c670-72f2-a99d-134a27cb7218","at":1771402086000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fcb-0108-71dd-a8e0-a7ac27665c0a","at":1771402101000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fcb-473e-759b-a5d9-a2800f8c7d0d","at":1771402118974000000,"seq":735,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c6fcb-4758-7808-8613-31853c3f4db6","at":1771402119000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fcb-8da8-7140-bcd9-c33438397047","at":1771402137000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fcb-9190-7b7b-b62b-d6966c27bdbf","at":1771402138000000000,"seq":738,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6fcb-9b69-7415-9856-3bbf5b7edf9a","at":1771402140521000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c6fcb-a130-75cb-9ecb-995885b56f22","at":1771402142000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fcb-b0d0-79dc-956d-64e8f3a599be","at":1771402146000000000,"seq":741,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6fcb-c840-7bfc-847f-ef60f19526f7","at":1771402152000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6fcc-195f-7334-8a03-a9848a3780ac","at":1771402172767000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c6fcc-1e30-7299-bcff-b45fc07ae993","at":1771402174000000000,"seq":744,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6fcc-3d70-7ed5-9bd9-bc2e47a65b67","at":1771402182000000000,"seq":745,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6fcc-6c50-77bc-af69-d65aa2a2fcae","at":1771402194000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

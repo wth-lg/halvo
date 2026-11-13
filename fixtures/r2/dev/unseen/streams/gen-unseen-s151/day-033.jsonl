@@ -1,0 +1,48 @@
+{"v":1,"id":"019c1d87-c71d-7fcf-9cbd-bf4c546a11a4","at":1770021963549000000,"seq":432,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1d87-c71d-7342-8259-e00fb4e2a766","at":1770021963549000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c1d88-78a8-7b95-8f8d-73ae5f98fa06","at":1770022009000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d88-ba2c-7a8f-9749-d1684ec26381","at":1770022025772000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c1d89-5ea8-74c2-abfc-4880d76caaea","at":1770022067880000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c1d89-8630-7f95-be18-9df1cfc69a41","at":1770022078000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d89-8e00-72e3-9dc1-bcf59cfd9ccb","at":1770022080000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d89-95d0-74c5-9436-a4824b622289","at":1770022082000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c1d89-bce0-7d8c-a549-c4a7ee364094","at":1770022092000000000,"seq":440,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1d89-c0c8-7ee4-838b-e1c1060dcd93","at":1770022093000000000,"seq":441,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1d89-c885-7714-aaca-447b4a2a680f","at":1770022094981000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c1d89-d450-757f-aa8d-f2af8d9aa448","at":1770022098000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c1d8a-4598-7a16-904f-6643bef065cd","at":1770022127000000000,"seq":444,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1d8a-4d68-7faa-bfdb-d3231a409a01","at":1770022129000000000,"seq":445,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1d9f-ede6-7280-83c1-1e0678f23522","at":1770023546342000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1da0-1f58-75c5-8b5c-adeeeaf7b996","at":1770023559000000000,"seq":447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da0-4668-7128-a14d-6513e51acf49","at":1770023569000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da0-946d-725d-968d-9c23702658dd","at":1770023588973000000,"seq":449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1da0-a040-7abc-9c56-11f6908af63e","at":1770023592000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1da0-c368-72fe-bf3e-8147796aff55","at":1770023601000000000,"seq":451,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1da0-e210-7780-9e65-7dcaf381f8f5","at":1770023608848000000,"seq":452,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1da0-f248-7d26-b2fb-32729e3c8e81","at":1770023613000000000,"seq":453,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1da1-1188-7a03-afe9-4a9be5f0323e","at":1770023621000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c1da1-2783-77dd-990a-53604c974d3e","at":1770023626627000000,"seq":455,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1da1-7330-7efb-8c94-fd8f3371f700","at":1770023646000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da1-aa57-7649-baa5-58db495f24da","at":1770023660119000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1da1-b1b0-744e-aed8-d2baf80a081c","at":1770023662000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c1da1-cd08-77a8-b123-ca4582b03034","at":1770023669000000000,"seq":459,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1da1-d4d8-7b94-816d-7658b0d83184","at":1770023671000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da1-d8c0-7304-8482-3e6452c50062","at":1770023672000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da1-e090-718d-8785-a96050d77f20","at":1770023674000000000,"seq":462,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1da1-e285-7581-996b-3edf8a00bb7a","at":1770023674501000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c1da2-7118-7fd0-b422-b0020b6c255d","at":1770023711000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da2-caf0-7cc5-8c57-d0788f71239d","at":1770023734000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db5-af6d-7250-9a66-51f58cd4f8c8","at":1770024972141000000,"seq":466,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c1db6-7cae-7989-a0f4-c8d93eb5f502","at":1770025024686000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c1db6-d3d8-76f2-80c2-cda69a7440b1","at":1770025047000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db7-0a88-7b84-a360-c87473b6fcc5","at":1770025061000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db7-2db0-797d-a00f-eaa9c2781f52","at":1770025070000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c1db7-3386-795a-b5c0-d56ffe7973ef","at":1770025071494000000,"seq":471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c1db7-7bd0-7ddf-9c50-a2c59a58b2b8","at":1770025090000000000,"seq":472,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1db7-9ef8-7de5-ad91-db331c261623","at":1770025099000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c1db7-ed18-7a23-af86-32f2d1288e21","at":1770025119000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db7-ef54-729a-a91e-2c707851c4c7","at":1770025119572000000,"seq":475,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c1db8-46f0-76d8-ad40-2dfd69987257","at":1770025142000000000,"seq":476,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c1db8-8d40-742e-8880-67be2c05a4ca","at":1770025160000000000,"seq":477,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1db8-9510-7dee-940e-7972eac63290","at":1770025162000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db8-c008-783a-a76f-da09ee3a48d0","at":1770025173000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

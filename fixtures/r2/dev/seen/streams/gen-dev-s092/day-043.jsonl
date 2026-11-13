@@ -1,0 +1,45 @@
+{"v":1,"id":"019c50ad-4908-7883-8000-82e9360b0468","at":1770880059656000000,"seq":647,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c50ad-4908-71c2-9a19-c93b2dc9f205","at":1770880059656000000,"seq":648,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c50ad-69a0-793c-9523-48286749518a","at":1770880068000000000,"seq":649,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c50ad-a75a-7813-99b0-cc0b3f22eb23","at":1770880083802000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c50ae-34c0-7a1a-8089-e19f055d6423","at":1770880120000000000,"seq":651,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c50ae-6f58-7250-af09-4a3c1dedb6a2","at":1770880135000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c50ae-82e0-7fc4-b970-f77347008664","at":1770880140000000000,"seq":653,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c50ae-890e-76e2-8a27-dcf1c3b0e6b5","at":1770880141582000000,"seq":654,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c50ae-8e98-71ec-b935-55c47b4ecd7c","at":1770880143000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c50ae-9280-7a58-9adb-a9bbc0d94759","at":1770880144000000000,"seq":656,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c50ae-9668-74a9-84d8-cd61d24156e8","at":1770880145000000000,"seq":657,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c50ae-cd18-7f77-b6ce-5f967d07e3ba","at":1770880159000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50ae-d100-7db6-837a-142d868d3b69","at":1770880160000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50ae-d2b5-73a5-97b3-9a1e595be6ec","at":1770880160437000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c50ae-ec58-7985-9a50-431dcf55c7ae","at":1770880167000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50ae-ffe0-7ae4-98bc-4f311d3473cb","at":1770880172000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c50af-51eb-70a2-b47e-3a6957a301f2","at":1770880193003000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c50af-a3f0-7f1f-baa8-314fb1784eee","at":1770880214000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c50af-cee8-7e2a-9a76-f36ade5f83c6","at":1770880225000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c50b0-24d8-799c-93be-36ab09143506","at":1770880247000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50b0-5b88-7660-ac52-e75a4e14f3b9","at":1770880261000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50b0-5c2d-7191-8d90-ab7e6bab4691","at":1770880261165000000,"seq":668,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c50b0-e058-7747-a437-b036b554ebbe","at":1770880295000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c50b1-26a8-704c-828b-801bcece81c0","at":1770880313000000000,"seq":670,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c50b1-4a90-782c-a10a-d7e73f59884d","at":1770880322192000000,"seq":671,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c50b1-b348-7f2f-b602-5644b500d048","at":1770880349000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50b1-f946-79cb-bfa8-b79ae799eb23","at":1770880366918000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c50b2-0d20-7927-bacd-2814df8a9697","at":1770880372000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50b2-18d8-7a4f-b449-e43c1447fcad","at":1770880375000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c50b2-1cc0-700b-a55c-eb5172ed6d61","at":1770880376000000000,"seq":676,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c50b2-20a8-7472-a91f-8f1c45bc086c","at":1770880377000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50b2-2490-77c8-979e-3478e7dc0d01","at":1770880378000000000,"seq":678,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c50b2-3348-7a5c-b040-8a962d36cef4","at":1770880381768000000,"seq":679,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c50b2-6310-775f-a611-81ae7a218e86","at":1770880394000000000,"seq":680,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c50c0-bfa7-782c-8223-50647ab39a41","at":1770881335207000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c50c0-e200-7804-b627-4f770102fdd9","at":1770881344000000000,"seq":682,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c50c1-77eb-7458-bbc3-2233c3c5be6e","at":1770881382379000000,"seq":683,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c50c1-ad20-74de-9709-da1765535ce5","at":1770881396000000000,"seq":684,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c50c1-b4f0-7b5a-9050-9cdb9bb93d98","at":1770881398000000000,"seq":685,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c50c1-d430-7ead-9780-44ad26dd9b05","at":1770881406000000000,"seq":686,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c50c2-0b16-7acb-b919-4143569a8f07","at":1770881420054000000,"seq":687,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c50c2-65a5-77a3-a4af-e8e61af9cfc1","at":1770881443237000000,"seq":688,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c50c2-b2d8-7db1-b0c8-d1efdd590eb0","at":1770881463000000000,"seq":689,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c50c3-1c50-7113-acd6-2962f01af673","at":1770881490000000000,"seq":690,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c50c3-37a8-768d-8389-719a14a666f0","at":1770881497000000000,"seq":691,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

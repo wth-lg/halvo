@@ -1,0 +1,9 @@
+{"v":1,"id":"019c7aaa-88ed-7dc3-bb76-c175fc1b6eb7","at":1771584522477000000,"seq":664,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7aaa-88ed-756f-8531-1c61a1682d57","at":1771584522477000000,"seq":665,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7aaa-a650-78df-ad11-c71d23080cdb","at":1771584530000000000,"seq":666,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7aaa-c978-7e27-8f18-adafda91fb8e","at":1771584539000000000,"seq":667,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aab-36d8-7b73-aa56-991c163409e1","at":1771584567000000000,"seq":668,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aab-3ac0-7b4f-8ea1-868ef53d27f0","at":1771584568000000000,"seq":669,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c7aab-6021-7896-9513-fc89a261e483","at":1771584577569000000,"seq":670,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c7aab-7d28-7dc9-896e-f3685c8cc868","at":1771584585000000000,"seq":671,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c7aab-9498-7ee3-b622-3b73ffb70e1d","at":1771584591000000000,"seq":672,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}

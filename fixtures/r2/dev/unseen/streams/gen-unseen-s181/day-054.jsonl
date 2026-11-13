@@ -1,0 +1,10 @@
+{"v":1,"id":"019c895c-5ebe-7273-9137-9a45652bbea5","at":1771831058110000000,"seq":551,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c895c-5ebe-7655-a9bb-bd6a010cec50","at":1771831058110000000,"seq":552,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8977-6b8b-785a-a416-425ecb7f27b9","at":1771832830859000000,"seq":553,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8977-6b8b-7bec-bd88-a8f8197e1c3e","at":1771832830859000000,"seq":554,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8977-8770-7447-b261-24572d10b65d","at":1771832838000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8977-d978-7ae5-bc3b-87f9f8320252","at":1771832859000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8977-ed00-7da7-9c61-d59ee1fbe8bc","at":1771832864000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c8978-20b5-7e7f-87a8-d87a6654ca01","at":1771832877237000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8978-bb23-79c0-9eef-dc1827a297b5","at":1771832916771000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8978-db48-7c3d-9a12-98f1b8982037","at":1771832925000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

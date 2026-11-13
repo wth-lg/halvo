@@ -1,0 +1,25 @@
+{"v":1,"id":"019cdbe4-e678-7b01-aa22-a51c65beb69c","at":1773215737464000000,"seq":1182,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdbe4-e678-72ea-a28d-55fee8b79e66","at":1773215737464000000,"seq":1183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe5-2af8-7253-af90-1a5b22d3803d","at":1773215755000000000,"seq":1184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdbe5-5208-719d-90cf-e11209700353","at":1773215765000000000,"seq":1185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe5-61a8-7df5-89bf-c2a27a2d51e0","at":1773215769000000000,"seq":1186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cdbe5-afc8-797a-96c0-eb94a3645a59","at":1773215789000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe5-b3b0-7310-b23c-d39a249ee0b3","at":1773215790000000000,"seq":1188,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdbe7-99f7-7a46-8ce4-ebb5b11966f9","at":1773215914487000000,"seq":1189,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdbe7-99f7-7fd3-884d-0d69e4bb45cb","at":1773215914487000000,"seq":1190,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdbe7-ab98-7b02-b651-231068131f45","at":1773215919000000000,"seq":1191,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cdbeb-23c7-72f8-a5c6-0c9a0a83d6c3","at":1773216146375000000,"seq":1192,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdbeb-23c7-7017-a7a1-81854bc8372e","at":1773216146375000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cdbf8-c611-74a5-ab13-6d481a8a3960","at":1773217039889000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cdbf8-d238-7809-b7fe-111a63e61127","at":1773217043000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cdbf8-ed90-7aed-b241-15032b2452e2","at":1773217050000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbf9-0bec-72ac-8958-9def6a58b4dc","at":1773217057772000000,"seq":1197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cdbf9-1888-7f26-9035-ebad2091cd1f","at":1773217061000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbf9-37c8-74a5-abd4-8cbbdfc81d5b","at":1773217069000000000,"seq":1199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdbf9-a528-7e93-97eb-b7e1b5ce6442","at":1773217097000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cdbf9-c850-7cad-903c-5544f7d691d0","at":1773217106000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbfa-0b2e-724e-b525-0c265d362811","at":1773217123118000000,"seq":1202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cdbfa-1670-7c20-82b0-63a08d4051f1","at":1773217126000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdbfa-1e40-79e4-ac16-51840a4da67e","at":1773217128000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbfa-2228-7886-9d13-7785a3b586a6","at":1773217129000000000,"seq":1205,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdbfa-74fa-7409-a06e-faafbf2a4927","at":1773217150202000000,"seq":1206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}

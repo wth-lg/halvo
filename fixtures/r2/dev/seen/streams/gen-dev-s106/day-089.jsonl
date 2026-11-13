@@ -1,0 +1,17 @@
+{"v":1,"id":"019d3e33-a7c9-7800-a00e-5784d25b57ad","at":1774865065929000000,"seq":1288,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3e33-a7c9-7eb0-b35f-629edbf188f8","at":1774865065929000000,"seq":1289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d3e33-bb98-7ae9-985c-8a5245a870dd","at":1774865071000000000,"seq":1290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e34-01e8-7f2f-9927-692a318ccc2b","at":1774865089000000000,"seq":1291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3e34-34b0-7510-9dfb-8a6b7e6f9ac8","at":1774865102000000000,"seq":1292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e34-6147-7029-873b-560677a859b5","at":1774865113415000000,"seq":1293,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3e34-9270-7749-8eb7-4cd1d4c97d93","at":1774865126000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d3e34-dca8-7a72-b324-dd63647f1ef6","at":1774865145000000000,"seq":1295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e34-e29f-7c99-9786-4e106688adbe","at":1774865146527000000,"seq":1296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d3e35-0b88-75d1-ac06-6386034ce834","at":1774865157000000000,"seq":1297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d3e35-22f8-71e3-8e91-c1f909a4e3f7","at":1774865163000000000,"seq":1298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e35-2eb0-7341-9f1d-0037a46199fa","at":1774865166000000000,"seq":1299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4d-d40a-7b1b-be07-c3608231ef80","at":1774866781194000000,"seq":1300,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3e4d-d40a-71d8-a424-a4bfa921a506","at":1774866781194000000,"seq":1301,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3e4e-2d20-72de-a0b6-091fea559526","at":1774866804000000000,"seq":1302,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d3e4e-4c60-7b3e-afe4-e6cf04154358","at":1774866812000000000,"seq":1303,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3e4e-7758-7123-b229-40863c6512c4","at":1774866823000000000,"seq":1304,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

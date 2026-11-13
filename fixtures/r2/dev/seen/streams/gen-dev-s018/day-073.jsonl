@@ -1,0 +1,41 @@
+{"v":1,"id":"019cebdc-8109-7a8d-b12a-4642ba9110df","at":1773483622665000000,"seq":877,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cebdc-8109-7d99-ac0d-305560eb2683","at":1773483622665000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebdd-656a-7914-aa39-d3bc85c1319c","at":1773483681130000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebdd-70a0-7bd9-a837-c37f597d0862","at":1773483684000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cebdd-8428-718c-bd60-6122ec5b9c54","at":1773483689000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebdd-8bf8-7d8e-aea9-0edd7070c8fb","at":1773483691000000000,"seq":882,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cebdd-d630-7ff5-9a21-71bdf9d38271","at":1773483710000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cebde-6d2f-7fb5-90b5-c2c62d26d5bd","at":1773483748655000000,"seq":884,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebdf-1e50-7f5f-bc1c-81d9301a1f26","at":1773483794000000000,"seq":885,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebdf-2238-736f-8dd1-595564ac98c5","at":1773483795000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cebdf-4560-7ae1-96fe-f5d612fca37d","at":1773483804000000000,"seq":887,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cebdf-58e8-7fb9-b128-80c8014f996f","at":1773483809000000000,"seq":888,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebdf-64e3-7bb6-b6ac-0ffe50d36bbc","at":1773483812067000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebdf-87c8-7c7e-9e3d-b59336745df7","at":1773483821000000000,"seq":890,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cebdf-8bb0-7364-ad66-ea47bc047b96","at":1773483822000000000,"seq":891,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebdf-d9d0-7bdd-9c0c-67728df6eedc","at":1773483842000000000,"seq":892,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cebdf-ecda-7991-ada4-81fab0c1801c","at":1773483846874000000,"seq":893,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebe0-1c38-7b18-9f75-5063a09f4608","at":1773483859000000000,"seq":894,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cebe0-33a8-7216-bdbb-816254807798","at":1773483865000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cebe0-3b78-757f-9ba9-210150db9f1e","at":1773483867000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebe0-4348-750e-a45a-8c1548e4fa65","at":1773483869000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebef-684c-743e-8f43-796258e41bff","at":1773484861516000000,"seq":898,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cebef-9910-79f1-b3cd-3a0da72509e4","at":1773484874000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cebef-b49b-792c-8d28-40f5e19d53ce","at":1773484881051000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cebef-f6d0-7a61-b84e-811245c7ea2e","at":1773484898000000000,"seq":901,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cebf0-0288-7637-bd36-ca4f715ad7b7","at":1773484901000000000,"seq":902,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf0-1228-7e0a-a90d-8d1e06085b24","at":1773484905000000000,"seq":903,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cebf0-5c60-7e7c-a5f6-cd2bdf828f76","at":1773484924000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cebf0-617c-7f32-aa6a-a3f28474024e","at":1773484925308000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cebf0-9310-7300-abb8-c36f2c20d27d","at":1773484938000000000,"seq":906,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cebf0-96f8-7e97-9bb9-e3b840a6f633","at":1773484939000000000,"seq":907,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cebf0-d4ec-731a-a1f8-ecb6c92db7b3","at":1773484954860000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cebf0-d960-7b64-9ab8-c749584110cd","at":1773484956000000000,"seq":909,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cebf0-e900-7f99-a8ea-8a4acc335903","at":1773484960000000000,"seq":910,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebf0-ece8-7cca-a915-1155c1d91334","at":1773484961000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf1-0ba5-78a2-a5cf-c8070d109ab7","at":1773484968869000000,"seq":912,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cebf1-5a48-7ca2-a042-3a01333771c4","at":1773484989000000000,"seq":913,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf2-1598-7c8b-a930-23bec636f536","at":1773485036952000000,"seq":914,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cebf2-5830-75ec-8184-9013703248ab","at":1773485054000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf2-92c8-7f08-a2ee-1c3cbffc89a5","at":1773485069000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf2-b9d8-70a5-bb29-13ebf1c99d4d","at":1773485079000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

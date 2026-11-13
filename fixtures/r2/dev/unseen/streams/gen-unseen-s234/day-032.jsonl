@@ -1,0 +1,21 @@
+{"v":1,"id":"019c182b-2d74-73b8-83e3-e14fd5acaa78","at":1769932008820000000,"seq":420,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c182b-2d74-7204-9f1e-7504777175a8","at":1769932008820000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c182b-39e0-7ec7-9d8d-31b69565a858","at":1769932012000000000,"seq":422,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c182b-5538-7d5e-9aae-1e45dd5dcf43","at":1769932019000000000,"seq":423,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c182b-5d08-7dd2-930a-78aac8d1e17f","at":1769932021000000000,"seq":424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c182b-bac8-7b73-9796-f9b2ecef7739","at":1769932045000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1834-d822-7727-832b-662eb95de3e8","at":1769932642338000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1835-1938-758d-93c5-d35dd1cdf4eb","at":1769932659000000000,"seq":427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1835-6758-7fd6-b1df-ab4f9e123005","at":1769932679000000000,"seq":428,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1845-d7ed-7c34-b22c-305e77b4c6d5","at":1769933756397000000,"seq":429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1845-f5a0-7fd7-b3fd-c4b3d3f8340e","at":1769933764000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c185f-7105-76a5-9673-9aa6893f684f","at":1769935433989000000,"seq":431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c185f-a3d8-75d7-a06d-44767ee70c02","at":1769935447000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c1860-7b40-7929-8a69-668b6d2d7af6","at":1769935502144000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c1860-a1c0-73c8-bca6-fb3084627549","at":1769935512000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c1860-c8d0-7f14-9672-02d51a026799","at":1769935522000000000,"seq":435,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1861-39da-76b8-a0ef-bd8a4707e74e","at":1769935550938000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c1861-7898-782d-9879-974cc89d16bd","at":1769935567000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c1861-8c20-78a0-99ea-af6af8fc4a25","at":1769935572000000000,"seq":438,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1861-9ab8-7a79-834e-03110139714f","at":1769935575736000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c1862-2c48-7fc0-9c6d-8da4c87bff87","at":1769935613000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

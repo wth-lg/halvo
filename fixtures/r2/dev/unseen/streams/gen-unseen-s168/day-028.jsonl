@@ -1,0 +1,45 @@
+{"v":1,"id":"019c0368-a668-783e-83af-4c06ee755239","at":1769583715944000000,"seq":552,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0368-a668-78b1-a63e-0a03ec794f1f","at":1769583715944000000,"seq":553,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0368-d198-76fb-b60b-90f9d723dae5","at":1769583727000000000,"seq":554,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0368-d968-7621-9b15-4050322d60b0","at":1769583729000000000,"seq":555,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0369-2788-76cb-9d8f-6e801564ddc0","at":1769583749000000000,"seq":556,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c0377-66ad-737c-8a1e-4674df335f7b","at":1769584682669000000,"seq":557,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0377-66ad-7e5f-9650-7e5b15ae07f9","at":1769584682669000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c0384-13af-73bc-9df5-81dfaf39d8af","at":1769585513391000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c0384-c9c0-7b4c-8138-3d42a7570285","at":1769585560000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0384-ef8b-77fb-a36b-4c3b7c3f31f5","at":1769585569675000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c0384-f0d0-72f2-80f1-4383facc24d2","at":1769585570000000000,"seq":562,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0385-0458-7f7f-af2e-107e51db43a4","at":1769585575000000000,"seq":563,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0385-0458-7cbe-b4dc-2fa2925a4522","at":1769585575000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c0385-13f8-7f60-9913-1ccb879641d1","at":1769585579000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0385-2780-7ff4-8735-ba43a7728782","at":1769585584000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0385-3d11-7803-ac58-59f8c22871a2","at":1769585589521000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c0385-6218-7bec-adb5-5e523821b9b1","at":1769585599000000000,"seq":568,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0385-7988-7edb-9150-e98ad7498244","at":1769585605000000000,"seq":569,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0385-b420-7964-abda-476ca9e07640","at":1769585620000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c0385-c7a8-7e2b-b0a2-367071bce475","at":1769585625000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0386-0b7d-70ed-830f-be410717ffa2","at":1769585642365000000,"seq":572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c0386-1d98-75cb-875a-90fec956886c","at":1769585647000000000,"seq":573,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0386-44a8-7712-a354-791b3159bd0d","at":1769585657000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0386-4890-7186-b63d-f3e9cc596d0b","at":1769585658000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c038d-d916-7832-9df5-3bf0b363d806","at":1769586153750000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c038d-e1e0-7ea6-ad9c-03f28ea87e99","at":1769586156000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038e-2f07-7d9a-bf49-2e0924629b3a","at":1769586175751000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c038e-3000-7119-8d67-f5efd911e2c0","at":1769586176000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038e-5710-798c-9ff9-8d7d3e63af1f","at":1769586186000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c038e-7650-77bd-bd9c-3abe3f69dec1","at":1769586194000000000,"seq":581,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c038e-7e20-7f79-afbc-19634b7f5f66","at":1769586196000000000,"seq":582,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c038e-87af-784a-a109-9118295362e4","at":1769586198447000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c038e-c470-74a8-8bd1-4c01ae8b3d97","at":1769586214000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038e-c470-7a67-b492-df411c572924","at":1769586214000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c038e-e798-7821-b269-fe5fcd02a6d9","at":1769586223000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038e-eb80-7a48-90d8-e6355e63d590","at":1769586224000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c038e-ee23-7a22-a314-0095f63c4aa5","at":1769586224675000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c038f-1678-7dfa-adbb-48e5d4ef2305","at":1769586235000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c038f-2230-732e-89e3-a907a645243e","at":1769586238000000000,"seq":590,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c038f-7050-743d-b83e-72ac5d20f110","at":1769586258000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038f-85be-7f84-9700-08cdd9835a36","at":1769586263486000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c038f-b6a0-7e99-9859-f455d1e0fffa","at":1769586276000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c038f-be4d-71b0-8c5d-e0e5e50d8a78","at":1769586277965000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c038f-d1f8-7f31-8947-ce290754ecfe","at":1769586283000000000,"seq":595,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c038f-f908-74c6-81ee-e7027caf85c1","at":1769586293000000000,"seq":596,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

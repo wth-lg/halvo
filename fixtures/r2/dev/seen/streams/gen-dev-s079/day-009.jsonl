@@ -1,0 +1,36 @@
+{"v":1,"id":"019ba1f1-a9e0-765f-9de7-38064f3f2e99","at":1767948528096000000,"seq":70,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1f1-a9e0-7bf6-9bed-8a936f136425","at":1767948528096000000,"seq":71,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ba1f1-b920-7ed7-b6c0-812b513610dd","at":1767948532000000000,"seq":72,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba1f1-f7a0-743b-87cb-858e56737ad4","at":1767948548000000000,"seq":73,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f1-fb88-7064-a3de-09ce14f37e9d","at":1767948549000000000,"seq":74,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba1f2-3a08-786b-af42-c307465a87b0","at":1767948565000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ba1f9-fa1b-79eb-970d-f59cab623ace","at":1767949072923000000,"seq":76,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fa-7b50-7282-98a3-1b9855bd7326","at":1767949106000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fa-bdb8-7b64-b363-f81b084a8f68","at":1767949123000000000,"seq":78,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fa-bdb8-7f31-9bbb-1adde04dd424","at":1767949123000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba1fa-f17d-7cb1-922c-68066966b5db","at":1767949136253000000,"seq":80,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fa-fc38-7c99-a988-6d98543d1ef4","at":1767949139000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ba1fb-4b2f-7886-a3c1-3378e18b59c8","at":1767949159215000000,"seq":82,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fb-9490-7115-a0c8-9101eb724def","at":1767949178000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ba1fc-284a-7258-9de0-4ef6b08dd5f2","at":1767949215818000000,"seq":84,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fc-34b8-7b72-9aff-6c6585e47c5a","at":1767949219000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fc-38a0-7e20-a911-9c2156c019b6","at":1767949220000000000,"seq":86,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba1fc-6780-7c24-b786-80126863aae7","at":1767949232000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fc-69f6-7c8f-b3e8-70fc26a7f82f","at":1767949232630000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fc-6b68-7f3d-a43a-62dbac9e2249","at":1767949233000000000,"seq":89,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba1fd-32a0-70ef-af9b-7113eef08790","at":1767949284000000000,"seq":90,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba1fd-4913-7d74-9a23-912e6c885107","at":1767949289747000000,"seq":91,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fd-a3e8-7780-8bc8-4f7c1df86797","at":1767949313000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fd-bb58-7e30-b0ff-128a1733ae89","at":1767949319000000000,"seq":93,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fd-bf40-794a-91c2-c1c24de4b03a","at":1767949320000000000,"seq":94,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba1fd-e650-7d36-81a3-f3500cc08dab","at":1767949330000000000,"seq":95,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba1fe-1657-7995-952c-9cbdcc64ec3e","at":1767949342295000000,"seq":96,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fe-28b8-7c70-a310-f69d75d87757","at":1767949347000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fe-5f68-7731-b20b-1ff09beaa1a4","at":1767949361000000000,"seq":98,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fe-6b20-783f-a820-e5577e22f50d","at":1767949364000000000,"seq":99,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba1fe-7ac0-78fd-b91a-2ac61617f803","at":1767949368000000000,"seq":100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba1fe-dbaa-787a-802a-3c7b177b68a0","at":1767949392810000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ff-0760-779b-b603-cf2a52c09b68","at":1767949404000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ba1ff-1ed0-79dc-8419-012c464a92fc","at":1767949410000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba1ff-5706-7b27-a963-d8430ec11c0f","at":1767949424390000000,"seq":104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ff-da50-7486-8345-3555c24086f3","at":1767949458000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

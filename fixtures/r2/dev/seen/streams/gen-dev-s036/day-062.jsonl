@@ -1,0 +1,41 @@
+{"v":1,"id":"019cb28e-c44d-7512-b6c7-182dd2bc6c53","at":1772522226765000000,"seq":798,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb28e-c44d-7e29-917f-bc63bbdadff0","at":1772522226765000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb28e-d0f0-73e8-93d3-bb48b60a159a","at":1772522230000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cb28e-e090-7ad8-82c3-12e5c86d5343","at":1772522234000000000,"seq":801,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb2a6-2ec8-72f5-9bcf-4bf67a753072","at":1772523761352000000,"seq":802,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cb2a6-6030-754d-9ea5-1f6838c46ebc","at":1772523774000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cb2a6-bdf0-7334-9082-4ef33e26e3e0","at":1772523798000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2a7-0b82-7e71-92eb-baa3c5453017","at":1772523817858000000,"seq":805,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cb2a7-3af0-7dda-aae0-6118eaeedd52","at":1772523830000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2a7-8cf8-70bb-b1ce-21dde4e6b1d8","at":1772523851000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cb2a7-9839-7304-ba57-56f4b4da3878","at":1772523853881000000,"seq":808,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cb2a7-b408-7e9e-aa7a-0539a033a33f","at":1772523861000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2a7-cb78-78c6-b2ef-f564c7d9c8ed","at":1772523867000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2a8-8e8d-750f-9c49-f985404906ab","at":1772523916941000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cb2a8-8ec8-78ef-acb6-02363b1562f8","at":1772523917000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2a9-1148-7d77-aa26-b193904cac14","at":1772523950408000000,"seq":813,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cb2a9-a038-7269-b37b-e8b566b181e3","at":1772523987000000000,"seq":814,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb2a9-bb90-793d-b6f5-913e86fc38b4","at":1772523994000000000,"seq":815,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2a9-feef-7ab9-be99-046d3c51beea","at":1772524011247000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 11 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cb2aa-28f0-75f4-aa1d-b2854e305116","at":1772524022000000000,"seq":817,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb2aa-4c18-7ee8-a002-5045dd491c24","at":1772524031000000000,"seq":818,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2aa-adc0-7cb9-a74c-1b9457140f3e","at":1772524056000000000,"seq":819,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2aa-c0d1-7b5c-bd64-34400b072609","at":1772524060881000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cb2aa-cd00-7a32-91f7-e947bb6a007e","at":1772524064000000000,"seq":821,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb2ab-0b80-7f6d-8bf0-a593b7efe081","at":1772524080000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ab-1f08-70da-905a-ca208949927e","at":1772524085000000000,"seq":823,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb2ab-2bbd-794c-8cd8-a44d29042b6f","at":1772524088253000000,"seq":824,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ab-5d88-7a9f-8389-d1889ea1bcf3","at":1772524101000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ab-7e84-7277-a96f-29808175345e","at":1772524109444000000,"seq":826,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ab-80b0-7ebb-b476-d995268957b2","at":1772524110000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cb2ab-ced0-7a2a-9315-5d5917c71ccd","at":1772524130000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ba-2404-7ce8-bb98-38c44788e486","at":1772525069316000000,"seq":829,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb2ba-2404-72bb-b651-de62dfabc55c","at":1772525069316000000,"seq":830,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb2ba-51a8-7b33-92f1-189573eb137a","at":1772525081000000000,"seq":831,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cb2ba-8858-7b3a-87ef-9ab3081a7210","at":1772525095000000000,"seq":832,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2cd-4cdf-7349-a314-033466a029c7","at":1772526324959000000,"seq":833,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2cd-4cdf-77e2-9368-317c82b3870d","at":1772526324959000000,"seq":834,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb2cd-6090-7d45-95e7-e574e1b2ee78","at":1772526330000000000,"seq":835,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb2cd-8f70-7655-ae1a-707ec41a68c1","at":1772526342000000000,"seq":836,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2cd-ba68-762c-bc88-41f8d1dbfef8","at":1772526353000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb2ce-1440-7b03-afb7-7be154f303e7","at":1772526376000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

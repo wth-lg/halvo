@@ -1,0 +1,22 @@
+{"v":1,"id":"019b8d38-1c34-7a60-a0f0-66ea4b22ce66","at":1767600823348000000,"seq":4,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8d38-1c34-7167-9c2b-80f8d9ac5754","at":1767600823348000000,"seq":5,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8d38-2e60-7b48-a827-257f2c51cf9b","at":1767600828000000000,"seq":6,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d38-3630-759a-b123-6d54d0546cb0","at":1767600830000000000,"seq":7,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d38-3e00-77aa-819b-d0a4a6c80670","at":1767600832000000000,"seq":8,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b8d38-5958-7ac5-b16a-524e7666d727","at":1767600839000000000,"seq":9,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b8d3f-6873-744e-959c-1f42f83613f3","at":1767601301619000000,"seq":10,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d3f-6873-798c-aeae-68309a5da376","at":1767601301619000000,"seq":11,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8d3f-8930-7d63-a20d-983248c90bea","at":1767601310000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d3f-a488-7601-acd6-4ceccb26de5b","at":1767601317000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d3f-c3c8-7642-9196-a4523e782656","at":1767601325000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b8d3f-dab5-7fa4-ad7b-11fbe3543846","at":1767601330869000000,"seq":15,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8d40-15d0-7b89-98a7-1c5c6788dd3b","at":1767601346000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d40-3128-7709-acf2-7ac044a52351","at":1767601353000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b8d40-3ce0-7537-a6ad-0537552246de","at":1767601356000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d40-3d48-7705-8b76-f8b96513d03e","at":1767601356104000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8d40-9e88-75d8-8a4f-34bbc1af72e5","at":1767601381000000000,"seq":20,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8d40-bdc8-7ae9-a8bc-834774c4edcf","at":1767601389000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d40-dd08-7f5e-a35f-5e6dbd9bfeb5","at":1767601397000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d40-f860-78d4-b8a3-e43468491958","at":1767601404000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b8d41-19db-73b2-a25f-19d5029874f5","at":1767601412571000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8d41-2f10-7970-b54f-4de890dcbd29","at":1767601418000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

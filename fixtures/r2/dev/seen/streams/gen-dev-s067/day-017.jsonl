@@ -1,0 +1,30 @@
+{"v":1,"id":"019bcb71-3006-7e1a-ad45-7aca29d82d35","at":1768644751366000000,"seq":244,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb71-3006-7184-aa49-1a4e49f1e358","at":1768644751366000000,"seq":245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bcb71-6930-7571-8097-938305f9f0ab","at":1768644766000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bcb71-9428-7b4e-bdf0-ebda5d95e5fa","at":1768644777000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb71-ab98-72b4-ae46-275750c78d12","at":1768644783000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb71-c1f0-7710-8013-6c761129e219","at":1768644788720000000,"seq":249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bcb71-de60-7e65-aadf-568418a9e1cc","at":1768644796000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bcb76-1ebb-7578-89d0-f370fe413786","at":1768645074619000000,"seq":251,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb76-1ebb-7440-af52-9fd35018cb79","at":1768645074619000000,"seq":252,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb76-81e0-70a1-8155-af4f65ce0856","at":1768645100000000000,"seq":253,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb76-bc78-7bf6-ad50-6a0c84b99500","at":1768645115000000000,"seq":254,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb8c-1fb6-748e-a068-c671973ba49c","at":1768646516662000000,"seq":255,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb8c-1fb6-7486-9a06-60bcc631f165","at":1768646516662000000,"seq":256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bcb8c-6b40-7af9-abf8-a64b963b5d07","at":1768646536000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba6-2b87-78ac-b3da-5addb4b4895b","at":1768648223623000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bcba6-30e8-77fa-bbaf-91a0366f62eb","at":1768648225000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bcba6-4470-7f2c-b85d-1da479b99689","at":1768648230000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba6-4c40-7641-afaf-863081535887","at":1768648232000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba6-85e7-77b9-a57e-6e4e44b14734","at":1768648246759000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bcba6-9678-76f8-8b81-4e8fc31a0f23","at":1768648251000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba6-aa00-798b-91a7-9bea58a82029","at":1768648256000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba6-c7ed-7e40-8b32-acb12cf23baa","at":1768648263661000000,"seq":265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bcba7-03d8-719f-8cf6-a3ea8b6da34d","at":1768648279000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba7-2ae8-7103-b494-25926504430d","at":1768648289000000000,"seq":267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcba7-9848-755a-9563-14a7b4602967","at":1768648317000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcba7-b348-79a0-80d5-7787fc24c656","at":1768648323912000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bcba7-c728-7860-bf17-bac28bec97ef","at":1768648329000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcba7-f608-7636-8572-f954fd86ef59","at":1768648341000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bcba8-1548-7402-b767-78ddab2bcdd9","at":1768648349000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcbae-bb97-7221-aa81-6347662e7817","at":1768648784791000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}

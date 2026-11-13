@@ -1,0 +1,14 @@
+{"v":1,"id":"019bd5b7-7ded-72c3-9907-ec301970bbad","at":1768817130989000000,"seq":302,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd5b7-7ded-7f3c-97b6-fdbebb452547","at":1768817130989000000,"seq":303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bd5b7-9950-7bce-ab48-d8244fc7090a","at":1768817138000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bd5b7-a120-794d-9a45-3bd6c632824d","at":1768817140000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5b8-81f0-7ff7-a9bb-063b3eafce76","at":1768817197552000000,"seq":306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bd5b8-9b20-7e6e-aec6-ec839ae42419","at":1768817204000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bd5b8-c230-7e27-a5cc-53f27577dbbe","at":1768817214000000000,"seq":308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd5b8-c618-7ac0-9bd6-af11a3ce3788","at":1768817215000000000,"seq":309,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd5b8-dc15-76ed-993e-d06c12c3b003","at":1768817220629000000,"seq":310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bd5b9-56a0-79c1-8b60-9ba4e8f7a8e0","at":1768817252000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bd5b9-d213-7620-b494-bffe063c9d4a","at":1768817283603000000,"seq":312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bd5b9-eb10-75ac-b6c4-de6637de581d","at":1768817290000000000,"seq":313,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd5b9-fe98-79de-bfa1-19db0383b378","at":1768817295000000000,"seq":314,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd5ba-1220-72a7-936f-17f11da465ea","at":1768817300000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

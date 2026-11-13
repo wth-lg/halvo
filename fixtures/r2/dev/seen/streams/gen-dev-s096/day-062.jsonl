@@ -1,0 +1,50 @@
+{"v":1,"id":"019cb2ce-84a1-78cd-b8d2-9b9e6cb7981a","at":1772526404769000000,"seq":861,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2ce-84a1-7052-88b5-48d8c86d9fb2","at":1772526404769000000,"seq":862,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ce-bc38-7c2e-b92b-086543cf0756","at":1772526419000000000,"seq":863,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ce-c3e4-7d8e-8dd2-a50b03756623","at":1772526420964000000,"seq":864,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ce-c7f0-71a8-88ef-77512c138251","at":1772526422000000000,"seq":865,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb2cf-0a58-74cc-ba1c-d15ae7c90d16","at":1772526439000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2cf-3d20-7ed6-8195-85b7db136d53","at":1772526452000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cb2cf-48d8-7b14-9ac6-7d60e91819d9","at":1772526455000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2cf-50a8-74a1-97fd-157c90bd308b","at":1772526457000000000,"seq":869,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2cf-5765-7158-bbdf-66e028514659","at":1772526458725000000,"seq":870,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cb2cf-ae68-7886-b506-2826ddf82b4b","at":1772526481000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cb2d0-046b-74fd-bfd5-3506e3e0ef96","at":1772526503019000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d0-3b08-793b-97d4-ed3702fda2eb","at":1772526517000000000,"seq":873,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2d0-5278-7b42-aa44-51fbc49a487b","at":1772526523000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2da-a8a0-75ee-949d-42c42998cfe1","at":1772527200416000000,"seq":875,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb2da-a8a0-728a-b60f-88dc178be16f","at":1772527200416000000,"seq":876,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb2da-ba88-7186-b97b-6039716c3969","at":1772527205000000000,"seq":877,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2db-3b70-75d0-8ced-e4e7b04750c9","at":1772527238000000000,"seq":878,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb2e6-fe03-71cf-87cc-ffbde3d549cf","at":1772528008707000000,"seq":879,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2e6-fe03-7704-b14e-e56b21f344ad","at":1772528008707000000,"seq":880,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cb2e7-0ec8-7e8e-9b4c-3b06decf114c","at":1772528013000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e7-12b0-7a7f-b272-c633cebee45e","at":1772528014000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e7-4578-77eb-bcdd-67a1cdde974d","at":1772528027000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cb2e7-6fc4-7758-9041-1155d4eff7b9","at":1772528037828000000,"seq":884,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cb2e7-8010-7095-9791-42ff6fa53c17","at":1772528042000000000,"seq":885,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e7-87e0-73f9-a666-ee4641ceb0d3","at":1772528044000000000,"seq":886,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2e7-baa8-78b4-aa89-975a292e90c6","at":1772528057000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e7-e1b8-73e6-b726-c34929f7656e","at":1772528067000000000,"seq":888,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb2e8-3319-7256-95c6-6d12e5639d81","at":1772528087833000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cb2e8-37a8-73c1-b4c7-cf5e71d8cff6","at":1772528089000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cb2e8-a508-74dd-9eec-f2deb32cdac6","at":1772528117000000000,"seq":891,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb2e8-bc78-7fdc-9a32-64c646c02c51","at":1772528123000000000,"seq":892,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb2e8-eb58-74cc-be46-1c2532f09b18","at":1772528135000000000,"seq":893,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e8-fe54-7d17-866f-9fecb486da2a","at":1772528139860000000,"seq":894,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cb2e9-2208-79d8-8546-46aa4f7c865b","at":1772528149000000000,"seq":895,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2e9-3590-744a-9c30-1ff70682f6af","at":1772528154000000000,"seq":896,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb2e9-4148-7220-b4bf-9c597ef32ed7","at":1772528157000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cb2e9-8f68-7a49-8d47-f905212d6a3e","at":1772528177000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e9-9738-7bea-95fb-9c18da5a0979","at":1772528179000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e9-9c25-729a-8c3d-0f93ea587789","at":1772528180261000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cb2e9-aea8-7ee2-aa35-44da935ea9ef","at":1772528185000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cb2e9-b678-76d3-8090-5bd05d77e0ff","at":1772528187000000000,"seq":902,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb2f8-ebb2-7702-a003-9adef5f3f15e","at":1772529183666000000,"seq":903,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f9-0c40-730d-8ef1-9a6f3852b7f3","at":1772529192000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2f9-17f8-79b2-b630-1ceb5e763d90","at":1772529195000000000,"seq":905,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb2f9-2f68-77f7-90c8-2476bd0f8162","at":1772529201000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cb2f9-3350-7a35-8ec4-7c627ca52690","at":1772529202000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb301-a3c9-7fde-972e-997103dada11","at":1772529755081000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cb302-18a8-7d54-8d08-028ba688b28f","at":1772529785000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb302-2078-7d35-a731-1f6db0a03d2e","at":1772529787000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

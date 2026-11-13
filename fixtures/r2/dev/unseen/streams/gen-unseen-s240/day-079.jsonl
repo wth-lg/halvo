@@ -1,0 +1,34 @@
+{"v":1,"id":"019d0a9f-8f0e-76d1-8556-52524e174388","at":1773999722254000000,"seq":1138,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0a9f-8f0e-7cbb-bad5-fd9ad310c79c","at":1773999722254000000,"seq":1139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d0a9f-c4c0-782b-bfbb-179d7700077f","at":1773999736000000000,"seq":1140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a9f-d460-72fd-b771-be2cc48184ce","at":1773999740000000000,"seq":1141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d0a9f-f788-78ba-bb8e-6c24e4cf7c0e","at":1773999749000000000,"seq":1142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aa0-44b7-7fab-8068-423e61f4780f","at":1773999768759000000,"seq":1143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d0aa0-6cb8-7019-be77-218103850160","at":1773999779000000000,"seq":1144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d0aa0-8040-71a6-a501-ee1fe95c55e8","at":1773999784000000000,"seq":1145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0aa0-84b2-761d-8714-6fd0c47081dd","at":1773999785138000000,"seq":1146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d0aa0-eda0-7fb6-95d9-9309b0fadf4f","at":1773999812000000000,"seq":1147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aa0-f958-780d-ab20-2b7a189aa4a0","at":1773999815000000000,"seq":1148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0aa1-3588-7536-b050-b7ed4ae33cdd","at":1773999830408000000,"seq":1149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d0aa1-4f48-7f74-80fe-b40d0f882f88","at":1773999837000000000,"seq":1150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aa1-66b8-7888-b0c6-b1036c6235d6","at":1773999843000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab0-7011-7875-9b09-58160b313d12","at":1774000828433000000,"seq":1152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab0-9958-7851-959f-f4b1ed9fe48b","at":1774000839000000000,"seq":1153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab0-a128-7e42-bcef-7942eb9f7a16","at":1774000841000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab0-b0c8-779e-abb9-73cd812f6ef6","at":1774000845000000000,"seq":1155,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0ab0-b4b0-7514-b39b-de85e2ff7b94","at":1774000846000000000,"seq":1156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d0ab6-f964-7f50-85fd-235f673690c1","at":1774001256804000000,"seq":1157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab7-5400-7106-980b-84d9b8a9eb81","at":1774001280000000000,"seq":1158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab7-f7c7-7eb8-87b3-8e174df9c7a0","at":1774001321927000000,"seq":1159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab8-4e00-704e-9894-eee27973da10","at":1774001344000000000,"seq":1160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0ab8-bb60-7d72-a8e2-5cca4a3206fa","at":1774001372000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d0ab8-c6ea-7022-b756-b9daf08ac44a","at":1774001374954000000,"seq":1162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab8-fdc8-7c38-85bd-68418dd58424","at":1774001389000000000,"seq":1163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0ab9-1538-78f0-b7be-9f048f720ab7","at":1774001395000000000,"seq":1164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab9-24d8-73b7-ad49-506128565527","at":1774001399000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab9-61a6-7d91-bb58-8ccc4d7a76dd","at":1774001414566000000,"seq":1166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab9-8a68-7efa-9707-68b1a03b8d3b","at":1774001425000000000,"seq":1167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ac5-c180-7033-b0d7-a61fb981888d","at":1774002225536000000,"seq":1168,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0ac5-c180-748a-9e03-a9508151ac97","at":1774002225536000000,"seq":1169,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0ac6-1d28-7cdf-8932-e90d012512e2","at":1774002249000000000,"seq":1170,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d0ac6-2cc8-7e9f-bc4b-aebbc2e8eb06","at":1774002253000000000,"seq":1171,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,12 @@
+{"v":1,"id":"019c60ee-cadc-7726-8780-0b4cd4936c52","at":1771152788188000000,"seq":630,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60ee-cadc-7aa0-953b-932c40cf5433","at":1771152788188000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c60ee-d5d8-7234-bb1c-1afb0f869c44","at":1771152791000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ee-e190-7dab-b876-d22a42216f6b","at":1771152794000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c60ef-2a03-721b-b5ef-5ad4ab3c71ef","at":1771152812547000000,"seq":634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c60ef-4b08-7039-9da8-02a638f8d655","at":1771152821000000000,"seq":635,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60ef-b098-76ad-b55c-43e9536f9676","at":1771152847000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c60ef-bc50-7dba-8d31-2f89cfdc5ca2","at":1771152850000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ef-c420-7437-9b53-7fd9e7acc662","at":1771152852000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ef-d7a8-7705-9b7e-ac2d63ec2ada","at":1771152857000000000,"seq":639,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60f0-1577-774c-b531-e34f6f8b21f8","at":1771152872823000000,"seq":640,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c6100-86d9-792b-8d9c-1f1a987c85cb","at":1771153950425000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}

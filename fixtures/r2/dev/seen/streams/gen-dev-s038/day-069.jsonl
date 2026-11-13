@@ -1,0 +1,9 @@
+{"v":1,"id":"019cd6b2-8597-74af-95c6-fd4a181412e7","at":1773128549783000000,"seq":986,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6b2-8597-7d3f-a413-1f862d7aafaa","at":1773128549783000000,"seq":987,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cd6b2-9610-729c-b18d-a2c2d6409282","at":1773128554000000000,"seq":988,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6b3-7b13-71ef-a171-48cf790c9e34","at":1773128612627000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cd6b4-0d10-7650-b8fc-51d8b06f8a22","at":1773128650000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6b9-ab13-794b-a1c2-7f7e080f00a3","at":1773129018131000000,"seq":991,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd6b9-ab13-7885-940c-8489f683de64","at":1773129018131000000,"seq":992,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd6ba-23a8-798b-9ae4-cdd7993a5a2d","at":1773129049000000000,"seq":993,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cd6ba-5288-7d2e-8c70-0837fd86e67e","at":1773129061000000000,"seq":994,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}

@@ -1,0 +1,23 @@
+{"v":1,"id":"019d2ed8-c963-798f-bc3f-eaf439e2ba3a","at":1774607452515000000,"seq":1353,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2ed8-c963-7c8d-83e1-db62b803e2ea","at":1774607452515000000,"seq":1354,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2ed9-5bd0-78e5-9173-435e4e503e50","at":1774607490000000000,"seq":1355,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d2ed9-5fb8-7404-8912-9d18e886b790","at":1774607491000000000,"seq":1356,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d2ed9-9668-70b8-9872-8353ad644278","at":1774607505000000000,"seq":1357,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2ee6-9602-7ee0-8827-5b33798d2f7a","at":1774608356866000000,"seq":1358,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2ee6-9602-74f8-9e83-0a4892b0b00b","at":1774608356866000000,"seq":1359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee7-2ee0-7cd8-b90d-2bf62d334d0f","at":1774608396000000000,"seq":1360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee7-36b0-7bfb-a7d2-c421350c320b","at":1774608398000000000,"seq":1361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee7-7d00-7ef3-a491-bf3d8e43bb35","at":1774608416000000000,"seq":1362,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d2ee7-8e4f-76b2-9449-3d6be1ff3ae6","at":1774608420431000000,"seq":1363,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee7-afc8-7a37-9d8e-74e3faf117c2","at":1774608429000000000,"seq":1364,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2ee7-afc8-7725-a2bd-20697e3d86ed","at":1774608429000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d2ee7-c350-79ab-93cd-db99ef60a481","at":1774608434000000000,"seq":1366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee7-cf08-79ea-9acb-bb8585306bcf","at":1774608437000000000,"seq":1367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee7-d464-7fe8-9547-15ab091a1c3d","at":1774608438372000000,"seq":1368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee7-ee48-7a5d-bd92-1459e335f4ed","at":1774608445000000000,"seq":1369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee7-ee48-7617-8b7b-84bf7dee79ac","at":1774608445000000000,"seq":1370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d2ee8-4c08-7d07-8769-f9b86e0e6199","at":1774608469000000000,"seq":1371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2ee8-4ff0-7116-8859-27712538dc89","at":1774608470000000000,"seq":1372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2ee8-6478-76a2-9cad-5246339b7cd3","at":1774608475256000000,"seq":1373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee8-9e10-71aa-9432-b6148e6a2b30","at":1774608490000000000,"seq":1374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2ee9-26c8-7f52-92bc-2734d39ab380","at":1774608525000000000,"seq":1375,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,19 @@
+{"v":1,"id":"019d0a9e-5899-7357-8703-b96051a29ac6","at":1773999642777000000,"seq":1168,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0a9e-5899-7b14-9000-ea441b4e3137","at":1773999642777000000,"seq":1169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d0a9e-78b8-7cb6-ad6a-011f9d3918f9","at":1773999651000000000,"seq":1170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a9e-78b8-7693-b994-fa420f655f7a","at":1773999651000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d0a9e-8088-7b81-826b-9703d421483a","at":1773999653000000000,"seq":1172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aa8-389a-7658-b92f-bb1a9f1315cb","at":1774000289946000000,"seq":1173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d0aa8-5fe0-7999-bf14-71a73a1054d6","at":1774000300000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d0aa8-a2e6-71d2-aca9-fbb2a2e48b0a","at":1774000317158000000,"seq":1175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d0aa9-0bc0-7fff-a611-4d629928047c","at":1774000344000000000,"seq":1176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0aa9-1f48-7513-9aaf-adc2e4275f9e","at":1774000349000000000,"seq":1177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aa9-4efa-7194-82e4-623deb83d74f","at":1774000361210000000,"seq":1178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d0aa9-9c48-7d3c-a7d0-54b6b9554940","at":1774000381000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d0aa9-bd91-7602-a4bb-0093118446d6","at":1774000389521000000,"seq":1180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d0aa9-fa08-7ead-b630-0abf35da0d11","at":1774000405000000000,"seq":1181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d0aaa-30b8-75c3-840a-e78ad9e191c0","at":1774000419000000000,"seq":1182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0aaa-3c70-7b33-b9d3-ae91c3f43ce4","at":1774000422000000000,"seq":1183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0aaa-4fd3-7b08-ba83-786e807a89e2","at":1774000426963000000,"seq":1184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d0aaa-9a30-77d1-bb5a-1c11ffd0e9f2","at":1774000446000000000,"seq":1185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0aab-1b18-7ef9-bb01-ef8a764ffd08","at":1774000479000000000,"seq":1186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

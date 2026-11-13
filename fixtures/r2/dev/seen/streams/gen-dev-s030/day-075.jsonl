@@ -1,0 +1,42 @@
+{"v":1,"id":"019cf575-ada9-760c-b592-f4865c8e1aa1","at":1773644656041000000,"seq":803,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf575-ada9-7c65-8121-8bde82244e2f","at":1773644656041000000,"seq":804,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf575-bd20-7f4d-8ea1-835bbd7d4b5e","at":1773644660000000000,"seq":805,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf575-c4f0-7929-8ef1-c8f71b57a6bb","at":1773644662000000000,"seq":806,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cf575-f3d0-7dc8-aa6e-69ed2cdb0a92","at":1773644674000000000,"seq":807,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf582-2698-7401-b326-4c92c05ec592","at":1773645473432000000,"seq":808,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cf582-3488-70a4-bfc6-393134dbaf03","at":1773645477000000000,"seq":809,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cf582-3870-7589-88fa-fe0d93b9b375","at":1773645478000000000,"seq":810,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf582-a9b8-7026-8173-2edddb9e0a06","at":1773645507000000000,"seq":811,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cf582-ada0-7aca-87de-5b95fc1d2e5c","at":1773645508000000000,"seq":812,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cf582-b570-7d48-9439-2b4f314ed594","at":1773645510000000000,"seq":813,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf593-165e-7d00-929e-71ca8e8e5eed","at":1773646583390000000,"seq":814,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf593-165e-7248-82d5-b556b400194e","at":1773646583390000000,"seq":815,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf593-8a08-7317-a3d6-ea4637535840","at":1773646613000000000,"seq":816,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf5ad-3333-7765-b7d8-85572a1211e6","at":1773648294707000000,"seq":817,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ad-5780-7d23-a355-9616321691ce","at":1773648304000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ad-82d7-7acd-97a1-fd6aafa88f39","at":1773648315095000000,"seq":819,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ae-04ea-7818-8ecd-8520f0c43aee","at":1773648348394000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ae-2688-7ce0-af39-a26fc803ba64","at":1773648357000000000,"seq":821,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf5ae-3628-7f3c-b09e-81c5bfca2903","at":1773648361000000000,"seq":822,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf5ae-41e0-73a7-b6a2-fa0f2fb66279","at":1773648364000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cf5ae-8448-7d9f-8f84-55a56a13cc29","at":1773648381000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ae-9fa0-7576-bb52-daf03a3ecb9a","at":1773648388000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ae-c688-732f-9fca-93bf72a19987","at":1773648397960000000,"seq":826,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ae-d650-7915-bbbe-7bbeb8d613d8","at":1773648402000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cf5ae-da38-7759-ae1d-783ff7bee49e","at":1773648403000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ae-de20-7a87-95a7-cd0b12c0a7b1","at":1773648404000000000,"seq":829,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf5ae-e9d8-71d5-88e6-0bce26046fed","at":1773648407000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5af-2858-7b95-904b-95175698a72a","at":1773648423000000000,"seq":831,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf5af-3a35-725a-aca3-61f8f1bb3cfb","at":1773648427573000000,"seq":832,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cf5af-43b0-7dc5-99c4-54532ce301ae","at":1773648430000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5af-8230-7ad6-97be-848c35039833","at":1773648446000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cf5af-f21d-71b0-9897-3beebeea059f","at":1773648474653000000,"seq":835,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cf5af-f378-799f-b680-c6485796db66","at":1773648475000000000,"seq":836,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf5b0-0318-7cbd-ad9e-ee26c831de64","at":1773648479000000000,"seq":837,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf5b0-39c8-75a4-a76b-680aec82778b","at":1773648493000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5b0-87e8-7b13-bccd-66cdc061adb6","at":1773648513000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cf5b0-9a3e-7010-b5f0-9f136f534fab","at":1773648517694000000,"seq":840,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cf5b0-9f58-7d23-b70f-c98bac8ca994","at":1773648519000000000,"seq":841,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf5b0-a340-7ea6-a269-b11bd3c0e67c","at":1773648520000000000,"seq":842,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5b0-aef8-7615-8b6a-045b2a969980","at":1773648523000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cf5b0-b2e0-7293-97c5-1c2e58f5d8ce","at":1773648524000000000,"seq":844,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

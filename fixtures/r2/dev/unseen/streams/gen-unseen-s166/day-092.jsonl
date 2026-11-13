@@ -1,0 +1,17 @@
+{"v":1,"id":"019d4dae-c6d5-7e9d-bc5a-c21d00643ca9","at":1775124793045000000,"seq":1360,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4dae-c6d5-71e7-8106-b00d4efd6753","at":1775124793045000000,"seq":1361,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d4daf-18b0-7f19-bb3b-fe9058309403","at":1775124814000000000,"seq":1362,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4daf-c0a8-7934-938e-2e2f7a45c62e","at":1775124857000000000,"seq":1363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d4daf-c85b-7c69-ba4f-a0ca517a2277","at":1775124858971000000,"seq":1364,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d4db0-0310-71ff-b8b2-ce43ad545ff7","at":1775124874000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4db0-12b0-78ae-bb8d-ad6751a59705","at":1775124878000000000,"seq":1366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d4db0-5900-7f9d-ae0c-175b2c76ca80","at":1775124896000000000,"seq":1367,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4db0-9398-7638-9abc-cb475314e7b4","at":1775124911000000000,"seq":1368,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4db4-2ab2-7d0b-b699-2bf8a26bfbf2","at":1775125146290000000,"seq":1369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d4db4-3160-7317-a2b9-f1d0f6639c13","at":1775125148000000000,"seq":1370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4db4-48d0-7305-8cf5-c5e5ff05c206","at":1775125154000000000,"seq":1371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4db4-5870-7a53-8232-c60e986b5bae","at":1775125158000000000,"seq":1372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d4db4-73c8-7159-bdd9-d49c92f9da50","at":1775125165000000000,"seq":1373,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4dc5-e32d-76f6-a30a-4a2a833c912d","at":1775126307629000000,"seq":1374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d4dc6-4260-761a-81c9-e88fc5d06bcb","at":1775126332000000000,"seq":1375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dc6-7528-75b1-8ee2-60862325c29d","at":1775126345000000000,"seq":1376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

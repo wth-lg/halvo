@@ -1,0 +1,21 @@
+{"v":1,"id":"019c6553-45d9-78f5-b32b-b503baebd649","at":1771226482137000000,"seq":433,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6553-45d9-72ad-8c59-a29d87d81395","at":1771226482137000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c6553-b698-788a-af3f-7801e5c3d04c","at":1771226511000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6554-4338-788f-9106-f59a34187aa3","at":1771226547000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6554-4eda-7dcd-80ab-dd50b7106bb4","at":1771226549978000000,"seq":437,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c6554-6660-7e9c-8cfc-e5daef700c7b","at":1771226556000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c6554-a8c8-704d-a5e7-03a105f8626d","at":1771226573000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6554-acb0-7b78-8f89-11f32f2371ac","at":1771226574000000000,"seq":440,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6554-fad0-79af-9af7-49cc97f9fb4d","at":1771226594000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6555-14c7-754b-8eb2-be73fc6f516d","at":1771226600647000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c6555-4508-7de9-8947-1f0a89079fc9","at":1771226613000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6555-e9b6-7320-8ea0-06c46a01d007","at":1771226655158000000,"seq":444,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c655b-c873-7394-a949-b07409969db8","at":1771227039859000000,"seq":445,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c655b-f010-7a67-adc9-567ea230263a","at":1771227050000000000,"seq":446,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c655c-1ef0-7233-8590-946bd49a81b4","at":1771227062000000000,"seq":447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c655c-3e30-75d5-bd2e-e4499cfefbe0","at":1771227070000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c655e-e5f0-7963-a6e8-b0518453f810","at":1771227244016000000,"seq":449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c655e-e9c8-73dd-9efb-ff079eeb4737","at":1771227245000000000,"seq":450,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c655f-2078-7fd1-af23-e444ceaf24c4","at":1771227259000000000,"seq":451,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c655f-5728-7678-8221-a639abf49f2b","at":1771227273000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c655f-8dd8-7c91-8b6d-873501f6e150","at":1771227287000000000,"seq":453,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

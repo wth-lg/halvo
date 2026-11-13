@@ -1,0 +1,11 @@
+{"v":1,"id":"019bfe4d-179b-7e11-88e5-f6d4e90f24d8","at":1769498023835000000,"seq":546,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfe4d-179b-783d-8343-1b5a49e3c922","at":1769498023835000000,"seq":547,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bfe4d-6a48-7819-bde0-345b43cac211","at":1769498045000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bfe4d-6ef6-7926-83b2-fce81cac1662","at":1769498046198000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bfe4d-7218-7c93-9cdd-43ce4a8e27ea","at":1769498047000000000,"seq":550,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfe4d-b098-79f1-bb7c-a2a3dc462ae8","at":1769498063000000000,"seq":551,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bfe4d-d20c-7d4e-a5af-203d901dc7c0","at":1769498071564000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bfe4e-1df8-7a77-8759-f6bd1af7e2a7","at":1769498091000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bfe4e-54a8-7c8d-a7c5-0599542e36e1","at":1769498105000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe4e-c120-7cce-8a12-518dc228e8b6","at":1769498132768000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bfe4e-f0e8-7429-8cc9-194b3fc77b56","at":1769498145000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

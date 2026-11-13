@@ -1,0 +1,13 @@
+{"v":1,"id":"019bc0ff-e7c3-7f4e-81e5-9120f515abd8","at":1768469555139000000,"seq":202,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc0ff-e7c3-7b95-997b-3b5a223a5abd","at":1768469555139000000,"seq":203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bc100-a2b8-712e-94f1-5af71d118216","at":1768469603000000000,"seq":204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc100-ea8b-74f1-a59f-9cacf3eaf3db","at":1768469621387000000,"seq":205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bc101-a0a1-7769-99cf-74657b23e140","at":1768469668001000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bc101-bfe0-7736-925f-223880f09514","at":1768469676000000000,"seq":207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc101-cb98-72df-a512-b4ba36a4506e","at":1768469679000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bc10e-9f34-749e-8799-2ffb4a8022e7","at":1768470519604000000,"seq":209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc10e-c7d0-7b1d-b4c0-6939454a9ac7","at":1768470530000000000,"seq":210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc10e-cbb8-7dd0-a820-c886736fd5c5","at":1768470531000000000,"seq":211,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc10e-cfa0-7e42-aa37-0c153f616bb9","at":1768470532000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bc10e-eaf8-74be-b000-ecde94d46fb6","at":1768470539000000000,"seq":213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc10f-3918-7b1d-8094-1f74184b9226","at":1768470559000000000,"seq":214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

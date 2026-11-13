@@ -1,0 +1,23 @@
+{"v":1,"id":"019c3cdd-77aa-7631-a1d8-6b39576cb2e1","at":1770547673002000000,"seq":472,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3cdd-77aa-7468-8a77-ace09c080bda","at":1770547673002000000,"seq":473,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c3cdd-cd98-73d7-8d32-fc66cb8607ab","at":1770547695000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c3cdd-e888-726c-a47b-46a744ed5f28","at":1770547701896000000,"seq":475,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c3cde-13e8-7347-a899-c43ccd60667d","at":1770547713000000000,"seq":476,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3cde-71a8-7bcb-8109-cb503b7e7865","at":1770547737000000000,"seq":477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cde-7590-778b-8139-1c2d5a51579b","at":1770547738000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cde-8ad8-7e9d-abdf-7e410e03b044","at":1770547743448000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c3cdf-4880-77b3-9aa9-a6ec0fbccad0","at":1770547792000000000,"seq":480,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3cdf-7f30-7348-b3ea-75e7e24adcc3","at":1770547806000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cdf-8318-7e38-a8b6-e473dd3fbc8b","at":1770547807000000000,"seq":482,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3cdf-9851-7b67-b2e6-f2a5b8e7506f","at":1770547812433000000,"seq":483,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c3ce0-0bd0-7b55-a1c0-d801a0d2be82","at":1770547842000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ce0-2340-785a-9dc3-3c1b371c347b","at":1770547848000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c3ced-fa17-7c93-bdbe-6e44895e55e2","at":1770548754967000000,"seq":486,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3ced-fa17-7215-8bc3-10a4d2ceca2f","at":1770548754967000000,"seq":487,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3cee-2d00-71ea-a78c-dfdfc93a20c3","at":1770548768000000000,"seq":488,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cee-4470-7f32-b316-2e1c3b44e04b","at":1770548774000000000,"seq":489,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c3cee-4858-7406-af43-8d43651388fc","at":1770548775000000000,"seq":490,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c3cf5-82d5-7bdc-bc29-61d1cbbab04c","at":1770549248725000000,"seq":491,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c3cf5-b2c8-7a0a-8397-b6d5a0f6a93a","at":1770549261000000000,"seq":492,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cf5-b6b0-7a48-afa7-00c5b8b37307","at":1770549262000000000,"seq":493,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3cf5-c268-767a-9071-de6b4529993d","at":1770549265000000000,"seq":494,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}

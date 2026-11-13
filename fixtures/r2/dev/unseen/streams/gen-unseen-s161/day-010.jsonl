@@ -1,0 +1,12 @@
+{"v":1,"id":"019ba706-8c3b-73d1-8a5f-0ea9bde13065","at":1768033782843000000,"seq":94,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba706-8c3b-79aa-8aca-f0a100bba228","at":1768033782843000000,"seq":95,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba706-a448-7453-959d-797a7629c173","at":1768033789000000000,"seq":96,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba706-e6b0-7b93-972c-07644041808b","at":1768033806000000000,"seq":97,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba707-11a8-7b09-85c4-f07a7a53aebc","at":1768033817000000000,"seq":98,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba707-1d60-7879-a639-15aab8f7372f","at":1768033820000000000,"seq":99,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ba718-e2c3-727b-876a-cea556720e5d","at":1768034984643000000,"seq":100,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba718-e2c3-7620-8d62-b0b30f2b8ec2","at":1768034984643000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba719-0368-777b-8b72-ebb05b0bf746","at":1768034993000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba719-1ad8-7f6c-bb6f-056ed422aa8c","at":1768034999000000000,"seq":103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba720-bf9e-72cd-9e33-f9b7483929fb","at":1768035499934000000,"seq":104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ba721-0bcc-7d4f-8c7c-d07985bff121","at":1768035519436000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}

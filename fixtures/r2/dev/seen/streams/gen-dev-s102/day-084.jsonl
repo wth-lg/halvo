@@ -1,0 +1,36 @@
+{"v":1,"id":"019d2492-fd84-7134-b1f5-76b118098bc0","at":1774435106180000000,"seq":1142,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2492-fd84-7911-a0f8-4a5adb684a16","at":1774435106180000000,"seq":1143,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2493-6648-7576-a113-9332612d72a0","at":1774435133000000000,"seq":1144,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d2493-9140-7728-a6f6-1bbe8abe8212","at":1774435144000000000,"seq":1145,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2493-ac98-7a63-b16f-65a1c6429c78","at":1774435151000000000,"seq":1146,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a5-8e96-7861-a336-3c507bebe54b","at":1774436322966000000,"seq":1147,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d24a5-8e96-72ed-bf48-b31b5d9c58e9","at":1774436322966000000,"seq":1148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d24a6-6519-7adc-bee4-bbf9d9884b05","at":1774436377881000000,"seq":1149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d24a6-8ca0-770b-8349-0244fe291e52","at":1774436388000000000,"seq":1150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a6-d2f0-7bd3-b64a-3a937c68ea22","at":1774436406000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a6-d6d8-7250-89cd-b8e74f88d575","at":1774436407000000000,"seq":1152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d24a6-d9ce-7046-a3a2-c9e560ed805d","at":1774436407758000000,"seq":1153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d24a6-fa00-7b1b-b8fb-6a72114d1095","at":1774436416000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d24a7-1d28-7779-ae0f-4e51f5d612a4","at":1774436425000000000,"seq":1155,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d24a7-d4d7-75a4-aaef-6bab3b73d26a","at":1774436472023000000,"seq":1156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d24a8-7100-7a18-8afd-3e1a9778faa3","at":1774436512000000000,"seq":1157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d24a8-8c58-795b-a4ff-3d49c012a847","at":1774436519000000000,"seq":1158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d24a8-adb1-7b85-9aa4-716635a65de4","at":1774436527537000000,"seq":1159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d24a8-d690-7fea-b3bc-57a80aadfd23","at":1774436538000000000,"seq":1160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d24a8-e248-7f03-a69a-541fa730ab91","at":1774436541000000000,"seq":1161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d24a9-1ce0-7e7b-b13d-d6fcc2954b26","at":1774436556000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a9-43f0-7490-9e39-d91f86dfaaa0","at":1774436566000000000,"seq":1163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a9-4724-7e77-8ac6-d6a9bdcdcfc7","at":1774436566820000000,"seq":1164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d24a9-e418-7ab7-966d-f0716eef90b1","at":1774436607000000000,"seq":1165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d24a9-fb88-7def-9c3c-76e7fbd8a89a","at":1774436613000000000,"seq":1166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24af-1725-7f15-8746-c8d61a05b112","at":1774436947749000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d24af-f7f9-7347-b2c1-6860e63cafd7","at":1774437005305000000,"seq":1168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d24af-fab0-78e1-84ff-7e18a2649595","at":1774437006000000000,"seq":1169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d24b0-5488-7516-b0bc-82b33bb9e441","at":1774437029000000000,"seq":1170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24b0-5870-7b02-b66c-843de187a774","at":1774437030000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d24b0-6040-7d7f-b669-6df926542479","at":1774437032000000000,"seq":1172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d24b0-60b5-72bc-a565-205f4927db46","at":1774437032117000000,"seq":1173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d24b0-6428-74b2-a313-c80e0a8a7a58","at":1774437033000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24b0-8368-7648-b616-de6752411511","at":1774437041000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24b0-9ad8-78bd-8159-06d1c057a32d","at":1774437047000000000,"seq":1176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d24b0-ae60-747a-adf8-bfcf8648313a","at":1774437052000000000,"seq":1177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}

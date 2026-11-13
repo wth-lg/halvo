@@ -1,0 +1,29 @@
+{"v":1,"id":"019be9f7-4c8c-745e-b3a8-93ded6e8afb2","at":1769156856972000000,"seq":288,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be9f7-4c8c-798b-bb51-7eb472b2a85e","at":1769156856972000000,"seq":289,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be9f7-5478-7e53-8766-b027eb96fe53","at":1769156859000000000,"seq":290,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019be9f7-5c48-71d9-acf4-ed289cb4fbad","at":1769156861000000000,"seq":291,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f7-6030-7325-9292-8e5f29ce4187","at":1769156862000000000,"seq":292,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f7-7f70-7d45-bb4f-9356ffb53863","at":1769156870000000000,"seq":293,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019be9f7-9ac8-7c09-939a-21c2660a4494","at":1769156877000000000,"seq":294,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019be9fc-b2cc-7fd7-abae-7b2f7f9048cb","at":1769157210828000000,"seq":295,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be9fc-b2cc-7835-8a8c-61d1b195d53a","at":1769157210828000000,"seq":296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019be9fc-c318-7ea1-8b74-bd62b584dedf","at":1769157215000000000,"seq":297,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be9fc-ced0-7967-abc2-caa82f79aced","at":1769157218000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be9fc-d6a0-7f2a-95d2-6eee1fb973b7","at":1769157220000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bea02-7eba-764e-af49-ccf5546978eb","at":1769157590714000000,"seq":300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bea02-83c0-7f23-ad41-606e1f88a4d6","at":1769157592000000000,"seq":301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bea02-f120-70b5-93f5-f53d69475956","at":1769157620000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bea02-f8f0-7269-a4b3-65c4388017f8","at":1769157622000000000,"seq":303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bea0d-3836-7037-94c8-d5fe070bbb33","at":1769158293558000000,"seq":304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bea0d-6cb8-748d-8505-0bd8c041d322","at":1769158307000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bea0d-ca78-7776-808b-24105d17c030","at":1769158331000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea0d-f958-7fa9-8b66-0800dc434094","at":1769158343000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea0e-1965-7d47-8288-46fe58d6698e","at":1769158351205000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bea0e-3008-78d0-b8d6-e897dc9393d1","at":1769158357000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bea0e-6e88-7382-8982-0e9e59442956","at":1769158373000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea0e-86e4-730f-8e8f-f5fa57f04d68","at":1769158379236000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bea0e-e3b8-7355-aa39-a5db6366e1ce","at":1769158403000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea0f-4d30-7425-8575-e7d787465f49","at":1769158430000000000,"seq":313,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bea0f-84af-7bcf-819f-23b61bcb8642","at":1769158444207000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bea0f-e588-7687-b16c-e8d339f667ff","at":1769158469000000000,"seq":315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea0f-e970-757c-8fed-fc10c502b2ad","at":1769158470000000000,"seq":316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

@@ -1,0 +1,20 @@
+{"v":1,"id":"019bb62d-b1d3-7184-a955-7c693c77234a","at":1768288006611000000,"seq":254,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb62d-b1d3-77e5-88b9-5d538c771cc0","at":1768288006611000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bb62d-b358-72ff-90d5-2a81941e5824","at":1768288007000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb62d-ea08-7329-9d9c-3d05753ce45e","at":1768288021000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb646-8a32-7243-82e9-62e1503db196","at":1768289634866000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bb646-e490-7882-826d-ff80008e6673","at":1768289658000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb646-f17e-7367-a4a9-ff8be4961883","at":1768289661310000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bb647-80d0-791a-813f-6d579da828b7","at":1768289698000000000,"seq":261,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb647-d056-7b3e-add5-ccdd5b9843d5","at":1768289718358000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bb648-0988-7f35-a3c8-b418a94e8204","at":1768289733000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb648-3c50-77f7-8dda-900a02bbc002","at":1768289746000000000,"seq":264,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb648-7ad0-71d3-856d-7a6f91ff6cd3","at":1768289762000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb648-af2a-78bf-a9be-955ca7fada11","at":1768289775402000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bb649-45f0-7dc6-96fc-90d3a039d642","at":1768289814000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb649-6918-72b0-932d-a7c763a4d07b","at":1768289823000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb649-78b8-7723-ac86-dda9327a93f4","at":1768289827000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bb652-8548-7820-8288-1b5a78512587","at":1768290420040000000,"seq":270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bb652-90d8-75b9-bb4f-08cf21bbaa30","at":1768290423000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bb652-94c0-755e-a760-ba67897b3dce","at":1768290424000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb652-b018-7055-a2d3-db94906a3d59","at":1768290431000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

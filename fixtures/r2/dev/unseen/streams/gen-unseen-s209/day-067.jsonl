@@ -1,0 +1,16 @@
+{"v":1,"id":"019ccc52-1660-7a7c-8086-10df5e60ce9d","at":1772954457696000000,"seq":963,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccc52-1660-7d02-9473-e84cbcda405d","at":1772954457696000000,"seq":964,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ccc52-61c8-7b36-8783-e2ec04e1b0af","at":1772954477000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ccc57-34a7-7aa3-91ff-a9d0cba2e54f","at":1772954793127000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ccc57-3810-7a05-80b7-ee58bd314b3b","at":1772954794000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc57-3bf8-713f-a297-823ef6734d12","at":1772954795000000000,"seq":968,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ccc57-6ec0-7b0a-9351-eaf360a87bb0","at":1772954808000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc57-72a8-7c90-95ca-c5e94593b700","at":1772954809000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ccc57-7e60-7c70-9265-2748d9a3d9a7","at":1772954812000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ccc72-fc80-70cb-9442-50cb03c5e2c0","at":1772956613760000000,"seq":972,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ccc73-3bf0-7a9d-a1f4-683e4c79fad9","at":1772956630000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ccc73-8df8-774c-8d6b-c21a9a96bef5","at":1772956651000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ccc7e-a113-7b19-8686-80f2b0cec27c","at":1772957376787000000,"seq":975,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ccc7f-5364-73df-8078-bcec7625e9eb","at":1772957422436000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ccc7f-6538-7945-a166-23cf68b20ce4","at":1772957427000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc7f-6d08-7d35-9fb8-55b0a01e2e45","at":1772957429000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}

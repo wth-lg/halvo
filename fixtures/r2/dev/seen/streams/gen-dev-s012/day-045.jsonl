@@ -1,0 +1,20 @@
+{"v":1,"id":"019c5b6f-baab-7330-8f66-d6ad7f59fc0e","at":1771060574891000000,"seq":725,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b6f-baab-7487-9f1e-f3ebfe671600","at":1771060574891000000,"seq":726,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b6f-cab8-74ff-9111-e022c4cd961c","at":1771060579000000000,"seq":727,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c5b6f-fd80-7f27-8a82-1d4e9ad3a41a","at":1771060592000000000,"seq":728,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b70-3818-76e3-9058-110055c42d1a","at":1771060607000000000,"seq":729,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b70-47b8-7452-9d09-95c87a71d8bc","at":1771060611000000000,"seq":730,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c5b79-62b3-7b51-8472-3e6acc69eb48","at":1771061207731000000,"seq":731,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5b79-aa10-7ee2-8791-fea5717d8b4d","at":1771061226000000000,"seq":732,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c5b79-e0c0-78f3-b5a0-4a8ade957860","at":1771061240000000000,"seq":733,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b79-f830-727d-8c9d-27e1f4849108","at":1771061246000000000,"seq":734,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c5b8f-462a-733d-9d3c-a9b8867064c2","at":1771062642218000000,"seq":735,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b8f-462a-72c0-be90-b3aafdc89f20","at":1771062642218000000,"seq":736,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b8f-54f0-7d93-aa6d-f6a319e9f62c","at":1771062646000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b8f-aa1d-759a-94ad-322ada055eba","at":1771062667805000000,"seq":738,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b8f-be68-7d54-b74f-87a6663b59e4","at":1771062673000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b8f-dda8-743c-a580-c069a2e7f28d","at":1771062681000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b90-28bb-7931-8bda-e1af99a84ca5","at":1771062700219000000,"seq":741,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b90-2bc8-7b9a-8b4f-7173ee473fd5","at":1771062701000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5b90-5aa8-7fa3-a1ee-920af4e666a3","at":1771062713000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b90-5aa8-72dc-b44a-563083bec2f8","at":1771062713000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

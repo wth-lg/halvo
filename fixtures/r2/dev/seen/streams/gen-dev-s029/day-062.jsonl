@@ -1,0 +1,19 @@
+{"v":1,"id":"019cb301-6195-795f-9380-5fb8e65082d0","at":1772529738133000000,"seq":919,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb301-6195-72ac-801b-c653da87e38a","at":1772529738133000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cb301-da28-7d1b-89ac-b0fec28ee1eb","at":1772529769000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb301-de10-7f6b-9e3e-b916dacffafe","at":1772529770000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb302-07ba-7c54-a79f-c85a736736bc","at":1772529780666000000,"seq":923,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cb302-2c30-715c-a184-d1c93435dc88","at":1772529790000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb302-3bd0-7474-a6b5-a8bda2164345","at":1772529794000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cb314-be48-7c12-962a-72983aac60d4","at":1772531007048000000,"seq":926,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb314-be48-7f21-97c4-b6a7620ec820","at":1772531007048000000,"seq":927,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb314-cdb8-78ef-9a73-8f57d230d893","at":1772531011000000000,"seq":928,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb315-1408-7155-a5b8-bfd484165b2f","at":1772531029000000000,"seq":929,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb323-fe1c-74b1-bfcc-495bad3c0c49","at":1772532006428000000,"seq":930,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb323-fe1c-7da2-b886-66ebae24eb14","at":1772532006428000000,"seq":931,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb324-3708-7a06-b534-a789698df67c","at":1772532021000000000,"seq":932,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb324-6200-7a51-8698-34d468cba0a9","at":1772532032000000000,"seq":933,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb324-8140-740b-be53-e164348390eb","at":1772532040000000000,"seq":934,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb324-c3a8-7571-a62d-24e0deefdd04","at":1772532057000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cb32a-06f8-7d2a-9504-c6828dce687e","at":1772532401912000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb32a-9008-7d40-932d-01e44ba5caa9","at":1772532437000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

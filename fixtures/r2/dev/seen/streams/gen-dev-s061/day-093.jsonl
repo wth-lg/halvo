@@ -1,0 +1,25 @@
+{"v":1,"id":"019d52b2-50f6-71ce-85a1-23d75c301b35","at":1775208911094000000,"seq":1116,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52b2-50f6-71d5-803d-e19796bb7fab","at":1775208911094000000,"seq":1117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d52b2-8f18-7532-bc5b-63bfa134e1c4","at":1775208927000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d52b2-a2a0-7a48-8dd2-fdcc2c82d61a","at":1775208932000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b4-a00f-7a19-a6b0-553dcd624850","at":1775209062415000000,"seq":1120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d52b4-b1f8-7e7c-bce1-b21838d01900","at":1775209067000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b5-3ab0-705f-9dcd-de853ca7013e","at":1775209102000000000,"seq":1122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b5-7415-71ad-8510-9b627c177be6","at":1775209116693000000,"seq":1123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d52b5-7d18-71f5-ba7a-fede76d4805d","at":1775209119000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d52b5-a428-7200-9232-8b8bb6e490cb","at":1775209129000000000,"seq":1125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b5-afe0-73d0-9979-b38d6be6ea0d","at":1775209132000000000,"seq":1126,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d52b5-e7af-7c5a-901c-007cf4e1992e","at":1775209146287000000,"seq":1127,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d52b6-2510-7de3-9b1d-c4effa7f9cb7","at":1775209162000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b6-82d0-7cba-a31b-72cfbfbc3773","at":1775209186000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b6-c920-7ebc-8db5-28c86bea2ffb","at":1775209204000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d52b6-de8e-7039-b984-be4d2416946a","at":1775209209486000000,"seq":1131,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d52b6-ffd0-7128-b3df-bea0bf1df5e6","at":1775209218000000000,"seq":1132,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d52b7-3298-7aaa-b302-06c7f61c10c0","at":1775209231000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b7-3680-71cb-8b84-10290c49a777","at":1775209232000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b7-8f2b-7f3e-badb-188906fb2dc3","at":1775209254699000000,"seq":1135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d52b7-a7c8-7dea-951d-5009092e100c","at":1775209261000000000,"seq":1136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52b7-af98-70a3-9252-a385a68fc03b","at":1775209263000000000,"seq":1137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b7-fdb8-73a7-9277-fee70c5de301","at":1775209283000000000,"seq":1138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b8-01a0-7cf5-9440-b5b9843b7755","at":1775209284000000000,"seq":1139,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52b8-22f5-7226-ba95-b83e089982aa","at":1775209292533000000,"seq":1140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}

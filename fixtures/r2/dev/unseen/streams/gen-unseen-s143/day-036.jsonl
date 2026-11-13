@@ -1,0 +1,23 @@
+{"v":1,"id":"019c2d43-4619-75dd-bac5-a9af341e7451","at":1770285909529000000,"seq":450,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2d43-4619-752d-9629-387760620bd2","at":1770285909529000000,"seq":451,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2d43-9610-73bd-a483-5cd62605c743","at":1770285930000000000,"seq":452,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c2d43-a998-710c-8460-fa1e4b6e043a","at":1770285935000000000,"seq":453,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d43-b459-7217-b7c3-b1b1d6626dd6","at":1770285937753000000,"seq":454,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c2d43-c108-7a6d-92bd-c1f8c5043ccb","at":1770285941000000000,"seq":455,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d43-f3d0-78f9-ad75-a8f2e9631c30","at":1770285954000000000,"seq":456,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d43-ff88-74c4-9fe3-e44214a8d1bd","at":1770285957000000000,"seq":457,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d53-6d1c-709f-8297-4de0da8b6da4","at":1770286968092000000,"seq":458,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d53-6d1c-7a95-bf35-e1940e45d020","at":1770286968092000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c2d53-93d0-7094-a127-6ec5cbb8c633","at":1770286978000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d53-ab40-7d2f-a93f-fbdaae08ea2d","at":1770286984000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c2d53-b2fc-7baf-903d-fde57e66e483","at":1770286985980000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c2d54-18a0-7622-a31f-84bd3b74cabb","at":1770287012000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d54-4398-7953-a49b-96b2e5836718","at":1770287023000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c2d54-47b4-7a0c-85d6-938ea7bf559f","at":1770287024052000000,"seq":465,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c2d54-6e90-7aac-984f-0f6cc2163f08","at":1770287034000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c2d54-7e30-7229-9f7f-7b1bbca46f8c","at":1770287038000000000,"seq":467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d54-a540-7ee8-80a2-163ea8cfa833","at":1770287048000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d54-b3de-7e08-ad93-f75b6fb6e031","at":1770287051742000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c2d54-c868-769a-b03e-4dd8e6ca5e8d","at":1770287057000000000,"seq":470,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d55-5508-7608-ada2-e0a24f3b4bc5","at":1770287093000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d55-7c18-7c03-ba87-4c570b7b40a8","at":1770287103000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

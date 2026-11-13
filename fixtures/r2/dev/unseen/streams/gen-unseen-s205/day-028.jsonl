@@ -1,0 +1,46 @@
+{"v":1,"id":"019c03bf-3b7b-73ca-a10c-133e4923a750","at":1769589390203000000,"seq":446,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03bf-3b7b-76c3-ae85-15bdd0c1c7db","at":1769589390203000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c03bf-9c58-7a47-bd0d-12ed0cc12d55","at":1769589415000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03c0-1570-7687-856c-570027227c02","at":1769589446000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c03c0-4555-7ede-b6e2-4d4c197b7e3c","at":1769589458261000000,"seq":450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c03c0-57d8-79e0-aa5c-ea292f0e2526","at":1769589463000000000,"seq":451,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c03c0-dca8-7eba-aaac-b054c5d9be5e","at":1769589497000000000,"seq":452,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c03c0-fcdc-71c6-8a7d-6aa3fae51b0f","at":1769589505244000000,"seq":453,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c03c1-1f10-7383-8e8d-7c1b6cc0731a","at":1769589514000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03c1-59a8-7535-846d-9ac9b9a2c7bf","at":1769589529000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c03c1-7500-7ae4-aa65-42caa7deccbe","at":1769589536000000000,"seq":456,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c03c1-d4f5-7b89-900e-d2f6d17d4794","at":1769589560565000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c03c1-da90-791a-81b4-327a133e36ef","at":1769589562000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03c1-da90-7a92-ac62-a780cfc40ba3","at":1769589562000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c03c2-0970-7a4a-8135-f17de51ab727","at":1769589574000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03db-790f-7a79-990a-fcbc3d2273f2","at":1769591240975000000,"seq":461,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c03db-790f-74d0-9001-ddd15d3e3f8a","at":1769591240975000000,"seq":462,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c03db-9098-766f-92a4-22d5c8d3cf76","at":1769591247000000000,"seq":463,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c03db-ee58-7ac2-a8b3-58778fc6256f","at":1769591271000000000,"seq":464,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c03db-f628-782a-a83a-8ae83049812b","at":1769591273000000000,"seq":465,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03dc-05c8-7cf5-a03c-16fc1c8dd330","at":1769591277000000000,"seq":466,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c03f2-25f7-7bef-ac32-9a75fd3f2f95","at":1769592727031000000,"seq":467,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03f2-25f7-7330-b793-841b55e9027e","at":1769592727031000000,"seq":468,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c03f2-9d99-79c0-bc64-10358fefd519","at":1769592757657000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c03f2-c600-70ef-8994-c5e9ff509830","at":1769592768000000000,"seq":470,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c03f2-f8c8-76c8-963e-d9232fc66afa","at":1769592781000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f3-1bf0-78bb-b21c-d8fad6fb72d5","at":1769592790000000000,"seq":472,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c03f3-23c0-767b-a1fb-2fa6e3a2b802","at":1769592792000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c03f3-4300-7d90-9b4f-7245a483473d","at":1769592800000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f3-56a4-77d1-bb09-148ad1e09585","at":1769592805028000000,"seq":475,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c03f3-56a4-7978-a6d8-9b2604c32e31","at":1769592805028000000,"seq":476,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c03f3-5a70-7824-801d-c66fc79358a2","at":1769592806000000000,"seq":477,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c03f3-71e0-7720-8598-43dab89ab2f7","at":1769592812000000000,"seq":478,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c03f3-a0c0-76a8-97fa-706e828f9379","at":1769592824000000000,"seq":479,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f3-df40-7952-82fc-e9b0a0c7ae5a","at":1769592840000000000,"seq":480,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f3-e687-7d68-acd7-37814607e068","at":1769592841863000000,"seq":481,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03f3-e687-776a-800e-70729060663a","at":1769592841863000000,"seq":482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c03f3-eee0-79a6-bdc0-c850dc9fcc67","at":1769592844000000000,"seq":483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f4-0a38-7eda-b26e-b3a1e6a7d603","at":1769592851000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f4-30a8-7056-b406-0b372c5c81a8","at":1769592860840000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c03f4-7b80-7033-9b50-32db76b4465e","at":1769592880000000000,"seq":486,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c03f4-7f68-709d-be79-eca69c46df11","at":1769592881000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f4-e110-7b96-aac4-93c692f12aae","at":1769592906000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f4-ecc8-7db4-81f2-647ee2c2d6a2","at":1769592909000000000,"seq":489,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0401-233c-79cf-ab54-b4a0de774615","at":1769593709372000000,"seq":490,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c0401-b250-7f1a-912a-8161d055790c","at":1769593746000000000,"seq":491,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

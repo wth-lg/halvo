@@ -1,0 +1,14 @@
+{"v":1,"id":"019c6b31-d42f-758a-b59c-2c64dabd730c","at":1771324953647000000,"seq":531,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6b31-d42f-7a65-961d-925830798e2d","at":1771324953647000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6b32-2798-77f6-a875-07e5487b1937","at":1771324975000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b32-3738-7ee1-9e29-6e2b94e52626","at":1771324979000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c6b32-56f2-7700-bf17-f84a131ee164","at":1771324987122000000,"seq":535,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6b32-6a00-7079-92ea-c8586c48bb54","at":1771324992000000000,"seq":536,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6b33-2cc6-72a1-8a88-787b91544871","at":1771325041862000000,"seq":537,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6b33-5c30-7d29-96b7-2a497dbc4460","at":1771325054000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b33-92e0-7b02-9831-d2c92fac813b","at":1771325068000000000,"seq":539,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6b33-b220-7584-b038-6c5769759c80","at":1771325076000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b33-cd78-7253-b739-bc9e43e9b76a","at":1771325083000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6b33-d37d-71e2-9c90-d7efcf132dfb","at":1771325084541000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6b33-f488-7f60-944c-abb70045ef67","at":1771325093000000000,"seq":543,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6b33-f870-7a2f-972e-61a7481437dc","at":1771325094000000000,"seq":544,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

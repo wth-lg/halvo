@@ -1,0 +1,21 @@
+{"v":1,"id":"019c7f3b-ca2c-7dfd-9546-c4c6209ae1e9","at":1771661150764000000,"seq":854,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f3b-ca2c-7a8a-8518-f17fd013a497","at":1771661150764000000,"seq":855,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7f3b-d6d0-75ac-bc54-3c4fcb467a47","at":1771661154000000000,"seq":856,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7f3b-ea58-75de-a7e7-ad8124acbda9","at":1771661159000000000,"seq":857,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f3b-ee40-7d80-8ea7-e2c1603685b0","at":1771661160000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f3c-30a8-7d03-9e87-688351191738","at":1771661177000000000,"seq":859,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7f55-a914-707c-9a59-d49d55a32435","at":1771662846228000000,"seq":860,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c7f56-6205-7e4b-9794-660f8255c198","at":1771662893573000000,"seq":861,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c7f56-63b0-759b-95b0-0702475a9158","at":1771662894000000000,"seq":862,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f56-7738-73ac-aae9-fd2ad17245c7","at":1771662899000000000,"seq":863,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f56-9290-7892-a9ef-427c75f05c8f","at":1771662906000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f62-ec88-7e88-bf0c-c0ae35206251","at":1771663715464000000,"seq":865,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7f62-ec88-7d6a-af88-736365fca3da","at":1771663715464000000,"seq":866,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7f63-4490-7e95-8922-d4aa9d139069","at":1771663738000000000,"seq":867,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f63-92b0-7692-8b56-716142ac07f4","at":1771663758000000000,"seq":868,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7f63-aa20-75d6-9d63-bf83e7cbb9b9","at":1771663764000000000,"seq":869,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c7f63-b9c0-7abc-a5cd-e0d8e77dbbe2","at":1771663768000000000,"seq":870,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f68-6569-72f7-8b30-f3922cd057c7","at":1771664074089000000,"seq":871,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f68-6569-7f53-8cdd-c43cdd90f1d6","at":1771664074089000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7f68-9008-795c-aa39-857ce618d7a3","at":1771664085000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f68-b718-7dbe-b96f-ece9c09fd2e7","at":1771664095000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

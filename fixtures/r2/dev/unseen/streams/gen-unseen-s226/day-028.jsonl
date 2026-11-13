@@ -1,0 +1,42 @@
+{"v":1,"id":"019c041d-30ea-757a-bd85-93ed908df07d","at":1769595547882000000,"seq":370,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c041d-30ea-7ad6-b47d-35494cd12d31","at":1769595547882000000,"seq":371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c041d-6bf8-7f4a-9676-1ef6b93c7ab8","at":1769595563000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c041d-8368-741c-a49a-ffa0d8881544","at":1769595569000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c041d-9308-7873-a369-af5798750e56","at":1769595573000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c041d-98ed-7ec5-80b0-01ef7ba74e85","at":1769595574509000000,"seq":375,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c041d-ae60-7819-88c9-278e29b7a7ea","at":1769595580000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c041d-e510-7eaa-88e2-227c97bd7c23","at":1769595594000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c041e-46b8-7564-9e88-8c522713e0a3","at":1769595619000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c041e-8a57-7678-9149-d4db65b0a479","at":1769595636311000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c041e-98c0-795a-af96-c46faed2b59d","at":1769595640000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c041e-b418-78f5-abd6-0fdb4fd9e990","at":1769595647000000000,"seq":381,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c041e-c378-712c-ab1a-09b5035ce2d1","at":1769595650936000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c041e-db28-7608-8718-f1781083c181","at":1769595657000000000,"seq":383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c041f-11d8-73fb-bdc1-0ab7101915d7","at":1769595671000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c041f-19a8-7390-9179-f015888e3a91","at":1769595673000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0423-5fa5-77e6-874d-9ef5972fc9ea","at":1769595953061000000,"seq":386,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c0423-8290-752b-a275-1927b057f832","at":1769595962000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0423-8a60-7275-95f2-0b3c9c1821dc","at":1769595964000000000,"seq":388,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0423-fba8-7626-a169-c414ec61615b","at":1769595993000000000,"seq":389,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0432-39ee-72af-9f0e-73f69f8b4b89","at":1769596926446000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c0432-4000-74df-9438-66376a424bcd","at":1769596928000000000,"seq":391,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0446-3463-7e4c-ab66-fc08c0a08cc1","at":1769598235747000000,"seq":392,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c0446-3560-73ad-bd78-7ecbeb740944","at":1769598236000000000,"seq":393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0446-be18-7f88-9a52-9fea6bc6dd24","at":1769598271000000000,"seq":394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c0446-d1a0-7291-88f0-16ca70a72822","at":1769598276000000000,"seq":395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0446-d355-7dd8-8e3e-ff43e0a1c749","at":1769598276437000000,"seq":396,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c0447-8938-785c-ba03-9fa2b4e075df","at":1769598323000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c0447-8ac3-72ea-ad75-bca5b6b90a51","at":1769598323395000000,"seq":398,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c0447-c3d0-775d-9636-ba4873b70180","at":1769598338000000000,"seq":399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0447-df28-710a-bbeb-66661d26f56a","at":1769598345000000000,"seq":400,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0448-0e08-7c70-b6ff-109a436a28e3","at":1769598357000000000,"seq":401,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0448-14a9-797d-a2d0-a24175814858","at":1769598358697000000,"seq":402,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c0448-15d8-7d71-9ce8-00c570cbe57b","at":1769598359000000000,"seq":403,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0448-b600-75a1-a108-b8a5ec7e25db","at":1769598400000000000,"seq":404,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0449-2087-7d3a-b322-8ff2ef172185","at":1769598427271000000,"seq":405,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c0449-3300-7b52-bf5f-5377851869fd","at":1769598432000000000,"seq":406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0449-8120-7353-b352-eeaf30fc3530","at":1769598452000000000,"seq":407,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0449-a38d-74ac-80b2-94d724ac8b9c","at":1769598460813000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c0449-b000-78bd-b1b5-3dd997741441","at":1769598464000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0449-ee80-7326-a224-4f5f6e8baf43","at":1769598480000000000,"seq":410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c044a-8ea8-7e23-90eb-6c6ab1361fc4","at":1769598521000000000,"seq":411,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

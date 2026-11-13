@@ -1,0 +1,15 @@
+{"v":1,"id":"019c37a8-eb94-77a6-8226-4acf4b45e280","at":1770460343188000000,"seq":584,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c37a8-eb94-780a-bf28-8d2310e0bda0","at":1770460343188000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c37a8-fe60-755a-a7cc-78e69a0cd990","at":1770460348000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c37a9-26eb-763f-9190-3f5fada986f4","at":1770460358379000000,"seq":587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c37a9-67d8-73aa-a687-27518107b694","at":1770460375000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37a9-7778-7a28-831b-85ad75ab8aca","at":1770460379000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c37a9-9e88-7962-b94f-cdac839f59a0","at":1770460389000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c37a9-bf52-7ca6-bf48-3deeaec5bab1","at":1770460397394000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c37a9-c980-787a-892d-b7cc7c68b3a5","at":1770460400000000000,"seq":592,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c37a9-f860-7908-a977-9fdb04776385","at":1770460412000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c37aa-13b8-703d-ac69-86e02195ee5b","at":1770460419000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37aa-6d90-7c98-932e-af5373b8d864","at":1770460442000000000,"seq":595,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c37aa-7dc9-7103-be2f-70a7107acc09","at":1770460446153000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c37b1-e65c-7d89-b76e-600c8e4c6f6a","at":1770460931676000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c37b2-35c0-7a83-a00c-ef92cdb5fb4c","at":1770460952000000000,"seq":598,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

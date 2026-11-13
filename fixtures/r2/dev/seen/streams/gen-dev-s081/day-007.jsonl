@@ -1,0 +1,20 @@
+{"v":1,"id":"019b975a-8bcc-745c-b271-f410e2f8b643","at":1767770852300000000,"seq":82,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b975a-8bcc-7520-bde8-e5d543b6399d","at":1767770852300000000,"seq":83,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b975a-d8c0-722e-869c-7078bfbf395f","at":1767770872000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b975a-e478-7722-b816-934b70e86800","at":1767770875000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9771-4c45-766c-b486-db3dc223262e","at":1767772343365000000,"seq":86,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9771-4c45-7c60-a6c3-fea4a0457904","at":1767772343365000000,"seq":87,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9771-a4b0-766c-b22a-f5dc8f6770ef","at":1767772366000000000,"seq":88,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977c-0f64-7adb-b231-44e488d848c3","at":1767773048676000000,"seq":89,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b977c-0f64-71df-89c3-a917ff93c23c","at":1767773048676000000,"seq":90,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b977c-37b8-716f-b78c-c0c8fdc95e81","at":1767773059000000000,"seq":91,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b977c-9bb3-789f-bd9f-50a23655b393","at":1767773084595000000,"seq":92,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b977c-b4b8-7151-b2db-0aef420af90c","at":1767773091000000000,"seq":93,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b977c-dfb0-7cfe-8aff-d35b53f92629","at":1767773102000000000,"seq":94,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b977d-0aa8-751d-888d-36c2fa47fae3","at":1767773113000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b9794-2e6f-7af9-8b86-dd51285218ef","at":1767774629487000000,"seq":96,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b9794-43f8-7da5-baea-07957fc3d251","at":1767774635000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9794-9dd0-7b34-85f8-b00c982851b4","at":1767774658000000000,"seq":98,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9794-a1b8-7cf1-ac6e-49a49939c51c","at":1767774659000000000,"seq":99,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b9795-16e8-788e-9333-b22bb85727d3","at":1767774689000000000,"seq":100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9795-22a0-73c5-9a7a-b3584ce23228","at":1767774692000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,26 @@
+{"v":1,"id":"019b9d0b-8890-7f18-8bd4-019de309c349","at":1767866337424000000,"seq":42,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9d0b-8890-7c58-a34c-4efff1277eed","at":1767866337424000000,"seq":43,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9d25-5cc2-7373-9d9a-44f9b32262a3","at":1767868030146000000,"seq":44,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b9d25-b9f0-7972-88a0-5883706ab7e7","at":1767868054000000000,"seq":45,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b9d26-06c2-7cb5-9cb9-ab1ead636df7","at":1767868073666000000,"seq":46,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b9d26-7570-70f9-988c-c628d6146976","at":1767868102000000000,"seq":47,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b9d26-94b0-754b-b2c9-8c22bdf2cba1","at":1767868110000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d26-ac20-7314-9422-5527a80d354f","at":1767868116000000000,"seq":49,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9d26-f4ed-760c-ae87-1bf51f87e498","at":1767868134637000000,"seq":50,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b9d27-0dc8-790d-9ffc-f45e274c168b","at":1767868141000000000,"seq":51,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9d27-39c9-7d88-b221-67cb7b96e31c","at":1767868152265000000,"seq":52,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b9d27-c178-787a-9914-d71f68e30912","at":1767868187000000000,"seq":53,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9d28-2320-7659-9a4b-1f13202cc671","at":1767868212000000000,"seq":54,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9d29-5b1d-7237-bc0f-6af5484e3536","at":1767868291869000000,"seq":55,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b9d29-6758-72cf-ac0c-08840dd5b62f","at":1767868295000000000,"seq":56,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d2a-1b08-7a75-be47-05261e408b58","at":1767868341000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d2a-1b08-79e0-9d90-167115232f71","at":1767868341000000000,"seq":58,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b9d2a-3378-7391-8fdb-fe5b83a282ad","at":1767868347256000000,"seq":59,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b9d2a-3660-7802-9f5b-d9aa8d7bbad9","at":1767868348000000000,"seq":60,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9d2a-8480-7e4f-8d9c-250654a2a8ab","at":1767868368000000000,"seq":61,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b9d2a-9fd8-7964-b4ef-99f1437856d6","at":1767868375000000000,"seq":62,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d2a-a0f6-794d-98b0-a52c53b114b4","at":1767868375286000000,"seq":63,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b9d2a-ceb8-7f22-a4de-b2e28527625a","at":1767868387000000000,"seq":64,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b9d2a-de58-7b73-8ed9-413b3cb74bbd","at":1767868391000000000,"seq":65,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d2b-99d8-798a-ace8-b963ef406001","at":1767868439000000000,"seq":66,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9d2b-9dc0-76d4-b64d-656585ea30bc","at":1767868440000000000,"seq":67,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

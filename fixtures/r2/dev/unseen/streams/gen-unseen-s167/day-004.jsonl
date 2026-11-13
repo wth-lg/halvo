@@ -1,0 +1,15 @@
+{"v":1,"id":"019b8857-bb29-7975-adc8-f29d115c5bc5","at":1767519009577000000,"seq":90,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8857-bb29-7ee4-9eba-71f57edf26a0","at":1767519009577000000,"seq":91,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b8857-c4a0-7a3c-814a-2cc40787465c","at":1767519012000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8857-c888-7346-8c35-7ecb2ada01a9","at":1767519013000000000,"seq":93,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8859-5460-7c85-9cb6-aaae43de8020","at":1767519114336000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8859-9960-7d66-b157-267ff74a0615","at":1767519132000000000,"seq":95,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8859-a518-7ae6-9c4a-f3d68af66056","at":1767519135000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8859-d3f8-777a-908c-0a1761c79053","at":1767519147000000000,"seq":97,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8859-da80-705a-a04d-20adaf8d9b8d","at":1767519148672000000,"seq":98,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8859-fb08-7452-9641-97e4100ca861","at":1767519157000000000,"seq":99,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b885a-2218-7831-8029-8b12c97b3905","at":1767519167000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8864-9a85-784f-8482-b0c082289e1d","at":1767519853189000000,"seq":101,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8864-9a85-7ab4-87e6-b602311d867b","at":1767519853189000000,"seq":102,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8864-b520-7c2b-85b1-4d204d067bf0","at":1767519860000000000,"seq":103,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8864-ff58-7a26-934b-9eadfe1fc054","at":1767519879000000000,"seq":104,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

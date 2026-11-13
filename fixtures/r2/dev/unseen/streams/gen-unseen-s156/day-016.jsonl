@@ -1,0 +1,44 @@
+{"v":1,"id":"019bc66b-8319-748f-abea-02363999e3e1","at":1768560493337000000,"seq":229,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc66b-8319-7b4f-bb15-eac91eb8f63f","at":1768560493337000000,"seq":230,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc66b-9938-79bd-90bc-272c795b5b0b","at":1768560499000000000,"seq":231,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bc66b-b878-7cd8-8e1d-61f81964e4bd","at":1768560507000000000,"seq":232,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bc66b-d7b8-7a06-a434-73a691ba499d","at":1768560515000000000,"seq":233,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bc66b-ef28-7317-b69f-2a7c96791670","at":1768560521000000000,"seq":234,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc672-1600-70ed-b7fe-e842366c5292","at":1768560924160000000,"seq":235,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc672-1600-7186-8b1b-e531fd5d4cc8","at":1768560924160000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bc672-7af0-71ea-a47e-85d320fd41fc","at":1768560950000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc672-9172-7b3b-ba88-2febd2afb31e","at":1768560955762000000,"seq":238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bc672-9a30-7764-9ee9-05d1ae176313","at":1768560958000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bc672-b970-7e31-a6ad-86e2ec278188","at":1768560966000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc672-bd58-76eb-939b-728641cf16b9","at":1768560967000000000,"seq":241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc672-c140-7165-8cfd-85f6b0c9b0bd","at":1768560968000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc672-d8b0-7260-9d4a-768a1ee8d116","at":1768560974000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc672-efae-7619-9b2e-0057c70010a4","at":1768560979886000000,"seq":244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bc672-f020-7c49-b3f6-6aa7650b0666","at":1768560980000000000,"seq":245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc673-1348-7a91-807a-54dc4ca06688","at":1768560989000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc673-22e8-7f29-83d3-3614f8d1fa36","at":1768560993000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc673-2ffa-70ba-bcc0-d671ac8ab90a","at":1768560996346000000,"seq":248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bc673-a7b8-7ff9-b92d-b2b08df944a4","at":1768561027000000000,"seq":249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc673-aba0-7816-962a-fe38e08bbe6e","at":1768561028000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bc673-f5d8-75c1-ad77-f354c2283e87","at":1768561047000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc684-f7ce-7732-b845-c99732666e75","at":1768562161614000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bc685-4770-7e3c-9f5d-eb2eb17f8c94","at":1768562182000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc685-5ee0-747c-945d-f9edc0213b5c","at":1768562188000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bc685-a5c3-7d0b-a37c-253e7d3601d2","at":1768562206147000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bc685-c858-7fbf-954e-74293b8f4cb3","at":1768562215000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc685-d7f8-7e62-9e66-8ba1e324202b","at":1768562219000000000,"seq":257,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc685-e798-7115-abd4-b45fdab658a1","at":1768562223000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc686-4940-70cd-b9f9-903f4b7cd8d5","at":1768562248000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc686-854e-7d2c-8da6-22ed89734ba0","at":1768562263374000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bc686-9f30-72fb-948c-e38f77b0d275","at":1768562270000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bc686-e198-7b0e-85c8-ba9d3cc2b8f4","at":1768562287000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc687-2fb8-7803-a7d5-cb9771cfd475","at":1768562307000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc687-69de-7722-891a-808643067a34","at":1768562321886000000,"seq":264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bc692-6c93-7340-9989-0b28ebe610cb","at":1768563043475000000,"seq":265,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc692-6c93-7cb9-b471-aa1a02b5d3d7","at":1768563043475000000,"seq":266,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc693-35d8-78ca-b78e-c1a993b0fb21","at":1768563095000000000,"seq":267,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bc6a2-582e-7fbc-b3fa-536917d48ed2","at":1768564086830000000,"seq":268,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc6a2-582e-7335-a097-d905632d609b","at":1768564086830000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bc6a2-6490-77c0-b620-98e8621164d9","at":1768564090000000000,"seq":270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc6a2-83d0-7fcb-9007-8953ebde6330","at":1768564098000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc6a2-8f88-7a71-be98-cc1577a09954","at":1768564101000000000,"seq":272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

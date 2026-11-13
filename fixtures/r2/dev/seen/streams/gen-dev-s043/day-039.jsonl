@@ -1,0 +1,11 @@
+{"v":1,"id":"019c3c67-8394-7090-af3d-6830caf312b0","at":1770539942804000000,"seq":729,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c67-8394-7f90-bd9b-f1de01decfe0","at":1770539942804000000,"seq":730,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c3c67-dfeb-7f51-9790-dadb23b39108","at":1770539966443000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c3c68-1cb0-7f49-91cc-7fda15b8d45b","at":1770539982000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c3c68-dca4-7df5-af62-56085b45641f","at":1770540031140000000,"seq":733,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c3c68-ff40-7f00-be74-ad8f05d7d9b3","at":1770540040000000000,"seq":734,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3c69-4978-7e5c-a8b0-c9d24fc85004","at":1770540059000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c69-60e8-711b-a647-fa0df84680da","at":1770540065000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3c69-73f0-79b3-9c55-f8d6d65a10d8","at":1770540069872000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c3c69-ce48-7374-9ba4-c3cf58e5333d","at":1770540093000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c3c6a-1880-728c-bfce-31b4067ffba7","at":1770540112000000000,"seq":739,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

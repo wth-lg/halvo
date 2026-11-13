@@ -1,0 +1,21 @@
+{"v":1,"id":"019d0fbb-8718-7662-b6c4-beeb07ebb831","at":1774085441304000000,"seq":967,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0fbb-8718-7a70-a78c-a1474b9e18c0","at":1774085441304000000,"seq":968,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0fbb-c468-7f43-ab9d-6ddbd30089db","at":1774085457000000000,"seq":969,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fc0-c881-7954-8e73-ed43b6540562","at":1774085785729000000,"seq":970,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fc0-c881-7738-a85a-2a5af48a3dfe","at":1774085785729000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d0fc1-6495-7f51-911e-485c72eb2169","at":1774085825685000000,"seq":972,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d0fc1-b008-7b29-9407-3903db97d3df","at":1774085845000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fc2-38c0-7e0d-90a3-1ab3ef7ace95","at":1774085880000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fc2-3ee6-7d96-8f99-d2d6ac1683f9","at":1774085881574000000,"seq":975,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d0fc2-4090-798e-832e-81b9375f0892","at":1774085882000000000,"seq":976,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0fc2-5030-77ce-9b61-0c604a2ed779","at":1774085886000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fc2-5fd0-74cb-99f8-adc584ca3f3a","at":1774085890000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fc2-6f70-7e93-a03d-a824430d4048","at":1774085894000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0fc2-6f70-7a0c-97d2-422c5c818de9","at":1774085894000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0fc2-761c-7931-aab1-f489c8640649","at":1774085895708000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0fc3-03e0-7066-a0c1-f176012a3903","at":1774085932000000000,"seq":982,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0fc3-1b50-7298-b252-2f5871e6b174","at":1774085938000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fc3-3e78-794d-9da8-19d0559c6db6","at":1774085947000000000,"seq":984,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0fc3-4864-7704-aac1-1f0328d63832","at":1774085949540000000,"seq":985,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d0fc3-7140-73cb-a823-2bae30c1294c","at":1774085960000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fc3-c730-7247-90f0-cdc6f27accc2","at":1774085982000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

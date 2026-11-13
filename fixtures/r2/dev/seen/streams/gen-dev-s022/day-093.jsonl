@@ -1,0 +1,11 @@
+{"v":1,"id":"019d52d0-232b-718e-808f-3c86773a30b2","at":1775210865451000000,"seq":1468,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52d0-232b-7795-8bf1-99b2e64bb359","at":1775210865451000000,"seq":1469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d52d0-92b0-7171-b29b-79406ce6c101","at":1775210894000000000,"seq":1470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d52d0-cd48-7962-88e1-cd5e47a4308b","at":1775210909000000000,"seq":1471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52d0-dd62-737a-8da9-5b9a9657651e","at":1775210913122000000,"seq":1472,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d52d0-e8a0-7d40-aa12-13939141afa2","at":1775210916000000000,"seq":1473,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52d1-07e0-775e-9481-11caba403813","at":1775210924000000000,"seq":1474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52d1-26cf-732d-ad24-4b15a63dadf3","at":1775210931919000000,"seq":1475,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d52d1-4660-76de-8be7-79b90f45db25","at":1775210940000000000,"seq":1476,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52d1-59e8-798a-9b0a-0463c99e639c","at":1775210945000000000,"seq":1477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52d1-8cb0-7340-bfee-26243f092c1d","at":1775210958000000000,"seq":1478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

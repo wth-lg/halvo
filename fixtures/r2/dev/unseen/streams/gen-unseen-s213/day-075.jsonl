@@ -1,0 +1,37 @@
+{"v":1,"id":"019cf5c6-9e23-7477-a61c-88886c8b5efb","at":1773649960483000000,"seq":1074,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5c6-9e23-7144-a9d6-c48b8fcbd024","at":1773649960483000000,"seq":1075,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c6-cb20-7cb2-8d99-d33d1737a4ab","at":1773649972000000000,"seq":1076,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf5cd-8d85-7fd5-aa20-731000cf6289","at":1773650414981000000,"seq":1077,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cd-acd8-7186-a1ec-14b576cedbaf","at":1773650423000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf5cd-e770-76ce-a894-d926f436770a","at":1773650438000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cd-faf8-7c54-928a-4468b5edf321","at":1773650443000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ce-0d47-747c-8fa9-1a1d1e48f0a0","at":1773650447687000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ce-25f0-73b2-9ea1-6c84178db193","at":1773650454000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cf5ce-29d8-7c1f-a7c4-b88974de3256","at":1773650455000000000,"seq":1083,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf5ce-d1ee-7592-8eaf-3fd30c927ad7","at":1773650498030000000,"seq":1084,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cf-31c5-746c-9bd8-33517c5a2c95","at":1773650522565000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cf-4ed0-77a9-8a77-3af5ef3d07ad","at":1773650530000000000,"seq":1086,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cf-7db0-7de6-87ad-26ea8bb83ea0","at":1773650542000000000,"seq":1087,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf5e7-567b-7210-ae80-2b050ebe6254","at":1773652104827000000,"seq":1088,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cf5e7-7280-7ce9-af7c-307a343134ec","at":1773652112000000000,"seq":1089,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5e7-b100-78c0-bd50-b7a4f49874d0","at":1773652128000000000,"seq":1090,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cf5e7-ef80-7a51-981b-4029d9441624","at":1773652144000000000,"seq":1091,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf5e7-fb38-7ee5-97c0-6c32cef9b9fa","at":1773652147000000000,"seq":1092,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf5fb-ff57-7efe-a2d3-bd3982e3a4ff","at":1773653458775000000,"seq":1093,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cf5fc-9c78-72c6-93e9-2964f4046aee","at":1773653499000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf60b-79b8-7ead-851a-48230bd96bc0","at":1773654473144000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cf60b-a808-7087-9922-ab88f5666d60","at":1773654485000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf60b-c748-7d92-8fd6-4a59b3fcde05","at":1773654493000000000,"seq":1097,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf60b-ec52-7d5e-b5fd-e670ddc99fa3","at":1773654502482000000,"seq":1098,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cf60c-09b0-75a3-8a61-3e3c254585d2","at":1773654510000000000,"seq":1099,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf60c-6770-7023-806e-619f5028bbba","at":1773654534000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cf60c-dbee-75ff-8d9a-20589f4688fe","at":1773654563822000000,"seq":1101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cf60c-fbe0-7000-bd24-3020635481cd","at":1773654572000000000,"seq":1102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf60d-55b8-7fa3-bdd1-12a8bd20ce25","at":1773654595000000000,"seq":1103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cf60d-7cc8-7b90-a19a-20cc6ed44074","at":1773654605000000000,"seq":1104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf60d-c431-7e94-877e-49a292d268c1","at":1773654623281000000,"seq":1105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cf60d-de70-7966-b6e6-3aa6a4b08796","at":1773654630000000000,"seq":1106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf60d-ea28-7a48-81b9-d0f6d966fd34","at":1773654633000000000,"seq":1107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cf60e-3c30-7257-82d2-dec2f410335a","at":1773654654000000000,"seq":1108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf60e-53a0-7310-8cfa-fb10a980850a","at":1773654660000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf60e-b930-71e1-8ba8-d98958edcb62","at":1773654686000000000,"seq":1110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

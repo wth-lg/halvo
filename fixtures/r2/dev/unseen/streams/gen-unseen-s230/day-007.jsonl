@@ -1,0 +1,18 @@
+{"v":1,"id":"019b97c1-4126-758b-8c3c-673d761e2ceb","at":1767777583398000000,"seq":60,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97c1-4126-776b-9030-af731ab296a0","at":1767777583398000000,"seq":61,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b97c1-a140-7c5d-9dab-bedf2fbf4fa7","at":1767777608000000000,"seq":62,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c1-dbd8-7a1e-8411-c5161177366e","at":1767777623000000000,"seq":63,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c1-fc42-7cbb-84ce-939092eb65c2","at":1767777631298000000,"seq":64,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b97c2-06d0-7e3e-bc8d-06c62b3a49ac","at":1767777634000000000,"seq":65,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b97c2-4938-780e-86ea-11eb864eac2a","at":1767777651000000000,"seq":66,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b97c2-a4ec-72e0-91af-f7498b83a1bf","at":1767777674476000000,"seq":67,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b97c2-f518-7fb3-8271-3a7fc6be96c1","at":1767777695000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b97c3-1d6b-7404-95b6-1db819fc981b","at":1767777705323000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b97c3-79e8-75b1-8d9f-8e0fdbd4ac08","at":1767777729000000000,"seq":70,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b97c3-8d70-7e70-b68b-30666f8ac020","at":1767777734000000000,"seq":71,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b97cb-a659-7b42-81c4-032a221c3ca5","at":1767778264665000000,"seq":72,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b97cb-a659-76fb-a5b6-e1bd74eda281","at":1767778264665000000,"seq":73,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b97cb-c6e8-724b-be11-43192e68d1af","at":1767778273000000000,"seq":74,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97cb-f9b0-76fb-8f04-1c9e60104fe7","at":1767778286000000000,"seq":75,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b97cb-fd98-7f89-8118-dca614cb10f3","at":1767778287000000000,"seq":76,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b97cc-1cd8-7b92-a0e8-66edda03f81e","at":1767778295000000000,"seq":77,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

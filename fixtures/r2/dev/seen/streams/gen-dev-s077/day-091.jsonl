@@ -1,0 +1,12 @@
+{"v":1,"id":"019d4879-a623-79ec-b0c5-82ed71fda3e4","at":1775037425187000000,"seq":1500,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4879-a623-76ce-95cb-89bb7d52be22","at":1775037425187000000,"seq":1501,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d487a-0ee0-7aa1-bb86-acb823bea887","at":1775037452000000000,"seq":1502,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d487a-3dc0-7766-9a7e-4cfa4be80f84","at":1775037464000000000,"seq":1503,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d487a-9f44-74f0-a5eb-057eeae58514","at":1775037488964000000,"seq":1504,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4894-e57b-72ff-b0df-4d3a3a8cffec","at":1775039210875000000,"seq":1505,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4894-e57b-7d2f-b7ff-57cd86e73c71","at":1775039210875000000,"seq":1506,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4895-2090-7e52-8756-55e6b7273a4d","at":1775039226000000000,"seq":1507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4895-4f70-75f7-9c9e-42c4532b7c9c","at":1775039238000000000,"seq":1508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4895-62f8-759b-aa5c-bb6cd755ebe1","at":1775039243000000000,"seq":1509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4895-66e0-75f2-99c8-0153467d4669","at":1775039244000000000,"seq":1510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d4895-b8e8-7c66-9a22-42bb0af4a6aa","at":1775039265000000000,"seq":1511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

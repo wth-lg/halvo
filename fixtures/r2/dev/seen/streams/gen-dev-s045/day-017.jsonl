@@ -1,0 +1,42 @@
+{"v":1,"id":"019bcb5d-5505-7cf0-9e90-9fe52325d8c4","at":1768643450117000000,"seq":223,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb5d-5505-7c30-9a71-36b56b643b73","at":1768643450117000000,"seq":224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bcb5d-77b8-71ac-a18a-005aa17cefd1","at":1768643459000000000,"seq":225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb5d-9ae0-71d2-b22c-5980208d288e","at":1768643468000000000,"seq":226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb5d-c161-73a7-a364-593a7f38cb34","at":1768643477857000000,"seq":227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bcb5d-c5d8-7a5d-a252-be081a2bb423","at":1768643479000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bcb5d-e900-7dec-82fe-f898bb4da5a2","at":1768643488000000000,"seq":229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb5e-13f8-7b1c-a690-9166f84d89ac","at":1768643499000000000,"seq":230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb5e-164f-7cb2-be85-f374a7ffd423","at":1768643499599000000,"seq":231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bcb5e-7988-7ba1-9a5a-cccacf673b14","at":1768643525000000000,"seq":232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb5e-df18-7387-bf11-7672e1c871d7","at":1768643551000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb5f-0628-733c-a816-f1a45fa6f152","at":1768643561000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bcb5f-1e05-7922-bec8-3b682a9e3fa2","at":1768643567109000000,"seq":235,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bcb5f-40c0-7bf2-9e6c-eac05d4cecda","at":1768643576000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb5f-6000-75ab-8c62-596e4b3386cf","at":1768643584000000000,"seq":237,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb5f-d530-703d-8b74-f06937ae7e26","at":1768643614000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb5f-efd2-7849-8269-08d5fa379337","at":1768643620818000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bcb60-4678-7c5a-b89b-f723e38b1600","at":1768643643000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb60-4a60-7b09-97e2-84e5ea0a7588","at":1768643644000000000,"seq":241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb60-74d0-793a-937a-8d65cb4d2ac3","at":1768643654864000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bcb6f-9967-7606-8eb0-0c4729c5dbd2","at":1768644647271000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bcb6f-dea8-728b-8e02-13d3d3a2f132","at":1768644665000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb6f-dea8-7eb4-8cbd-39775fe4ef0b","at":1768644665000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bcb6f-e290-7e04-bcd7-fc6af4bf20fd","at":1768644666000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb70-7297-7c20-aba9-80e85d789512","at":1768644702871000000,"seq":247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bcb70-82b8-77d1-a4b7-1c47b47c2c12","at":1768644707000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb70-9640-7896-a02a-85bec6f64eaf","at":1768644712000000000,"seq":249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb70-a9c8-78be-8d7e-9c9644201f95","at":1768644717000000000,"seq":250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bcb70-ae92-78ff-bfd1-97fa603503ee","at":1768644718226000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bcb70-dc90-76ae-895a-f8c535eb038e","at":1768644730000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb70-ec30-795d-aaec-12f30e7088fa","at":1768644734000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bcb70-ff8a-73c6-b8bd-8830fe73ba33","at":1768644738954000000,"seq":254,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bcb89-df10-7add-8576-f842abe0430d","at":1768646369040000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bcb8a-bcc4-706e-8794-a3acb80d7125","at":1768646425796000000,"seq":256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bcb8a-d500-76c7-9e09-4caea6bb5158","at":1768646432000000000,"seq":257,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb8a-e0b8-73d2-abd0-52cdccf9785e","at":1768646435000000000,"seq":258,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb8a-e4a0-77f6-8abe-70ff1d7fd4c8","at":1768646436000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bcb8a-e888-739c-9885-c1fde1274ace","at":1768646437000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb8b-22e7-7c65-839f-1a667a00bf06","at":1768646451943000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bcb8b-3a90-7d16-88ff-800b6e0233e3","at":1768646458000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb8b-4a30-70cb-a70c-b2e2f01653ae","at":1768646462000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb8b-afc0-7f6e-9130-2db1f197525a","at":1768646488000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

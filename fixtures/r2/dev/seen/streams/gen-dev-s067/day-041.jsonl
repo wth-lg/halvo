@@ -1,0 +1,21 @@
+{"v":1,"id":"019c46b3-44a8-7a0f-9b1e-e3d81ab61ee9","at":1770712679592000000,"seq":624,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c46b3-44a8-7155-914d-a7ce8ff5f24a","at":1770712679592000000,"seq":625,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c46b3-5db0-7d58-8e76-bac265fd1a2f","at":1770712686000000000,"seq":626,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c46b3-7138-7955-8aa1-ac8ee1cbd844","at":1770712691000000000,"seq":627,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46b3-80d8-735b-b4cc-33001d069f63","at":1770712695000000000,"seq":628,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46b3-f9f0-7d17-bff3-ba546a945cb3","at":1770712726000000000,"seq":629,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c46b9-7205-73ea-a07a-5aba2a59dedf","at":1770713084421000000,"seq":630,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c46b9-7205-7727-a1d2-05add0037b2f","at":1770713084421000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c46b9-7448-70f1-b412-82909c851531","at":1770713085000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46b9-ca38-772c-8b46-534ea936be1e","at":1770713107000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46b9-ee8d-72d6-ad51-fce2654a5a34","at":1770713116301000000,"seq":634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c46ba-1088-7568-9530-bbf4c9df5bdd","at":1770713125000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c46ba-2e06-70f6-bea9-2e46f6716190","at":1770713132550000000,"seq":636,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c46ba-89a0-73d0-83f0-7ded0b3b6e78","at":1770713156000000000,"seq":637,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c46bb-1805-7e24-a200-fadf8f926ac1","at":1770713192453000000,"seq":638,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c46bb-3580-7951-beb4-6de4066bb790","at":1770713200000000000,"seq":639,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c46bb-3d50-7556-80ed-3d5108b531e6","at":1770713202000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46bb-7400-770f-b316-b3303a690814","at":1770713216000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46bb-7bd0-7012-9349-81dba32fbdc7","at":1770713218000000000,"seq":642,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c46bb-7e7f-7df0-8991-9b3ee2809a66","at":1770713218687000000,"seq":643,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c46bb-8b70-7537-95a9-10e57bd48723","at":1770713222000000000,"seq":644,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

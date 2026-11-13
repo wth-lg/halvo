@@ -1,0 +1,15 @@
+{"v":1,"id":"019c6070-fe90-7f85-8600-d47254a30158","at":1771144543888000000,"seq":605,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6070-fe90-7c50-a1a3-a797bc0f4d8a","at":1771144543888000000,"seq":606,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6071-54f0-70dd-b354-1d83a1029f20","at":1771144566000000000,"seq":607,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6071-7430-70fa-9157-32b799fb3430","at":1771144574000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6082-b2dc-7aaf-a6ac-9aee1cf72e47","at":1771145704156000000,"seq":609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c6082-e508-7e0f-90de-bc5c8961fe10","at":1771145717000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6082-ecd8-7953-9f4f-9ec7bf350d84","at":1771145719000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6082-eff1-7b80-93b2-f10b093d8025","at":1771145719793000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c6083-5ab7-77f6-9a62-97a1ab4b6393","at":1771145747127000000,"seq":613,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c6083-6208-77f3-b799-4e9e871eed20","at":1771145749000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6083-8918-7a33-9126-e993c9b72006","at":1771145759000000000,"seq":615,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6083-a858-7b87-a134-714bf30b0fc8","at":1771145767000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6083-ab79-7756-bd21-ba28c395eec5","at":1771145767801000000,"seq":617,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c6084-5820-7014-a4e3-033172bdc0de","at":1771145812000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c6084-7378-7596-8d05-50af8a310fa9","at":1771145819000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

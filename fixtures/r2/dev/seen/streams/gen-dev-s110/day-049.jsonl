@@ -1,0 +1,37 @@
+{"v":1,"id":"019c6f9a-e8bc-747a-a0e2-274d9b766be5","at":1771398949052000000,"seq":593,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6f9a-e8bc-7f5c-86e6-446c8417a247","at":1771398949052000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c6f9a-f440-71de-ad3c-d8d73c1914ab","at":1771398952000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c6f9b-1b50-7e26-83a6-9ab2295d5150","at":1771398962000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6f9b-6970-7872-b200-7143a1d5d42d","at":1771398982000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6f9b-7fe2-7950-b023-3c031b559879","at":1771398987746000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c6f9c-2d74-7615-bb1e-efd67041781c","at":1771399032180000000,"seq":599,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c6f9c-3878-77a8-bad8-ab4bcd61b53d","at":1771399035000000000,"seq":600,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6f9c-4048-798d-8fcf-e95e6f8d4530","at":1771399037000000000,"seq":601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6f9c-76f8-731b-80bb-48a59cfafae6","at":1771399051000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6f9c-9a20-7214-9bc8-3386dc2694c4","at":1771399060000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6f9c-a9c0-7fae-9c84-dfc02c3319e1","at":1771399064000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c6f9c-d453-7b6a-92bb-983eda65e28a","at":1771399074899000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c6f9c-f7e0-7070-9a33-faf32fac6bf0","at":1771399084000000000,"seq":606,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6f9d-1720-79c9-9b21-e84ac04f332d","at":1771399092000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6f9d-55a0-75b5-aaac-a05d715b1f07","at":1771399108000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6f9d-6928-7448-a290-e5e207bc6ce5","at":1771399113000000000,"seq":609,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6fb6-c8ca-7c5a-b16d-dffe8cb9b88e","at":1771400775882000000,"seq":610,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6fb7-55e0-7432-bb98-a1058d962160","at":1771400812000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c6fb7-5802-77fe-97bb-0533b66df790","at":1771400812546000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6fb8-2100-7328-916e-0d618af86722","at":1771400864000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fb8-2ff2-7aac-9307-a75c5328080e","at":1771400867826000000,"seq":614,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6fb8-4810-707c-852c-7c2d809fdd59","at":1771400874000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fb8-5b98-7724-97d5-f9b57408fb51","at":1771400879000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6fb8-5f80-735e-8c24-c2542391f2f8","at":1771400880000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fb8-9a18-7fa3-b0fd-30361539a058","at":1771400895000000000,"seq":618,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6fb8-9ea2-759a-afcc-9c03d1207a12","at":1771400896162000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6fb8-ada0-7a10-b7fa-c14deef0651f","at":1771400900000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6fb8-b188-71e7-9721-af4230dd8bf5","at":1771400901000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fb8-b570-7b67-9949-07ee59d0214d","at":1771400902000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fb8-bd40-7ca6-9d54-d6ed99fa25d4","at":1771400904000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c6fb8-e068-71cc-841e-b5be272f81d4","at":1771400913000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6fb8-e741-7c5d-a076-38bd00ee4a48","at":1771400914753000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc8-968c-7386-ba49-5083788ec72f","at":1771401942668000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc8-ab60-71d2-9b94-0b68f688fe0e","at":1771401948000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6fc8-c6b8-77a2-bf25-e26d4806b3c4","at":1771401955000000000,"seq":628,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6fc9-0920-7079-a360-27c5f3e9110a","at":1771401972000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

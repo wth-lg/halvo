@@ -1,0 +1,12 @@
+{"v":1,"id":"019c1847-2edb-7ae0-805b-051588416861","at":1769933844187000000,"seq":349,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1847-2edb-7f85-a1a1-7d257f024d3c","at":1769933844187000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1847-c678-7c73-9a4f-4c7749117f16","at":1769933883000000000,"seq":351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1847-ce48-7b93-8872-e250b1f4026f","at":1769933885000000000,"seq":352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1859-dbdd-72a1-be39-e2b9589f316d","at":1769935068125000000,"seq":353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c185a-5c48-7afe-932e-0bb5566ea912","at":1769935101000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185a-c1b3-7570-aa19-eac34bca8adf","at":1769935126963000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c185a-cd90-7cce-87e2-63d0dc810726","at":1769935130000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185a-d560-7bf3-a6cc-ef780f3c3595","at":1769935132000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c185a-d948-70ea-999a-b83da006c12e","at":1769935133000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c186d-996a-7d18-8313-69ae5a3bf1ab","at":1769936361834000000,"seq":359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c186e-22c8-72d4-82a9-f9be99419f33","at":1769936397000000000,"seq":360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

@@ -1,0 +1,10 @@
+{"v":1,"id":"019c9469-d514-7139-8e2d-c0c6b45bbf78","at":1772016489748000000,"seq":762,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9469-d514-7876-9227-f7c152385c54","at":1772016489748000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c946a-04f0-7e90-a9e6-307960fd7110","at":1772016502000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c946a-4f28-7777-a378-0fceb6260ffc","at":1772016521000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c946a-838a-7d84-a679-b3a4022fddec","at":1772016534410000000,"seq":766,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c946a-a900-7ed8-9bca-529fde390fa7","at":1772016544000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c946a-c070-78e7-b11a-60024b0c0a22","at":1772016550000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c946a-cca1-7409-9acb-3020531284d2","at":1772016553121000000,"seq":769,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c946b-9ef2-758b-83f7-de30b33bf244","at":1772016606962000000,"seq":770,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c946c-4af8-7565-b38e-7440e8996b96","at":1772016651000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

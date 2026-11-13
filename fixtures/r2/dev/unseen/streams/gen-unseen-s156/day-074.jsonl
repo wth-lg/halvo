@@ -1,0 +1,17 @@
+{"v":1,"id":"019cf09e-2f94-7a0c-b6c4-bee8e4eae8fb","at":1773563424660000000,"seq":1183,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf09e-2f94-7eb8-a45a-326b4d423ea0","at":1773563424660000000,"seq":1184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf09e-86d8-7302-9485-ada392951601","at":1773563447000000000,"seq":1185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf09e-b1d0-7996-841a-6c8b4324c12f","at":1773563458000000000,"seq":1186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ad-3276-75a1-b5c7-3415d075711b","at":1773564408438000000,"seq":1187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ad-6b58-7bbb-91c9-7556f5980eb7","at":1773564423000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ad-9bdc-745d-a111-3774906a210d","at":1773564435420000000,"seq":1189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ad-c530-75ff-b557-438f15fc3301","at":1773564446000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ad-c530-77be-b12d-8bb0e0e18ac5","at":1773564446000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cf0ae-1738-7c64-b190-34973295d699","at":1773564467000000000,"seq":1192,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf0ae-22f0-752e-88d2-f17288e75830","at":1773564470000000000,"seq":1193,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf0ae-22f5-777d-ac12-1548ef8bb9c0","at":1773564470005000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ae-26d8-7965-9331-152ca952827a","at":1773564471000000000,"seq":1195,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf0ae-3290-7a07-a0eb-61dbdcdd878c","at":1773564474000000000,"seq":1196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf0ae-a7c9-7511-9c5c-bde781438e0f","at":1773564504009000000,"seq":1197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ae-aba8-7dab-9788-9e8d287ee420","at":1773564505000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cf0ae-fdb0-75c4-aee0-2c7f3aa63592","at":1773564526000000000,"seq":1199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

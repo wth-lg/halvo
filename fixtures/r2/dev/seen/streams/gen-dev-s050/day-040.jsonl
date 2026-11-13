@@ -1,0 +1,28 @@
+{"v":1,"id":"019c414f-45e2-7888-aceb-23ad4ccfef11","at":1770622240226000000,"seq":416,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c414f-45e2-7bcd-a762-adeedb5806cc","at":1770622240226000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c414f-6440-73a0-8bbb-b62cc8ebcb9f","at":1770622248000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c414f-8b50-79c8-b036-a820cc7aa50a","at":1770622258000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c414f-c2ae-7239-816a-19d87135e57d","at":1770622272174000000,"seq":420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c414f-d970-7af8-94c3-e0673ce87850","at":1770622278000000000,"seq":421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4150-7d80-7b3e-a9d0-6bf64b6fbd6a","at":1770622320000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4150-aad8-7d60-8e25-d23d2d43feda","at":1770622331608000000,"seq":423,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4151-461f-7ba8-ba66-dd0f8cfbf54e","at":1770622371359000000,"seq":424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4151-c988-7094-ba02-6fb9175123ab","at":1770622405000000000,"seq":425,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4151-e0f8-76c7-82b3-502dd9c68878","at":1770622411000000000,"seq":426,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c4162-97a4-74f3-90a3-192a324d62ec","at":1770623506340000000,"seq":427,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4162-97a4-762b-888a-e4de0ec38e35","at":1770623506340000000,"seq":428,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4162-a9d8-7d54-87a8-6747d17695bf","at":1770623511000000000,"seq":429,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4163-1b20-7c9c-862a-bd76b7358691","at":1770623540000000000,"seq":430,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c416a-37cf-709e-9142-4f2522934a70","at":1770624006095000000,"seq":431,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c416a-37cf-74f3-a957-d639eeef3e97","at":1770624006095000000,"seq":432,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c416a-aca0-7a87-b7ff-9a761754831e","at":1770624036000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c4182-e7a4-7da5-92b9-f5be1275247e","at":1770625623972000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c4182-ef90-7bfb-8971-0c69848105e1","at":1770625626000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c4183-b3c0-7452-8a3c-5b14bd1baf90","at":1770625676224000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4183-e990-7bb9-ab12-427e908c56fa","at":1770625690000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4183-f548-7bf2-9c2b-395775a7d89a","at":1770625693000000000,"seq":438,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4184-3b6d-7179-bd55-f950b7095add","at":1770625710957000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c4184-56f0-7b92-bc19-283c33241477","at":1770625718000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4184-5ad8-7b33-8204-491d8903f345","at":1770625719000000000,"seq":441,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4184-7a18-7c82-8358-7d36ea1d359c","at":1770625727000000000,"seq":442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4184-85d0-7aa3-946a-9e3d109fbf40","at":1770625730000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

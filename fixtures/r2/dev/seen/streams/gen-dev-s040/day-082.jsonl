@@ -1,0 +1,25 @@
+{"v":1,"id":"019d1a57-6a77-7465-8325-565d9c261bc8","at":1774263429751000000,"seq":1053,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1a57-6a77-72fb-9e31-2a2fa5c0af23","at":1774263429751000000,"seq":1054,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d1a58-562c-76a3-a3ff-d8e74a97165c","at":1774263490092000000,"seq":1055,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d1a58-78f8-7057-8f78-356940377a66","at":1774263499000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a58-80c8-7148-998f-d7151756ab36","at":1774263501000000000,"seq":1057,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d1a58-8c80-7fbb-b158-ee59ed7d3c43","at":1774263504000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a58-a17b-77ab-9325-9ed5bf7d08ed","at":1774263509371000000,"seq":1059,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d1a58-bb60-75a6-9dd2-bf6e0273914a","at":1774263516000000000,"seq":1060,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1a58-c718-777d-9fc8-5615bc88c68c","at":1774263519000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a58-cb00-78aa-805d-d11f834a53d2","at":1774263520000000000,"seq":1062,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a58-db38-7eef-ba67-7483c50cd840","at":1774263524152000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d1a59-a5c0-748c-8a60-19e37740cb14","at":1774263576000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a59-d77c-77d8-a544-aac7fe954beb","at":1774263588732000000,"seq":1065,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d1a5a-1ed8-786a-b521-c61d86fe74b2","at":1774263607000000000,"seq":1066,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1a5a-2e6a-7f68-9cd0-26a42470172a","at":1774263610986000000,"seq":1067,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d1a5a-3648-7e89-94d1-fb2f03184978","at":1774263613000000000,"seq":1068,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d1a5a-51a0-787c-897e-2def93b0e78c","at":1774263620000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a5a-6910-770a-b2da-811b592785a6","at":1774263626000000000,"seq":1070,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1a5a-b730-75b1-b519-997d925eab86","at":1774263646000000000,"seq":1071,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1a5a-bd29-7771-85d5-7074b96fe166","at":1774263647529000000,"seq":1072,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d1a5a-da58-71ae-b58c-49e16cfe01af","at":1774263655000000000,"seq":1073,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a5b-6ed4-7ef0-a697-95f3857f9b37","at":1774263693012000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d1a5b-8250-7f0a-95d5-7796c55a3672","at":1774263698000000000,"seq":1075,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1a5b-a960-70df-9348-240355d0740d","at":1774263708000000000,"seq":1076,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1a5b-bce8-7909-a9fe-f7d6288ed521","at":1774263713000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

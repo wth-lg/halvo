@@ -1,0 +1,32 @@
+{"v":1,"id":"019bf408-4003-7282-8d9f-285cccaa749e","at":1769325740035000000,"seq":253,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf408-4003-77ff-92ce-5bd8784fc98a","at":1769325740035000000,"seq":254,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf408-5b38-757e-a1e8-3077312d9de6","at":1769325747000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bf408-66f0-7353-9636-5054a8af5b0f","at":1769325750000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf408-72a8-7cc3-b402-b4bde826ecfe","at":1769325753000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf408-9a3b-7256-b8b0-393503790502","at":1769325763131000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf408-b8f8-726a-9001-9f227bb56b91","at":1769325771000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf408-ff48-71f2-bf1d-ca1c4bc1944d","at":1769325789000000000,"seq":260,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf408-ff48-7862-8e17-c98baee63437","at":1769325789000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bf409-16b8-7450-80a4-f3fc5de1f307","at":1769325795000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf409-60f0-7f4d-86be-c2c2f63abae7","at":1769325814000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf409-6b74-7e50-b800-6b924bf21b64","at":1769325816692000000,"seq":264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf409-8030-70c9-bcfb-77dc4739d217","at":1769325822000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf409-ab28-7bde-8a83-f88e4fe40aa3","at":1769325833000000000,"seq":266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf409-beb0-7cca-8e68-dafc9726106f","at":1769325838000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bf409-ed90-7cd2-9ebe-66b69f6fac44","at":1769325850000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf40a-3f98-71ad-8b95-fc6280f8218b","at":1769325871000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf40a-4d81-7f5a-84ca-542d37790ede","at":1769325874561000000,"seq":270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf40a-62c0-728d-bfc6-3e17d76d7dd7","at":1769325880000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bf40a-fefb-76ee-bccd-cbe81432d3b5","at":1769325919995000000,"seq":272,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf40b-2de0-7a14-ae53-02bf2674f675","at":1769325932000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf40b-aae0-71f9-b27d-bb99875e41e3","at":1769325964000000000,"seq":274,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf419-46fb-73aa-823c-bd957533c386","at":1769326855931000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf419-5eb0-74e4-8cab-726d8d830f44","at":1769326862000000000,"seq":276,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf419-e768-717b-8b20-a1ad13c82bc1","at":1769326897000000000,"seq":277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf419-f320-70e9-936a-b71714e138fd","at":1769326900000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bf42e-d695-711b-b727-de82be818a0c","at":1769328268949000000,"seq":279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf42f-1160-770f-9d60-2442dfdd9ed6","at":1769328284000000000,"seq":280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf42f-2aa1-7865-8662-bef2807c7008","at":1769328290465000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf42f-4428-7508-bd9a-d6bfaab98518","at":1769328297000000000,"seq":282,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf42f-4bf8-71e1-a5d9-4f94ef5b2e7f","at":1769328299000000000,"seq":283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf42f-4fe0-7e8a-ab88-acec3b0f9e76","at":1769328300000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

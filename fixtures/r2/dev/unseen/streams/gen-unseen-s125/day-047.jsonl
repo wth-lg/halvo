@@ -1,0 +1,23 @@
+{"v":1,"id":"019c65da-6a25-7a39-837c-27789850a2f2","at":1771235338789000000,"seq":476,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c65da-6a25-7db7-b52d-412e7d1125a5","at":1771235338789000000,"seq":477,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c65da-8e20-7a72-b4eb-318c61a7d184","at":1771235348000000000,"seq":478,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e9-add2-79c4-9705-f1f399b2cf68","at":1771236339154000000,"seq":479,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65e9-add2-73d1-9bba-2a71363c365f","at":1771236339154000000,"seq":480,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c65e9-d448-7322-9c3d-ded8f8b1f8bf","at":1771236349000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e9-f41d-7352-b2a5-bb97785a0662","at":1771236357149000000,"seq":482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c65e9-f770-74d4-b114-03cd09242418","at":1771236358000000000,"seq":483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c65e9-ff40-73fb-9e81-ff037456d520","at":1771236360000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65f5-9147-7532-91bf-ec0e410e90ac","at":1771237118279000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c65f5-9be8-7a1a-a0fd-1d7988b05b83","at":1771237121000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65f5-b358-7980-9225-48f5d31830fc","at":1771237127000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65f5-e620-7a8f-8dba-d840177d4970","at":1771237140000000000,"seq":488,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c65f5-edf0-7ce2-986d-a712eb047059","at":1771237142000000000,"seq":489,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65f6-0560-7ce9-a2cc-32e394b7bd35","at":1771237148000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c660a-8878-7792-81a4-b800af5fe254","at":1771238492280000000,"seq":491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c660b-4d78-7b7d-8b14-041ca2a6fb06","at":1771238542712000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c660c-0630-76fe-a6fa-f0434814721e","at":1771238590000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c660c-19b8-7141-a949-f04ec5314a54","at":1771238595000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c660c-2d40-7d53-ba56-030f44cad310","at":1771238600000000000,"seq":495,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c660c-3510-7fe6-ba1d-00e8db9ff74e","at":1771238602000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c660c-5ac2-7e56-820e-52e311513cc1","at":1771238611650000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c660c-9e88-7433-8b09-c4de38fe830e","at":1771238629000000000,"seq":498,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

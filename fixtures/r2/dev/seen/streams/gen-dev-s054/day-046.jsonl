@@ -1,0 +1,57 @@
+{"v":1,"id":"019c60b6-2804-70dc-b471-dec13575dd68","at":1771149076484000000,"seq":487,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c60b6-2804-7bf6-b0bd-15960c9cefa5","at":1771149076484000000,"seq":488,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c60b6-39a8-782a-b385-8af26f7b71d8","at":1771149081000000000,"seq":489,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60b6-3d90-7dd5-b3ba-64fddc561292","at":1771149082000000000,"seq":490,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c60b6-4560-723e-87f4-10219c855412","at":1771149084000000000,"seq":491,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c60b6-5cd0-77d9-a0ec-ac42e3e30f97","at":1771149090000000000,"seq":492,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c60ba-125b-7dd6-8b49-f979d38f1961","at":1771149333083000000,"seq":493,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60ba-125b-7ffd-9620-8cfc824d2846","at":1771149333083000000,"seq":494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60ba-3148-751a-950a-ab46cd107c0e","at":1771149341000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c60ba-40e8-7ebe-9efd-b9a6683b1aa7","at":1771149345000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ba-48b8-70be-b398-95607d85d43d","at":1771149347000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ba-5d5b-7425-8fbd-37ee8a333f48","at":1771149352283000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60ba-9ea8-7d83-8e6e-2cefafd3b811","at":1771149369000000000,"seq":499,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c60bb-0c08-7cfb-bcaf-31a046b6d441","at":1771149397000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bb-1ba8-786f-aaec-7b0d67b92ad6","at":1771149401000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bb-2f30-77f4-b820-148f6e16bfaf","at":1771149406000000000,"seq":502,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60bb-4e70-7af2-a5ca-29ee7bb44c02","at":1771149414000000000,"seq":503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c60bb-50ce-7879-aa76-373d73945354","at":1771149414606000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60bb-69c8-7703-afd4-4ab33689bd37","at":1771149421000000000,"seq":505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60bb-8908-7ea9-a36e-b230e582ae0a","at":1771149429000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c60bb-8cf0-743f-9a20-67684f1eb7cd","at":1771149430000000000,"seq":507,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60bb-b7e8-706e-980b-6cabf72f350e","at":1771149441000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bb-f3ff-7e92-a6e6-9a2bd464036e","at":1771149456383000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60bc-2d18-7188-be8c-f56ffdedd1ea","at":1771149471000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bc-40a0-774c-bae3-ed6943fea12d","at":1771149476000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c60bc-5040-7c44-84ac-960c3ef9f7d5","at":1771149480000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bc-7b38-7625-a544-90eaa660b441","at":1771149491000000000,"seq":513,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60bc-829d-7ac5-b8d3-d27e24a042ae","at":1771149492893000000,"seq":514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60bd-4e28-74af-8da5-39c8532df426","at":1771149545000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bd-59e0-7a8c-b30f-eb915005ed70","at":1771149548000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60bd-8ceb-7ff1-be4e-c4e89c8e9fac","at":1771149561067000000,"seq":517,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c60bd-afd0-7fe8-851d-4767009b4eea","at":1771149570000000000,"seq":518,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c60bd-bf70-7eb2-8f28-7201d8aeb3d6","at":1771149574000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bd-c740-7791-ad68-b5ce5bef5c3a","at":1771149576000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60c1-09e7-746e-a5be-b8ca5ce2a048","at":1771149789671000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c60c1-1300-7a39-81f5-c3c94a8167f0","at":1771149792000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c60c1-fe2a-78b3-802e-8408cae8f6b8","at":1771149852202000000,"seq":523,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c60c2-0530-7818-a7b5-388dd1a6ea0e","at":1771149854000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c2-2088-7d4b-b91a-b1ca86564728","at":1771149861000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c60c2-3be0-7cf0-81da-6c4cc95ec476","at":1771149868000000000,"seq":526,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60c2-4f68-7c4d-8b9e-54ae792f57ff","at":1771149873000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c8-85c4-757d-847e-c9e7315f25a4","at":1771150280132000000,"seq":528,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c60c8-a098-7081-927e-11a994e957b4","at":1771150287000000000,"seq":529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c8-ead0-733c-8ab2-49d03ef3ae82","at":1771150306000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c9-11e0-703d-bb6d-7135b809c806","at":1771150316000000000,"seq":531,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c60c9-3c10-7543-88b7-4cdb6fa84c47","at":1771150326800000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c60c9-3cd8-7cf2-a3ed-0b4ca8995c5f","at":1771150327000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c60c9-4890-7e95-8603-9966fb25f3d7","at":1771150330000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c9-5830-7641-b37c-651acde19425","at":1771150334000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c60d4-825f-7bff-80ab-9ddf577214b1","at":1771151065695000000,"seq":536,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c60d4-e150-7b07-9ffc-01509dda379a","at":1771151090000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c60d5-7fc5-7457-a10e-5f0fdd2a44cc","at":1771151130565000000,"seq":538,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c60d5-8d30-71e5-afdd-1b3705e1aad7","at":1771151134000000000,"seq":539,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c60d6-47d6-7fa1-b1fc-ad9aafd9f426","at":1771151181782000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c60d7-2144-79df-a7fe-488511c12b2e","at":1771151237444000000,"seq":541,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c60d7-6da8-7483-b85d-6a2b5d32473c","at":1771151257000000000,"seq":542,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60d7-7960-7aa1-a12c-7b537b95f2fe","at":1771151260000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

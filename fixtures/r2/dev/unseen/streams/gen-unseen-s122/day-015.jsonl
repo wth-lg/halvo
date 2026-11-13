@@ -1,0 +1,15 @@
+{"v":1,"id":"019bc11f-4971-754d-9e90-e2371cfe89ed","at":1768471611761000000,"seq":105,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc11f-4971-7f04-a315-55467960b900","at":1768471611761000000,"seq":106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bc11f-84f8-7aad-b758-24c8bf4ee268","at":1768471627000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc11f-88e0-7257-82c5-c1dcaf3f9669","at":1768471628000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bc120-17dc-7250-ba7d-2c7f36952ce3","at":1768471664604000000,"seq":109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bc120-1d50-717b-a049-4d6c8883c0bb","at":1768471666000000000,"seq":110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc120-2cf0-7d7c-a62c-a3d178a6e35b","at":1768471670000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bc120-57e8-7926-9591-1e82140799e9","at":1768471681000000000,"seq":112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc120-f607-7736-93d6-e0f088bf2dcb","at":1768471721479000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bc121-2308-778f-b469-89653e01b8d9","at":1768471733000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bc121-6d40-7356-a641-ac365c01420b","at":1768471752000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc121-eed9-7442-a9ca-8c64afcaee93","at":1768471785177000000,"seq":116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bc121-f5f8-7917-811b-6fb7e10b8ee2","at":1768471787000000000,"seq":117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc122-1538-78ea-a0bc-ea69fe7fe8fc","at":1768471795000000000,"seq":118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc122-53b8-7480-b6b1-162599164344","at":1768471811000000000,"seq":119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

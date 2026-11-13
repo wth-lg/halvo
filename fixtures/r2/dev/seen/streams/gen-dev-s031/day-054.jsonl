@@ -1,0 +1,24 @@
+{"v":1,"id":"019c897b-2c3e-7c1a-a720-1b2d2247a412","at":1771833076798000000,"seq":575,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c897b-2c3e-76ac-8841-56d73ebc101f","at":1771833076798000000,"seq":576,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c897b-4c48-7fb6-af80-ee75ef655428","at":1771833085000000000,"seq":577,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c897b-ad02-7072-84d9-a84bb3167b56","at":1771833109762000000,"seq":578,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c897b-ad02-7585-8183-34d635f0cbe9","at":1771833109762000000,"seq":579,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c897c-3239-7f0d-a51f-fbe27c626559","at":1771833143865000000,"seq":580,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c897c-a7f0-75c7-9721-46108057924d","at":1771833174000000000,"seq":581,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c897c-cf00-7f70-bcbc-b6c56d28e680","at":1771833184000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c897c-ea58-7842-b8d1-fd9fdd1f750b","at":1771833191000000000,"seq":583,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c897c-fde0-75d7-9b3f-093f5ecc4f3c","at":1771833196000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c897d-1ba4-7f15-a1fe-3327010024ce","at":1771833203620000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c897d-a1f0-77f1-8eea-1097c758b7ee","at":1771833238000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c897d-b960-786e-a116-94f8f8578ae1","at":1771833244000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c897d-d424-7036-8b3d-c833929e36c7","at":1771833250852000000,"seq":588,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c897d-d424-7827-9ce3-345cb540be20","at":1771833250852000000,"seq":589,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c897d-ec28-73ed-95da-c6cadfa7e8bb","at":1771833257000000000,"seq":590,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c897d-f7e0-7a55-a612-60d5d8fcda84","at":1771833260000000000,"seq":591,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c897d-ffb0-7c36-b0e5-e70851744efb","at":1771833262000000000,"seq":592,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c897e-0398-75a6-b210-49a88404e1cc","at":1771833263000000000,"seq":593,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c897e-22d8-785f-a5e1-f1120eb651e8","at":1771833271000000000,"seq":594,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c8998-eb02-7f2f-a232-9a2be51e5251","at":1771835026178000000,"seq":595,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8998-eb02-7e76-8835-8c7c21c5c199","at":1771835026178000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c8999-9907-7cb1-8366-1722e246df93","at":1771835070727000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c899a-0390-79cd-8b65-1758ba3367ce","at":1771835098000000000,"seq":598,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

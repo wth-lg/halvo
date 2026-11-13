@@ -1,0 +1,29 @@
+{"v":1,"id":"019c60c6-e843-77a9-b450-f50adee0c5e9","at":1771150174275000000,"seq":671,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60c6-e843-7d29-88df-da8815dc8b70","at":1771150174275000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c60c7-1228-75ab-8732-f479f1d3c87d","at":1771150185000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c7-6b10-7186-9925-40c857c5c52c","at":1771150207760000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c60c7-8758-74ac-9315-0f08d8d3403f","at":1771150215000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60c7-96f8-738b-b89a-6928665e44e0","at":1771150219000000000,"seq":676,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60c7-e900-7463-8d25-198abcd19dcf","at":1771150240000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c8-2a17-7178-ac20-4c59fa93a8a0","at":1771150256663000000,"seq":678,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c60c8-5e30-7a94-af46-e3961e16cf8d","at":1771150270000000000,"seq":679,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c8-9cb0-7ea0-b953-7327d00f1803","at":1771150286000000000,"seq":680,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c8-cac7-7153-bfeb-89ed249410c9","at":1771150297799000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c60c8-d748-702b-bd62-02d8322cb9f7","at":1771150301000000000,"seq":682,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60c9-38f0-71d0-936b-fcf6db9a20eb","at":1771150326000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60c9-5830-79ce-8f20-97a8a35a0fb4","at":1771150334000000000,"seq":684,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c9-8ee0-73d1-af9b-84e3be1beca4","at":1771150348000000000,"seq":685,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c60c9-cb88-7bca-9d0f-aa0b0cdf8359","at":1771150363528000000,"seq":686,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c60c9-cd60-795c-9050-5cf2f806c089","at":1771150364000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c60c9-e8b8-733a-b35d-a82230176045","at":1771150371000000000,"seq":688,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ca-0be0-7ed9-87c7-19e7ba5fb381","at":1771150380000000000,"seq":689,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60ca-43d4-75d2-9aaf-d4aa752605ae","at":1771150394324000000,"seq":690,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c60ca-7558-781e-99b5-5ddb8a67a0c5","at":1771150407000000000,"seq":691,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c60ca-d700-737f-8b2d-639caf58d391","at":1771150432000000000,"seq":692,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ca-ea88-704d-adaf-14bd1f55132d","at":1771150437000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60cb-4664-7d00-af7b-79c28f87c554","at":1771150460516000000,"seq":694,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c60cb-7b10-7e3f-91e2-82d9d9922005","at":1771150474000000000,"seq":695,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c60cb-b08d-7daf-a0d1-0de4f6631254","at":1771150487693000000,"seq":696,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c60cb-bd78-74c2-a064-d3f2bdedc718","at":1771150491000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60cb-cd18-7fff-9262-28b7760285fe","at":1771150495000000000,"seq":698,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60cc-2ad8-7cb0-9a41-9c97dbf1f68f","at":1771150519000000000,"seq":699,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

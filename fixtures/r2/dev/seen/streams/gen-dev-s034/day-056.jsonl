@@ -1,0 +1,33 @@
+{"v":1,"id":"019c93be-f7d5-71f8-871b-674776548842","at":1772005291989000000,"seq":839,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c93be-f7d5-7362-be6a-72009c293f5d","at":1772005291989000000,"seq":840,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c93bf-3278-7595-b503-c641e88074a4","at":1772005307000000000,"seq":841,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93bf-3660-7eb0-812d-fdd5d77c5c1f","at":1772005308000000000,"seq":842,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c93bf-5988-79b8-99bb-a163a5515711","at":1772005317000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c93bf-5d70-73e0-8dbc-7d4f4e8659b7","at":1772005318000000000,"seq":844,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c93cc-cf92-7bad-b7ec-28d7d00b1b7d","at":1772006199186000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c93cc-de78-7113-baab-5b362207833a","at":1772006203000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c93cd-a5b0-70b8-9683-5de70033c602","at":1772006254000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93cd-beaf-7ceb-857a-d256d9a9ae39","at":1772006260399000000,"seq":848,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c93cd-ff88-710e-b41a-80aac5969d31","at":1772006277000000000,"seq":849,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c93cd-ff88-7a9a-880c-4d1244b18b50","at":1772006277000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c93ce-41f0-7611-a51e-0f3e430cf092","at":1772006294000000000,"seq":851,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c93ce-4886-7c11-91a0-cdeed781932d","at":1772006295686000000,"seq":852,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c93ce-8458-7dae-b88e-d987369921bb","at":1772006311000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c93ce-a780-7a45-b5aa-5171debca4f0","at":1772006320000000000,"seq":854,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c93ce-e9e8-7986-9dfb-013fddfe5ac6","at":1772006337000000000,"seq":855,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c93d2-948b-78e2-86c5-c0e672eac3d3","at":1772006577291000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c93d2-a6f0-7a7e-89e6-b55705e7cad7","at":1772006582000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93d2-c630-7ec3-ad94-6c7c384e9fd8","at":1772006590000000000,"seq":858,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c93eb-7efb-70bc-b859-23ba2e400814","at":1772008210171000000,"seq":859,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c93eb-c888-71ac-b7d0-10babc74051a","at":1772008229000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c93eb-d440-7383-99f0-f426aeb168b6","at":1772008232000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93ec-1e78-758a-8b11-41d6b66d4b66","at":1772008251000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93ec-57df-7d5d-814c-96157d4a4c6b","at":1772008265695000000,"seq":863,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c93ec-9f60-795a-974f-1a87c1fad8d2","at":1772008284000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c93ec-a83c-7abb-9e53-46165f85b84c","at":1772008286268000000,"seq":865,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c93ec-e1c8-7fb4-b3d3-2273da8a735f","at":1772008301000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93ec-ed80-74b3-bb13-58ed5f2f41ae","at":1772008304000000000,"seq":867,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c93ec-f168-770d-b1da-9547e7727ebe","at":1772008305000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93ec-f550-7ea9-93bd-7f8297c780a9","at":1772008306000000000,"seq":869,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c93ed-09ed-7b26-a87d-612926ea8104","at":1772008311277000000,"seq":870,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c93ed-2430-7098-8192-20b25114f0fe","at":1772008318000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

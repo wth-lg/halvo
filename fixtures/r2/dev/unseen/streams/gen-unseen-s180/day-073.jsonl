@@ -1,0 +1,30 @@
+{"v":1,"id":"019ceb83-f6a9-72e1-96d7-581a4b252133","at":1773477820073000000,"seq":977,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb83-f6a9-7cb3-b501-6bb8ad8a78fa","at":1773477820073000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ceb84-0600-74d7-aa51-08ca25b3b065","at":1773477824000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb84-11b8-7ad4-a33b-233b0ccc77cf","at":1773477827000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb84-1988-7890-b991-fabd6f6ab699","at":1773477829000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ceb84-448f-71c7-9cf3-da20147a1bc2","at":1773477840015000000,"seq":982,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ceb84-5038-7137-81c8-2fbdfdcdef59","at":1773477843000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb84-7f18-71f3-9259-e9e1c3208e02","at":1773477855000000000,"seq":984,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceb84-86e8-7040-8eb1-01a528833edd","at":1773477857000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb84-cc25-7fdc-be86-e9b92ad88e66","at":1773477874725000000,"seq":986,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ceb85-0bb8-786b-98c4-8c25a198d924","at":1773477891000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ceb85-4650-7ec6-a951-b2098ed90d95","at":1773477906000000000,"seq":988,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ceb85-6590-761f-a192-3fcef2f62b05","at":1773477914000000000,"seq":989,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb85-aa9c-7e90-9eee-bfa113cee08a","at":1773477931676000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ceb85-bb80-7314-bc53-ce0e4a49d3ef","at":1773477936000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ceb86-1170-797b-bf14-e304f6920880","at":1773477958000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb86-1d28-7828-830b-178d1727ece3","at":1773477961000000000,"seq":993,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb99-147a-7bf1-bbea-f2cd336f686e","at":1773479203962000000,"seq":994,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ceb9a-1670-7757-9cd3-18e7ce28680d","at":1773479270000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb9a-1e3c-79e9-a62b-cf78ffb5f06b","at":1773479271996000000,"seq":996,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ceb9a-2228-761a-87da-fcea1ac22352","at":1773479273000000000,"seq":997,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb9a-5108-743e-bf6a-6bfed0790dd3","at":1773479285000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb9a-7818-79db-b43d-973f94257c3d","at":1773479295000000000,"seq":999,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceb9a-c638-7b14-8d8e-5ff76622df5a","at":1773479315000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb9a-ce08-7a83-81ec-c733634b6d84","at":1773479317000000000,"seq":1001,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ceb9a-d00a-7866-b488-809877333775","at":1773479317514000000,"seq":1002,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019ceb9b-1c28-7912-96f6-56c3893e07be","at":1773479337000000000,"seq":1003,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb9b-56c0-7b51-8eeb-00f62ba520a3","at":1773479352000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ceb9b-79e8-7368-959d-4b187df0d6fe","at":1773479361000000000,"seq":1005,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceb9b-9eef-7e43-810c-e26331690c01","at":1773479370479000000,"seq":1006,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}

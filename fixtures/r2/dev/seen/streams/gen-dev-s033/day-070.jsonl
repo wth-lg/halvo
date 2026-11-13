@@ -1,0 +1,40 @@
+{"v":1,"id":"019cdc6a-5cc6-7751-99ea-7010280240fc","at":1773224484038000000,"seq":962,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc6a-5cc6-749e-a302-1771280233ec","at":1773224484038000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cdc6a-9b20-7343-a0f3-fbf324590326","at":1773224500000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc6a-dd88-73b1-9e63-e7523056e81a","at":1773224517000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc6b-0e11-767d-a1f1-35a319587170","at":1773224529425000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cdc6b-3b48-7d67-80e0-8162076a0a43","at":1773224541000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc6b-9520-79d1-ab41-d41c495ec188","at":1773224564000000000,"seq":968,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdc6b-c416-7b65-a8df-4918cc496297","at":1773224576022000000,"seq":969,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cdc6b-cfb8-78f8-b128-09fe08b855fa","at":1773224579000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdc6c-0280-748e-ba1c-54e4f415e3a8","at":1773224592000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc6c-21c0-7e29-a572-bad63f1bede8","at":1773224600000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc6c-b900-769d-a880-6359b090ea55","at":1773224638720000000,"seq":973,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cdc6d-1bc0-7008-874e-8adac3681dea","at":1773224664000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdc84-aac9-7596-b8ff-22abd8efa834","at":1773226207945000000,"seq":975,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cdc85-00f0-774d-ae6b-f75167b2ff0f","at":1773226230000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc85-9b81-736a-a007-4995097e9f70","at":1773226269569000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cdc85-bc70-7caa-9326-c4a5bccdfde4","at":1773226278000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc85-d3e0-7c75-b694-d6f69dc6f575","at":1773226284000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc85-d7c8-7c21-9589-f5496494e5bb","at":1773226285000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cdc85-f320-7e38-a9c1-54cd7bf44dc5","at":1773226292000000000,"seq":981,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc85-f5cc-77cb-b1a8-5cb38670ac13","at":1773226292684000000,"seq":982,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cdc85-f708-7e24-8408-d297d2f1a944","at":1773226293000000000,"seq":983,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdc85-fed8-7193-920f-c326efe5c286","at":1773226295000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc86-c20b-7324-a1b7-ca22f5aa1605","at":1773226344971000000,"seq":985,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cdc86-cde0-7117-a840-457d84acbe98","at":1773226348000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cdc87-23d0-747e-8f7d-5cd817713363","at":1773226370000000000,"seq":987,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc87-3b40-794d-a735-1366381ba677","at":1773226376000000000,"seq":988,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc87-a8a0-7077-bf90-e4713a2c3148","at":1773226404000000000,"seq":989,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdc9f-e2d0-7cd5-9365-83ee22d6054f","at":1773227991760000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdca0-8fa0-75dc-a0d9-9ff9c1fd74da","at":1773228036000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdca0-98bf-7016-a84d-f46150b03a85","at":1773228038335000000,"seq":992,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdca0-9f40-7bdb-b3c2-1ca8ce1ca278","at":1773228040000000000,"seq":993,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdca0-b2c8-76cf-88fa-831e4184205c","at":1773228045000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdca0-b6b0-7311-b6e6-6acf2a8e5e3b","at":1773228046000000000,"seq":995,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdca0-d9d8-7fa5-a75f-83b86f7a0fa6","at":1773228055000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdca1-1801-7428-96c6-433685d9e94c","at":1773228070913000000,"seq":997,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cdca1-3b80-7ef6-a2a2-a6f6b43d6b18","at":1773228080000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cdca1-6678-7c0c-b3db-e54950690923","at":1773228091000000000,"seq":999,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdca1-a4f8-7cc8-b1ff-c50071d08a21","at":1773228107000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdca2-06a0-7e8f-87a0-d16c41c55b09","at":1773228132000000000,"seq":1001,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

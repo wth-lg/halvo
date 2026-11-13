@@ -1,0 +1,20 @@
+{"v":1,"id":"019cf638-8900-7979-9559-50791445d246","at":1773657426176000000,"seq":887,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf638-8900-7562-b417-90f9f26c9f2f","at":1773657426176000000,"seq":888,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cf638-c2e8-7518-ae1e-6634b1c51831","at":1773657441000000000,"seq":889,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf638-c421-725a-80e3-119868bf4749","at":1773657441313000000,"seq":890,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cf639-c75b-70eb-8bd6-a90e17eab08d","at":1773657507675000000,"seq":891,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cf63a-16c0-77c3-a54d-a71213d83613","at":1773657528000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf63a-1e90-7a66-98a2-31f664053ddc","at":1773657530000000000,"seq":893,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf63a-39e8-77e8-8b75-cffd07cf868d","at":1773657537000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cf63a-41b8-7fdf-897b-a34956583f1c","at":1773657539000000000,"seq":895,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf63a-5b85-72e8-b148-4676ab36bb10","at":1773657545605000000,"seq":896,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cf63b-2c18-71f4-a5c7-d7e8859a02f0","at":1773657599000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf63b-3bb8-798c-947b-af38acb299f1","at":1773657603000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cf63b-5ea9-784c-9095-bc457798fb80","at":1773657611945000000,"seq":899,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cf63b-5ee0-7553-b712-363c95383a3d","at":1773657612000000000,"seq":900,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf63b-a530-76e4-8cc8-a066bb816fe6","at":1773657630000000000,"seq":901,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf63b-b0e8-786b-92d3-d687d8620625","at":1773657633000000000,"seq":902,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf63b-bdc7-7f44-887c-319832fc8e2c","at":1773657636295000000,"seq":903,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cf63b-e798-72b2-9f5d-4c00f5a94ca4","at":1773657647000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf63c-0ea8-72b5-9199-0c354dd6d91c","at":1773657657000000000,"seq":905,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf63c-31d0-75fe-aa44-454aac808550","at":1773657666000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

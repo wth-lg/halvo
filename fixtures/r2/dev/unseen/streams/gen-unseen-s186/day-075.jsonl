@@ -1,0 +1,13 @@
+{"v":1,"id":"019cf62e-de94-7a56-8575-08cdeaef226e","at":1773656792724000000,"seq":1116,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf62e-de94-7f8a-8179-1c7479004b68","at":1773656792724000000,"seq":1117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cf62e-ef48-7dc1-983f-bbf43c486dd1","at":1773656797000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cf62f-d6da-7864-b6d8-62602caf7017","at":1773656856282000000,"seq":1119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cf630-56a8-7de2-8a1f-fa91b045a65f","at":1773656889000000000,"seq":1120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf630-6a30-7ad5-b585-127f5f0f910b","at":1773656894000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf630-8fe9-7d4b-a461-5b21497233ee","at":1773656903657000000,"seq":1122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cf631-6ea6-7d6e-a67c-9561baffd33f","at":1773656960678000000,"seq":1123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cf631-a2b0-7ad1-8667-d710531d0d76","at":1773656974000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf631-d960-77ba-b2dc-9129466614bc","at":1773656988000000000,"seq":1125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf631-fc88-7717-b64e-c8213ec6510f","at":1773656997000000000,"seq":1126,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf632-0070-7946-a702-2bc26d40bda3","at":1773656998000000000,"seq":1127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf632-0458-792c-b165-d9f94f529178","at":1773656999000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

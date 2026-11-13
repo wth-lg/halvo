@@ -1,0 +1,14 @@
+{"v":1,"id":"019cc75f-9d65-791d-9089-5dc65aa7267a","at":1772871458149000000,"seq":867,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc75f-9d65-70e6-9846-734b01bb0208","at":1772871458149000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cc760-21a0-7c80-8e30-2d2bda1b8a42","at":1772871492000000000,"seq":869,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc760-5468-7240-b1a8-3912d0013691","at":1772871505000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc76e-b77f-745f-b7b7-febf94034c57","at":1772872447871000000,"seq":871,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc76e-b77f-7e2c-84ce-82df28244142","at":1772872447871000000,"seq":872,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc776-e4a5-7478-bc69-799fd38ab84f","at":1772872983717000000,"seq":873,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc776-e4a5-737b-bf12-3f837656160a","at":1772872983717000000,"seq":874,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cc776-f560-75c5-9c02-702efad968c8","at":1772872988000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc777-3f98-7219-aad7-efdc28cb74f8","at":1772873007000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc777-81c6-7dd5-97c9-04e68dd655aa","at":1772873023942000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cc777-85e8-77f9-bb5d-782a648451af","at":1772873025000000000,"seq":878,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc777-89d0-76b2-82b9-3b159a4013e8","at":1772873026000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cc777-c850-7504-8b49-8803bce6a67a","at":1772873042000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

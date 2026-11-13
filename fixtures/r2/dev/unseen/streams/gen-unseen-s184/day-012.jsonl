@@ -1,0 +1,23 @@
+{"v":1,"id":"019bb10b-4e76-73db-ac27-e0846a108ae9","at":1768201866870000000,"seq":136,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb10b-4e76-73bd-8b46-b6202c9969b4","at":1768201866870000000,"seq":137,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb10b-6668-7f93-a3b1-9c50d3f3e1c0","at":1768201873000000000,"seq":138,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb10b-85a8-7cd3-9ffa-c2f8a76d246c","at":1768201881000000000,"seq":139,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bb10b-9160-7718-a592-5980caefd71e","at":1768201884000000000,"seq":140,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bb10b-a8d0-70c3-a8a8-71c79ad50394","at":1768201890000000000,"seq":141,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb10b-b488-71f2-aa7f-34d145bcbce1","at":1768201893000000000,"seq":142,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bb124-461c-767e-8374-dae1cdb347f6","at":1768203503132000000,"seq":143,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb124-461c-7397-aceb-94df631c9861","at":1768203503132000000,"seq":144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb124-7478-70c9-8857-2f47305015fb","at":1768203515000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb124-7860-7e24-9640-67c94ddbaf80","at":1768203516000000000,"seq":146,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb124-c298-7fb0-aee6-053eab6e39be","at":1768203535000000000,"seq":147,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb124-e5c0-7176-a33f-89c2a03f4a7f","at":1768203544000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bb131-6da8-7e4c-b82f-390631cc5c51","at":1768204365224000000,"seq":149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bb131-8ff0-78f7-9da5-cffaa47a7636","at":1768204374000000000,"seq":150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb131-97c0-7193-817f-77a7241ff04b","at":1768204376000000000,"seq":151,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb131-b6a0-757e-a53c-3859a1916c3f","at":1768204383904000000,"seq":152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bb131-bed0-7b67-8a13-35a0f3ff9b44","at":1768204386000000000,"seq":153,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb132-5340-7d5f-89b9-e4cf98fa30d3","at":1768204424000000000,"seq":154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb138-ff3c-7724-a668-9e73d7cf598c","at":1768204861244000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb139-0230-7700-a9a1-5e876cc693e1","at":1768204862000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb139-2558-7f56-a290-adf860b45370","at":1768204871000000000,"seq":157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb139-5c08-70ee-b7f8-92b2876bef44","at":1768204885000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

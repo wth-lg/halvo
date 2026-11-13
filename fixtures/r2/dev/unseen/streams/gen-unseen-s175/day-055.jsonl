@@ -1,0 +1,46 @@
+{"v":1,"id":"019c8e9d-99c7-7588-a349-3d8164105ac7","at":1771919219143000000,"seq":810,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8e9d-99c7-7c75-b0bf-d742c65c400b","at":1771919219143000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c8e9e-29c0-74f8-b1c2-d13ecd6928b3","at":1771919256000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8e9e-409b-7ab8-b769-d4df5f548e78","at":1771919261851000000,"seq":813,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c8e9e-7bc8-706b-ac68-192041beaf74","at":1771919277000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c8e9e-ae90-7179-a673-a70c9c157ba0","at":1771919290000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8e9e-d80a-7567-b580-a8cd98d701d2","at":1771919300618000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c8e9e-ed10-7199-b9c5-b23d47a1eadc","at":1771919306000000000,"seq":817,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8e9e-f0f8-7e2c-b546-023fb73ac961","at":1771919307000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c8e9e-f8c8-74fe-b49c-b4c62dfd9fe1","at":1771919309000000000,"seq":819,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8e9f-4228-7f41-938b-5d578890f676","at":1771919327784000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c8e9f-4ad0-77cc-9710-0058b99cdd7b","at":1771919330000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8e9f-71e0-7d9c-ae56-43067151fd89","at":1771919340000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c8e9f-8180-70a9-8e1e-91dd031a089a","at":1771919344000000000,"seq":823,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8e9f-8568-7823-b7e6-da88bcca9e06","at":1771919345000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eb7-b0ad-7d06-8ba2-7ab690b8148d","at":1771920928941000000,"seq":825,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8eb7-b0ad-7304-897e-8d0889d24549","at":1771920928941000000,"seq":826,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8eb7-ef68-735e-a361-397820b169b3","at":1771920945000000000,"seq":827,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c8eb8-06d8-71ec-9aa0-f52e322e2940","at":1771920951000000000,"seq":828,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c8eb8-35b8-733c-a92c-7af6da5fda51","at":1771920963000000000,"seq":829,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eb8-3d88-7a95-9711-94e402af91ba","at":1771920965000000000,"seq":830,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eb8-7820-736a-ba5f-b7e11d5c4219","at":1771920980000000000,"seq":831,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c8eb9-8fb7-7243-b681-1644979c5dd8","at":1771921051575000000,"seq":832,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8eb9-8fb7-7d22-93e2-37f47fcf1858","at":1771921051575000000,"seq":833,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c8eb9-bc58-7bd4-af4e-3fb97dfc8e8b","at":1771921063000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c8eba-1248-72cc-b56d-bdcff6bd3def","at":1771921085000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eba-4510-74f0-ae26-6e20c61cde59","at":1771921098000000000,"seq":836,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eba-6c3d-7ddb-bd82-9ae917e3892e","at":1771921108029000000,"seq":837,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c8eba-77d8-7f1e-846e-bc7c2b5ebf4d","at":1771921111000000000,"seq":838,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8eba-9718-74d9-ada3-76a6ec6a5bb0","at":1771921119000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eba-ba40-7a84-b81d-26cc7469d7a2","at":1771921128000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eba-e150-7f92-a34c-ff8c11030032","at":1771921138000000000,"seq":841,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c8ebb-0f6b-7cdb-9670-6e8aa46ce493","at":1771921149803000000,"seq":842,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c8ebb-ac70-7df4-a2d5-0e24cca79790","at":1771921190000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ebb-ed08-755f-8444-94f9afc2d999","at":1771921206536000000,"seq":844,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c8ebb-fa90-72a5-b981-41f029b064bd","at":1771921210000000000,"seq":845,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ebc-0648-7700-b0bf-c46a12c687f0","at":1771921213000000000,"seq":846,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8ebc-1200-78bb-bfc9-fe52b2cdeac9","at":1771921216000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ebc-5211-7a71-8a2c-fe73c45077ef","at":1771921232401000000,"seq":848,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c8ebc-7f60-7e19-aca4-77617abf16c4","at":1771921244000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c8ebc-8348-7291-a59e-d587e56dab9a","at":1771921245000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ebd-61ae-7ae8-b1b0-e552b1ace22f","at":1771921301934000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c8ebd-65d8-7c63-a330-0dc98d10c526","at":1771921303000000000,"seq":852,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c8ebd-7578-7019-8dd6-1006fd5508d0","at":1771921307000000000,"seq":853,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8ebd-cb68-7be5-b2ba-bbad1d0e1f83","at":1771921329000000000,"seq":854,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8ebd-d720-7c44-86a8-58ab715eea11","at":1771921332000000000,"seq":855,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

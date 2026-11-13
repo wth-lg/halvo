@@ -1,0 +1,12 @@
+{"v":1,"id":"019c8a09-6ff8-7e10-a00c-b94bca3104bd","at":1771842400248000000,"seq":795,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8a09-6ff8-712d-8386-91df5d852a3d","at":1771842400248000000,"seq":796,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8a09-ccc0-771e-8f35-4d8d21c55753","at":1771842424000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a0a-0371-7bb4-b48a-31a8a0614988","at":1771842438001000000,"seq":798,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8a0a-41f0-70f4-a9a9-c60f09a288cc","at":1771842454000000000,"seq":799,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c8a0a-aa0c-791e-93f3-636d1d7f16d5","at":1771842480652000000,"seq":800,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8a0b-3fd8-7302-a536-7958dd185355","at":1771842519000000000,"seq":801,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8a0b-6ee5-7178-aa00-37873c9c135f","at":1771842531045000000,"seq":802,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8a0b-72a0-75b3-a39a-12507c11db15","at":1771842532000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a0b-b508-74f0-acc3-fbb4645a86a3","at":1771842549000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a0b-e7d0-732a-b206-730e02be5952","at":1771842562000000000,"seq":805,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8a0b-fb58-79db-909c-9b4296e529d5","at":1771842567000000000,"seq":806,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

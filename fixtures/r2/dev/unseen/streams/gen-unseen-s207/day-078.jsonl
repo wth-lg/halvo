@@ -1,0 +1,13 @@
+{"v":1,"id":"019d04f4-adee-7e44-ad13-afb1d1675263","at":1773904637422000000,"seq":1204,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d04f4-adee-7bff-8206-c26a928e2492","at":1773904637422000000,"seq":1205,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d04f4-e2f8-7cfc-a2d6-7082b648090a","at":1773904651000000000,"seq":1206,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d04f5-0399-72f7-8a7a-15e2d55503a4","at":1773904659353000000,"seq":1207,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d04f5-67c8-7dbb-a4b9-b9997f80e311","at":1773904685000000000,"seq":1208,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d04f5-7380-7abd-963c-e3234d9115f1","at":1773904688000000000,"seq":1209,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d050e-4695-7a86-b9c3-18286a353cf8","at":1773906314901000000,"seq":1210,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d050e-4695-7b31-ae36-28aca09d629f","at":1773906314901000000,"seq":1211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d050e-5698-742e-b065-203426f2ffb0","at":1773906319000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d050e-5e68-7ca5-b617-443a299ff0d0","at":1773906321000000000,"seq":1213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d050e-5e68-7766-85a9-ab24abd0bdb0","at":1773906321000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d050e-6e08-7d1b-a4e1-4e760ae2665c","at":1773906325000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d050e-8190-7308-b521-0b3c1ec3b257","at":1773906330000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,24 @@
+{"v":1,"id":"019d0560-bc8a-7f49-855d-430b5c5519fc","at":1773911719050000000,"seq":1227,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0560-bc8a-758f-8e23-7bfcca9b95e3","at":1773911719050000000,"seq":1228,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0561-3d40-7191-b99d-1d0957bc5bf8","at":1773911752000000000,"seq":1229,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0561-48f8-7207-b3bf-bbdaf676b34b","at":1773911755000000000,"seq":1230,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0561-50c8-7486-a1a5-962599967ac1","at":1773911757000000000,"seq":1231,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d057a-7e08-7436-98bd-ff2f876204da","at":1773913406984000000,"seq":1232,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d057a-91a0-735a-83e4-5b6c7c74a560","at":1773913412000000000,"seq":1233,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d057a-9d58-7388-8e25-66ccf1465ddd","at":1773913415000000000,"seq":1234,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d057a-b0e0-7167-834b-8c73c231c3fc","at":1773913420000000000,"seq":1235,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d057a-b8b0-7687-9e7f-1c8819f2349c","at":1773913422000000000,"seq":1236,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d057a-d020-7338-bc98-7487161bfb78","at":1773913428000000000,"seq":1237,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d057d-26aa-7370-b4bd-2fedf341725b","at":1773913581226000000,"seq":1238,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d057d-26aa-7da7-a65f-f4f86c7b670a","at":1773913581226000000,"seq":1239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d057d-4cd8-708d-83b7-79b33ca6f22e","at":1773913591000000000,"seq":1240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d057d-6830-7acb-9aef-7b125ac80b22","at":1773913598000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d057d-81c7-7137-99b6-28a7f5d0e548","at":1773913604551000000,"seq":1242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d057d-8388-706f-95aa-d6e32172c0a9","at":1773913605000000000,"seq":1243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d057d-8770-78ee-89d4-51c7d77b29b3","at":1773913606000000000,"seq":1244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d057d-d590-70d6-8fc2-4f2043db7d76","at":1773913626000000000,"seq":1245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d057d-d978-7774-a33b-5ee55f772460","at":1773913627000000000,"seq":1246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d058e-2a5d-7ce8-9995-e6068d0f8a59","at":1773914696285000000,"seq":1247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d058e-8700-74b2-b675-8c4022155953","at":1773914720000000000,"seq":1248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d058e-8ae8-7e26-b996-1ec28ec1c1f9","at":1773914721000000000,"seq":1249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d058e-d520-7c18-96df-d56ad84f973a","at":1773914740000000000,"seq":1250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

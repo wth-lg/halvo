@@ -1,0 +1,42 @@
+{"v":1,"id":"019bd529-5a5d-772a-88f1-1538a223df95","at":1768807815773000000,"seq":352,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd529-5a5d-7a09-bff3-f62c470e715d","at":1768807815773000000,"seq":353,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd529-d070-76bf-a2dd-145c33ed23ad","at":1768807846000000000,"seq":354,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bd529-dc28-743f-b478-f5d4e3226a58","at":1768807849000000000,"seq":355,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bd529-ebc8-77d9-8718-8ff7f44e7419","at":1768807853000000000,"seq":356,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd532-fa90-7c84-ac04-16ef970b4e11","at":1768808446608000000,"seq":357,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd532-fa90-7d6c-8029-c1155b566f51","at":1768808446608000000,"seq":358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd533-7b7f-74da-bc03-9f3eff5a5141","at":1768808479615000000,"seq":359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd533-d6d8-7b6e-bf0a-a8b5acc8ea44","at":1768808503000000000,"seq":360,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd533-e290-7c5d-a1e7-f1585f069da9","at":1768808506000000000,"seq":361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd534-28e0-740c-91ab-9198ac80af8f","at":1768808524000000000,"seq":362,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd534-28e0-73eb-bead-2336cfa5ead7","at":1768808524000000000,"seq":363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bd534-7700-7829-bb96-4723ae7cde6f","at":1768808544000000000,"seq":364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd534-88f8-73a6-be9f-52c29da6b5b7","at":1768808548600000000,"seq":365,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd534-adb0-7ffa-96d4-7d92d7c51e15","at":1768808558000000000,"seq":366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd534-c138-7e56-80b2-00279bb28365","at":1768808563000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd534-e11f-73e5-ae89-dbf542374123","at":1768808571167000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd534-ec30-762e-b46b-fc987ed79c1b","at":1768808574000000000,"seq":369,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd535-1728-70f5-83ff-638429adcfb8","at":1768808585000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd535-26c8-7b18-8cd3-06e4430f5f97","at":1768808589000000000,"seq":371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd535-54cc-74dd-9d2e-07a659e12cd7","at":1768808600780000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd535-9428-7ad1-a599-165c11b7608c","at":1768808617000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bd535-9fe0-7b20-bb49-a4c2ca6a3f20","at":1768808620000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd535-a3c8-7f4c-afd7-1d1aaf8b3aba","at":1768808621000000000,"seq":375,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd535-c308-7a39-81e7-f0ab27039a0e","at":1768808629000000000,"seq":376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd535-c84c-73db-b96f-53c3335a8117","at":1768808630348000000,"seq":377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd536-5b60-7006-92dd-c50c801015b0","at":1768808668000000000,"seq":378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd536-ad68-7f38-9a7c-35f2843eefac","at":1768808689000000000,"seq":379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd54e-3589-70c7-b184-1156216a0388","at":1768810231177000000,"seq":380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd54f-1380-7823-9533-0b48cfcc7c17","at":1768810288000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bd556-52ab-78f0-8ab5-f5eaaa90378b","at":1768810762923000000,"seq":382,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd556-52ab-7018-9e1c-54a0d8c0309f","at":1768810762923000000,"seq":383,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd556-56e0-75a7-9504-66e0d11ebc8b","at":1768810764000000000,"seq":384,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd556-85c0-77c5-b2de-d8c8eaa66af5","at":1768810776000000000,"seq":385,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bd557-19a2-71ea-aad4-a124b276e1d8","at":1768810813858000000,"seq":386,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bd557-1a30-7444-94dd-cf327d32ea71","at":1768810814000000000,"seq":387,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bd557-8b78-7dd9-aebf-6effa2b3eb6a","at":1768810843000000000,"seq":388,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bd557-d1c8-7e74-a469-8f4573d560f9","at":1768810861000000000,"seq":389,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd559-2f91-775b-9a0e-efb274a36fbe","at":1768810950545000000,"seq":390,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd559-2f91-73f7-902b-10366e230daf","at":1768810950545000000,"seq":391,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bd559-e320-7839-a118-fdb96db28ab6","at":1768810996512000000,"seq":392,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bd55a-8530-731b-a826-605e2e93c5ca","at":1768811038000000000,"seq":393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

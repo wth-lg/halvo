@@ -1,0 +1,23 @@
+{"v":1,"id":"019c135d-d4ab-766a-83c0-e6eb3fb93cb6","at":1769851442347000000,"seq":484,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c135d-d4ab-7790-b032-c0480780eefb","at":1769851442347000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c135d-e2f0-7358-a7f0-de6d6b527868","at":1769851446000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c135e-6e09-7a67-8e05-c6d8ab37929f","at":1769851481609000000,"seq":487,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c135e-7f30-7a04-ad3b-6ccdc12ceb56","at":1769851486000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c135e-9a88-77b6-94fb-9e0185a08163","at":1769851493000000000,"seq":489,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c135e-b9c8-763a-90a2-93395c22102e","at":1769851501000000000,"seq":490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c135e-fe65-7c49-9c52-3e4cf0974109","at":1769851518565000000,"seq":491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c135f-32e0-7c3e-b0c5-91f95152d138","at":1769851532000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c135f-7160-7b33-83b8-687ad4806c04","at":1769851548000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c135f-7548-7c34-9161-7c138ef2e858","at":1769851549000000000,"seq":494,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1378-6a43-7027-b6bd-28374a607d3f","at":1769853184579000000,"seq":495,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c1378-7b88-7b69-aa6a-c8ea7abf7157","at":1769853189000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c1378-c1d8-788a-b03b-139a8a999e9f","at":1769853207000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1379-111e-750b-9d4d-4c0cca05336f","at":1769853227294000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c1379-2b50-7359-a2a6-3859edc446eb","at":1769853234000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1379-505d-74f7-95ea-378c85c5d99a","at":1769853243485000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c1379-cb78-7fde-a6d2-cadf32e5c972","at":1769853275000000000,"seq":501,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1379-eea0-7980-84be-78089321b9ca","at":1769853284000000000,"seq":502,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c137a-3167-7e2c-99c2-2a48405e092b","at":1769853301095000000,"seq":503,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c137a-8ae0-75c1-8c66-6004fe781ab4","at":1769853324000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c137a-f840-70c6-848a-74a4b312e3ab","at":1769853352000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c137b-0fb0-77c4-ba9e-ef0797d64d2c","at":1769853358000000000,"seq":506,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

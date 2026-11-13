@@ -1,0 +1,11 @@
+{"v":1,"id":"019ca8d8-271f-7bc5-8625-cf4dafd76340","at":1772359264031000000,"seq":807,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca8d8-271f-7086-aeb3-b35a48fb6222","at":1772359264031000000,"seq":808,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca8d8-6d50-7262-862f-2cb48034eee5","at":1772359282000000000,"seq":809,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8d8-7520-78f9-a34f-a2ae5fa11bdc","at":1772359284000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8d8-91d0-7cce-9517-7da33abdce8d","at":1772359291344000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca8d8-f9f0-7300-8932-58c03ca0a855","at":1772359318000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ca8d9-28d0-7dd0-a484-596f756685f9","at":1772359330000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8d9-966a-7ba2-a662-bcd7417f793f","at":1772359358058000000,"seq":814,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca8d9-ada0-768e-9a6c-5e9796c6ee0b","at":1772359364000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8d9-bd40-79cc-b70f-a3c9718cbd84","at":1772359368000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8d9-dc80-78de-adfd-8c6d20180826","at":1772359376000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

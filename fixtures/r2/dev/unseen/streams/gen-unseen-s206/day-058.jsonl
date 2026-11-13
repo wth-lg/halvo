@@ -1,0 +1,23 @@
+{"v":1,"id":"019c9e9f-7edd-7b67-be4a-4045d95474de","at":1772187778781000000,"seq":904,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e9f-7edd-7e93-910b-6428ab2838ab","at":1772187778781000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c9e9f-e160-7134-b415-970fd52b172a","at":1772187804000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ea0-00a0-7078-97c2-d2d0f245cf8a","at":1772187812000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ea0-6a9d-73d2-8042-9e0c554e669b","at":1772187839133000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c9ea1-19e0-7c17-9fa8-3e30d4f9abab","at":1772187884000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ea1-598e-722c-8487-c5016634ed1d","at":1772187900302000000,"seq":910,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c9ea1-8b28-7600-8ace-e873bf86930f","at":1772187913000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c9ea1-9ac8-7611-a90a-7c505e0808f6","at":1772187917000000000,"seq":912,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9ea1-bdf0-7577-a35a-5cc371a07696","at":1772187926000000000,"seq":913,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9eb0-aaf3-72a6-9213-e993f667eb13","at":1772188904179000000,"seq":914,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9eb0-b9e0-7112-9242-6108a4dbc022","at":1772188908000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c9eb0-f860-7eeb-b32f-53ac0c2f415c","at":1772188924000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9eb1-467a-79b7-b385-7c5fef75e842","at":1772188943994000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9eb1-8500-7f36-9762-e9f7aac05c39","at":1772188960000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c9eb2-4f01-7808-9b5b-db2f41a141ab","at":1772189011713000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 3 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9eb2-57f0-7790-ad18-6ef4eee2e975","at":1772189014000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9eb2-bd80-71b0-847e-ee82c58b2b9f","at":1772189040000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c9eb2-ffe8-7a56-9e41-01fc294f63e4","at":1772189057000000000,"seq":922,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9eb3-3392-71cc-86ce-f721771fbeaa","at":1772189070226000000,"seq":923,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9eb3-4a20-7528-9e89-76b73e309cc5","at":1772189076000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9eb3-6578-7e9f-928d-52c0fe4b50c8","at":1772189083000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9eb3-c720-7608-b7b1-8d8d73ba1f73","at":1772189108000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

@@ -1,0 +1,12 @@
+{"v":1,"id":"019cb83d-1b7f-7339-b6e2-3aa5a5f4d200","at":1772617538431000000,"seq":908,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb83d-1b7f-7e18-9589-67c4493f2f49","at":1772617538431000000,"seq":909,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cb83d-b228-72c3-9d3f-3982ed44e93f","at":1772617577000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb83d-e486-7792-bf71-a1a545e99928","at":1772617589894000000,"seq":911,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cb83e-2f28-7101-8663-82a2313717fb","at":1772617609000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cb83e-a6f8-7d2c-9f6a-a8174fde3fae","at":1772617639672000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cb83e-ac28-741b-af2b-ca852d80c2c5","at":1772617641000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb83f-9688-75b5-841e-325b576108c9","at":1772617701000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb83f-ab80-731e-9331-36a1fff55f24","at":1772617706368000000,"seq":916,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cb83f-d508-7205-a52d-59998c9dcff7","at":1772617717000000000,"seq":917,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb83f-e4a8-7e5a-946e-17f642b829e6","at":1772617721000000000,"seq":918,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb840-0000-7425-95a0-91eb1a348d16","at":1772617728000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

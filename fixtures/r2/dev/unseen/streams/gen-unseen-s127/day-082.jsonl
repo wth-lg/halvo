@@ -1,0 +1,31 @@
+{"v":1,"id":"019d1a0d-9476-75da-bf6b-ac744422d93a","at":1774258590838000000,"seq":1089,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1a0d-9476-7a8b-bc3b-261b39df95d7","at":1774258590838000000,"seq":1090,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1a0d-b458-7628-a430-9bdc8af16ead","at":1774258599000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a10-5e5e-7b94-bf9a-bcfb95001196","at":1774258773598000000,"seq":1092,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1a10-8700-7929-a1f5-3fd9c87e6c64","at":1774258784000000000,"seq":1093,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a10-bdb0-7171-a5c7-566baf8a86f4","at":1774258798000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d1a11-0bd0-7853-a957-410b92501b93","at":1774258818000000000,"seq":1095,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a11-23e2-79fa-9fa0-1ab8195ea449","at":1774258824162000000,"seq":1096,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1a11-7160-78d5-afad-322a007c1b0d","at":1774258844000000000,"seq":1097,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a12-1740-7726-8b77-df3c8cb966ab","at":1774258886464000000,"seq":1098,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this month - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1a12-28f8-7793-acce-ec6766c16eaf","at":1774258891000000000,"seq":1099,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1a12-28f8-744c-94ec-e307e282bfb8","at":1774258891000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d1a12-3c80-729d-ad3a-2d134b76f909","at":1774258896000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a12-4450-7538-922f-22409126ff43","at":1774258898000000000,"seq":1102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a12-62ad-731a-a164-a0104ae2e193","at":1774258905773000000,"seq":1103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1a12-7ee8-7896-971a-58a33d55a8e1","at":1774258913000000000,"seq":1104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a12-b980-7720-a024-e5d2b334a11d","at":1774258928000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a12-e860-741a-9295-d2ab4b4c69a5","at":1774258940000000000,"seq":1106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1a13-4a06-737d-92bb-b4b4d8100daa","at":1774258964998000000,"seq":1107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1a13-4df0-740a-a568-46370865fa0f","at":1774258966000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d1a13-9c10-78c8-b1ef-7e1e03cacc18","at":1774258986000000000,"seq":1109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1a13-e5fe-78ef-b41b-e1223538e127","at":1774259004926000000,"seq":1110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1a14-47f0-77d0-bf7c-09a4e1429fb5","at":1774259030000000000,"seq":1111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1a14-4fc0-7fe7-99e4-146b4d8484ef","at":1774259032000000000,"seq":1112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a14-5a71-7f52-9a63-069afe355f97","at":1774259034737000000,"seq":1113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1a14-ad80-7923-9a82-8a60822975e7","at":1774259056000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a14-c108-755c-b98a-c0d98398329c","at":1774259061000000000,"seq":1115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1a14-e048-7f7f-a017-8128bf4dab42","at":1774259069000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a14-e818-7c45-b4a4-f813ada319a9","at":1774259071000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d1a15-1bf3-7117-b60d-2f192b250548","at":1774259084275000000,"seq":1118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1a15-2698-7e95-8172-070d70bee2de","at":1774259087000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

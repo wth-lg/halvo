@@ -1,0 +1,35 @@
+{"v":1,"id":"019c08e4-5af5-7a6c-8903-3c423c2c85b8","at":1769675709173000000,"seq":500,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08e4-5af5-7550-8b02-f542f5e63093","at":1769675709173000000,"seq":501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c08e4-db30-706e-95fb-3deb933768e9","at":1769675742000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e5-38f0-7690-aa78-305d36c60618","at":1769675766000000000,"seq":503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e7-7d55-79c9-8057-51075ede5e90","at":1769675914581000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c08e7-e558-7651-ae55-91dabe4c79e2","at":1769675941208000000,"seq":505,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c08e8-03c8-705a-a86e-7823a2df1be0","at":1769675949000000000,"seq":506,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c08e8-4ef2-79d1-b5ba-fc3cb8f93e06","at":1769675968242000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c08e8-6570-70f7-8985-fcdfe193256d","at":1769675974000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e8-c718-7d0f-8720-d84d2ba6a799","at":1769675999000000000,"seq":509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c08e8-cb00-7eff-a304-06fd372e4594","at":1769676000000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e9-13c7-7136-b5ff-ff6d8dc809bf","at":1769676018631000000,"seq":511,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c08e9-9238-7b81-9e05-e97068e9de9e","at":1769676051000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c08e9-a5c0-7df1-a7ca-138e9053d5ef","at":1769676056000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e9-b560-746c-a335-d8d3eb15084e","at":1769676060000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08ea-0380-7e3a-b87f-a9a4758bb945","at":1769676080000000000,"seq":515,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08ea-2198-792a-9b6c-ff8432df8c9f","at":1769676087704000000,"seq":516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c08ea-26a8-727e-a905-2f01b789b04c","at":1769676089000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08ea-5d58-7b8a-92f1-a5bfcf6f86c4","at":1769676103000000000,"seq":518,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08ea-9020-73ed-a8d7-e58408594318","at":1769676116000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08ea-d0a9-745f-9713-5e9e920dc077","at":1769676132521000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c08ea-de40-7fcd-a026-dbc86c5ebbf4","at":1769676136000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c08eb-0938-7ad0-9d7a-cc5c942f7f03","at":1769676147000000000,"seq":522,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08eb-3048-740f-b9e5-d635041b4617","at":1769676157000000000,"seq":523,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c08eb-8a20-7656-9884-84b9bb6e5cb2","at":1769676180000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08fe-3bc8-7ca2-af4f-cea483230ac8","at":1769677405128000000,"seq":525,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c08fe-3bc8-7d27-9747-117c9bb6c7cf","at":1769677405128000000,"seq":526,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c08fe-79c8-7910-80e9-aaf601cb2550","at":1769677421000000000,"seq":527,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c08fe-a8a8-7b3b-9800-610bfe9c2e10","at":1769677433000000000,"seq":528,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08fe-ac90-733c-8b93-9e3e18c487ea","at":1769677434000000000,"seq":529,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c0918-369e-7642-b8e6-98ad75f6e0a2","at":1769679107742000000,"seq":530,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c0918-3f70-79c6-a5d6-636e7fbbdf67","at":1769679110000000000,"seq":531,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c0918-4358-746d-b974-eae350cf7589","at":1769679111000000000,"seq":532,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c0918-5eb0-73df-8cc5-26f23bd89a1d","at":1769679118000000000,"seq":533,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0918-8d90-735a-9b51-a3b0637bc214","at":1769679130000000000,"seq":534,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,13 @@
+{"v":1,"id":"019bac5a-b0f9-7ccc-b830-064d02f608d1","at":1768123183353000000,"seq":196,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac5a-b0f9-7de4-b32f-62a23c0dab7e","at":1768123183353000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bac5b-1910-705e-b9f7-34813c6d04a2","at":1768123210000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bac5b-6f00-731f-a585-cc1429897910","at":1768123232000000000,"seq":199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5b-7df7-7f4b-9b9f-d6d1d826d0c0","at":1768123235831000000,"seq":200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bac5b-99f8-73f2-a96d-ae1c9a7aa1d5","at":1768123243000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5b-a5b0-75a7-99fc-2a7fc785ebf2","at":1768123246000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5b-fba0-718b-bae0-93567d1fd3d1","at":1768123268000000000,"seq":203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bac5c-26f5-7992-9686-91bddabc0219","at":1768123279093000000,"seq":204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bac5c-3a20-73e9-bb58-8240ade2b64c","at":1768123284000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5c-45d8-7312-8275-0b2446621d2a","at":1768123287000000000,"seq":206,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bac5c-7620-79f3-854f-0b2a152ccc42","at":1768123299360000000,"seq":207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bac5c-9010-7e0c-86cb-a4a64b6a0652","at":1768123306000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

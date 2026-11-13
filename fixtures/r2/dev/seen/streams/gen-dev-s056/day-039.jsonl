@@ -1,0 +1,4 @@
+{"v":1,"id":"019c3c70-397e-799c-9274-ce8336513b60","at":1770540513662000000,"seq":306,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c70-397e-77fa-95e0-9646ea24228f","at":1770540513662000000,"seq":307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3c70-4688-7ee5-ad3b-8a4bc8b83ea0","at":1770540517000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c3c70-9a23-7842-8e0c-55062493fa8d","at":1770540538403000000,"seq":309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}

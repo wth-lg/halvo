@@ -1,0 +1,13 @@
+{"v":1,"id":"019d437e-9f07-74f2-b3fa-bc67a80af1d0","at":1774953864967000000,"seq":1266,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d437e-9f07-7bed-ac6c-f6f4a52e0adb","at":1774953864967000000,"seq":1267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d437e-c638-7eaa-94e0-908252a7eb41","at":1774953875000000000,"seq":1268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4393-1b3c-74bd-a9fa-712717822748","at":1774955207484000000,"seq":1269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4393-d4d8-7a2a-8135-2ef58086ed1c","at":1774955255000000000,"seq":1270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4394-1f10-7f6e-8f84-e64b52180cf1","at":1774955274000000000,"seq":1271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d439d-ab8b-7b73-959e-fbe677ea24da","at":1774955899787000000,"seq":1272,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d439d-ab8b-7ada-927d-4ac70f157f3c","at":1774955899787000000,"seq":1273,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d439d-c3d0-7efa-9df9-da89311e9df4","at":1774955906000000000,"seq":1274,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d439d-d370-73de-8b4c-b5d6d0a526a2","at":1774955910000000000,"seq":1275,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d439e-43b2-7b80-97e2-d5012dc352c2","at":1774955938738000000,"seq":1276,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d439e-5458-7553-960c-94032fc2ced8","at":1774955943000000000,"seq":1277,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d439e-7780-7e40-b24c-b0ef47aff163","at":1774955952000000000,"seq":1278,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

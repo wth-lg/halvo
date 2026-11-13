@@ -1,0 +1,18 @@
+{"v":1,"id":"019d4380-5d31-75c6-99af-a0933254c7ae","at":1774953979185000000,"seq":1290,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4380-5d31-75ce-8f39-2fe630630384","at":1774953979185000000,"seq":1291,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d4380-6830-748a-bc15-a24e16aebdaa","at":1774953982000000000,"seq":1292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4380-7000-7605-8cac-24432722e710","at":1774953984000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d4380-dd60-7017-bb34-ed6b48d3c306","at":1774954012000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4381-076a-75d1-ad68-55ee600bda2d","at":1774954022762000000,"seq":1295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4381-3738-7982-84a3-ddda599ecb4e","at":1774954035000000000,"seq":1296,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4381-8940-7d0c-ba6d-fac47e7a4768","at":1774954056000000000,"seq":1297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4381-a880-7388-9c78-9d8be798efd5","at":1774954064000000000,"seq":1298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d4381-de8f-73dd-a023-651f04890333","at":1774954077839000000,"seq":1299,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d4382-44c0-72de-a3df-f19d6fc3f784","at":1774954104000000000,"seq":1300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4382-48a8-7b5e-bd85-253ca6fc7b7b","at":1774954105000000000,"seq":1301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4382-8728-7fb4-9225-8d4ae9595600","at":1774954121000000000,"seq":1302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4382-96c8-74b3-87e6-c48d71b1b062","at":1774954125000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d438a-a112-7d91-93b4-3a85b91c9029","at":1774954651922000000,"seq":1304,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d438a-a112-76fc-9161-ee5133846edb","at":1774954651922000000,"seq":1305,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d438a-a160-7c44-b0e9-19dfbad988fa","at":1774954652000000000,"seq":1306,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d438a-f368-7b59-ad33-88419ded2da9","at":1774954673000000000,"seq":1307,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

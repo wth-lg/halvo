@@ -1,0 +1,19 @@
+{"v":1,"id":"019c089f-1549-7313-9d7f-834fa225879d","at":1769671169353000000,"seq":327,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c089f-1549-782c-8ed7-9b91a6a91e44","at":1769671169353000000,"seq":328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c089f-f290-79f4-82ee-ec326646aad2","at":1769671226000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c08a0-015b-7d78-a1b1-cf61648f33c5","at":1769671229787000000,"seq":330,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c08a0-4498-754f-8ca2-568427284b64","at":1769671247000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08a0-7378-73fc-a496-5beb8d7a8470","at":1769671259000000000,"seq":332,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c08a0-c580-7b3c-8cc2-f288bcf0f5ff","at":1769671280000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c08a0-c968-7952-ba91-127be7c32594","at":1769671281000000000,"seq":334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c08a0-d24c-70f3-9077-98d6934dfadd","at":1769671283276000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c08a1-61c0-7a79-bf73-9d734f36a5df","at":1769671320000000000,"seq":336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08a1-6990-7b4e-b362-12fe669e4d77","at":1769671322000000000,"seq":337,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c08a1-c83c-7048-baee-f8d7b98d7da8","at":1769671346236000000,"seq":338,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c08a1-cf20-7b65-abc8-6d7f1b28560f","at":1769671348000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08a2-18f1-7701-a49c-aaa25f196577","at":1769671366897000000,"seq":340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c08a2-2128-782a-aada-414ae78c9df7","at":1769671369000000000,"seq":341,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08a2-5bc0-7787-8a2f-b66253184004","at":1769671384000000000,"seq":342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08a2-7858-78f1-beee-94d45d7e95d0","at":1769671391320000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c08a2-b980-74b0-83d9-9c6819d60523","at":1769671408000000000,"seq":344,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c08a2-f418-73fc-a572-5ea8c9345c85","at":1769671423000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

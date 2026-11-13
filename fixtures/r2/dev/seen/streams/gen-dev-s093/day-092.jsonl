@@ -1,0 +1,51 @@
+{"v":1,"id":"019d4dc8-ddeb-705c-a86e-8f555298ac25","at":1775126502891000000,"seq":1381,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4dc8-ddeb-708c-b83d-8cd1326f3f49","at":1775126502891000000,"seq":1382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4dc9-0568-75a5-a1e1-dbe397775c18","at":1775126513000000000,"seq":1383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d4dc9-0d38-7bc5-ab4b-b2e7b840c23f","at":1775126515000000000,"seq":1384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dc9-3830-7615-8cae-50b6d46e7cd3","at":1775126526000000000,"seq":1385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4dd1-8798-7938-b5ea-9a7c54a4a7c2","at":1775127070616000000,"seq":1386,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4dd1-fe48-7418-b2bb-c9dfe91df514","at":1775127101000000000,"seq":1387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dd2-5703-767e-a96d-624204c66e1d","at":1775127123715000000,"seq":1388,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4dd2-7b48-7d31-922b-e19e7b988412","at":1775127133000000000,"seq":1389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dd2-8700-7d1b-b73e-781923c0d202","at":1775127136000000000,"seq":1390,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4dd2-c968-7dd2-8ba5-437e4f40e45d","at":1775127153000000000,"seq":1391,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4dd3-6392-71f2-b329-8582d5f79998","at":1775127192466000000,"seq":1392,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4dd3-7160-7374-b448-e4e4e94b19d1","at":1775127196000000000,"seq":1393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d4dd3-7d18-7377-9aab-cfe3e4fea035","at":1775127199000000000,"seq":1394,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4dd3-bb98-72f3-8c4b-ba56327bb90c","at":1775127215000000000,"seq":1395,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4dd3-da2f-70aa-84e7-cef2c425c013","at":1775127222831000000,"seq":1396,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4dd3-f248-765e-ac87-d47728bb193f","at":1775127229000000000,"seq":1397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dd3-f248-7aff-8904-3094861c3e06","at":1775127229000000000,"seq":1398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d4dd4-2510-739a-a471-0aec8f4bba41","at":1775127242000000000,"seq":1399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dd4-28f8-7be9-a5e7-0c0743389e25","at":1775127243000000000,"seq":1400,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4dd4-6f48-7e71-aa33-fb3ba62e1d57","at":1775127261000000000,"seq":1401,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4dd4-9c80-75ff-b236-29945ef2aa26","at":1775127272576000000,"seq":1402,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4dd4-f030-70fd-bb99-2d6f46f4c7a9","at":1775127294000000000,"seq":1403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dd5-02c4-761d-b9d5-b1db1ba51883","at":1775127298756000000,"seq":1404,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4dd5-0b88-7cc3-bc5d-e350bc4327f5","at":1775127301000000000,"seq":1405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4ddc-bd6f-7b8d-862a-0a10671383a3","at":1775127805295000000,"seq":1406,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4ddc-bd6f-7342-808b-d5e0c7577af3","at":1775127805295000000,"seq":1407,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4ddc-eb28-7001-824f-f2d719da4635","at":1775127817000000000,"seq":1408,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4ddc-f6e0-7c05-8be3-0386bd329378","at":1775127820000000000,"seq":1409,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4ddd-1df0-7697-a1a0-868c90537ab9","at":1775127830000000000,"seq":1410,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d4ddd-2bc9-7736-af60-6a324e8eec84","at":1775127833545000000,"seq":1411,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4ddd-3178-7dfa-ade7-d788eeb5bbb3","at":1775127835000000000,"seq":1412,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d4ddd-9320-7242-b0f2-3cda6754208c","at":1775127860000000000,"seq":1413,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4ddd-b260-7a6d-973a-5d7367774a36","at":1775127868000000000,"seq":1414,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4ddd-e243-72a5-88a9-b3ab73430cf4","at":1775127880259000000,"seq":1415,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4dde-6de0-7606-9950-0c7810680956","at":1775127916000000000,"seq":1416,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dea-cdcb-713a-8885-f0b7efa83b80","at":1775128726987000000,"seq":1417,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4dea-cdcb-7d06-a344-7d4a597be8ed","at":1775128726987000000,"seq":1418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d4deb-0870-7d3d-9274-464d6e497da1","at":1775128742000000000,"seq":1419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d4deb-2276-72e8-a91b-c88946896399","at":1775128748662000000,"seq":1420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d4deb-5e60-79e0-8103-9040af7d8f08","at":1775128764000000000,"seq":1421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d4deb-6630-7f59-b67d-71866f2116e3","at":1775128766000000000,"seq":1422,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4deb-7c91-7bfb-941f-479c6c4705b9","at":1775128771729000000,"seq":1423,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d4deb-a0c8-7f65-bd9d-5ca907651325","at":1775128781000000000,"seq":1424,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4deb-b450-78da-a0ba-c99f580b7f62","at":1775128786000000000,"seq":1425,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4dec-2934-7ca9-9ed6-2b610b09a109","at":1775128815924000000,"seq":1426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d4dec-3920-79bb-83f6-3844f3b76b3e","at":1775128820000000000,"seq":1427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d4dec-44d8-7227-b0a9-440ed1e0971b","at":1775128823000000000,"seq":1428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dec-5c48-7ce2-9d41-4359b1130b38","at":1775128829000000000,"seq":1429,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4dec-6418-7cff-9cf7-906d3c7110c3","at":1775128831000000000,"seq":1430,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4dec-8b28-7663-8988-635c02999917","at":1775128841000000000,"seq":1431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

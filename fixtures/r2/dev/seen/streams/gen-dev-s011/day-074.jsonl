@@ -1,0 +1,14 @@
+{"v":1,"id":"019cf0ea-97a5-703f-b6b4-0987bdd65b68","at":1773568432037000000,"seq":962,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf0ea-97a5-77a2-81a1-bb2322fdbd1e","at":1773568432037000000,"seq":963,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf0ea-9f50-7702-8eb6-d4075d9fd072","at":1773568434000000000,"seq":964,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cf0eb-4748-70e3-9793-8a47e2b43959","at":1773568477000000000,"seq":965,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf0eb-5eb8-75d3-925f-d717ae79d3bd","at":1773568483000000000,"seq":966,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cf0f7-3d6a-74a5-833d-09f30ca2a24e","at":1773569260906000000,"seq":967,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cf0f7-ed90-7293-bb98-95f240780b00","at":1773569306000000000,"seq":968,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf10e-24d7-767a-ab04-357e2bb917cd","at":1773570761943000000,"seq":969,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf10e-24d7-7a1b-a7e4-f7da531e65ed","at":1773570761943000000,"seq":970,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf10e-d4d8-744a-a762-73071f390406","at":1773570807000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf10e-f020-796c-982c-1ca9c882ac2b","at":1773570813984000000,"seq":972,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf10f-6d30-7289-b49b-b6e331ec1454","at":1773570846000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf10f-7cd0-72db-89eb-09cdc328404d","at":1773570850000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf10f-7cd0-7b18-aa5c-3901684f5214","at":1773570850000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

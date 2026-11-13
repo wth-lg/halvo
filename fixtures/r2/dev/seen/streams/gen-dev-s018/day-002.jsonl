@@ -1,0 +1,36 @@
+{"v":1,"id":"019b7dfb-06e6-7c36-b198-bd9f447d8338","at":1767345161958000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7dfb-06e6-77f3-8125-db8206af471c","at":1767345161958000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7dfb-6ca0-7537-a20b-6cf1fbd76796","at":1767345188000000000,"seq":2,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e06-7526-7ff7-891d-ab510871dc89","at":1767345911078000000,"seq":3,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7e06-78c0-7dd9-801e-4cee3631ee6d","at":1767345912000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e06-9418-7566-9bef-f2a9796f4d30","at":1767345919000000000,"seq":5,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e06-de50-7a56-a92d-9cb002edd7b3","at":1767345938000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e1b-1335-7700-9b7c-ca7b52e9ad65","at":1767347262261000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b7e1b-4110-77f6-b113-b1a15fd1887a","at":1767347274000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b7e1b-f307-7be7-865e-f2c9aabf2da4","at":1767347319559000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b7e1c-1018-726c-8078-cb50b064d19e","at":1767347327000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e1c-df6a-76f9-8f81-0cb9e438950a","at":1767347380074000000,"seq":11,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b7e1d-11e8-775d-8ff8-35546e509564","at":1767347393000000000,"seq":12,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e1d-2958-784d-b8dd-0dab9e1e6758","at":1767347399000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e1d-96b8-7fa6-afc7-6f442451c68e","at":1767347427000000000,"seq":14,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e1d-9aa0-7806-b426-51bc86436c21","at":1767347428000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e24-cb64-7609-9d21-f8d9dc469494","at":1767347899236000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b7e24-f958-722c-8eac-9d3db669112c","at":1767347911000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e24-fd40-7671-ab43-fc9e1f175a35","at":1767347912000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e25-6580-7f06-9b77-2baee17acfb3","at":1767347938688000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b7e25-7e28-7fcb-be6a-ebc316d7541f","at":1767347945000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b7e25-a150-7116-8871-915389f1de24","at":1767347954000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e25-d030-7810-aca8-bc81d3c6f9c5","at":1767347966000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e25-db0f-7844-ba1b-baf04d1752b7","at":1767347968783000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b7e26-31d8-783a-ad1a-b79b0ff1a525","at":1767347991000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b7e26-7c10-7fad-b1b2-05d2ca7c063e","at":1767348010000000000,"seq":25,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e26-8b32-7850-9d01-0b93f843bf4b","at":1767348013874000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b7e26-9b50-787a-bd07-0f22e7c37712","at":1767348018000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e26-d9d0-751e-bc50-11d5d8cfdc4e","at":1767348034000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7e26-e1a0-7267-afa9-81e042f87c39","at":1767348036000000000,"seq":29,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e27-08b0-7ba3-8a51-0a9a1a1d2384","at":1767348046000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e27-2fc0-75db-a7cf-ac0d47695b68","at":1767348056000000000,"seq":31,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7e2d-82cc-78d4-ba8b-050ce495a13a","at":1767348470476000000,"seq":32,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e2d-9860-791c-9bba-e1a2cdd6703a","at":1767348476000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b7e2d-a800-7496-9ff4-b7688f7cf321","at":1767348480000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e2d-ee50-7a58-92dd-1baf61e357a2","at":1767348498000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

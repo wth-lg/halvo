@@ -1,0 +1,22 @@
+{"v":1,"id":"019c0957-f8ed-760d-a3e8-859df297536d","at":1769683286253000000,"seq":488,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0957-f8ed-77c4-bf3c-f5b99e199270","at":1769683286253000000,"seq":489,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0957-ffc0-71e1-b909-0df61fae06ce","at":1769683288000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c0958-1348-74c8-8d6a-1f06d37ea263","at":1769683293000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0958-c3df-73da-952f-eed7dfce7fdf","at":1769683338207000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0958-d2b0-7c5f-894c-ae4e92ee2e8c","at":1769683342000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c0959-0d48-730d-9592-1b90cdc55f9f","at":1769683357000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0959-1db8-7657-a66d-09944139e8c9","at":1769683361208000000,"seq":495,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0959-5780-7185-a2b6-3b5fc78d071b","at":1769683376000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0959-9218-793c-b1e8-5513ef01f476","at":1769683391000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0969-01a9-7ac7-a8d3-5f01fd0e0113","at":1769684402601000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c0969-64e0-761a-b3fc-029883477939","at":1769684428000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0969-b54b-7988-8a27-7ea0af46928e","at":1769684448587000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c0969-c688-7823-96ee-3f79468347a6","at":1769684453000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c0969-da10-7a47-beb7-22db0a01a274","at":1769684458000000000,"seq":502,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0969-e1e0-7d17-af6c-96f84d625289","at":1769684460000000000,"seq":503,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0969-eeab-7704-b7ed-20b75498db3d","at":1769684463275000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c096a-37d0-7720-81a7-db487f0dddb6","at":1769684482000000000,"seq":505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c096a-4388-79e2-8aa3-2f1ee10fff48","at":1769684485000000000,"seq":506,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c096a-91a8-7608-be0f-a2c06d762640","at":1769684505000000000,"seq":507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c096a-f7a9-739c-b4e6-b81079a2ca6f","at":1769684531113000000,"seq":508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c096b-4170-7d9b-b9f7-c37912c2d743","at":1769684550000000000,"seq":509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

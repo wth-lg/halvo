@@ -1,0 +1,12 @@
+{"v":1,"id":"019c1d91-4b7e-764f-9fe7-e93e19fb8984","at":1770022587262000000,"seq":358,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1d91-4b7e-7b6d-8975-03a21848b184","at":1770022587262000000,"seq":359,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1d91-6da0-7f16-9f2e-a9c437e9457b","at":1770022596000000000,"seq":360,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d91-90c8-7478-9fcd-b36cdc8f0d1b","at":1770022605000000000,"seq":361,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c1d91-9e64-7cd9-840a-42c8687985a8","at":1770022608484000000,"seq":362,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c1d91-a838-7f1a-828b-0e11316b1282","at":1770022611000000000,"seq":363,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c1d91-e1f8-7ecc-9dea-d2d4713b7e10","at":1770022625784000000,"seq":364,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c1d92-2920-7c04-80ac-2ae4d764bf82","at":1770022644000000000,"seq":365,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c1d92-38c0-7ccb-808c-70fd810ec7ef","at":1770022648000000000,"seq":366,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dac-ca6e-7aee-bfc4-12ffc8154297","at":1770024389230000000,"seq":367,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1dac-ca6e-7a63-a251-31c275bad17d","at":1770024389230000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c1dac-e8c8-7589-af7d-f6f0d47e8356","at":1770024397000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

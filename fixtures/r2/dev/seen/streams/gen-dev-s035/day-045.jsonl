@@ -1,0 +1,56 @@
+{"v":1,"id":"019c5b8b-de7b-7a14-8ccc-95109c2bfb75","at":1771062419067000000,"seq":587,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b8b-de7b-7ac7-bd38-8122af391831","at":1771062419067000000,"seq":588,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b8c-1100-703d-b195-9638d04562c1","at":1771062432000000000,"seq":589,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c5ba5-5f3a-7cae-9813-a9426a7080b1","at":1771064090426000000,"seq":590,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5ba5-5f3a-7c6d-9aa0-6800cbb2f825","at":1771064090426000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba5-9058-7a2f-bd3c-2e0c19097359","at":1771064103000000000,"seq":592,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba6-28b0-7a8b-817f-0698cc9d39e2","at":1771064142000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5ba6-3a19-7cae-8ce8-6aa695418f3c","at":1771064146457000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba6-5f60-70da-800c-0ed5e5763064","at":1771064156000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba6-bf27-7080-8442-7530a22aae14","at":1771064180519000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba6-d0a8-710c-9d1f-e29f41364f4d","at":1771064185000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba6-efe8-7cda-8ef6-220574ceaccd","at":1771064193000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c5ba7-2698-752d-b556-bf5237b946b5","at":1771064207000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba7-49c0-7961-9743-ea0cc28d6231","at":1771064216000000000,"seq":600,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5ba7-5960-7f02-b0a5-335c51c0325c","at":1771064220000000000,"seq":601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5ba7-73ac-7162-8a2f-a60546918fae","at":1771064226732000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba7-8458-737f-9bb5-166bdcd9ad93","at":1771064231000000000,"seq":603,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5ba7-9bc8-7ffb-9bea-ce97e0280c82","at":1771064237000000000,"seq":604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5bb2-634e-7232-ac16-f55afd03e058","at":1771064943438000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb2-6d50-72c2-94e2-7de4742addcb","at":1771064946000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb2-7908-7d14-8739-ae198dbf1a9a","at":1771064949000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c5bb2-f220-71f6-9c14-0a388987d868","at":1771064980000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb3-58ad-73c8-b1c9-e595671bb6ed","at":1771065006253000000,"seq":609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb3-6368-7357-88f9-3020da027aad","at":1771065009000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5bb4-5071-7a0c-b404-83282bf383a8","at":1771065069681000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb4-5980-7da1-9cf4-d4c3c2f27bc6","at":1771065072000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb4-9fd0-7280-93a1-47baf3e72980","at":1771065090000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb4-af70-7fc5-b532-344e092f47a5","at":1771065094000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5bb4-ea08-71cf-ba31-01450574d907","at":1771065109000000000,"seq":615,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bcb-e13b-72da-99f4-7eb6724c27a9","at":1771066614075000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5bcc-4433-7861-b003-746ff066dfae","at":1771066639411000000,"seq":617,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5bcc-d708-7453-bf8f-68ab32bf8335","at":1771066677000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c5bcc-ded8-749e-9b4c-58868b88ccea","at":1771066679000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5bcc-dfce-750d-8c6a-4bc26736a5d0","at":1771066679246000000,"seq":620,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5bcd-09d0-7046-83d1-255089f825e1","at":1771066690000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5bcd-0db8-7059-b6d9-58444e2549d8","at":1771066691000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bcd-11a0-7151-b76a-7a3188de0835","at":1771066692000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bcd-1588-796f-844a-298c12f31f89","at":1771066693000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bcd-1ce7-7a8e-8f8d-8368a3351704","at":1771066694887000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5bcd-6f60-766f-9bc7-d5e3ef22a49f","at":1771066716000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bcd-d4f0-76c0-8a2d-b7983dade39e","at":1771066742000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c5bcd-f612-7846-908b-51ace1a2404b","at":1771066750482000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5bce-1b40-750c-9c48-699702bdcdb9","at":1771066760000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5bce-2ec8-7873-8847-01f467c7bd48","at":1771066765000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd8-d191-7b07-a04f-e3a1c717f411","at":1771067462033000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bd9-4a88-7d7d-af5c-748a261faa9f","at":1771067493000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5bd9-d425-709b-9861-bbab358a5f27","at":1771067528229000000,"seq":633,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bda-11c0-7730-9ace-12383d73a71d","at":1771067544000000000,"seq":634,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5bda-15a8-7078-acf1-2b8f7ff4d0b4","at":1771067545000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c5bda-5fe0-73e6-912f-9407f7af7107","at":1771067564000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bda-88f2-7f16-bb1c-18bd35220d30","at":1771067574514000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bda-8ec0-72be-923f-81daadcff120","at":1771067576000000000,"seq":638,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5bda-a630-7ec7-a4f0-900e9810a4e0","at":1771067582000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bda-b5d0-7d83-b38a-4df5ca4cab2e","at":1771067586000000000,"seq":640,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bdb-1a0a-774a-bfcb-de08fb518ff9","at":1771067611658000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bdb-84d8-78af-871e-7d32d63d9a85","at":1771067639000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

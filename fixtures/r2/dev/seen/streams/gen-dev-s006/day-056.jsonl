@@ -1,0 +1,21 @@
+{"v":1,"id":"019c93f9-72b9-7388-82fe-0bfb9d063013","at":1772009124537000000,"seq":817,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c93f9-72b9-75df-a8b0-c0af54c63c77","at":1772009124537000000,"seq":818,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c93f9-a368-75a4-a81e-56aae0656305","at":1772009137000000000,"seq":819,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93f9-a750-7581-9083-d39f719b01ca","at":1772009138000000000,"seq":820,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c93f9-bec0-7011-9166-1dde8b02fa09","at":1772009144000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93f9-c690-7874-b9f6-9774e74597dc","at":1772009146000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c9412-5d9b-778b-9042-3ab5fa8dba5f","at":1772010757531000000,"seq":823,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c9412-8680-71a0-9883-b5441f5ffabc","at":1772010768000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c9412-b178-700e-ba03-1ec80ab36d12","at":1772010779000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9413-2c85-75c8-9c0c-751950781bab","at":1772010810501000000,"seq":826,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c9413-8080-7994-8cee-2e08bdad7749","at":1772010832000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9413-9408-772d-9952-1300c060c9a2","at":1772010837000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c9413-9fc0-7f2c-87d5-fde474fc9c77","at":1772010840000000000,"seq":829,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9413-a8b4-7c55-92e6-b02200df07e0","at":1772010842292000000,"seq":830,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c9414-18d8-7595-9a20-0f39594b3228","at":1772010871000000000,"seq":831,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9414-684e-7ebc-a7d9-4c32798970e8","at":1772010891342000000,"seq":832,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c9414-8250-7939-b850-8e0aee4e0f84","at":1772010898000000000,"seq":833,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9414-dc28-70c6-aee1-c8d599aaa1df","at":1772010921000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9414-ff50-72ee-b44b-0ac44e4b2a75","at":1772010930000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c9415-2660-77ed-a6ca-96aa262dc660","at":1772010940000000000,"seq":836,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9415-3218-7c52-ab45-e13b33cc4c94","at":1772010943000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

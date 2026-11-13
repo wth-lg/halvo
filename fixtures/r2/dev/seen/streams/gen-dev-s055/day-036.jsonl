@@ -1,0 +1,29 @@
+{"v":1,"id":"019c2d6d-f60a-7505-8506-feef0ae3a3e0","at":1770288707082000000,"seq":655,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d6d-f60a-7c63-9cdb-49f2d54de86d","at":1770288707082000000,"seq":656,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c2d6e-2880-7e0d-81ee-37eac7be02a4","at":1770288720000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d6e-e400-7361-bf87-68bcb1481300","at":1770288768000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c2d6f-0471-7605-aa1f-41b712806094","at":1770288776305000000,"seq":659,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c2d6f-93c8-7831-ab00-ba4f66232a95","at":1770288813000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c2d70-12c4-7f48-b36e-1e6fc826d07c","at":1770288845508000000,"seq":661,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c2d70-2450-7e71-83e7-a09833443a8e","at":1770288850000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c2d70-7658-774e-82ee-84e4ebc36a1e","at":1770288871000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d70-e3b8-7692-80b0-8cad1f798fc6","at":1770288899000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2d70-e83b-746a-9129-87140571f954","at":1770288900155000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2d71-6888-7802-8872-d23d6ee8aa6d","at":1770288933000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d71-ef0d-78d5-be82-92d91eb99055","at":1770288967437000000,"seq":667,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2d72-6a58-7139-a7ae-967260ffd31b","at":1770288999000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d72-81c8-7586-909e-0f8191af82a3","at":1770289005000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d72-8af6-772a-a89b-27938d51a1dd","at":1770289007350000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2d72-a8d8-76f2-9215-71a59d25858e","at":1770289015000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d73-299a-74a1-9095-25eed642752a","at":1770289047962000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2d73-3578-7982-9609-53f900d86d46","at":1770289051000000000,"seq":673,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d73-6458-782b-824a-3736133c55a7","at":1770289063000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d73-8f50-7841-9aec-c0dbaa766e95","at":1770289074000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d73-ae90-7949-8717-1a9ad6685f02","at":1770289082000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c2d73-b0e3-7c57-a822-697030e6fd18","at":1770289082595000000,"seq":677,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c2d73-be30-73dc-a74e-20f9d3aa4f76","at":1770289086000000000,"seq":678,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d73-c218-7ae6-acae-70251306f8bd","at":1770289087000000000,"seq":679,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d73-c9e8-7fc1-af33-f85897790561","at":1770289089000000000,"seq":680,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d73-f8c8-780c-b10f-7139d1335ec3","at":1770289101000000000,"seq":681,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d74-07ba-798b-a94e-02040e7d8dd9","at":1770289104826000000,"seq":682,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c2d74-23c0-78af-8e23-481db9b20b64","at":1770289112000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

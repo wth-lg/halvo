@@ -1,0 +1,16 @@
+{"v":1,"id":"019c284d-5378-7759-9b67-a706359f523e","at":1770202682232000000,"seq":496,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c284d-5378-7042-bed9-dee0310c6ea8","at":1770202682232000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c284d-5e48-7b0d-a249-4c936b29441a","at":1770202685000000000,"seq":498,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c284d-79a0-7503-ad69-3a964b3295e9","at":1770202692000000000,"seq":499,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c284d-9110-7661-bbe5-f1d0d1de3887","at":1770202698000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c285b-34d4-707d-abd9-d7a14a4dc9ab","at":1770203591892000000,"seq":501,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c285b-34d4-7c5e-b302-e3cfa8d4eb3b","at":1770203591892000000,"seq":502,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c285b-7f78-734b-8974-8f1259d7a045","at":1770203611000000000,"seq":503,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c285b-9ad0-7ad8-b539-c6cafc13f50a","at":1770203618000000000,"seq":504,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c286a-565b-75b8-a76c-c2a82a2826d7","at":1770204583515000000,"seq":505,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c286a-8720-7988-817a-bb0f87e3e8bc","at":1770204596000000000,"seq":506,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c2877-bc36-7b65-8ae5-7a9ebaba0b2f","at":1770205461558000000,"seq":507,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2877-bc36-7fde-b517-df4f40fea2b1","at":1770205461558000000,"seq":508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c2878-c629-73ee-9c6f-4935348f810c","at":1770205529641000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c2878-cb78-7870-8559-4a4fc5dd5cdf","at":1770205531000000000,"seq":510,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2878-f670-737f-b503-e394bb2fbe98","at":1770205542000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

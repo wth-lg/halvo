@@ -1,0 +1,38 @@
+{"v":1,"id":"019d5259-3051-789f-b437-9d06f50b408b","at":1775203070033000000,"seq":1476,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d5259-3051-76c1-9844-766a9b44d082","at":1775203070033000000,"seq":1477,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d5259-8233-7c8e-86cf-8332bdce2687","at":1775203090995000000,"seq":1478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d5259-8df0-77b2-b259-0c11ff3a0412","at":1775203094000000000,"seq":1479,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d5259-bcd0-7c2d-bf55-09ad53f9e78a","at":1775203106000000000,"seq":1480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d5259-d440-7d46-b0fc-941905e90ec7","at":1775203112000000000,"seq":1481,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d525a-3c8a-79d6-a611-d54c13f67883","at":1775203138698000000,"seq":1482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d525a-4970-7d41-88db-5cee01115e2c","at":1775203142000000000,"seq":1483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d525a-7080-77c4-9061-19d164436c0d","at":1775203152000000000,"seq":1484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d525a-7c38-7e67-80be-18e72884b694","at":1775203155000000000,"seq":1485,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d525b-0994-736e-aabc-84c7459f474a","at":1775203191188000000,"seq":1486,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d525b-10a8-7422-a9f5-08a2c184e66d","at":1775203193000000000,"seq":1487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d5268-29f1-71c6-9760-2111681fe57b","at":1775204051441000000,"seq":1488,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d5268-4b60-7fc3-ab2b-27ecbe92604e","at":1775204060000000000,"seq":1489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5268-a538-775d-9f86-c7edd6c2a8df","at":1775204083000000000,"seq":1490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5268-a8b0-714d-a2f4-f2b8dbb7cf35","at":1775204083888000000,"seq":1491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d5268-d030-7eb3-8d76-2de299fd98ee","at":1775204094000000000,"seq":1492,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d5268-dbe8-7c8d-b706-d89f3550e9e3","at":1775204097000000000,"seq":1493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d5268-dbe8-7f4e-aa7b-bf2dd9df00e8","at":1775204097000000000,"seq":1494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d5268-f440-70db-8f36-d9e735c178fa","at":1775204103232000000,"seq":1495,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d5269-0eb0-7221-a9ea-aec3c4e7f387","at":1775204110000000000,"seq":1496,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d5269-1e50-732c-886e-40867c8d98b5","at":1775204114000000000,"seq":1497,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d5269-39a8-7b48-a53b-d60dc937662a","at":1775204121000000000,"seq":1498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5269-4178-705d-ba8f-ed9ecf7634c1","at":1775204123000000000,"seq":1499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5269-4560-71ea-a131-9b2f2c3c9ed3","at":1775204124000000000,"seq":1500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d5269-8942-701b-83e9-65505963dc9d","at":1775204141378000000,"seq":1501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d5269-8f98-7d88-b8a2-a9672ea509c5","at":1775204143000000000,"seq":1502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5269-9b50-767b-8e89-96a404acc338","at":1775204146000000000,"seq":1503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5269-be78-72f5-8f08-50a7be17c0e6","at":1775204155000000000,"seq":1504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d5279-bf06-74de-8827-a21b08d7104d","at":1775205203718000000,"seq":1505,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d5279-e348-79d7-a1f0-99efa48f7616","at":1775205213000000000,"seq":1506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5279-ef00-764e-9e86-3d66a02bcd8e","at":1775205216000000000,"seq":1507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d527a-4a54-75e1-804c-62b72663fb8d","at":1775205239380000000,"seq":1508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d527a-77b8-70e6-892b-c21c46b3224a","at":1775205251000000000,"seq":1509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d527a-c1f0-7dc4-8fe2-b93f16d4493a","at":1775205270000000000,"seq":1510,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d527b-3b9e-78cf-ba3d-2d4c833412c9","at":1775205301150000000,"seq":1511,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d527b-6218-77e1-bbe7-d5fd798d439f","at":1775205311000000000,"seq":1512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d527b-69e8-7d28-b522-22bcd9c83492","at":1775205313000000000,"seq":1513,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

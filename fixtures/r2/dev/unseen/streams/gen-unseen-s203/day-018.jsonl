@@ -1,0 +1,20 @@
+{"v":1,"id":"019bd012-63c1-70ee-a39d-fa1ecb016273","at":1768722424769000000,"seq":336,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd012-63c1-77e2-bdbd-89e185d194a4","at":1768722424769000000,"seq":337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bd013-00e8-7904-89ff-c81f3e74e4ac","at":1768722465000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd02c-85a9-787f-a315-1200e37b295a","at":1768724137385000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bd02c-d630-77c2-9ac4-9786601d053f","at":1768724158000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bd02d-1898-7adb-816f-125c4328d463","at":1768724175000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd02d-84e3-7c61-8a8d-3d29a2a3b884","at":1768724202723000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bd02e-2238-74a7-ab8a-c5c309a90584","at":1768724243000000000,"seq":343,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd02e-782a-7e35-b69c-9d652765b9f7","at":1768724265002000000,"seq":344,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd02e-782a-709d-931b-e5b9cae77f80","at":1768724265002000000,"seq":345,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd02e-7c10-7db9-90c5-2d609e7d18b6","at":1768724266000000000,"seq":346,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bd02e-87c8-7f6f-82e5-6112bfb0fb42","at":1768724269000000000,"seq":347,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bd02e-8bb0-7cf6-92bb-1440f6b137cc","at":1768724270000000000,"seq":348,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bd02e-9b50-70b2-ba4d-f7244e183782","at":1768724274000000000,"seq":349,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd02e-b9f9-772f-a8db-5d7806653900","at":1768724281849000000,"seq":350,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd02e-b9f9-76f7-af5e-bb02497f876f","at":1768724281849000000,"seq":351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bd02f-08b0-7b7d-b31b-316b4c383a13","at":1768724302000000000,"seq":352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd02f-08b0-7443-ac33-0ccce6effd1e","at":1768724302000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bd02f-2020-71e6-bd8c-79873926f5e2","at":1768724308000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd02f-27f0-7832-a419-186c1377fae8","at":1768724310000000000,"seq":355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

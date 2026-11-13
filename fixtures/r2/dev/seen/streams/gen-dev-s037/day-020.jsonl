@@ -1,0 +1,53 @@
+{"v":1,"id":"019bda5a-b6c9-74fb-b714-6322635b42c5","at":1768894936777000000,"seq":286,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda5a-b6c9-7263-b26a-fb5f18d2889c","at":1768894936777000000,"seq":287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bda5b-2cd8-76fa-8c49-394cba0be0fe","at":1768894967000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bda5b-5000-7392-9af7-4c762ac391f1","at":1768894976000000000,"seq":289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda5b-8e80-7b82-a19d-512050a70a85","at":1768894992000000000,"seq":290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bda71-8551-7e90-b375-b806d5475020","at":1768896431441000000,"seq":291,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bda71-a6c0-7405-a8c7-5b68910b2966","at":1768896440000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda71-aaa8-743f-ad08-3cb7be96fac1","at":1768896441000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bda72-0868-7950-8c0c-f0fe00628a90","at":1768896465000000000,"seq":294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda72-7b3e-7141-b548-d40137d7a24c","at":1768896494398000000,"seq":295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bda72-9120-71f2-ada3-63a2d809aa3a","at":1768896500000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda72-a0c0-7ce4-8345-e281de8ea263","at":1768896504000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda72-b448-7b8f-bfc8-c96f2de11b23","at":1768896509000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bda72-b601-7210-bb59-20b89bd92e97","at":1768896509441000000,"seq":299,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda72-cbb8-7d18-8f35-59b8ca5de73a","at":1768896515000000000,"seq":300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda72-e710-7967-82d2-946c5c250d23","at":1768896522000000000,"seq":301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bda73-0a38-7c52-b276-1f589e00e6f5","at":1768896531000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda73-7e80-7b0e-8bcb-326025b69b8e","at":1768896560768000000,"seq":303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda73-8350-71f3-80df-a4cfa3e22c06","at":1768896562000000000,"seq":304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bda73-8f08-78ad-9839-3ceac0e58f51","at":1768896565000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda73-96d8-742f-8e5a-463bb4fca102","at":1768896567000000000,"seq":306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda73-aa60-770b-bd3a-ddf092330de5","at":1768896572000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda73-b618-7414-a9f4-cea0240a2b86","at":1768896575000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bda73-b6d2-7c43-937c-273b8ff285fb","at":1768896575186000000,"seq":309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda73-c5b8-755e-a0a0-1ea1ff2dade6","at":1768896579000000000,"seq":310,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda73-d940-7cd2-933b-84630d7e3a05","at":1768896584000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda74-0ff0-7c5a-95db-1e2dc8d4862c","at":1768896598000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bda74-1f90-7c6a-858b-31bba96cfda3","at":1768896602000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bda74-2189-738c-aac0-9fd1c2e5499a","at":1768896602505000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda74-2760-72c3-b38a-685e3a11f572","at":1768896604000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda74-4a88-715b-b1c2-7e9cd862c84c","at":1768896613000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bda74-4e70-7a11-a8a0-b296296131c3","at":1768896614000000000,"seq":317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda74-69c8-7af7-affa-7966247c585b","at":1768896621000000000,"seq":318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bda74-76a8-7028-9e8a-d57a47f1af66","at":1768896624296000000,"seq":319,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda74-98a8-73fb-93ad-1fa378f1018e","at":1768896633000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda74-9c90-7fbe-8b2d-530b820770b2","at":1768896634000000000,"seq":321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bda74-b9b2-73a0-871d-b541a1c45000","at":1768896641458000000,"seq":322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda74-f668-7446-9b89-e535488188ef","at":1768896657000000000,"seq":323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda75-4c58-7d11-80d6-c607b12c1446","at":1768896679000000000,"seq":324,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bda75-5040-7c8f-8a47-5d8dd9bd659b","at":1768896680000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda75-94b6-76ca-ac01-c99b8f46b4a2","at":1768896697526000000,"seq":326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bda76-2ee8-77b4-b40d-440e3c392916","at":1768896737000000000,"seq":327,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda76-3e4f-781d-bdff-e0857b6fdac0","at":1768896740943000000,"seq":328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bda76-4a40-7190-a9a9-c730dc9c619e","at":1768896744000000000,"seq":329,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bda76-7150-76fc-898a-bce10ec34c46","at":1768896754000000000,"seq":330,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bda8c-e100-758b-9ecd-4c4d1e80b563","at":1768898224384000000,"seq":331,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bda8d-3570-7aa3-bc7c-f6cbb6eff226","at":1768898246000000000,"seq":332,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda8d-6c20-7f5d-9fac-fcebbdb1c249","at":1768898260000000000,"seq":333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bda8d-8390-761a-a523-1d7b1d715b01","at":1768898266000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda8d-d980-7ced-bc76-8b07c4719070","at":1768898288000000000,"seq":335,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda9b-f216-73d6-aaef-def88daf50ec","at":1768899211798000000,"seq":336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bda9c-0e38-7899-b488-2c337671591d","at":1768899219000000000,"seq":337,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bda9c-5c58-7004-b462-272802a44f56","at":1768899239000000000,"seq":338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

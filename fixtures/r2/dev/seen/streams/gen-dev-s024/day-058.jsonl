@@ -1,0 +1,11 @@
+{"v":1,"id":"019c9df5-bf03-7e36-982d-f1a883ebb66f","at":1772176654083000000,"seq":675,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9df5-bf03-7a84-bb0a-5f1a943693eb","at":1772176654083000000,"seq":676,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9df5-f948-785b-b972-6c8291a24b12","at":1772176669000000000,"seq":677,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c9df6-2828-718c-a2ad-38f78bc3fab5","at":1772176681000000000,"seq":678,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c9df7-58ff-7efe-a2ec-cdb6003a27dc","at":1772176759039000000,"seq":679,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9df7-58ff-7f7b-b312-e501fa4de2e6","at":1772176759039000000,"seq":680,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c9df7-7c00-764c-9822-afaedf0c6690","at":1772176768000000000,"seq":681,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9df7-f258-7733-8e81-07625e709dcd","at":1772176798296000000,"seq":682,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c9df8-56c0-7c19-8cf5-ecff00533ff3","at":1772176824000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9df8-6a48-71fe-8650-03631de2011e","at":1772176829000000000,"seq":684,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9df8-7dd0-7d22-9fbf-8e6aa9865e4b","at":1772176834000000000,"seq":685,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

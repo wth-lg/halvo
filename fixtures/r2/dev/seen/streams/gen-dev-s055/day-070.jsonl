@@ -1,0 +1,17 @@
+{"v":1,"id":"019cdc14-87c6-7be2-9b4c-81e14ba83670","at":1773218858950000000,"seq":1108,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc14-87c6-7860-83a7-87597b4a0fea","at":1773218858950000000,"seq":1109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cdc15-7085-70d8-bd88-32e9066f2e94","at":1773218918533000000,"seq":1110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cdc15-8db0-7ed6-b379-923864e8c81b","at":1773218926000000000,"seq":1111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cdc15-ac6a-735c-9b56-57a4a9a994fe","at":1773218933866000000,"seq":1112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cdc16-7428-7352-b97d-8cad2296c95c","at":1773218985000000000,"seq":1113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc16-b5d7-7ae0-b7ff-899b86bd4331","at":1773219001815000000,"seq":1114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cdc17-1838-7744-b277-b5601dfe6e7c","at":1773219027000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cdc31-7a33-76df-8aa7-11c03b13c408","at":1773220756019000000,"seq":1116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cdc31-b0d0-72e6-b8c2-4a6ec43c8b4a","at":1773220770000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc31-bc88-7f9f-b949-0908590d8913","at":1773220773000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc3e-8993-7ad7-bfbe-2de31e97d7e4","at":1773221611923000000,"seq":1119,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc3e-8993-7031-a254-9ee775a02899","at":1773221611923000000,"seq":1120,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc3e-b4d8-7715-bd01-0e66fcdc41b1","at":1773221623000000000,"seq":1121,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cdc3e-dfd0-7688-9500-11c1a9bb45ae","at":1773221634000000000,"seq":1122,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc3e-dfd0-7369-9498-181513f0a2f0","at":1773221634000000000,"seq":1123,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cdc3e-ff10-722b-8cb2-15dcbf533852","at":1773221642000000000,"seq":1124,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

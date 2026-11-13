@@ -1,0 +1,32 @@
+{"v":1,"id":"019c55ee-de67-7ba7-b155-a405a8e1c47b","at":1770968243815000000,"seq":554,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c55ee-de67-7cee-9240-cf2adfe756e1","at":1770968243815000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c55ef-c1b0-736f-9130-b41b7a1047be","at":1770968302000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ef-c980-7002-b401-2ecb3f1f171c","at":1770968304000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c55ef-ce08-7962-a7e2-b60f5606cd79","at":1770968305160000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c55ef-d920-7260-970d-535ea60f7d26","at":1770968308000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c55f0-1216-75f7-9daf-04ac9f139b05","at":1770968322582000000,"seq":560,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c55f0-3eb0-76c4-bd20-80d9dfad3ee6","at":1770968334000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f0-5a08-7f31-803f-f40cc1235d43","at":1770968341000000000,"seq":562,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c55f0-61d8-7f9d-8892-eef2dc2fa56d","at":1770968343000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f1-1de4-7eaa-a850-ed858a51545c","at":1770968391140000000,"seq":564,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c55f1-38b0-73b8-9649-747c38cc22b6","at":1770968398000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f1-38b0-7acc-aa6f-bda6333030b7","at":1770968398000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c55f1-4850-7459-b44e-5d1fca3a34d6","at":1770968402000000000,"seq":567,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c55f1-5fa3-7002-bfc4-eccac0cff149","at":1770968407971000000,"seq":568,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c55f1-c168-7490-84f9-a29d64ef7c4e","at":1770968433000000000,"seq":569,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c55f1-c550-71f6-abe4-7d5795cd905a","at":1770968434000000000,"seq":570,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c560a-ed46-752a-b251-60888636dc18","at":1770970082630000000,"seq":571,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c560b-0240-7d68-abb0-960a72c66581","at":1770970088000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c560b-19b0-7920-a079-69dee3c04f7e","at":1770970094000000000,"seq":573,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c560b-3120-718d-9bf5-e7dd45fac359","at":1770970100000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c560f-9f94-71f0-83db-20c6b1093ccd","at":1770970390420000000,"seq":575,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c5610-5970-7050-8170-fc9c1e269cbb","at":1770970438000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5610-a530-7e1c-98c0-a3f2673bd6df","at":1770970457392000000,"seq":577,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c5610-a790-7a95-8342-68de7248e21f","at":1770970458000000000,"seq":578,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5611-0550-70b4-9432-926114d05d3f","at":1770970482000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5611-72b0-7343-aa2e-a8c7f14ed4a7","at":1770970510000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5611-90af-76ab-8c44-67589c1b235c","at":1770970517679000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c5611-c0d0-7451-9057-88d058fc7d5b","at":1770970530000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5611-dc28-70cd-8671-324e1b4bbe2b","at":1770970537000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c5612-3505-74d5-b43b-cdff6a11ac1a","at":1770970559749000000,"seq":584,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c5612-3600-7b6d-ab10-710005385753","at":1770970560000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

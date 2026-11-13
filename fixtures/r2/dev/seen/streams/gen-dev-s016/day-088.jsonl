@@ -1,0 +1,61 @@
+{"v":1,"id":"019d392d-13c3-74e4-835e-a48525040d1d","at":1774780748739000000,"seq":1325,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d392d-13c3-7451-8b60-f1376c770609","at":1774780748739000000,"seq":1326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d392d-5730-7a02-b630-db0ab6fa00cd","at":1774780766000000000,"seq":1327,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d392d-ad20-7a88-b632-ae5fe8f3a44b","at":1774780788000000000,"seq":1328,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3931-f7e3-721e-bdf8-f0b59191bf65","at":1774781069283000000,"seq":1329,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3932-5e2e-7121-9bae-011c1fa2e336","at":1774781095470000000,"seq":1330,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3932-6bf8-7135-bb3f-1c7e9e4b9dcd","at":1774781099000000000,"seq":1331,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3932-a2a8-758f-806b-b8097ee877a6","at":1774781113000000000,"seq":1332,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3933-4aa0-74b7-87f4-96b118eff6ae","at":1774781156000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3933-5861-7aad-9214-e4b504ec4b7c","at":1774781159521000000,"seq":1334,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3933-65f8-75c5-bda9-ebb54dfcd5d6","at":1774781163000000000,"seq":1335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3933-7980-75dd-a3e8-d83f90e6d78d","at":1774781168000000000,"seq":1336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3933-8920-7e99-8522-8cec088221fa","at":1774781172000000000,"seq":1337,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3933-98c0-7985-8307-602e61371f25","at":1774781176000000000,"seq":1338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d3933-a2ae-7df4-b21d-9b9f704427e2","at":1774781178542000000,"seq":1339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3933-a478-7614-aa70-ab496538adb2","at":1774781179000000000,"seq":1340,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3933-b030-70e4-a160-7eafa45bd608","at":1774781182000000000,"seq":1341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3933-c3b8-7c3a-b673-74ba8190a5c1","at":1774781187000000000,"seq":1342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3946-f8f3-75cf-970a-e7c6fb9d120c","at":1774782445811000000,"seq":1343,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3946-f8f3-74ee-979a-d81ef361aeee","at":1774782445811000000,"seq":1344,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3947-1508-742d-852f-3deab8a58d90","at":1774782453000000000,"seq":1345,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d394f-f9d9-7c2d-914c-22a45d052af2","at":1774783035865000000,"seq":1346,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3950-0de8-7e32-bf85-9e2106b8c639","at":1774783041000000000,"seq":1347,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3950-2558-7c41-bfd1-5b555646fcae","at":1774783047000000000,"seq":1348,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d3950-4c68-79b7-a402-df5dfbc24fc0","at":1774783057000000000,"seq":1349,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d3950-8ae8-7da5-9c5d-977726e808a2","at":1774783073000000000,"seq":1350,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3950-b1f8-7f50-86ab-989984e24726","at":1774783083000000000,"seq":1351,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d3969-c4d3-7c04-a418-c813f593d27b","at":1774784726227000000,"seq":1352,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3969-c4d3-7193-94e2-503f717e7811","at":1774784726227000000,"seq":1353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d3969-eee8-7d19-9167-1168b2cc272b","at":1774784737000000000,"seq":1354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d396a-0270-7b89-a01b-a571e1a49765","at":1774784742000000000,"seq":1355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d396a-2815-7a1b-82e4-3cb64b155b5d","at":1774784751637000000,"seq":1356,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d396a-3920-7f71-bae2-7fda93cd2fe6","at":1774784756000000000,"seq":1357,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d396a-48c0-703c-8660-e685c148a6bf","at":1774784760000000000,"seq":1358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d396a-8740-7b72-9703-8e6a878bb891","at":1774784776000000000,"seq":1359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d396a-cd90-7cdd-8e97-f3c366af9640","at":1774784794000000000,"seq":1360,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d396a-f0b8-753b-842a-1b9fc5106295","at":1774784803000000000,"seq":1361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d396a-f98e-7bc5-a5b7-198385db8955","at":1774784805262000000,"seq":1362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d396b-2768-7018-9f91-12ace3f27e9c","at":1774784817000000000,"seq":1363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d396b-427e-7c2e-a96b-11a5f2fdfca6","at":1774784823934000000,"seq":1364,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d396b-5648-71c5-9b20-0c78f6ada203","at":1774784829000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d396b-8528-7c5a-b250-3185a2e1eaf2","at":1774784841000000000,"seq":1366,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d396b-9c98-7b2b-8cf5-ffc803e80c21","at":1774784847000000000,"seq":1367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d397f-18a8-7497-9a72-dd89f63706d9","at":1774786123944000000,"seq":1368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d397f-95e0-7def-bea5-6b0d3f328dd2","at":1774786156000000000,"seq":1369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d397f-c105-7578-b56b-82a675afef52","at":1774786167045000000,"seq":1370,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d397f-c105-7bd4-b28d-fa399afc3aca","at":1774786167045000000,"seq":1371,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d397f-f3a0-7544-b35c-ae96020e3481","at":1774786180000000000,"seq":1372,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3980-0728-7c9a-b379-48ab5132d170","at":1774786185000000000,"seq":1373,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3980-15be-7606-ac9d-382940d02dc6","at":1774786188734000000,"seq":1374,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3980-3608-7197-bb50-4908edcd9dc0","at":1774786197000000000,"seq":1375,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3980-41c0-7494-9df7-ce4249367b46","at":1774786200000000000,"seq":1376,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3980-4f7f-7fed-a8c7-e11fda77c50a","at":1774786203519000000,"seq":1377,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3980-4f7f-7bcf-abc3-57d7b60c1a79","at":1774786203519000000,"seq":1378,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d3980-64e8-748b-b521-38308de571cf","at":1774786209000000000,"seq":1379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3980-64e8-715f-aac1-dd50acb34d6e","at":1774786209000000000,"seq":1380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d3980-c947-72bd-817a-f45d70c3ca68","at":1774786234695000000,"seq":1381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d3981-37e8-7155-898d-f0781843b0f7","at":1774786263016000000,"seq":1382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d3981-a150-757f-8601-b19f93bcdd91","at":1774786290000000000,"seq":1383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3981-a920-7ca2-9325-f4885210de69","at":1774786292000000000,"seq":1384,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3981-c478-791b-bc99-a0983ebbd1f9","at":1774786299000000000,"seq":1385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

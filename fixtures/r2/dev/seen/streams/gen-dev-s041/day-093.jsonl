@@ -1,0 +1,13 @@
+{"v":1,"id":"019d52d5-c234-784e-9369-aca2a251caa0","at":1775211233844000000,"seq":1394,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52d5-c234-7f87-a427-a3edcf759733","at":1775211233844000000,"seq":1395,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d52d5-d658-79b4-8cd4-92787eafbb07","at":1775211239000000000,"seq":1396,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52d6-3e98-7a5f-8867-0c91b0d77997","at":1775211265688000000,"seq":1397,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d52d6-6ac8-713e-8570-c839f3b2dc84","at":1775211277000000000,"seq":1398,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52d6-d058-7870-9c08-1231c3746414","at":1775211303000000000,"seq":1399,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52ee-852d-77d9-9d46-a559ca80fb6d","at":1775212856621000000,"seq":1400,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52ee-852d-7626-a5c9-6dd92d5aef0b","at":1775212856621000000,"seq":1401,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52ee-9e18-76fc-b160-b4e1de1d4287","at":1775212863000000000,"seq":1402,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d52ee-b1a0-70aa-b38d-a96f3607ebf4","at":1775212868000000000,"seq":1403,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52ee-dc98-77ef-b763-94092e698390","at":1775212879000000000,"seq":1404,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d52fe-ece0-7b30-aace-ad1b12cda545","at":1775213931744000000,"seq":1405,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52fe-ece0-7966-86ec-5f89ae9fcd55","at":1775213931744000000,"seq":1406,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019bb12c-6edd-79ef-9cc1-c57967a6adf0","at":1768204037853000000,"seq":228,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb12c-6edd-7c47-8faa-2490e066ce40","at":1768204037853000000,"seq":229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb136-c80d-7195-8b17-63c93b9e7fa9","at":1768204716045000000,"seq":230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bb136-cfb0-77c0-97b8-b671c7e130ba","at":1768204718000000000,"seq":231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb136-e338-7c23-ad50-1ad1e38e30ff","at":1768204723000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb137-0136-789b-aa15-3b119b7d885d","at":1768204730678000000,"seq":233,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bb137-1dd0-7354-9f79-b8fea1711424","at":1768204738000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb137-ae58-746c-b409-e85d8f62eae3","at":1768204775000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb137-b628-745e-a8a4-050eec483fd2","at":1768204777000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bb138-08a9-7443-a80d-b8c38aaaf8c8","at":1768204798121000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bb138-1000-73a1-bbe6-8efa15da3ab7","at":1768204800000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb138-3710-76db-859c-7dc072ce3e19","at":1768204810000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb138-3ee0-7272-9f50-6509a4bb52b7","at":1768204812000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb138-5268-7836-b37f-62c6ecc9342b","at":1768204817000000000,"seq":241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb138-702c-7e42-a523-b872ef2b356b","at":1768204824620000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bb138-fe48-7c5d-9f1f-37e9177caf3e","at":1768204861000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb152-fb0a-7c6c-b604-439f70e5e6c6","at":1768206564106000000,"seq":244,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb152-fb0a-7510-b9f8-d431384465a9","at":1768206564106000000,"seq":245,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb153-6fd0-7baa-b47d-14e4724e1111","at":1768206594000000000,"seq":246,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb153-7f70-7d08-a9dc-da57f3411048","at":1768206598000000000,"seq":247,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bb153-8b28-7a1d-94db-ed400133350e","at":1768206601000000000,"seq":248,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

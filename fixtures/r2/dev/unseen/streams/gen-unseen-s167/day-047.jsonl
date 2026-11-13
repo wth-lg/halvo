@@ -1,0 +1,35 @@
+{"v":1,"id":"019c65b8-d855-760c-9f11-31fb759bee55","at":1771233138773000000,"seq":746,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65b8-d855-76ac-825d-5faea7c54531","at":1771233138773000000,"seq":747,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c65b8-fc60-7a0a-b523-5c4efee85aa7","at":1771233148000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b9-2f28-7b13-b308-24bfac6f8bb8","at":1771233161000000000,"seq":749,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c65b9-4873-7468-98fd-4166cf3bb466","at":1771233167475000000,"seq":750,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c65b9-65d8-76e7-9526-c7fd36de7be4","at":1771233175000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c65b9-ac28-79a4-8d3c-a6eee79186f9","at":1771233193000000000,"seq":752,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c65b9-ee90-7e80-aaa4-c6e656a63623","at":1771233210000000000,"seq":753,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65b9-f278-7878-815f-9858ad51264c","at":1771233211000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65ba-13ce-7907-92c7-380738b4ceb3","at":1771233219534000000,"seq":755,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c65ba-67a8-785e-9c13-38cd7b17e7c3","at":1771233241000000000,"seq":756,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65ba-e890-7692-86f7-72e238127fd0","at":1771233274000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65ba-f830-7dae-a835-4444c9e078aa","at":1771233278000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65bb-0bb8-7db3-8a55-ecefffc6133a","at":1771233283000000000,"seq":759,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c65d1-cda1-7a62-af26-a3c6477fc935","at":1771234774433000000,"seq":760,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c65d1-cda1-75e5-aa59-803dc4b504e1","at":1771234774433000000,"seq":761,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c65d2-0688-7f3a-8b01-5b0c33a28fd8","at":1771234789000000000,"seq":762,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e1-0c72-7c20-9865-d3ff1113d1c8","at":1771235773554000000,"seq":763,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65e1-0c72-7ca5-bce9-d4b342c145bc","at":1771235773554000000,"seq":764,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c65e1-5868-728a-a799-040579ce8a8e","at":1771235793000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e1-5c50-75cb-8484-6c5351ef5035","at":1771235794000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e1-68ca-7837-aaf1-f80261cac37b","at":1771235797194000000,"seq":767,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c65e1-8b30-7a98-b861-bebb7cfe56a2","at":1771235806000000000,"seq":768,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65e1-ae58-74c1-817b-e5f9da81a8d6","at":1771235815000000000,"seq":769,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c65e1-c5c8-7410-bff2-898537e50e3b","at":1771235821000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e2-3ce6-79cd-b8d5-fbc981c958b3","at":1771235851494000000,"seq":771,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c65e2-42c8-7ebb-8aa6-3ee34f588033","at":1771235853000000000,"seq":772,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65e2-7978-7a91-a5ea-e21c4d22d8ad","at":1771235867000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e2-fd42-7cbf-9a27-d0f949910011","at":1771235900738000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c65e3-3110-7d03-8658-bc43755e9e71","at":1771235914000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c65e3-34f8-70fd-891c-ba89d6cdf774","at":1771235915000000000,"seq":776,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c65f6-fc1d-794b-a1d7-5cb4cc349861","at":1771237211165000000,"seq":777,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c65f7-0730-7d93-af04-7b32c5853902","at":1771237214000000000,"seq":778,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65f7-2670-7aca-9f07-b3087aeecfe0","at":1771237222000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65f7-3de0-7661-b295-9041bdc01b31","at":1771237228000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

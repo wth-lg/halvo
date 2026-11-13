@@ -1,0 +1,23 @@
+{"v":1,"id":"019bdfdc-ec93-7378-bbfd-b1d45f484147","at":1768987356307000000,"seq":321,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdfdc-ec93-7ad4-9c83-2329461ea036","at":1768987356307000000,"seq":322,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdfdd-06b8-7599-8e93-a5d6d342acbb","at":1768987363000000000,"seq":323,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdff7-cc4a-770e-86c0-5e65ff90bf71","at":1768989117514000000,"seq":324,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdff7-cc4a-7855-813f-25ec4d74c67f","at":1768989117514000000,"seq":325,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bdff8-2bf0-7e23-bcbe-950308bad11b","at":1768989142000000000,"seq":326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff8-33c0-7b21-9222-3e8b5e8378e4","at":1768989144000000000,"seq":327,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be006-fc15-723d-a790-46f7948e9117","at":1768990112789000000,"seq":328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019be007-27e0-7c1a-8bf7-3d5325fff727","at":1768990124000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be007-3b68-7320-983b-f6f1a785cf9d","at":1768990129000000000,"seq":330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be007-3f50-78fa-9ba7-971f47143faa","at":1768990130000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019be007-481b-7534-9569-f34487867c49","at":1768990132251000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019be007-81b8-7d5e-89f1-734125d63a3a","at":1768990147000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be007-8ae4-7c99-8d2a-4e80fcb3a5fc","at":1768990149348000000,"seq":334,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019be007-9928-722c-b9dc-9b4fa28398b3","at":1768990153000000000,"seq":335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019be007-acb0-7269-9ebd-1696766c9dd2","at":1768990158000000000,"seq":336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be008-4508-768f-8a0f-931b45ae17be","at":1768990197000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be008-6c18-7fbd-a0d8-60162bbe76b6","at":1768990207000000000,"seq":338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be008-93c1-72ca-9743-a132679cda54","at":1768990217153000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019be008-a2c8-77d3-b2c2-b94f47c3e74a","at":1768990221000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be008-ba38-75de-a91f-a652d654dcb9","at":1768990227000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be008-f0e8-7146-af05-8e4209727562","at":1768990241000000000,"seq":342,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be009-0858-7000-b562-c02a3bb85a66","at":1768990247000000000,"seq":343,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

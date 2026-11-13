@@ -1,0 +1,29 @@
+{"v":1,"id":"019ca84c-6e11-73ba-ba9d-06b725daac47","at":1772350107153000000,"seq":948,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca84c-6e11-7e96-b07a-b5fbc7add3a0","at":1772350107153000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ca84c-88d0-756c-8275-fc1c0899bea7","at":1772350114000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ca84c-c2f7-7b59-b434-6d73b0f0d672","at":1772350128887000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ca84d-c81d-7281-98e9-f3ae26483c2d","at":1772350195741000000,"seq":952,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ca84e-07a0-768e-81e9-3f8ea3e1dd09","at":1772350212000000000,"seq":953,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca84e-7cd0-74db-ac0e-22a4d1604663","at":1772350242000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca84e-8888-72cc-876b-9cf4afeccfdf","at":1772350245000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca84e-9dcd-7930-9ee5-abc5b9378361","at":1772350250445000000,"seq":956,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ca84f-01a0-7c50-9df4-3f13f991041b","at":1772350276000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca84f-5790-7926-89bc-625a9b6a43ed","at":1772350298000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca864-f60f-750f-b37b-476ad640b413","at":1772351714831000000,"seq":959,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca865-0658-7956-a4aa-998d02fa1b23","at":1772351719000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca865-1dc8-712b-9730-b05a4ecdf8ee","at":1772351725000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca865-9eb0-7058-bdda-8078469606a2","at":1772351758000000000,"seq":962,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca87e-e32e-7d48-824d-2c6a24bd9526","at":1772353413934000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ca87e-f6f8-7fb7-8f8f-54adc25f44bb","at":1772353419000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87f-8b68-7652-9d2e-0b684fbbe93d","at":1772353457000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87f-ed10-77f2-a698-3331f0d27405","at":1772353482000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ca88b-33a3-77e5-b7fa-4afde3c84863","at":1772354220963000000,"seq":967,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca88b-6a78-794d-baf7-a9a381b6bff8","at":1772354235000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ca88b-d008-7c57-a174-5f8c1a972ecf","at":1772354261000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88c-1659-7368-b73f-c0655906b461","at":1772354279001000000,"seq":970,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca88c-1e28-7497-90e0-dcf290379452","at":1772354281000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88c-f8e8-7337-9937-f00c431bb10e","at":1772354337000000000,"seq":972,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca88c-fcd0-772d-899c-9a84ff855617","at":1772354338000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca88d-00b8-7765-8c14-42de60408e72","at":1772354339000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ca88d-091b-74a6-926a-f9b1be76dfe7","at":1772354341147000000,"seq":975,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca88d-3380-79d7-a584-5d2ed4bdc500","at":1772354352000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

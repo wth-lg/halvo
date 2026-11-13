@@ -1,0 +1,12 @@
+{"v":1,"id":"019c60df-d8c5-7019-823e-8424060460f6","at":1771151808709000000,"seq":667,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60df-d8c5-70c2-83ee-71d83cd8300f","at":1771151808709000000,"seq":668,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c60df-f158-73af-90ed-442905b6ce56","at":1771151815000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60df-f540-7ed4-8ffd-04e20ddb75db","at":1771151816000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c60e0-7240-7654-9e53-9daff4b50d20","at":1771151848000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60e0-c66e-7555-b667-0912a69165c3","at":1771151869550000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c60e1-0a98-7c57-b88f-7d631f97fd36","at":1771151887000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ea-b65f-7425-bdc1-340a25ffa465","at":1771152520799000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c60ea-e608-72d2-b4ea-e07a6d826208","at":1771152533000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ea-f5a8-78a9-8849-f94c60155b61","at":1771152537000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ea-fd78-7d6c-944c-3cf3454af7e5","at":1771152539000000000,"seq":677,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60eb-18d0-7751-b88d-f91a963e5cf6","at":1771152546000000000,"seq":678,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

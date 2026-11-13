@@ -1,0 +1,15 @@
+{"v":1,"id":"019cd18f-fbd5-7338-80ee-39163d87f74f","at":1773042400213000000,"seq":819,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd18f-fbd5-7ab9-b167-4f5ecbd6879b","at":1773042400213000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cd190-3980-711a-a6ad-7c782526dffd","at":1773042416000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd190-54d8-7f26-bb6c-6c975fc84115","at":1773042423000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd191-0bb9-700b-8add-bf9400b615d2","at":1773042469817000000,"seq":823,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cd191-55d8-718e-87f1-41913873a62f","at":1773042488792000000,"seq":824,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cd191-79d0-7335-b029-941e9b54fd9b","at":1773042498000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd191-c020-7ae4-a16e-36f91eb13a14","at":1773042516000000000,"seq":826,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cd192-0288-7957-9d8e-d23f3a29538b","at":1773042533000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd192-210b-7165-8d0e-49b6ec3948dc","at":1773042540811000000,"seq":828,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cd192-4108-710b-a5e9-69a36f99a07e","at":1773042549000000000,"seq":829,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd192-48d8-72f1-ab36-6ec4d8671a19","at":1773042551000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd192-77b8-7418-86b1-e6a1f81e73e6","at":1773042563000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cd1a4-e1d8-755d-8ed2-6ac70bc91855","at":1773043769816000000,"seq":832,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cd1a4-e678-7eee-a3a8-784d6348bf05","at":1773043771000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

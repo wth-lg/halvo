@@ -1,0 +1,48 @@
+{"v":1,"id":"019c55dd-1c7f-721b-b851-f905ecc03f8a","at":1770967080063000000,"seq":667,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c55dd-1c7f-7e48-b016-5d6a9ce1b044","at":1770967080063000000,"seq":668,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c55dd-9940-791f-b7e4-cbac71a7a832","at":1770967112000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c55dd-d9f0-7300-a9d2-54bdd6c52197","at":1770967128560000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c55de-0e70-75ae-b9d9-a7dc7c2d14b4","at":1770967142000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c55de-4908-7d21-9744-a996d4514d99","at":1770967157000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55de-8ab4-7dcf-8436-3dcc3a8161ce","at":1770967173812000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c55de-f7bb-7cd4-a6b3-e5be5c312628","at":1770967201723000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c55de-f8d0-7ca1-a4f3-5cc4a68ce764","at":1770967202000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c55de-fcb8-73ce-b903-3f3976fd2c14","at":1770967203000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c55df-1810-7cf8-b61a-eeb860d1550d","at":1770967210000000000,"seq":677,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c55df-4202-7ace-8d11-2c6220fce7fd","at":1770967220738000000,"seq":678,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c55df-4ec0-7950-b269-eb4c27db368e","at":1770967224000000000,"seq":679,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c55df-5690-7405-bae5-cf532c6aca88","at":1770967226000000000,"seq":680,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55df-7f24-762c-bc75-f03dd0ad1fd5","at":1770967236388000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c55df-a0c8-7686-bfee-4bb9f11a0d5e","at":1770967245000000000,"seq":682,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55df-b450-74dc-9961-867676f4ba32","at":1770967250000000000,"seq":683,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55df-deca-7400-b670-f863d100d3f4","at":1770967260874000000,"seq":684,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c55df-e718-7c70-8239-d2ab6d242495","at":1770967263000000000,"seq":685,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c55e0-2d68-743d-ad45-2dfe2e7938c8","at":1770967281000000000,"seq":686,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55e0-5c48-703a-a900-f2f1ee1df2ee","at":1770967293000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c55e0-b238-743a-a925-5d3afb0e9428","at":1770967315000000000,"seq":688,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c55e0-bbd8-7be7-ad90-88929ebeb5e2","at":1770967317464000000,"seq":689,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c55e0-d560-7b88-a0f4-b0b76925fa40","at":1770967324000000000,"seq":690,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c55e0-d948-7b6e-b5b5-1dfee430d440","at":1770967325000000000,"seq":691,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c55e0-fbbc-7d8d-a9e9-f3073ee24b85","at":1770967333820000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c55e1-0058-778a-b22c-cc96afdf036f","at":1770967335000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c55e1-3708-7610-b783-08481d286b1b","at":1770967349000000000,"seq":694,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c55f1-a387-77b4-9f39-1be2ef16ca8d","at":1770968425351000000,"seq":695,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c55f1-ade0-7dec-9f6c-870d1dc0b931","at":1770968428000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c55f1-e878-7232-8818-fbcc7e677042","at":1770968443000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f2-1370-760d-9204-740620dd1137","at":1770968454000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f2-6947-795d-be18-7bee79a596ec","at":1770968475975000000,"seq":699,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c55f2-b780-7870-bc6f-fbfa62c8a893","at":1770968496000000000,"seq":700,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c55f2-c720-7d75-b5b4-391bc8974609","at":1770968500000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f3-05a0-7ee2-a26c-674c377e82c4","at":1770968516000000000,"seq":702,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c55f3-22d1-76b6-9ba8-3bc3b6ab695a","at":1770968523473000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c55f3-28c8-77f9-bc1b-a11773c42ac1","at":1770968525000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c55f3-6360-7a0e-81bc-e0a3b090ce3b","at":1770968540000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55f3-9470-76d2-8a0f-407dc16a0b90","at":1770968552560000000,"seq":706,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c55f3-9470-7cf5-a6ea-08b2e467b37f","at":1770968552560000000,"seq":707,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c55f4-a2f8-7f10-826f-dc64696b371e","at":1770968621816000000,"seq":708,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c55f4-a2f8-7bc6-940c-c2870ce81943","at":1770968621816000000,"seq":709,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c55f4-b738-71ec-bb91-3d55c6da0314","at":1770968627000000000,"seq":710,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c55f5-2880-7bb8-a219-cd030ea41c35","at":1770968656000000000,"seq":711,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c5609-a74e-7126-bd5e-4032b8dc335f","at":1770969999182000000,"seq":712,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5609-a74e-77d5-9482-e26056154975","at":1770969999182000000,"seq":713,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5609-fc88-720c-87cb-1669ee98c678","at":1770970021000000000,"seq":714,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}

@@ -1,0 +1,58 @@
+{"v":1,"id":"019bf978-0da2-73eb-b4af-85402e910147","at":1769416953250000000,"seq":409,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf978-0da2-77ed-9db9-a3a83f14d857","at":1769416953250000000,"seq":410,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf978-1c48-70ff-b2ea-ff371b536f69","at":1769416957000000000,"seq":411,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bf991-0e95-7ce2-8f92-2a0f9fce141d","at":1769418591893000000,"seq":412,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf991-0e95-7f91-955d-867d44ff865a","at":1769418591893000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf991-12e8-7296-bd70-1e5f5a1358ac","at":1769418593000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf991-5d20-7db5-890f-ff8a01b1e3b5","at":1769418612000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf991-7490-7d31-8068-bded0565ece0","at":1769418618000000000,"seq":416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bf991-f939-7715-8b56-01c54e5c6410","at":1769418651961000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf992-8dd0-7571-8109-77f7f3754149","at":1769418690000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ab-71f2-75ea-88c5-2723621805e5","at":1769420321266000000,"seq":419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ab-9fc8-72d9-add1-babd051c88c5","at":1769420333000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bf9bd-28ea-7938-af4b-ba4f9c9d2235","at":1769421482218000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf9be-2210-7ec5-bc3e-dc0823bff89d","at":1769421546000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9be-227c-7bec-9037-01fa3b5ed380","at":1769421546108000000,"seq":423,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf9be-ba68-7f28-ac8b-df616d3cf121","at":1769421585000000000,"seq":424,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf9be-e454-7958-a786-897a0530d8b4","at":1769421595732000000,"seq":425,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf9be-fcd0-75e3-9b26-aadb27305ece","at":1769421602000000000,"seq":426,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9bf-1ff8-71b7-b6ad-479c6ddc3526","at":1769421611000000000,"seq":427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bf9bf-3b50-750f-98e3-8579e86b86ba","at":1769421618000000000,"seq":428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9bf-3ea2-73c4-9558-84d9fbc4ac3e","at":1769421618850000000,"seq":429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf9bf-5a90-761b-a575-ff1951e36272","at":1769421626000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9bf-7db8-7b57-8728-300ee598199a","at":1769421635000000000,"seq":431,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf9bf-9910-7423-9a08-055f627b474a","at":1769421642000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bf9bf-db78-71b0-8957-0e4ad3361e52","at":1769421659000000000,"seq":433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf9bf-edac-7a27-9514-d82db0374435","at":1769421663660000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf9c0-44f0-7537-ad2f-022219a96519","at":1769421686000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c0-6048-745d-9e0a-84171bf642de","at":1769421693000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bf9c0-e23a-7113-94ea-b222f16de0f6","at":1769421726266000000,"seq":437,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf9c1-7988-7062-ba31-86b6746a3d6e","at":1769421765000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c1-8540-7db0-bf35-833513063647","at":1769421768000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c1-a95c-7c22-ad3d-6e71bf2f96c4","at":1769421777244000000,"seq":440,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 11 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf9c1-b420-7d53-9c2a-0af6ad4b9092","at":1769421780000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c1-c7a8-7e16-9222-43b0995569c7","at":1769421785000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c2-0df9-7524-b171-e0bae154a531","at":1769421803001000000,"seq":443,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf9c2-5c18-7381-86fe-6179fe59e6a2","at":1769421823000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c2-a268-704d-b4e9-907155141c61","at":1769421841000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c2-aa38-7e99-a213-5f3ebb9627c3","at":1769421843000000000,"seq":446,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf9c2-b5f0-7801-8a0e-851f5c953af3","at":1769421846000000000,"seq":447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf9c2-e28c-74a3-972d-851b85b7e37c","at":1769421857420000000,"seq":448,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf9c2-f858-7ca8-8013-1e37c8fccb24","at":1769421863000000000,"seq":449,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf9c2-fc40-7fd0-86b4-aa57d08bd37c","at":1769421864000000000,"seq":450,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bf9c3-0028-7e52-9b13-e36518a963df","at":1769421865000000000,"seq":451,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf9c3-2350-7cc8-8590-24292e14d013","at":1769421874000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c3-317e-7213-8642-2e548f5ebfd2","at":1769421877630000000,"seq":453,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf9c3-32f0-7fde-9127-86779662c0d6","at":1769421878000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c3-aff0-7419-af58-be6e929b5870","at":1769421910000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c3-dff6-7b96-9011-24c7394ae428","at":1769421922294000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bf9c3-e6a0-7ca2-bfb6-342ac85a8407","at":1769421924000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c3-ea88-70d3-8f82-c2913f8ef0d8","at":1769421925000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9c3-f258-7c7f-a8be-c56ad39c900a","at":1769421927000000000,"seq":459,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf9c4-01f8-7f09-9324-bc8059a46c4c","at":1769421931000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf9d8-68f0-7ef5-aa92-268beb94a2aa","at":1769423268080000000,"seq":461,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf9d8-68f0-7c51-b619-c480a3f2fe42","at":1769423268080000000,"seq":462,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf9d8-7458-7687-ac7d-58fbe0cfce25","at":1769423271000000000,"seq":463,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bf9d8-9398-7b3e-b94f-ae8baf0e2a49","at":1769423279000000000,"seq":464,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9d8-c278-7061-88c8-fb4fae1c4d36","at":1769423291000000000,"seq":465,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bf9d8-ca48-7951-a6db-603e80a3860f","at":1769423293000000000,"seq":466,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

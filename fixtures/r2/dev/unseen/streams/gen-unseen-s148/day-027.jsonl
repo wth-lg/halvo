@@ -1,0 +1,21 @@
+{"v":1,"id":"019bfec6-b349-77e2-86e5-ff24cf6554bb","at":1769505993545000000,"seq":242,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfec6-b349-725f-b076-a7fafa0fd3f9","at":1769505993545000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bfec6-b510-7c6b-a7fb-e6df9eb9d02b","at":1769505994000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bfec7-0330-7ec2-8ab1-0b27b9b89f51","at":1769506014000000000,"seq":245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bfec7-1e88-73a0-99dc-2161f3fcfb52","at":1769506021000000000,"seq":246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bfec7-39e0-7bf1-a8fb-3a90416bf610","at":1769506028000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfedc-46a2-7d1b-ae4a-ddbe308a6768","at":1769507407522000000,"seq":248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bfedc-f460-70d4-ab2c-52ab1886fd3b","at":1769507452000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bfedd-07e8-73af-b373-e2d8418b8d66","at":1769507457000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeed-0a6e-7ba2-a8e0-720c1f57f32c","at":1769508506222000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bfeed-1548-7d8e-ba0d-072defc16ec4","at":1769508509000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bfeed-1930-7434-96ca-67161847c994","at":1769508510000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeed-4040-7c2a-a2ff-dd31d8ed11de","at":1769508520000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeed-6139-7e26-a510-ebec8cff7960","at":1769508528441000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bfeed-7308-72b9-94bc-9e8b643a69d6","at":1769508533000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bfeed-7ec0-7436-97d0-0a9b5d595379","at":1769508536000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeee-0eb3-7438-86e5-4c251505964c","at":1769508572851000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bfeee-0f48-7a44-955e-cd840fee74ef","at":1769508573000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeee-1b00-7966-9a69-699259e6d56b","at":1769508576000000000,"seq":260,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfeee-3a40-71de-bcc1-2c3aaf181dfd","at":1769508584000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeee-4d78-7c33-9af6-3ce583fddaf4","at":1769508588920000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}

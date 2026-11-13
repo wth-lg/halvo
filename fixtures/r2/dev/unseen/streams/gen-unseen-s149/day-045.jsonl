@@ -1,0 +1,19 @@
+{"v":1,"id":"019c5b1e-2b3e-77ef-9e7e-ac4ed298c667","at":1771055229758000000,"seq":652,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b1e-2b3e-78cb-b70a-efc916c917f0","at":1771055229758000000,"seq":653,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5b1e-9990-7912-b886-82df3bd1f87b","at":1771055258000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b1e-9990-73d6-ad24-3896f924bd7c","at":1771055258000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c5b1e-aed2-7777-bd29-66f2e701e6cf","at":1771055263442000000,"seq":656,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b1e-aed2-763b-bd15-838ad062b816","at":1771055263442000000,"seq":657,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b1e-ef80-7898-a4e5-31b93a859bdd","at":1771055280000000000,"seq":658,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b1e-ff20-7ea3-b032-f979d80bb845","at":1771055284000000000,"seq":659,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b1f-008f-73df-b15e-e9b06b5955a9","at":1771055284367000000,"seq":660,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5b1f-3da0-7546-a139-8471f03f8139","at":1771055300000000000,"seq":661,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b1f-bc2b-79e8-a95f-ea3c8cec54c1","at":1771055332395000000,"seq":662,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b1f-bc2b-7cbc-ab63-92de03bf3ad0","at":1771055332395000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5b1f-ed68-7e93-adeb-374d9faf5e2e","at":1771055345000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b20-3e70-77f3-9ef8-78137a3ac0fe","at":1771055365744000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5b20-89a8-7ad9-aabb-b8152e364a97","at":1771055385000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b20-a500-71f7-8c73-74ead45f6da8","at":1771055392000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c5b20-df98-72dd-a2b2-0a9f3dd25453","at":1771055407000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b20-e0b1-7cba-988e-9151fdce3ba9","at":1771055407281000000,"seq":669,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5b21-29d0-7f0b-aa3e-f9ce29cbe2b0","at":1771055426000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

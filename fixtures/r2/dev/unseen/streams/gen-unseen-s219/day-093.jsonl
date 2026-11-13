@@ -1,0 +1,26 @@
+{"v":1,"id":"019d524b-e95d-7a0b-87fb-c13c91dfd700","at":1775202199901000000,"seq":1275,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d524b-e95d-7712-b82a-299e3fe1de56","at":1775202199901000000,"seq":1276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d524c-0518-7faf-bf5a-2b785750a020","at":1775202207000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d524c-2840-7033-b50c-c51aebf336a8","at":1775202216000000000,"seq":1278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d524c-f2e0-707e-84c6-f4add1b9d8a2","at":1775202267872000000,"seq":1279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d524c-fb30-7a8b-a10e-49cbd63e6836","at":1775202270000000000,"seq":1280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d524c-ff18-7fe8-a1d8-6018d96a8651","at":1775202271000000000,"seq":1281,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d524d-06e8-70b2-b0df-0cabd416c6b2","at":1775202273000000000,"seq":1282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5255-5dca-7207-af4e-d463f0889aed","at":1775202819530000000,"seq":1283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d5255-5fa0-75ff-b00b-0c03a79e9264","at":1775202820000000000,"seq":1284,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d5255-6f40-7d1f-ae50-3cfceebeecd4","at":1775202824000000000,"seq":1285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5255-a9d8-728f-8f62-db6c05bf17d9","at":1775202839000000000,"seq":1286,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d5255-adc0-7a21-84fe-974daefd2f94","at":1775202840000000000,"seq":1287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5262-6a73-75f5-b487-17f356c01b7a","at":1775203674739000000,"seq":1288,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d5262-6a73-7eb7-bffd-40050a4ad9ce","at":1775203674739000000,"seq":1289,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d5262-7f00-790b-988c-dffb8c04a2b5","at":1775203680000000000,"seq":1290,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d526e-ac8a-72e1-8a47-c32482424ef8","at":1775204478090000000,"seq":1291,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d526e-ac8a-736e-8f1d-66cde4628de0","at":1775204478090000000,"seq":1292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d526e-cf58-76d7-b45f-59d715ce0444","at":1775204487000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d526f-0dd8-7fea-bace-39a2fb77e89c","at":1775204503000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d526f-9a78-72ed-93ae-3e37a8b9dfdd","at":1775204539000000000,"seq":1295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d526f-bc1b-7e51-9b55-0fca85fbd99f","at":1775204547611000000,"seq":1296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d526f-bda0-73a6-8b5f-a21ec136b7b6","at":1775204548000000000,"seq":1297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d526f-f068-725a-bcdf-13889866b3f4","at":1775204561000000000,"seq":1298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d526f-f068-7967-9db8-8fd31e11337b","at":1775204561000000000,"seq":1299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d5270-03f0-731d-95c9-04adccdd3e7f","at":1775204566000000000,"seq":1300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

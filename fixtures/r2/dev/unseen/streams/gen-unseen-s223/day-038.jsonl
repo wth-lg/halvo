@@ -1,0 +1,35 @@
+{"v":1,"id":"019c3714-87a3-7821-aadd-3542d7a31c48","at":1770450618275000000,"seq":402,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3714-87a3-7954-9c40-b3eccb289937","at":1770450618275000000,"seq":403,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3714-d4b0-70e0-8ecb-1e25e28522c6","at":1770450638000000000,"seq":404,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3715-0778-7550-9ccc-17b10a613c95","at":1770450651000000000,"seq":405,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3715-0b60-7ad6-9a13-323eed29aa79","at":1770450652000000000,"seq":406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3715-22d0-72d1-96e8-6132ff4afcb6","at":1770450658000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3728-8a8b-704f-8e0e-0292bf6c7adf","at":1770451929739000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3728-e950-797c-b5d7-742d2f1aa2db","at":1770451954000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c373b-2de7-71c3-a1d4-c68cad2ceb1a","at":1770453151207000000,"seq":410,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c373b-3cb8-721e-a08a-929e36bc335f","at":1770453155000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c373b-63c8-7635-a7eb-ce3469c7d551","at":1770453165000000000,"seq":412,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c373b-8ec0-7192-b0f7-3a5dd430d6c6","at":1770453176000000000,"seq":413,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c373b-f838-7ff0-984a-90258b961ff1","at":1770453203000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c374d-a5ba-7f5b-bad3-994a3b146859","at":1770454361530000000,"seq":415,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c374d-fd80-778b-90cc-945156ac6110","at":1770454384000000000,"seq":416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c374e-20a8-7b5b-8dcd-fe9fe2d19b3d","at":1770454393000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c374e-3d4b-7252-8d4d-88831c475aec","at":1770454400331000000,"seq":418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c374e-5f28-7bcf-9dcd-3b554200abfc","at":1770454409000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c374e-6ec8-70e2-9012-30f3e46742dd","at":1770454413000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c374e-7a80-7877-afe6-0eb3245299f4","at":1770454416000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c374e-9235-7bc5-ba4e-6ca46f6c4098","at":1770454422069000000,"seq":422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c374e-e266-78c4-b0a7-d075489cac35","at":1770454442598000000,"seq":423,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c374e-f398-70ad-983b-574de8b00ba8","at":1770454447000000000,"seq":424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c374f-2a48-7126-a2d1-47214b569715","at":1770454461000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c374f-b300-7bb5-b945-ba899f62223f","at":1770454496000000000,"seq":426,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c374f-c49b-77bc-bbc7-6ab54d79bd00","at":1770454500507000000,"seq":427,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c374f-e9b0-7c46-ae69-2bfd23ec7a51","at":1770454510000000000,"seq":428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c374f-f568-7b55-ac7c-183417a819cf","at":1770454513000000000,"seq":429,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3750-3548-790c-88f5-80c9958f7562","at":1770454529352000000,"seq":430,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c3750-3bb8-7952-ac4c-a9748878e9ee","at":1770454531000000000,"seq":431,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3750-66b0-7b6a-8563-96b1aa57b6e3","at":1770454542000000000,"seq":432,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3751-0f0b-76c4-a300-2f7c4430cdf9","at":1770454585099000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c3751-8ba8-7a1e-80e4-775a9108c6a2","at":1770454617000000000,"seq":434,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3751-8f90-7aa4-a965-a61c88d1f393","at":1770454618000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c3751-c640-7d9e-ade3-f7745512d4a3","at":1770454632000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

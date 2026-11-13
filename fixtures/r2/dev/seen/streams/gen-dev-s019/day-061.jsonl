@@ -1,0 +1,22 @@
+{"v":1,"id":"019cae32-2fef-7d7c-99a0-05848ab780dc","at":1772449050607000000,"seq":938,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae32-2fef-7562-8577-33e362d16ab2","at":1772449050607000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cae32-5c70-74a1-86b3-739e91db34bc","at":1772449062000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cae32-7bb0-706d-bf32-1f65f4105b34","at":1772449070000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae32-8f38-7f3a-b604-c724f033a189","at":1772449075000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cae32-e528-767e-af88-2f65c9883391","at":1772449097000000000,"seq":943,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cae43-0e94-7619-b4d6-2eacb3d21af9","at":1772450156180000000,"seq":944,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cae43-0e94-74de-b338-3fa89b8f7df8","at":1772450156180000000,"seq":945,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cae43-1d80-76ac-9fbd-f7efa16fbf7d","at":1772450160000000000,"seq":946,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae43-2938-7f14-ad33-e004c7fc323d","at":1772450163000000000,"seq":947,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cae43-38d8-7083-8e0f-5bf378cc2f1a","at":1772450167000000000,"seq":948,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae43-5430-7752-a63f-a90f0365a1f3","at":1772450174000000000,"seq":949,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cae43-5483-7d91-9bde-32c84e3cd7d3","at":1772450174083000000,"seq":950,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae43-5483-722f-a852-5c3715cf37f7","at":1772450174083000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cae43-5818-7c9e-8218-730766765cb3","at":1772450175000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae43-67b8-7d1f-9c8c-6e6b9ec6ddf9","at":1772450179000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cae43-6f88-73ea-9a93-1dd1b37ed2d4","at":1772450181000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae43-8dcb-757f-9bc1-f3ec030d82b4","at":1772450188747000000,"seq":955,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cae43-8dcb-7b07-9273-519796261259","at":1772450188747000000,"seq":956,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cae43-b9c0-7e72-9dfc-0b4d1a55f8a0","at":1772450200000000000,"seq":957,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cae43-c578-7d79-948e-6c8aac171acf","at":1772450203000000000,"seq":958,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae43-d518-7877-a113-f4d6cb680465","at":1772450207000000000,"seq":959,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

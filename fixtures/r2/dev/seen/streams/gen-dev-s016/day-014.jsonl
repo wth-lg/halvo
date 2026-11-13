@@ -1,0 +1,24 @@
+{"v":1,"id":"019bbb8b-26a4-7e4a-b2d9-b8ccaaee0838","at":1768378017444000000,"seq":179,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbb8b-26a4-78ee-a87e-824b46559b8c","at":1768378017444000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bbb8b-7ad8-7483-8163-674483cff6f4","at":1768378039000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbb8b-b958-7b2d-a4b4-ae80d9bb2118","at":1768378055000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbb8b-f008-7694-a9fd-158700463ac4","at":1768378069000000000,"seq":183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bbba0-3a17-7c22-8c19-92ff33a0a816","at":1768379398679000000,"seq":184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bbba1-34d1-783a-86ff-e5d660be5a18","at":1768379462865000000,"seq":185,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bbba1-48e0-79db-8976-78d5ceb11987","at":1768379468000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbba2-0703-7318-83aa-68671adfd2ea","at":1768379516675000000,"seq":187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bbba2-2f58-7fea-8aed-f5e13507f0e0","at":1768379527000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbba2-98d0-7111-8bfc-84e67cf754c9","at":1768379554000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bbba2-bfe0-797b-b10e-08768e27ecbb","at":1768379564000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbb2-f423-7f3a-ade5-6b53dec1c944","at":1768380625955000000,"seq":191,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bbbb2-f423-7606-b913-252a5cb7d470","at":1768380625955000000,"seq":192,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bbbb2-f450-7e75-9ffe-121c3dea10fb","at":1768380626000000000,"seq":193,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bbbc9-6221-7b45-b26a-d30731cae77d","at":1768382095905000000,"seq":194,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbbc9-6221-7b6a-89ed-4e5cffdb2d6c","at":1768382095905000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bbbc9-cfe0-763e-b4f3-4a02de570059","at":1768382124000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bbbca-0482-7e76-95b5-2293046637a7","at":1768382137474000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bbbca-6c20-75ad-8c59-c4c38fbc0913","at":1768382164000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbca-e538-759b-8744-9a086badefc5","at":1768382195000000000,"seq":199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bbbca-f28c-7e9b-89de-e34fb5d129db","at":1768382198412000000,"seq":200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bbbca-f8c0-7e4c-9d72-8a4d482a2473","at":1768382200000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbcb-1418-73d9-b2a1-a299292f079e","at":1768382207000000000,"seq":202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

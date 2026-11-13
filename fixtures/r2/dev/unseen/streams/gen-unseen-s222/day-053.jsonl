@@ -1,0 +1,11 @@
+{"v":1,"id":"019c84ea-6213-7f72-9410-13d392466679","at":1771756478995000000,"seq":770,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84ea-6213-7101-9a2a-c5f9659e6012","at":1771756478995000000,"seq":771,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c84ea-94e0-796b-b725-4768c100e7a3","at":1771756492000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8502-914e-7bcd-bc85-8612c230efbd","at":1771758063950000000,"seq":773,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c8502-e388-7d5b-9f1c-293f0720e713","at":1771758085000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8503-1e20-717c-bab4-bd1f9ba62ce9","at":1771758100000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8503-2615-7c8b-b8e9-dbd52bc8ebbd","at":1771758102037000000,"seq":776,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c8503-2dc0-7f36-b73f-e3eab5f0418f","at":1771758104000000000,"seq":777,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8503-8798-7897-8096-14ffa1fe40ce","at":1771758127000000000,"seq":778,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8503-8b80-74cb-ba1c-97525a0f3210","at":1771758128000000000,"seq":779,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8503-8f68-77f3-a62d-f82a9a5da27c","at":1771758129000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

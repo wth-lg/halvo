@@ -1,0 +1,20 @@
+{"v":1,"id":"019c2cc0-708d-7d60-b835-0ab2a273e19c","at":1770277335181000000,"seq":539,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2cc0-708d-7057-8ff9-67fc773e93ec","at":1770277335181000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c2cc1-1bb8-7bba-80eb-a18511449fbf","at":1770277379000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cc1-3922-77e9-86c0-0afcf7348fd9","at":1770277386530000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c2cc1-7d60-7b3a-827d-5896ffdc6c7e","at":1770277404000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c2cc1-8530-7ed3-a5a1-15b6565dd013","at":1770277406000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cc1-90e8-767d-adc5-41cd4de4e118","at":1770277409000000000,"seq":545,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2cc1-b028-7893-b92e-0174ee4f2e10","at":1770277417000000000,"seq":546,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2cc1-cb80-7bb8-8b00-678f6c0533d0","at":1770277424000000000,"seq":547,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cc1-e7d8-7518-873b-7233cceeac46","at":1770277431256000000,"seq":548,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c2cc2-9267-7ec5-b88c-3b6f1c2437c2","at":1770277474919000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c2cc3-1f58-7585-b720-d8245d1890e5","at":1770277511000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cc3-2340-7bd1-b359-fac75bc7b8e1","at":1770277512000000000,"seq":551,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2cc3-3841-7d21-8cd7-de1489ff080a","at":1770277517377000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c2cc3-59f0-7faf-afba-fa7ba99e6bef","at":1770277526000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cc3-61c0-7792-996b-063517b28d15","at":1770277528000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cc3-65a8-7c6d-b701-ae7b6560ce3f","at":1770277529000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c2cc3-733b-755a-90fa-e8d91f13b463","at":1770277532475000000,"seq":556,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c2cc3-7548-7282-a8ff-e0b44154e0da","at":1770277533000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cc4-1188-70a1-9fb8-8f5fc70df676","at":1770277573000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

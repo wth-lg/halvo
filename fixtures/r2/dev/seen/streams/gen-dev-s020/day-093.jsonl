@@ -1,0 +1,31 @@
+{"v":1,"id":"019d52c0-e382-7161-876b-7a3991c69089","at":1775209866114000000,"seq":1433,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52c0-e382-703b-a287-8759f0dafc91","at":1775209866114000000,"seq":1434,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52c1-0250-7365-9807-b63ecc2ec4f7","at":1775209874000000000,"seq":1435,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d52d4-9557-7255-a08e-8678c857c0b5","at":1775211156823000000,"seq":1436,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d52d4-9dd8-775f-aba3-fd71926196d3","at":1775211159000000000,"seq":1437,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52d4-b548-7e2e-aa51-8ac5099c7718","at":1775211165000000000,"seq":1438,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d52d4-dc58-71ad-a09e-7f86bd6c33ed","at":1775211175000000000,"seq":1439,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d52d4-dc58-7653-86dc-84ad46073083","at":1775211175000000000,"seq":1440,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d52df-0adf-7fcc-bfce-ef79d352ce97","at":1775211842271000000,"seq":1441,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d52df-34c8-7e8d-bbba-99761c96adcd","at":1775211853000000000,"seq":1442,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d52df-63a8-7c80-b6ac-a0791fa5cb3c","at":1775211865000000000,"seq":1443,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d52df-9e40-7efb-96cc-cd2e03c0dfe5","at":1775211880000000000,"seq":1444,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52f6-33e4-70e0-85c3-854a21da500c","at":1775213360100000000,"seq":1445,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52f6-33e4-76d3-ab41-b616897481fc","at":1775213360100000000,"seq":1446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d52f6-3f38-7d4c-b387-cd0bfd24754d","at":1775213363000000000,"seq":1447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52f6-3f38-7577-b674-1aac6a0b7eca","at":1775213363000000000,"seq":1448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d52f6-db78-7d91-82e6-80811426e38b","at":1775213403000000000,"seq":1449,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d52f6-df60-70a5-9b44-5e772169af5b","at":1775213404000000000,"seq":1450,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5306-2de0-7878-9de7-fbf4620f93d3","at":1775214407136000000,"seq":1451,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d5306-40e0-78f4-8ca1-443f522c63f4","at":1775214412000000000,"seq":1452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5306-b610-7109-8e31-a895999b26ef","at":1775214442000000000,"seq":1453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5306-cfba-70f2-80d1-b50d1ec7e8c3","at":1775214448570000000,"seq":1454,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d5306-fc60-7e48-b072-7b57e97a554b","at":1775214460000000000,"seq":1455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d5307-2262-7ca4-94eb-5d5acddab83c","at":1775214469730000000,"seq":1456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d5307-3310-7950-b182-fc9facfe9143","at":1775214474000000000,"seq":1457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5307-5e08-7cf3-95da-7d9f9124c76d","at":1775214485000000000,"seq":1458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d5307-65d8-73b0-9b45-0062da059669","at":1775214487000000000,"seq":1459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5307-8187-75c1-8867-ce447f6e6d6e","at":1775214494087000000,"seq":1460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d5307-b010-70d7-b81f-31c8e8e2bb5d","at":1775214506000000000,"seq":1461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5307-bbc8-7733-abdb-43642c20b6ed","at":1775214509000000000,"seq":1462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5307-eaa8-75ac-9066-5b5de5a1a994","at":1775214521000000000,"seq":1463,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

@@ -1,0 +1,32 @@
+{"v":1,"id":"019d4d1a-66d4-7491-b34f-7421127624e9","at":1775115069140000000,"seq":1159,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d1a-66d4-7182-aa55-7746e3c6d597","at":1775115069140000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4d1a-75e8-709d-bba1-3c17b22dec25","at":1775115073000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d4d1a-9528-7c6e-b1b9-2fbe2e1f6ae2","at":1775115081000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d2d-aefb-7ef5-abfd-75a70b822780","at":1775116332795000000,"seq":1163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d4d2d-fde8-79b7-94c5-a41e3c9df987","at":1775116353000000000,"seq":1164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d4d2e-01d0-733a-b1b3-d9632f55263c","at":1775116354000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d2e-2cc8-76d8-947c-844628538d71","at":1775116365000000000,"seq":1166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d2e-8557-7f40-bd0b-6cf8190e2253","at":1775116387671000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d4d2e-8a88-76d4-af38-dcbb2751b4ab","at":1775116389000000000,"seq":1168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4d2e-b580-7370-a698-ff4965ed5aba","at":1775116400000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d2e-b968-7b93-819b-0cd3011400cd","at":1775116401000000000,"seq":1170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d2e-b968-7b9e-ba43-be482e3289e9","at":1775116401000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d4d2e-de57-7fed-81c1-a336669125f3","at":1775116410455000000,"seq":1172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d4d2f-26c8-7bc1-9028-1a65a884c539","at":1775116429000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d4d2f-8c58-7ada-97f1-c911366c8615","at":1775116455000000000,"seq":1174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4d38-a1c9-7537-ac2a-3c58c6366999","at":1775117050313000000,"seq":1175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d4d38-a860-7be0-b6b4-fdf13c41b208","at":1775117052000000000,"seq":1176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d38-e2f8-7bfa-8bf5-9256ea3009c1","at":1775117067000000000,"seq":1177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d38-e61d-7ea6-a443-c91f9a9e9762","at":1775117067805000000,"seq":1178,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4d38-e61d-76c7-ad1a-5172d9a0fe9e","at":1775117067805000000,"seq":1179,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4d39-3500-70a5-be6f-2df1b433f751","at":1775117088000000000,"seq":1180,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d39-d823-76a5-8496-901ec27ae01f","at":1775117129763000000,"seq":1181,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d39-d823-7da0-a370-1ac6cea15c1e","at":1775117129763000000,"seq":1182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d4d39-dcf8-78de-a64b-1e5b669e4f32","at":1775117131000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d3a-0408-7a74-855d-121210e480f1","at":1775117141000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d4d3a-13a8-7340-8175-4533f05a77d7","at":1775117145000000000,"seq":1185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4d3a-36d0-7221-80f6-9e4a48839bff","at":1775117154000000000,"seq":1186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d3a-7eab-7872-9e16-f34dd26e57f7","at":1775117172395000000,"seq":1187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d4d3a-88d8-7675-82c7-ad7c1ea6efc2","at":1775117175000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d3a-c370-768c-8911-fff7f9cdf31a","at":1775117190000000000,"seq":1189,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4d3a-dae0-72a1-a48d-17bd3a9b3fdd","at":1775117196000000000,"seq":1190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

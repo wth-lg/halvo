@@ -1,0 +1,24 @@
+{"v":1,"id":"019c4c2a-24fb-77d8-b8fc-664c0e0b990c","at":1770804356347000000,"seq":791,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c2a-24fb-7306-aa2e-c4752c3e16c2","at":1770804356347000000,"seq":792,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c2a-7990-71c0-97a8-ef8966add2e3","at":1770804378000000000,"seq":793,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c2a-8d18-7c46-ac45-b03ef221f784","at":1770804383000000000,"seq":794,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c2a-94e8-7321-934c-acccbf07c076","at":1770804385000000000,"seq":795,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c4c2a-993c-79e6-8f4a-3bf2f6b072de","at":1770804386108000000,"seq":796,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c2a-993c-7588-be80-49e4d92be040","at":1770804386108000000,"seq":797,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c4c2a-f2a8-737b-abe6-134ddb09e7ea","at":1770804409000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c2b-0248-7ced-abee-d169123da3fc","at":1770804413000000000,"seq":799,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c4c2b-703b-7a02-bf09-0b041cf3187b","at":1770804441147000000,"seq":800,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c4c2b-cd68-7f65-9ff8-6ef590c13566","at":1770804465000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c2c-5cd8-72a5-9b9f-7e7b5e6bb36c","at":1770804501720000000,"seq":802,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c4c2c-7178-74bb-9b3e-315501c1e26d","at":1770804507000000000,"seq":803,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4c2c-c768-7f58-909e-ef6ad05a31b6","at":1770804529000000000,"seq":804,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4c2d-0200-7c2b-8206-70553dbc55a9","at":1770804544000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c2d-11a0-73af-8318-1c73a5e9fb7a","at":1770804548000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c2d-1321-7888-b33e-d4a681648a71","at":1770804548385000000,"seq":807,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c2d-1321-7de1-827a-a2d704e78828","at":1770804548385000000,"seq":808,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c2d-30e0-7482-9e07-ee6097e8c950","at":1770804556000000000,"seq":809,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c3f-2ec7-709a-ad39-2554df8b7130","at":1770805735111000000,"seq":810,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c4c3f-8448-7797-8f84-23f34e5ed599","at":1770805757000000000,"seq":811,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c3f-8c18-72b9-9f68-e24c7b3f6454","at":1770805759000000000,"seq":812,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c4c3f-9bb8-72b4-8461-293be8e2c00a","at":1770805763000000000,"seq":813,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c3f-e5f0-7a7e-aa84-b99e39b5781f","at":1770805782000000000,"seq":814,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

@@ -1,0 +1,14 @@
+{"v":1,"id":"019c8f0e-1000-755c-9f69-91f31b73f2d4","at":1771926589440000000,"seq":798,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8f0e-1000-7e87-9465-c62dc35e3a8f","at":1771926589440000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8f0e-1de8-7ad5-b07a-5d80d9b6cb3f","at":1771926593000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c8f0e-4cc8-7b95-91db-6eb221cf4828","at":1771926605000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f0e-ba28-7143-8fc9-c3364a493010","at":1771926633000000000,"seq":802,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f0e-ed2b-777c-b27b-e62058643cce","at":1771926646059000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8f0f-0848-7e79-9f08-40f412df5447","at":1771926653000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f0f-4e98-7d42-acfe-acfca9e307ec","at":1771926671000000000,"seq":805,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8f0f-b224-7439-a2d4-715d4c5be59b","at":1771926696484000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8f0f-c3c8-7796-a006-b17cf60c8e2c","at":1771926701000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c8f0f-c7b0-79e8-b2dd-9d0c359d3b74","at":1771926702000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f0f-df20-759c-ab65-2c97226cc872","at":1771926708000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8f0f-e6f0-75f4-8e56-1a830594d0d7","at":1771926710000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f0f-f2a8-7c91-ac86-1303514a47e9","at":1771926713000000000,"seq":811,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

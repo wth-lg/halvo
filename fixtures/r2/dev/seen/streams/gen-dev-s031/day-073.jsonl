@@ -1,0 +1,49 @@
+{"v":1,"id":"019ceb38-5052-78d4-8387-5354bcc90980","at":1773472862290000000,"seq":806,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb38-5052-77d2-80ae-360ba54aea66","at":1773472862290000000,"seq":807,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ceb38-7a28-74c7-9edf-949cb120b11b","at":1773472873000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb39-0e3b-74e1-8757-d1b8173fd0ae","at":1773472910907000000,"seq":809,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ceb39-4160-7378-ab4f-151b3a237724","at":1773472924000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb39-c630-7489-9010-c6f028b9b941","at":1773472958000000000,"seq":811,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb39-d1bd-7340-9d5f-bc283ba0c6d1","at":1773472960957000000,"seq":812,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ceb3a-4330-7021-b500-48465c15b5ee","at":1773472990000000000,"seq":813,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb3a-6658-72c2-b007-aa11d120f175","at":1773472999000000000,"seq":814,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceb3a-7372-7c1a-b49a-401f5f22d648","at":1773473002354000000,"seq":815,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ceb3a-81b0-79e4-bdc6-0c6a83646e11","at":1773473006000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb3a-8980-7c1c-b299-8f8a55eea6c0","at":1773473008000000000,"seq":817,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceb3a-b090-7fd3-b8b0-3ba7d9c8d44b","at":1773473018000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ceb45-deb4-7046-a2ba-a5c51ed36ac1","at":1773473750708000000,"seq":819,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ceb45-ff18-7299-9ef8-eb230017a04a","at":1773473759000000000,"seq":820,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ceb46-2df8-78bd-9809-3398bbebee83","at":1773473771000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb46-4180-7bd7-bcae-57d283184709","at":1773473776000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb46-46d8-7e01-be34-912412a7336e","at":1773473777368000000,"seq":823,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ceb47-0ca0-79c5-87e3-8bab2cf4c25e","at":1773473828000000000,"seq":824,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ceb47-33b0-739a-8276-a95a4d57a953","at":1773473838000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb47-4b20-7180-ba0d-c3836ac72f98","at":1773473844000000000,"seq":826,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb47-51ff-7db4-863f-9fae98becd53","at":1773473845759000000,"seq":827,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ceb47-6e48-7034-a095-fe82aa63b27f","at":1773473853000000000,"seq":828,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceb47-a8e0-76df-9022-00b30faa55dd","at":1773473868000000000,"seq":829,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ceb48-0e70-74a7-b869-de557ca0707d","at":1773473894000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ceb48-1444-7a86-b77f-e1b4056e970e","at":1773473895492000000,"seq":831,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ceb48-1640-7d5d-a126-585df917c5f0","at":1773473896000000000,"seq":832,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceb48-1a28-7117-be0f-49fe300cb34a","at":1773473897000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb48-3198-7f04-b458-f74d06ecbad9","at":1773473903000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ceb48-3968-7ee5-8dbf-a9f028ffb88b","at":1773473905000000000,"seq":835,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceb53-cb79-7503-8a71-d037c6ac96ea","at":1773474663289000000,"seq":836,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ceb54-1878-729a-b3ea-8736a8372cab","at":1773474683000000000,"seq":837,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceb54-3ba0-7767-9d27-503916cc0d20","at":1773474692000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ceb69-0830-7622-91a7-e86d202778f8","at":1773476055088000000,"seq":839,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ceb69-0bc0-7a4c-af4b-bc8c01af4931","at":1773476056000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ceb6f-add7-78f7-9340-35108453f85a","at":1773476490711000000,"seq":841,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ceb6f-e990-7a91-8125-3aab1b9db4c4","at":1773476506000000000,"seq":842,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb70-b844-7b6b-b469-31c5003996b4","at":1773476558916000000,"seq":843,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ceb71-8c7d-71bf-8f31-13d33b6e65b0","at":1773476613245000000,"seq":844,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ceb71-9f10-7258-8bac-6afdce9dcca9","at":1773476618000000000,"seq":845,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb71-be50-7123-b074-caa2f4de0d61","at":1773476626000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb72-1440-7d9f-a6e0-983542407b91","at":1773476648000000000,"seq":847,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb72-1ff8-7d19-acc9-ca7be7f742db","at":1773476651000000000,"seq":848,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ceb72-4af0-756c-8a4f-b5503875ce0a","at":1773476662000000000,"seq":849,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceb72-4bac-74e7-a028-433c3f2b612c","at":1773476662188000000,"seq":850,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ceb72-8d58-79b3-bafc-c3e00917a584","at":1773476679000000000,"seq":851,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ceb82-f08b-7efe-b4ae-e6d1f66a2907","at":1773477752971000000,"seq":852,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ceb82-f08b-79ea-bd73-f8b56890851c","at":1773477752971000000,"seq":853,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ceb83-1f88-777d-aee1-604fa04f7184","at":1773477765000000000,"seq":854,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

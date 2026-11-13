@@ -1,0 +1,25 @@
+{"v":1,"id":"019ba1fc-e413-74af-a4b2-3e99fb87c97f","at":1767949263891000000,"seq":160,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1fc-e413-7207-bd7e-78a326cb3392","at":1767949263891000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fd-9c18-79ad-b873-1d22fcd58983","at":1767949311000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fd-a7d0-7db4-b579-4e37b863cdb1","at":1767949314000000000,"seq":163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba1fd-cee0-73ec-8105-dc418a7afc8c","at":1767949324000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ba214-c591-7ac7-9ddb-bff4fcc34c40","at":1767950828945000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ba214-fc78-7997-a165-d03dea56d1e8","at":1767950843000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ba215-23d8-789c-b820-5ee3f1f13ebe","at":1767950853080000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 11 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ba215-5268-7786-abb2-97403fef1f72","at":1767950865000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ba215-5a38-762c-adfb-acc715ada315","at":1767950867000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba215-65f0-7148-92a8-04b44d737182","at":1767950870000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba215-fcb8-72c6-ba55-6b4fe8a5fcc8","at":1767950908600000000,"seq":171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ba216-34f8-78d6-be58-097c266251d9","at":1767950923000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba216-3cc8-7bde-b421-5a8b88b042ea","at":1767950925000000000,"seq":173,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba216-40b0-74d2-a9aa-d46e77c71143","at":1767950926000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba216-5c08-7e86-b6fd-fd3cb41b1bec","at":1767950933000000000,"seq":175,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba216-cc1f-7b2d-8ee3-cf5ae461fc1d","at":1767950961695000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ba216-d520-7b4c-9e01-7fc5221ca97d","at":1767950964000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba216-dcf0-776e-b0ab-a1e8a3c8c11b","at":1767950966000000000,"seq":178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba217-0018-730c-a578-b2aa4ecc92b8","at":1767950975000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba217-0400-75be-8168-4463d216c94f","at":1767950976000000000,"seq":180,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba217-4280-73cd-a8a6-9c1067162624","at":1767950992000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba217-46f0-7ae9-a1e4-6b9801f98710","at":1767950993136000000,"seq":182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ba217-7548-7bdd-a84d-db3776802f04","at":1767951005000000000,"seq":183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba217-bf80-7304-af1c-ae659e172249","at":1767951024000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

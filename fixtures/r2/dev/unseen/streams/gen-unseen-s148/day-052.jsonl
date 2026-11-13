@@ -1,0 +1,53 @@
+{"v":1,"id":"019c7f2b-83cc-703d-8cfe-5f23a6b1919c","at":1771660084172000000,"seq":477,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f2b-83cc-7b24-9fe5-ccaa0295d3c2","at":1771660084172000000,"seq":478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f2c-2f00-7161-8c2e-a428e0a8e8c3","at":1771660128000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f2c-6ce6-7fe3-a95b-a1d1c7e9437e","at":1771660143846000000,"seq":480,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f2c-ac00-7910-9bf1-f50a14496139","at":1771660160000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f2c-e2b0-7f07-aa23-82848ff5e16c","at":1771660174000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f2d-1d48-70f7-8a18-a41fe2f8287b","at":1771660189000000000,"seq":483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c7f2d-1f8b-752a-a763-9740f2226728","at":1771660189579000000,"seq":484,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f2d-d0f8-76e3-ba8b-331200ada7c5","at":1771660235000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c7f2d-fe55-764c-b590-c2185a3930fd","at":1771660246613000000,"seq":486,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f2e-2ad0-7503-aa67-95f7683461e1","at":1771660258000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f2e-59b0-724a-b91d-2a3e12388a3c","at":1771660270000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f2e-8c78-7c20-a8dd-e4251e6d2a43","at":1771660283000000000,"seq":489,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f2e-91a0-7b4c-ab5f-87ac6b868324","at":1771660284320000000,"seq":490,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f2e-d6b0-7c9b-b2da-c2a1857c393a","at":1771660302000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f2f-254a-7bfd-bf7f-4d86d15e56ab","at":1771660322122000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7f2f-4028-7dfa-a026-957592915cda","at":1771660329000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c7f2f-72f0-7e21-b350-2b8c14fc03a4","at":1771660342000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f30-eae7-78b4-a33c-5121017c3787","at":1771660438247000000,"seq":495,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7f31-2870-74ab-b50f-8dc16858bc89","at":1771660454000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c7f31-4aa0-7def-acb5-339172b1b184","at":1771660462752000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7f31-7e60-7443-b80d-999c92205e3e","at":1771660476000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f31-95d0-756f-9a36-97d716331a14","at":1771660482000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f31-99b8-780f-a2b4-4d7527259b65","at":1771660483000000000,"seq":500,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f31-fb60-7d32-ab0a-29dfbadb089a","at":1771660508000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c7f32-0ee8-7186-9f92-7acfb53da76a","at":1771660513000000000,"seq":502,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f32-3860-7c81-babd-291ea3746bfd","at":1771660523616000000,"seq":503,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7f32-3dc8-78ce-999c-a3c394067374","at":1771660525000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7f32-7c48-7461-94f7-dbdb4938618b","at":1771660541000000000,"seq":505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7f32-ca68-7119-93d2-dbf515421fa0","at":1771660561000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7f32-e9a8-7abc-b0de-1378d102ce37","at":1771660569000000000,"seq":507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f33-46e9-7108-b159-43bc3fdc384b","at":1771660592873000000,"seq":508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7f33-5708-72c2-9b33-66d94d702a6e","at":1771660597000000000,"seq":509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f33-7260-71e1-adbd-ad098b5147af","at":1771660604000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f33-a910-78a5-8bbf-0ae4e4a180d2","at":1771660618000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7f33-c850-78df-80f9-493e40e2c9ad","at":1771660626000000000,"seq":512,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7f33-dbd8-7f93-8760-19e2b9a7370c","at":1771660631000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c7f33-f2ee-7cb6-838f-247b61b4c93c","at":1771660636910000000,"seq":514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7f42-d269-77e9-890a-b58abeb1137a","at":1771661611625000000,"seq":515,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7f42-d269-71f4-8021-b00ed33044ba","at":1771661611625000000,"seq":516,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7f42-df98-789c-8182-21b1d2a928b6","at":1771661615000000000,"seq":517,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f42-fed8-7921-9133-1bef32ffd26a","at":1771661623000000000,"seq":518,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c7f43-0e9a-7dbb-8e0d-355eaa8fbe60","at":1771661627034000000,"seq":519,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f43-0e9a-78a6-95da-904a4aacc698","at":1771661627034000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7f43-7e29-798e-911b-a26417c06952","at":1771661655593000000,"seq":521,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7f43-7e29-794a-84ed-11dbaf365fd9","at":1771661655593000000,"seq":522,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7f43-a2e8-7db8-8d44-556031d80a77","at":1771661665000000000,"seq":523,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c7f43-a6d0-79d6-8335-c3498832f4db","at":1771661666000000000,"seq":524,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f43-c610-7ad9-a030-7f4bcf53f126","at":1771661674000000000,"seq":525,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c7f49-2cae-749a-b04b-1f85c5df4385","at":1771662027950000000,"seq":526,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c7f49-2ce0-7807-9f5b-6930580ce87e","at":1771662028000000000,"seq":527,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c7f49-4450-76b8-9765-96b95acc04f9","at":1771662034000000000,"seq":528,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c7f49-5008-7685-84ee-79acb8e5819f","at":1771662037000000000,"seq":529,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

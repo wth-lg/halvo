@@ -1,0 +1,23 @@
+{"v":1,"id":"019c27ec-76ee-751f-949a-4bb490bbafac","at":1770196334318000000,"seq":538,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c27ec-76ee-702e-b6a1-b53882858711","at":1770196334318000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c27ec-bc00-7547-8f82-4b4c87570c6c","at":1770196352000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ed-3518-7c2b-84e2-1fc7bc952336","at":1770196383000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ed-40bd-79b2-b3c6-e2cefede98fb","at":1770196385981000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c27ed-63f8-7d62-832a-25bb31b3f355","at":1770196395000000000,"seq":543,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c27ee-35e3-723c-8797-2beffb146f06","at":1770196448739000000,"seq":544,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c27ee-3ad0-7f8b-929c-8c90671007ae","at":1770196450000000000,"seq":545,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c27ee-9890-7fce-9438-5f00450a0672","at":1770196474000000000,"seq":546,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c27ee-a830-7fa5-9334-b154159d9329","at":1770196478000000000,"seq":547,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ee-b000-7a57-8bf4-0e8af0740567","at":1770196480000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c27ee-d710-7b19-ac0d-be85cac8fb64","at":1770196490000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ee-da1d-713e-b8f3-7dc0eebcef8c","at":1770196490781000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c27ee-fa38-76b9-a355-a16fccae6728","at":1770196499000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ef-8ac0-7883-99fa-008956f27986","at":1770196536000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ef-9678-7714-99a9-a96d37da87a3","at":1770196539000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c27ef-aa00-78c4-9a35-ac3357a1c2c4","at":1770196544000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c27ef-d8df-7bdd-b869-bf7cfa9a889b","at":1770196555999000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c27ef-dcc8-75c8-80bd-4d95128f2ff6","at":1770196557000000000,"seq":556,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c27ef-fc08-79a8-8bbb-4e53f2f023c7","at":1770196565000000000,"seq":557,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c27f0-7138-7bb6-a4ed-abb460b75bf9","at":1770196595000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c2807-4bae-7436-b60b-997528d85b52","at":1770198092718000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2808-0848-7bb8-b0cc-00f3ea9e08bf","at":1770198141000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

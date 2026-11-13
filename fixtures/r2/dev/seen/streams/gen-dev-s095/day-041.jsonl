@@ -1,0 +1,47 @@
+{"v":1,"id":"019c4707-a116-7ae4-87d4-1dc7b94e327f","at":1770718208278000000,"seq":732,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4707-a116-7b40-b346-a1469b69c297","at":1770718208278000000,"seq":733,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4707-d2c8-775e-8587-15ffd0e7c533","at":1770718221000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4707-de80-717b-8e3c-182ffa107a97","at":1770718224000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4708-0590-7b6e-b63d-00c00be294df","at":1770718234000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c4708-1148-7cb8-b412-77b97b9fa74c","at":1770718237000000000,"seq":737,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4716-8909-7ab0-8cc8-d2a08aab8db1","at":1770719185161000000,"seq":738,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4716-9808-7795-b459-81e6cd64597a","at":1770719189000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4716-ab90-7c14-a839-221bae584c60","at":1770719194000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4731-0c3b-7117-b35d-dcfd9a6e5a4f","at":1770720922683000000,"seq":741,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4731-1160-7833-8ff0-04346399766c","at":1770720924000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4731-3c58-7d43-9d66-6e3d12472143","at":1770720935000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c4731-4bf8-7180-bbb9-8d830ee6058d","at":1770720939000000000,"seq":744,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4731-7308-7f33-b30b-e2b94e70569d","at":1770720949000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4731-b570-7d8d-80ae-724bbc8c5401","at":1770720966000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c473f-48e7-720b-802b-6169353553e9","at":1770721855719000000,"seq":747,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c473f-af90-7760-86d6-09ddd8705308","at":1770721882000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4740-2e20-7ce4-bcad-12a2be115983","at":1770721914400000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4740-3848-7111-8c9b-f33a755f7d32","at":1770721917000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c4740-4400-7bad-9df7-5fff71be3817","at":1770721920000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4740-8668-75f5-8f1e-03f888aa2316","at":1770721937000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4740-d9c5-7f78-9f35-5a6bd43bce24","at":1770721958341000000,"seq":753,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4740-e428-76cc-a20d-009bb5fa36f5","at":1770721961000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4741-3a18-7b2c-ba50-f2f3c328f2f3","at":1770721983000000000,"seq":755,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c4741-c3ae-7937-b63f-0876831c0d45","at":1770722018222000000,"seq":756,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4742-0920-7627-ae08-e2057a8380f8","at":1770722036000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4742-b118-7f5d-9d6f-c2d7942f491e","at":1770722079000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c475a-45a0-75c5-95db-b2785f9a1849","at":1770723624352000000,"seq":759,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c475a-9648-7023-849a-bae56d7d569e","at":1770723645000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c475a-9e18-7d22-8fd3-8322fc7af485","at":1770723647000000000,"seq":761,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c475a-a200-7011-940e-ed2adda51e18","at":1770723648000000000,"seq":762,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c475a-ad2b-7974-98f5-064d7f1b8ea7","at":1770723650859000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c475a-b970-7a22-b4b7-9c079536dba9","at":1770723654000000000,"seq":764,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c475a-d4c8-7125-9d91-ccf3d99d4a1c","at":1770723661000000000,"seq":765,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c475a-d4c8-7d2c-affd-bfe35d61347d","at":1770723661000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c475a-d8b0-7bea-bde3-d62deac488c3","at":1770723662000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c475a-dc98-73fb-805e-4abd465f81b6","at":1770723663000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c475a-e7bf-7a14-8373-acaf6048c32c","at":1770723665855000000,"seq":769,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c475b-0b78-7ce8-a045-79719790d3d2","at":1770723675000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c475b-4de0-7e2c-a9fe-aa1fdceca048","at":1770723692000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c475b-8c60-7f24-a793-86c2573122cc","at":1770723708000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c475b-9430-7f18-9b61-857b45e473da","at":1770723710000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c475b-b86d-79e8-91de-4a6b05f7ca56","at":1770723719277000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c475b-e638-7586-8845-d04e34629521","at":1770723731000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c475b-e638-76bc-a47a-75e6bc12b61a","at":1770723731000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c475b-fda8-70a7-90fc-18c84ee3e155","at":1770723737000000000,"seq":777,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c475c-0190-7e91-a169-851449c19d16","at":1770723738000000000,"seq":778,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

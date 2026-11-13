@@ -1,0 +1,26 @@
+{"v":1,"id":"019bd5a9-6766-7980-886d-5d289ccec462","at":1768816207718000000,"seq":224,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd5a9-6766-72b1-8cad-21b292c2c639","at":1768816207718000000,"seq":225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bd5a9-7ff0-7626-a37f-4075322bc066","at":1768816214000000000,"seq":226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bd5aa-00d8-7427-ac1e-f88f4566084c","at":1768816247000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5aa-1226-7106-adcc-2c66b91dc09a","at":1768816251430000000,"seq":228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bd5aa-5ab0-7412-9005-46c3ef2b7ef8","at":1768816270000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5aa-6e38-7d83-a9e9-f9a421ebe2f1","at":1768816275000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5aa-9160-7a5b-beb8-512a9f2b695c","at":1768816284000000000,"seq":231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd5aa-9bc2-7c52-8921-00d8f210f73b","at":1768816286658000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bd5ab-2da0-7d95-ab56-51d0c7a08a50","at":1768816324000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bd5ab-4128-7b25-a7ff-0b173ccac72a","at":1768816329000000000,"seq":234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd5ab-54b0-7553-9d29-b8ede5bdefdd","at":1768816334000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd5ab-6c8a-776e-a12f-946e1897af08","at":1768816340106000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bd5ab-e920-7d7e-964e-97168e4d712b","at":1768816372000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5ac-6620-7b72-9d5c-878a311e42de","at":1768816404000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5c5-2dcb-7fb3-ac50-197ecb569a75","at":1768818027979000000,"seq":239,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd5c5-2dcb-742d-b6bb-97ca2e260750","at":1768818027979000000,"seq":240,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd5c5-87b8-75b4-9349-6a38e97271de","at":1768818051000000000,"seq":241,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd5c5-9f28-715c-ba22-d9b2533be0cd","at":1768818057000000000,"seq":242,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5dd-948d-7d1c-aca3-368ef45f5c11","at":1768819627149000000,"seq":243,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bd5dd-b720-7c1e-9075-5ac1acafd553","at":1768819636000000000,"seq":244,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5dd-e600-7543-8ff9-5ecd45e79823","at":1768819648000000000,"seq":245,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bd5de-2098-786e-a8dc-7bd4c8125f2c","at":1768819663000000000,"seq":246,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5e3-8ff4-7c7b-a1d1-c92986864936","at":1768820019188000000,"seq":247,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bd5e4-3f00-7790-9f8b-4de2471e91ed","at":1768820064000000000,"seq":248,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bd5e4-5288-7752-91a1-f43480183fea","at":1768820069000000000,"seq":249,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

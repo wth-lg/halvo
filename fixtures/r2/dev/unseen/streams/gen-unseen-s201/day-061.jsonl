@@ -1,0 +1,34 @@
+{"v":1,"id":"019cada7-eb69-7699-8867-6197c00d0363","at":1772439989097000000,"seq":959,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cada7-eb69-7d23-9e53-e693830850bd","at":1772439989097000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cada8-0a48-7bae-abb0-fa67b1155978","at":1772439997000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cada8-bdf8-7d38-aa89-2cabe8663b01","at":1772440043000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cadb9-dbaa-749f-a3f7-975361dea4f0","at":1772441164714000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cadb9-fff0-70ec-9aa2-bc56812be4c0","at":1772441174000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cadba-1f30-7836-b69f-81a9dca83fec","at":1772441182000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadba-d01c-71c1-b178-4e089da2644e","at":1772441227292000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cadbb-3488-7156-bea7-d88a15afbbc9","at":1772441253000000000,"seq":967,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cadbb-64c4-700b-9b45-8e15f29a3f18","at":1772441265348000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cadbb-9a18-7ca4-b68d-016343cb53c6","at":1772441279000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadbb-a5d0-7a1f-b6d2-64c1b1a76f48","at":1772441282000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cadc8-2485-7d7a-a4cb-92d581133a56","at":1772442100869000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cadc8-4c18-79a3-9951-af786c79edb6","at":1772442111000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cadc8-5fa0-75a1-a77f-d78e6c922e61","at":1772442116000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadc8-738f-7923-8c15-403fcfd71a01","at":1772442121103000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for July - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cadc8-9e20-7355-9c73-bd71f501aa4b","at":1772442132000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadc8-a208-7c13-9bb4-9dca2fa823fc","at":1772442133000000000,"seq":976,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cadc9-7854-72c5-b068-fd3d1ee27c77","at":1772442187860000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cadca-0d50-7fe4-bf2f-869dd5e21089","at":1772442226000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadca-4018-74da-abcf-b22488ff491f","at":1772442239000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cadca-640e-7de3-b667-011108645e4d","at":1772442248206000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cadca-c8d0-724e-8774-68d3a3598d74","at":1772442274000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadca-f7b0-7818-8d8d-1309d8f81bec","at":1772442286000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadcb-4da0-7cbf-8ad2-abe59a7fad73","at":1772442308000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cade4-10f4-76f0-a16d-a24ca98fd361","at":1772443930868000000,"seq":984,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cade4-30b8-73c4-a624-df1f4977a4aa","at":1772443939000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cade4-6b50-7756-8084-bb92ac16d327","at":1772443954000000000,"seq":986,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cade4-7708-7d08-8c8d-eb86dda15ade","at":1772443957000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadee-4bf4-79d7-b983-949473d79a4b","at":1772444601332000000,"seq":988,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cadee-8540-76cd-92d9-3b3cb2adb047","at":1772444616000000000,"seq":989,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cadee-a480-7f26-9b6f-393b0fb04050","at":1772444624000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadee-ac50-7e04-a1d9-7d16fcd49d67","at":1772444626000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cadee-bfd8-7473-9686-6a71b8b6ddd2","at":1772444631000000000,"seq":992,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

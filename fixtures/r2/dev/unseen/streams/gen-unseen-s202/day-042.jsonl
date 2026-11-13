@@ -1,0 +1,11 @@
+{"v":1,"id":"019c4bc7-2acd-730c-a569-38e63778d2ec","at":1770797869773000000,"seq":638,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4bc7-2acd-75d5-ba28-30ecf52d7526","at":1770797869773000000,"seq":639,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4bc7-2f98-782c-ae14-27a5e7d80584","at":1770797871000000000,"seq":640,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c4bc7-6a30-7f6a-9196-77ecacbc0445","at":1770797886000000000,"seq":641,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c4bc7-8970-7a9f-b968-94533c3855a6","at":1770797894000000000,"seq":642,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc7-db67-78b2-83b3-4d4c18f2d98c","at":1770797914983000000,"seq":643,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c4bc7-e730-785e-96fd-e5b14d130eb8","at":1770797918000000000,"seq":644,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc8-0670-7987-a60d-e14a1f4af77c","at":1770797926000000000,"seq":645,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4bc8-1de0-7592-bf2a-4a50c4c0ece0","at":1770797932000000000,"seq":646,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc8-25e7-7717-8675-c6fa877ecf99","at":1770797934055000000,"seq":647,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c4bc8-4cc0-720a-8bb2-e221abb29e58","at":1770797944000000000,"seq":648,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

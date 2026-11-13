@@ -1,0 +1,41 @@
+{"v":1,"id":"019c93ec-3225-715d-a8b7-40780f73b526","at":1772008256037000000,"seq":712,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c93ec-3225-7cee-83e7-c131905efd61","at":1772008256037000000,"seq":713,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c93ec-5528-7140-ae13-da63d062a6af","at":1772008265000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93fb-05a8-7305-b6d8-334a765542b8","at":1772009227688000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c93fb-0eb0-77ba-a25f-4b9220bc2fb6","at":1772009230000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c93fb-39a8-7b9e-af0e-9b58a0e58146","at":1772009241000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93fb-5cd0-707d-a439-d2bee1fe1b23","at":1772009250000000000,"seq":718,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93fb-c162-76fe-a739-1821e958a03d","at":1772009275746000000,"seq":719,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c93fc-6670-7de2-89f7-0adfab5925c7","at":1772009318000000000,"seq":720,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c93fc-8d80-7f5f-a9d9-804be769c3d1","at":1772009328000000000,"seq":721,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c93fc-a6b8-7e40-9c51-545884ca9685","at":1772009334456000000,"seq":722,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c93fd-1e08-7be4-85f0-faff5edaa33e","at":1772009365000000000,"seq":723,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93fd-3d48-776b-9a70-ac4ed8f0ec24","at":1772009373000000000,"seq":724,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c93fd-50d0-7c3a-b669-ac99fcd640ff","at":1772009378000000000,"seq":725,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93fd-590d-7f98-85d6-ec80446ebd62","at":1772009380109000000,"seq":726,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c93fd-77e0-7289-90f8-6ef75589bbe4","at":1772009388000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93fd-ae90-785f-8d5a-c1a603f7711d","at":1772009402000000000,"seq":728,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c93fd-b278-727e-bb6f-3231f13497c5","at":1772009403000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93fd-be30-7137-b82b-59532e925270","at":1772009406000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c940f-a432-76b8-ab2b-ce4aeb82cb7f","at":1772010578994000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c9410-0db0-7d62-9bfc-2de2fd45ccc0","at":1772010606000000000,"seq":732,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9410-5400-78e6-aff4-088c2d5a3ac8","at":1772010624000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c941e-9614-7e4e-8399-54bf5d7066d1","at":1772011558420000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c941e-9c40-780b-b038-199cf8d252b7","at":1772011560000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c941e-b3b0-7176-b6d9-eab06ec49f36","at":1772011566000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c941e-b798-7a9c-95ee-7b6b400f4843","at":1772011567000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c941e-d2f0-790d-a736-90cca08ace47","at":1772011574000000000,"seq":738,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c943a-4aec-784b-99f6-0a3e212e4ffb","at":1772013374188000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c943a-61a0-72f4-8cea-2c939d06bb7e","at":1772013380000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c943b-4cce-78c3-aa2c-ea5e6bf54316","at":1772013440206000000,"seq":741,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c943b-8e68-71e7-b796-5a8397d1d693","at":1772013457000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c943b-ba7e-73b6-9edd-91ccc7246788","at":1772013468286000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c943b-c518-7930-8332-243abb6f8035","at":1772013471000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c943b-cce8-7f9f-ba1b-95034a5f4f34","at":1772013473000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c943b-d8a0-7d7a-b1cd-a33c6966dcbf","at":1772013476000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c943c-3e30-7810-9e3d-20f98263281f","at":1772013502000000000,"seq":747,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c943c-5612-747c-8856-0ca4394ee47f","at":1772013508114000000,"seq":748,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c943c-6540-7ca2-822c-778956a4906b","at":1772013512000000000,"seq":749,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c943c-c300-748f-9d35-3233d316e971","at":1772013536000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c943c-cad0-7be1-a97f-fd98286d677d","at":1772013538000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c943c-f1e0-77bb-a75e-aa57255cccac","at":1772013548000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

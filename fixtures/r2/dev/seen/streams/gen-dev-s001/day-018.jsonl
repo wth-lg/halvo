@@ -1,0 +1,68 @@
+{"v":1,"id":"019bd098-cc92-70af-bc75-73e90369eb97","at":1768731233426000000,"seq":204,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd098-cc92-7fde-b71b-9a1efc92f1da","at":1768731233426000000,"seq":205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd098-f5e0-7553-96f4-491041603921","at":1768731244000000000,"seq":206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bd099-45eb-78c7-9af3-b6871849d46b","at":1768731264491000000,"seq":207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd099-b160-7bb3-9f27-ef1b72883288","at":1768731292000000000,"seq":208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd099-f3c8-7527-95c0-ee4b46ff0f09","at":1768731309000000000,"seq":209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd09a-329e-7884-a1be-e13a1d19632d","at":1768731325086000000,"seq":210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd09a-af48-77b2-9485-319be0878398","at":1768731357000000000,"seq":211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd09b-1e49-799d-8bb2-327d7323c7fb","at":1768731385417000000,"seq":212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd09b-7680-7a47-b854-61e0e1244143","at":1768731408000000000,"seq":213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd09b-8166-7d6f-8788-e3b35064f787","at":1768731410790000000,"seq":214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd09b-ad30-7bff-b0bb-6c250974c16e","at":1768731422000000000,"seq":215,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd09c-12c0-7c56-a5f2-6df324c95b1f","at":1768731448000000000,"seq":216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd09c-1e78-7093-a80d-b659210cef64","at":1768731451000000000,"seq":217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd09c-5528-70d2-9f22-806a38dc96d3","at":1768731465000000000,"seq":218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd09c-73dc-77f9-89b9-8341b4c7a453","at":1768731472860000000,"seq":219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bd09c-ab18-78ee-9480-2ae263e65f47","at":1768731487000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd09c-bab8-77b0-8e48-4751944dc117","at":1768731491000000000,"seq":221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd09c-dde0-7a8c-b771-1f0d24042772","at":1768731500000000000,"seq":222,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd0b4-3b58-7c80-80f5-ad3abb5fc67d","at":1768733031256000000,"seq":223,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd0b4-3b58-7159-ab23-aebd7211c937","at":1768733031256000000,"seq":224,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd0b4-6168-7ee5-ac2c-4ad073323c86","at":1768733041000000000,"seq":225,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0b8-b0b6-7425-9e1c-5d8da95926e8","at":1768733323446000000,"seq":226,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd0b8-b0b6-714a-a447-56a1b5401e7a","at":1768733323446000000,"seq":227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bd0b8-ddd8-795c-b028-69905a255637","at":1768733335000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd0b9-6690-726d-91bd-c4074a088c3e","at":1768733370000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0b9-751c-7649-8d89-8c6eae1d47f4","at":1768733373724000000,"seq":230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bd0b9-89b8-722c-a656-9aa3dd8133e2","at":1768733379000000000,"seq":231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0b9-b898-776e-ad84-031091e3271f","at":1768733391000000000,"seq":232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd0b9-c450-76b3-9102-550980433e40","at":1768733394000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd0cb-9898-7c48-99ba-5ad589c4e4ef","at":1768734562456000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bd0cb-b610-78b1-ab1b-804c5c5c3e30","at":1768734570000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0cb-e108-7e78-8e52-0b7d1c993336","at":1768734581000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0cb-e8d8-7acd-b7df-ee6748bf99f4","at":1768734583000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bd0cb-ff62-7b3b-8aa5-952785a0668d","at":1768734588770000000,"seq":238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bd0cc-6da8-7d0e-808f-294ccbbf6f02","at":1768734617000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bd0cc-7190-79ff-906b-5042afd6a306","at":1768734618000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd0cc-8aea-70be-99ee-2f93fd1a01d1","at":1768734624490000000,"seq":241,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bd0cd-2928-7af4-881e-fa30554fb430","at":1768734665000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0cd-4940-7b94-8ec3-d75cf75d2b44","at":1768734673216000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bd0cd-7b30-7306-9629-676a7686836a","at":1768734686000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bd0cd-bd98-7cfe-b1b5-a94fa886a761","at":1768734703000000000,"seq":245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd0ce-0000-7463-9e3e-76cf4520e863","at":1768734720000000000,"seq":246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd0ce-1f37-73cb-91cd-ee6a41d4b161","at":1768734727991000000,"seq":247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bd0ce-32c8-72da-aa43-37bb1a0f61da","at":1768734733000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd0ce-4268-7b19-b9ed-8f367ef9b3a4","at":1768734737000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0ce-4e20-7dca-ab29-af280995b9cd","at":1768734740000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bd0ce-59d8-79c7-a5c7-c2aa4db699a5","at":1768734743000000000,"seq":251,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd0ce-911a-773b-ae03-8a69b0cd33d3","at":1768734757146000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bd0ce-c738-749d-b209-6167984d5e81","at":1768734771000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0ce-d6d8-7d44-bb07-3de6c7aa9dd5","at":1768734775000000000,"seq":254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd0cf-1d28-77c3-9b60-eb638f1b54e0","at":1768734793000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0e7-46bf-7e4b-8f72-089730388932","at":1768736376511000000,"seq":256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bd0e7-6018-7f9c-9e70-04e8a62a7cf0","at":1768736383000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bd0e7-f42a-7c90-9bb9-f075c60e94f8","at":1768736420906000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bd0e8-1f80-7fea-80e6-9443a7b01c95","at":1768736432000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd0e8-6da0-7599-9a31-60fb40943a1c","at":1768736452000000000,"seq":260,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd0e8-ac20-7658-85da-9cf5df1a8b79","at":1768736468000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0e8-f5f0-7967-80b9-ebdd5d42c378","at":1768736486896000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd0e9-4090-7968-b9a8-c1433e672a70","at":1768736506000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0e9-4c48-72be-8f2f-87d1ac6444cb","at":1768736509000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bd0e9-8eb0-776a-8dcb-75663c5c078c","at":1768736526000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd0e9-f1c8-75f3-a2aa-97e63e860f63","at":1768736551368000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bd0e9-f440-7987-a8f8-59f92a14e654","at":1768736552000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0ea-9080-7780-86d0-9f4d7f8282bc","at":1768736592000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bd0ea-fbc1-72f9-ac9d-abb82ee58a0e","at":1768736619457000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bd0eb-05b0-71ac-af79-999c0ad204a1","at":1768736622000000000,"seq":270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd0eb-4430-75ce-a438-a19b01fac6c4","at":1768736638000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

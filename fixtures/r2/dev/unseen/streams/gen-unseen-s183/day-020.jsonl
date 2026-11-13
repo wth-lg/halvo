@@ -1,0 +1,33 @@
+{"v":1,"id":"019bdb08-a3ef-70bb-a0f0-a7cd9817f46e","at":1768906335215000000,"seq":153,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdb08-a3ef-7c47-a378-eef081625f8f","at":1768906335215000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bdb09-1460-7c25-8d78-f825ba19429f","at":1768906364000000000,"seq":155,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bdb0c-0309-7d54-a97e-9626204b9b20","at":1768906556169000000,"seq":156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bdb0d-11b9-7c27-b59f-2b407140ebc4","at":1768906625465000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bdb0d-e509-7e11-a03b-f5eca94f08ab","at":1768906679561000000,"seq":158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bdb0e-2928-7ccd-bf2b-e364376563bb","at":1768906697000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdb0e-3d02-7308-8b4c-e570e124f5f3","at":1768906702082000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bdb0e-aa10-7ff2-b42d-0c48dce0df5b","at":1768906730000000000,"seq":161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdb0e-c180-713c-8de6-fb943aaf825e","at":1768906736000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb0e-e890-77eb-970b-b00baa5cd241","at":1768906746000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb20-73d8-706e-9e0f-3eb302b2d742","at":1768907895768000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bdb20-e9f0-793d-8030-31d41e39c348","at":1768907926000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb20-f9c8-71bd-8ac3-787953e2dfdb","at":1768907930056000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bdb21-1cb8-7563-acca-233643eeaa4c","at":1768907939000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bdb21-43c8-7dc9-a62a-e6be516ea91b","at":1768907949000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb21-7a78-74ec-913f-59ff82f2ddf8","at":1768907963000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb21-81c0-7a59-8af2-65644d6822cc","at":1768907964864000000,"seq":170,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdb21-81c0-7233-8bda-6702af2ff45a","at":1768907964864000000,"seq":171,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdb21-cc80-7e4d-82ad-0089b591f0bb","at":1768907984000000000,"seq":172,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb22-0ee8-76a4-a4ba-d266fe14db27","at":1768908001000000000,"seq":173,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bdb22-60f0-7a38-8c3c-dea9a1fbc0ee","at":1768908022000000000,"seq":174,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bdb22-88cc-7be7-add3-a39d13a86e06","at":1768908032204000000,"seq":175,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdb22-88cc-7a09-bb20-7f83a2cbda64","at":1768908032204000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bdb22-d620-7413-b0d4-2106270a6841","at":1768908052000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdb23-903e-7b00-aea1-13ca00571fae","at":1768908099646000000,"seq":178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bdb23-b4c8-7fb3-8761-454a0f687bf1","at":1768908109000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb23-d020-7800-9b60-cbaa6a3370be","at":1768908116000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bdb24-6490-767c-80ad-8f6548147cf9","at":1768908154000000000,"seq":181,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdb24-6c60-731c-8e29-6cd5616398bf","at":1768908156000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb28-2585-7492-8701-34a8430e1d49","at":1768908400005000000,"seq":183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bdb28-3cf0-7aa3-b8a2-a3a4247bd779","at":1768908406000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb28-92e0-7781-bbd3-99c5fa83ef21","at":1768908428000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

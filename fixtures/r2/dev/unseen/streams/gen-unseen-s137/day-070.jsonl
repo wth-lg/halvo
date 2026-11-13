@@ -1,0 +1,25 @@
+{"v":1,"id":"019cdc1b-bdd7-7451-a9f1-a708289286c3","at":1773219331543000000,"seq":980,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc1b-bdd7-7561-a9ed-c53ee0a27e98","at":1773219331543000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cdc1c-5d78-74f6-acbe-3621e0f1c013","at":1773219372408000000,"seq":982,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cdc1c-9678-728c-8ee2-b304f9b47979","at":1773219387000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc1d-2ed0-75f3-ba0d-7065bc820bec","at":1773219426000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc1d-683a-7ca8-b418-2053e4384034","at":1773219440698000000,"seq":985,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cdc1d-9460-792b-b324-c0671d1f6f5e","at":1773219452000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc1e-1c86-7e4e-b940-459d2fa1a6cb","at":1773219486854000000,"seq":987,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cdc1e-3488-719c-a3a1-31b56f98cb59","at":1773219493000000000,"seq":988,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc1e-4fe0-738b-84c9-58155f47f224","at":1773219500000000000,"seq":989,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc1e-53c8-77d9-8bda-70020312c629","at":1773219501000000000,"seq":990,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc1e-678a-7fae-b1de-15a8fdf1b3c5","at":1773219506058000000,"seq":991,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cdc1e-bd40-7373-bc99-072c1644d583","at":1773219528000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc1e-c510-7d09-9c16-f17013cd614a","at":1773219530000000000,"seq":993,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc1f-56df-7566-808b-30685c0ec4ab","at":1773219567327000000,"seq":994,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cdc1f-70f0-7036-9698-a8664d8bb65d","at":1773219574000000000,"seq":995,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdc1f-cac8-7761-85fc-a69556667406","at":1773219597000000000,"seq":996,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc2a-bfd4-7665-9037-80339a044072","at":1773220315092000000,"seq":997,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cdc2b-0d98-7800-830d-c3584af3bd06","at":1773220335000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc2b-4060-7de8-b924-49f9cd7147e5","at":1773220348000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cdc2b-9a38-7565-81bf-3ebb57b821cd","at":1773220371000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc2e-c76c-7626-bc24-4b81a27a2dd2","at":1773220579180000000,"seq":1001,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc2e-c76c-7fb0-97b3-1dc51bf21608","at":1773220579180000000,"seq":1002,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc2f-0150-7ab7-933a-9cf380b6ab80","at":1773220594000000000,"seq":1003,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cdc2f-8620-747b-9391-3abebfdf6cd2","at":1773220628000000000,"seq":1004,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

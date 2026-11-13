@@ -1,0 +1,11 @@
+{"v":1,"id":"019ca83b-0b9a-7faf-9b45-b9799e341379","at":1772348967834000000,"seq":741,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca83b-0b9a-7f8b-aa73-3e8e57af101b","at":1772348967834000000,"seq":742,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca83b-0c40-7e29-882b-1574992a0b8a","at":1772348968000000000,"seq":743,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ca83b-79a0-737a-a1e2-c35362efc166","at":1772348996000000000,"seq":744,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca841-cca6-76f5-a973-682814448d29","at":1772349410470000000,"seq":745,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca841-cca6-7b79-ade0-b9d6cc974381","at":1772349410470000000,"seq":746,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca842-25c9-7fa4-8f85-f8797b05af75","at":1772349433289000000,"seq":747,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ca842-4bb8-75ed-938d-e45376b54693","at":1772349443000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ca857-15d9-7922-acb4-64262ec7c079","at":1772350805465000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca857-2f60-7eaa-8151-610a297b76b2","at":1772350812000000000,"seq":750,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca857-5a58-7e34-bb0d-1e16ac01cb52","at":1772350823000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

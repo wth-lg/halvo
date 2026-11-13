@@ -1,0 +1,32 @@
+{"v":1,"id":"019d438c-67ac-704e-937e-b45a14bc505d","at":1774954768300000000,"seq":1180,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d438c-67ac-7bc7-a869-2392a035ef2c","at":1774954768300000000,"seq":1181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d438c-6e50-714c-bcb7-628287b89d09","at":1774954770000000000,"seq":1182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d438c-8d90-7a53-b686-0e036cae833c","at":1774954778000000000,"seq":1183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d438c-9948-7a63-8b70-cd163ddddc46","at":1774954781000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d438c-9d30-7506-bf36-818fb3ba3f05","at":1774954782000000000,"seq":1185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d439c-9794-7ff3-98b8-92f7f41fd1a0","at":1774955829140000000,"seq":1186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d439c-9af0-776c-b23c-ffbf8da8d86e","at":1774955830000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d439c-a6a8-780c-adea-989bc3f5045e","at":1774955833000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d439c-f3bc-7714-afe4-9bf312f2ec50","at":1774955852732000000,"seq":1189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d439d-0c38-7de9-9910-613d69042e24","at":1774955859000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d439d-9108-79e6-99eb-98bd81a2b805","at":1774955893000000000,"seq":1191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d439d-94f0-7b44-9c2c-6c9f97cc9138","at":1774955894000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d439d-b048-79e8-921e-ec11fd6b2213","at":1774955901000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d439d-c22d-7290-a473-8ce7ffb877bd","at":1774955905581000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d439d-cba0-7060-b5f7-76788eb6e27d","at":1774955908000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d439e-0638-7d4b-b80d-b239d1882ab4","at":1774955923000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d439e-3130-724f-b272-1ad91d59a7ee","at":1774955934000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d439e-40d0-7fa5-b51c-b247b8190120","at":1774955938000000000,"seq":1198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d439e-67e0-7a26-accf-a8cc07dd8de6","at":1774955948000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d439e-a5fa-7218-aa9e-d6b240aeae0f","at":1774955963898000000,"seq":1200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d439e-c988-7b0a-aa2e-25850ac27f56","at":1774955973000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d439e-e8c8-75ee-bc53-d4ef9f95e7fa","at":1774955981000000000,"seq":1202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d439e-fc50-7bd8-a9f6-cc44a0af5cec","at":1774955986000000000,"seq":1203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d439f-0420-7cf4-aa95-b7b8dac6230a","at":1774955988000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d439f-8bd7-751e-879a-50f63292a698","at":1774956022743000000,"seq":1205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d43a0-05f0-7b2e-9e5d-b6ab5b639a8f","at":1774956054000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d43a0-2918-7ca0-b28e-7f0f9a67a991","at":1774956063000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d43a0-63b0-7ecd-9d33-e94184c0a935","at":1774956078000000000,"seq":1208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d43a6-1b4a-7e48-a7e7-95d8f7de4bf1","at":1774956452682000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d43a6-5338-76c3-ac17-5c2384029557","at":1774956467000000000,"seq":1210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d43a6-62d8-7f22-8058-a7db3fd16dc8","at":1774956471000000000,"seq":1211,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

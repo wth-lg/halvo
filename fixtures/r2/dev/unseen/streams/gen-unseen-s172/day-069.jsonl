@@ -1,0 +1,17 @@
+{"v":1,"id":"019cd6b1-02d2-7c71-a1c8-49e2424e011a","at":1773128450770000000,"seq":764,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6b1-02d2-725f-97c7-5e18f9808575","at":1773128450770000000,"seq":765,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cd6b1-bb50-7231-8c81-a287828fc60f","at":1773128498000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cd6b1-bfca-71f8-988d-7b5886d5ea1f","at":1773128499146000000,"seq":767,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cd6b1-de78-7c19-a8b3-f88b9b4289f8","at":1773128507000000000,"seq":768,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd6b1-e648-7b86-b0d9-79865e3a328a","at":1773128509000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6b1-ee18-70e1-a29e-4aa1e26c7ad0","at":1773128511000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cd6b2-47f0-774b-b8a6-78fcffd02d0e","at":1773128534000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6b2-66e9-72f2-80c3-b3eecf0e27a0","at":1773128541929000000,"seq":772,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cd6b2-6b18-7a36-831b-6ab17cf857e9","at":1773128543000000000,"seq":773,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd6b2-a998-7b1c-98e0-64c403fb3e99","at":1773128559000000000,"seq":774,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd6b3-1ec8-725a-a2a1-0eae7a5ab712","at":1773128589000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6b3-6b88-7d75-9a0a-f4c0e70e5af4","at":1773128608648000000,"seq":776,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cd6b9-42ee-7a40-87d3-056975bb2f6b","at":1773128991470000000,"seq":777,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd6b9-42ee-7b48-9522-83eaf1cbf31f","at":1773128991470000000,"seq":778,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd6b9-6440-7444-a0d2-287d6a20c70d","at":1773129000000000000,"seq":779,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd6b9-ae78-7eae-b227-fb3c07c80df6","at":1773129019000000000,"seq":780,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

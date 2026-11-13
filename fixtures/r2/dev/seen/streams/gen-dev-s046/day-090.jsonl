@@ -1,0 +1,33 @@
+{"v":1,"id":"019d42e7-8f3e-75c5-81c8-59193c293021","at":1774943964990000000,"seq":1044,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42e7-8f3e-743a-a027-b12efaec6cc7","at":1774943964990000000,"seq":1045,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d42e7-ba40-7060-a1af-468831a3254c","at":1774943976000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d42e7-c210-7c45-b11d-86005ee54d1a","at":1774943978000000000,"seq":1047,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d42eb-1d0c-74b4-ba78-aa1d4a4600fa","at":1774944197900000000,"seq":1048,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d42eb-1d70-7863-b4f7-8ec81652fbc0","at":1774944198000000000,"seq":1049,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42eb-3cb0-7bd7-ad10-80a0b1a676d4","at":1774944206000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d42eb-a416-788a-a6f6-ccbafabab1ae","at":1774944232470000000,"seq":1051,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d42eb-b1e0-7e58-bc83-2415cd449f1d","at":1774944236000000000,"seq":1052,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42eb-d8f0-7973-b00e-876372d768df","at":1774944246000000000,"seq":1053,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d42ec-2328-7103-bfd4-4db00b106b0a","at":1774944265000000000,"seq":1054,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d42ec-4a38-7585-9510-c903997f3758","at":1774944275000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d42ec-61a8-723c-a5ad-98a8a47d6bc7","at":1774944281000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ec-7aa4-7746-a0d3-27fa5562048e","at":1774944287396000000,"seq":1057,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d42ec-7d00-7d52-abe9-4299487d3458","at":1774944288000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d42ec-9470-7649-acb2-846d44cdacd3","at":1774944294000000000,"seq":1059,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42ec-dea8-7cb1-9246-c603f7843e29","at":1774944313000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ec-e290-71fc-ad14-1fcc3de858a2","at":1774944314000000000,"seq":1061,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d42ec-ecdb-7aad-802c-0429649debc8","at":1774944316635000000,"seq":1062,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d42ec-fa00-70d7-8eeb-0f4dacfaf642","at":1774944320000000000,"seq":1063,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ed-6760-772a-8946-da4e0f595c73","at":1774944348000000000,"seq":1064,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d42ed-9640-7036-a96d-a38c17f9df57","at":1774944360000000000,"seq":1065,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d42ed-9a28-7352-9e62-5c7fe941991d","at":1774944361000000000,"seq":1066,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d42f4-8e89-7696-b9c8-ea631e0db86f","at":1774944816777000000,"seq":1067,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d42f5-0498-71a8-874e-4b71cee08d6f","at":1774944847000000000,"seq":1068,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f5-3aac-7e66-9bfd-17db56758a91","at":1774944860844000000,"seq":1069,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d42f5-6e10-770b-9596-9d8fea883f78","at":1774944874000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f5-8580-77df-9c02-bee4dca1691e","at":1774944880000000000,"seq":1071,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f5-9520-7c2d-8c62-2513e70f897a","at":1774944884000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d42f5-ace7-72b3-ad2c-0c1082f405b8","at":1774944890087000000,"seq":1073,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d42f6-0668-7034-bc37-31d861c0b489","at":1774944913000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f6-8b38-767b-be5e-f1b0a6d71d6f","at":1774944947000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f6-a690-7ec0-b64f-273816c7a85f","at":1774944954000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}

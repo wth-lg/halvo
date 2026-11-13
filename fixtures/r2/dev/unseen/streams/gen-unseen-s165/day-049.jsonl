@@ -1,0 +1,31 @@
+{"v":1,"id":"019c7006-67f1-7d0e-9b23-af6b1f4106a6","at":1771405993969000000,"seq":703,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7006-67f1-746d-8641-07a27c8d1727","at":1771405993969000000,"seq":704,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c7006-96f0-799c-9583-5a30fbd112fd","at":1771406006000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7006-d958-7fbb-8e13-18b62a3d8a03","at":1771406023000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7007-0deb-7d51-8edc-534c6e3fb4e9","at":1771406036459000000,"seq":707,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c7007-3ee8-73c1-9775-c435fcca2c50","at":1771406049000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7007-661d-7ed0-bd9f-7da9c9fc0148","at":1771406059037000000,"seq":709,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7007-90f0-7de1-926d-25557401700f","at":1771406070000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7007-b800-7cca-b22d-0d9d03ec4841","at":1771406080000000000,"seq":711,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7008-3118-7e14-bf52-c6bf807b2eb0","at":1771406111000000000,"seq":712,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c7008-5eb9-7f37-a81c-caed3f7d5d3f","at":1771406122681000000,"seq":713,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c7008-d910-7286-a00e-7c34faeba5a5","at":1771406154000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7008-dcf8-7644-aa6f-213e886d4173","at":1771406155000000000,"seq":715,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7009-2f00-7207-bb87-f10ff2e5fbbf","at":1771406176000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c7009-4e40-7d04-808c-b11a5b9796c5","at":1771406184000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7009-5133-709f-a804-6c7fdf8f7e05","at":1771406184755000000,"seq":718,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c7009-59f8-7df7-a99e-d5dd0a947ac2","at":1771406187000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7009-7168-7c59-b758-f76fd4b9bac4","at":1771406193000000000,"seq":720,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7009-88d8-7049-84d6-8bdfdac8ecff","at":1771406199000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c701e-4a08-7033-8c1a-ef05e75d2a82","at":1771407559176000000,"seq":722,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c701e-c107-72ee-aea9-3c418d013fcd","at":1771407589639000000,"seq":723,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c701e-d9e0-71b6-aacc-957e13161e21","at":1771407596000000000,"seq":724,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c701f-00f0-7704-897a-78d219e175f8","at":1771407606000000000,"seq":725,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c701f-2be8-7f8a-8ec9-18faa3bc91da","at":1771407617000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c701f-7238-7e42-b768-25ee7494e8a5","at":1771407635000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c701f-a81a-7842-8002-24f09e32a67c","at":1771407648794000000,"seq":728,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c701f-ef38-70b7-91b0-8cc3c1bfc679","at":1771407667000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c7020-0e78-7560-8457-6c5e65751956","at":1771407675000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7029-a9ef-7105-8e6e-d36f4e77dd40","at":1771408304623000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c702a-0d10-72f6-b242-ddd5376e3ae5","at":1771408330000000000,"seq":732,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c702a-14e0-7269-a6f0-266a1d69dd86","at":1771408332000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

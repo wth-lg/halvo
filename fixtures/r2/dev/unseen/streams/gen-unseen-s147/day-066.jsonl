@@ -1,0 +1,14 @@
+{"v":1,"id":"019cc71d-99a2-79c6-91ac-c93031f227f3","at":1772867131810000000,"seq":872,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc71d-99a2-7e86-84da-0f6624df6d47","at":1772867131810000000,"seq":873,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc72c-675a-705f-87c4-1c0e687874e2","at":1772868101978000000,"seq":874,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc72c-675a-7f1d-b2ce-8c137870a0cd","at":1772868101978000000,"seq":875,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cc72c-7af8-7d6c-a7a7-cfc35e089eda","at":1772868107000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc72d-4186-7a37-bc26-7710be2ec76d","at":1772868157830000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cc72d-6d28-7344-ab1c-4235a7cd62e4","at":1772868169000000000,"seq":878,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc72d-9050-7197-b925-68045163ea33","at":1772868178000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc72d-a7c0-72eb-9d4f-38099bddaff9","at":1772868184000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc72d-b760-706d-94e6-78daa02562a0","at":1772868188000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc72d-bfeb-7eef-be2c-8d30c66c01ae","at":1772868190187000000,"seq":882,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cc72d-ee10-7fc6-9d00-99d6a9993c40","at":1772868202000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc72e-6ef8-7ba9-9f3b-b8264bebdad5","at":1772868235000000000,"seq":884,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc72e-76c8-7a0e-a222-8d1a2c1e5c65","at":1772868237000000000,"seq":885,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

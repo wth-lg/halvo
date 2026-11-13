@@ -1,0 +1,16 @@
+{"v":1,"id":"019bcff2-bc83-781a-a517-e1127952e4cc","at":1768720350339000000,"seq":329,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcff2-bc83-7118-906a-f3f27560d70e","at":1768720350339000000,"seq":330,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bcff3-3448-732d-9f19-93509b195ab0","at":1768720381000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcff3-3830-7dd7-917e-bcfc3c7384c9","at":1768720382000000000,"seq":332,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcff3-4000-786f-858c-b254de0ff67f","at":1768720384000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bcff3-667b-7a87-bd2f-6aae7c0d1706","at":1768720393851000000,"seq":334,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bcffb-1702-7c21-a903-deb2b2a0b2cf","at":1768720897794000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bcffb-65f0-7191-a411-fa9c9e915f20","at":1768720918000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bcffb-b410-738f-a51f-29ef62bccb14","at":1768720938000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd002-8edd-7129-b799-fb2b5d683cdb","at":1768721387229000000,"seq":338,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd002-8edd-7636-be60-6aaccb308a4a","at":1768721387229000000,"seq":339,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd002-ad38-7110-a3a0-2fe064b5ba48","at":1768721395000000000,"seq":340,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bd002-ad38-7cde-a360-8c72a1608397","at":1768721395000000000,"seq":341,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bd002-dc18-7fe4-b463-92d18068abc0","at":1768721407000000000,"seq":342,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bd005-07b2-7eb4-aabf-cfad46d5e503","at":1768721549234000000,"seq":343,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bd005-3d78-75f1-a519-2e370a6c0bf1","at":1768721563000000000,"seq":344,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

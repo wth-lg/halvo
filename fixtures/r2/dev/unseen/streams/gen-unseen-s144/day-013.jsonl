@@ -1,0 +1,11 @@
+{"v":1,"id":"019bb652-16c7-79c4-ba54-24e48782e4d3","at":1768290391751000000,"seq":184,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb652-16c7-7140-b474-22acd92502f6","at":1768290391751000000,"seq":185,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb652-2b48-7a64-b09e-7c5617241da4","at":1768290397000000000,"seq":186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb652-3318-7381-b1cc-75b419312836","at":1768290399000000000,"seq":187,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb663-44a5-7cf6-bf54-d9371963c559","at":1768291517605000000,"seq":188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bb663-a7d8-7a52-9665-8f7a8a74b86e","at":1768291543000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb663-d937-7ce5-8bee-1debae3c8085","at":1768291555639000000,"seq":190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bb664-4030-7a95-ae99-e57b8c750242","at":1768291582000000000,"seq":191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb67d-8b02-7977-9701-166583c53629","at":1768293239554000000,"seq":192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb67d-9878-7c22-abfc-2193cadd14ed","at":1768293243000000000,"seq":193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb67e-1d48-74c2-811b-220e0d6c4a35","at":1768293277000000000,"seq":194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

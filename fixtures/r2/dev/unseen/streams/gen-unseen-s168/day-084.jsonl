@@ -1,0 +1,23 @@
+{"v":1,"id":"019d2400-db87-77d2-9817-8fd03aef6c70","at":1774425529223000000,"seq":1463,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2400-db87-78d2-b11a-0f58a7261ac2","at":1774425529223000000,"seq":1464,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2400-f9e8-713b-b8f3-e87a47dcf617","at":1774425537000000000,"seq":1465,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d2401-1928-7f22-9416-f69cf6b942a6","at":1774425545000000000,"seq":1466,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d2401-28c8-73d6-8f28-5758f57c41ea","at":1774425549000000000,"seq":1467,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2401-2cb0-73f0-a60d-c8892f49be4e","at":1774425550000000000,"seq":1468,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2406-04b9-7a61-871f-7fed2ece2ff1","at":1774425867449000000,"seq":1469,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2406-04b9-78c7-9cd0-0841d0201b87","at":1774425867449000000,"seq":1470,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d2406-2238-7205-b396-490f5675fed0","at":1774425875000000000,"seq":1471,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2406-2620-7f0b-8523-b8194b5e241e","at":1774425876000000000,"seq":1472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d240b-ce47-7cce-b33e-6dfe8e392138","at":1774426246727000000,"seq":1473,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d240b-eab0-71ef-a95d-de4e365f3320","at":1774426254000000000,"seq":1474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240c-2930-7537-8ae3-668104ae4956","at":1774426270000000000,"seq":1475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240c-3436-756f-b367-4e4aafbe62d2","at":1774426272822000000,"seq":1476,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"School messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d240c-6f80-789d-a50a-a348944516bd","at":1774426288000000000,"seq":1477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240d-239c-7b9d-8133-14e29e2bf3e7","at":1774426334108000000,"seq":1478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d240d-4658-7db0-8758-b022f98092d8","at":1774426343000000000,"seq":1479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240d-9090-7cfd-ab71-dfb96094c466","at":1774426362000000000,"seq":1480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240d-b3b8-71ad-9f2c-e97a794dac71","at":1774426371000000000,"seq":1481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d240d-bbae-7224-bb7d-ff3ae01b37f6","at":1774426373038000000,"seq":1482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d240e-2cd0-7aa0-b8c8-e826314cf054","at":1774426402000000000,"seq":1483,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240e-3888-7d2f-8a01-d757fda04e64","at":1774426405000000000,"seq":1484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240e-4ff8-7773-80b7-0ed637ac7ecc","at":1774426411000000000,"seq":1485,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

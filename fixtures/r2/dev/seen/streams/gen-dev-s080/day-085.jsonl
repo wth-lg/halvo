@@ -1,0 +1,8 @@
+{"v":1,"id":"019d2977-2b04-7faa-9e11-c42c78e6deab","at":1774517168900000000,"seq":1313,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2977-2b04-7542-9c9a-e8dfc7b8ee00","at":1774517168900000000,"seq":1314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2977-e6e8-7c70-831a-01ed1d3fb900","at":1774517217000000000,"seq":1315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2977-ead0-719f-881a-4587c2d41c55","at":1774517218000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d2993-0873-77f0-92c2-11ecceb87307","at":1774518995059000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d2993-2f48-7e36-85f7-7f8c65736416","at":1774519005000000000,"seq":1318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2993-3718-7fec-a049-3e3fb08f5af5","at":1774519007000000000,"seq":1319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2993-65cb-797d-80f0-f0ec8abbd293","at":1774519018955000000,"seq":1320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}

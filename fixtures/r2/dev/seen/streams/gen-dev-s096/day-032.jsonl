@@ -1,0 +1,21 @@
+{"v":1,"id":"019c1853-8926-7257-91dd-3dfd17591ce2","at":1769934653734000000,"seq":398,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1853-8926-72e7-bfbe-67c4269c7416","at":1769934653734000000,"seq":399,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1853-a588-77bb-8754-89ae163f20e1","at":1769934661000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c186c-193d-7de3-8d7a-8cae1aa82be0","at":1769936263485000000,"seq":401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c186c-d6c0-7d2f-b5ff-b26072f0c919","at":1769936312000000000,"seq":402,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c186c-fdd0-793d-a4ca-0d9eab01d886","at":1769936322000000000,"seq":403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1885-2a12-7778-9754-ca52096ce603","at":1769937906194000000,"seq":404,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1885-8af8-716c-958e-241fdc1a9a6d","at":1769937931000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c1885-96b0-774a-ad40-66a2b39848b4","at":1769937934000000000,"seq":406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1885-a650-7b13-a2e2-a514c9062d24","at":1769937938000000000,"seq":407,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1898-f240-7015-b290-b8c0f8a850a8","at":1769939202624000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1899-0740-74ab-9700-8ad2c9d7519c","at":1769939208000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1899-0b28-7220-a04e-d76bb052d66a","at":1769939209000000000,"seq":410,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1899-2a04-74a8-bb5a-806224adb344","at":1769939216900000000,"seq":411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1899-2e50-7063-a9af-bce279d4a0d2","at":1769939218000000000,"seq":412,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1899-3a08-7cb6-8a72-ce9c3395d543","at":1769939221000000000,"seq":413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1899-5178-7cb4-b3cd-763ac67de07a","at":1769939227000000000,"seq":414,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1899-5560-7c32-83ce-10102451798b","at":1769939228000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1899-995d-7adc-8bce-9d8a255ccfc5","at":1769939245405000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c189a-3408-7e85-a196-8017549bc846","at":1769939285000000000,"seq":417,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c189a-3fc0-71c7-9ed6-bf8ac6b30e18","at":1769939288000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

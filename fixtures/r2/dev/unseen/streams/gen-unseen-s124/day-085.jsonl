@@ -1,0 +1,32 @@
+{"v":1,"id":"019d29b9-e82b-796f-93b8-287f85100291","at":1774521542699000000,"seq":1186,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d29b9-e82b-7569-80f2-6631760965bf","at":1774521542699000000,"seq":1187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d29ba-2fa8-7325-9342-0ed592f08166","at":1774521561000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d29ba-7210-77ee-9c73-044ff03e43cb","at":1774521578000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ba-b478-72a8-8fd4-59af740fe9e4","at":1774521595000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ba-db58-7090-9175-662485f78b4c","at":1774521604952000000,"seq":1191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d29bb-995e-704f-b1b6-38a88b02cd78","at":1774521653598000000,"seq":1192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d29bc-0080-7f11-91be-1aff3374f00f","at":1774521680000000000,"seq":1193,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d29bc-0850-7720-b5d5-e48a770c8099","at":1774521682000000000,"seq":1194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d29bc-4ea0-785a-9152-1c9f81339bab","at":1774521700000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29bc-887c-77f3-b55d-dc863644d397","at":1774521714812000000,"seq":1196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d29bc-94f0-7daa-a117-456a96d83317","at":1774521718000000000,"seq":1197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29bc-b430-7c1e-b863-11e532bd498e","at":1774521726000000000,"seq":1198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d29bc-c3d0-76bb-b072-5dacad368109","at":1774521730000000000,"seq":1199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d29d4-a7e0-7a32-9006-ca712a4eba40","at":1774523295712000000,"seq":1200,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d29d4-a7e0-79ea-9cdd-c0cfe2a30890","at":1774523295712000000,"seq":1201,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d29dc-4503-78d7-82c0-317362d5fb78","at":1774523794691000000,"seq":1202,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d29dc-4503-755d-95fd-1828ead71455","at":1774523794691000000,"seq":1203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d29dc-55d8-7ee3-9e1c-9376677bd265","at":1774523799000000000,"seq":1204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d29dc-5da8-7b46-bbd0-633e9d9146ca","at":1774523801000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29dc-7518-7411-a458-145232291a9b","at":1774523807000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d29dc-abc8-70bf-8c21-f97f358b8f28","at":1774523821000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d29e1-aeca-7161-9930-27076d0cb134","at":1774524149450000000,"seq":1208,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d29e2-57e6-7a0e-ad9c-73b50c38afa1","at":1774524192742000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d29e2-64a0-7c16-8893-89fcbb7e9333","at":1774524196000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29e2-7058-75c0-97f8-becf93a0b3c5","at":1774524199000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29e2-7ff8-7796-95b0-a1ac01a47af8","at":1774524203000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d29e2-a25c-708c-b432-bd633c008476","at":1774524211804000000,"seq":1213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d29e2-be78-7c73-a9e8-2f519778796b","at":1774524219000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d29e3-1c38-73a5-b64c-bd15f4416845","at":1774524243000000000,"seq":1215,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d29e3-8f6e-737b-be58-925b8a75e4c3","at":1774524272494000000,"seq":1216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d29e3-c818-7ab6-b288-0a0f3c1e4a5d","at":1774524287000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

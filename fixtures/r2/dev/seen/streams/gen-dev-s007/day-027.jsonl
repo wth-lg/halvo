@@ -1,0 +1,13 @@
+{"v":1,"id":"019bfe57-da47-7b2a-8a92-1d403733449a","at":1769498729031000000,"seq":386,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfe57-da47-7c85-b494-362c2ed67754","at":1769498729031000000,"seq":387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bfe57-f580-746a-97d4-006336241b51","at":1769498736000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bfe73-9913-787a-8c10-414e10d7a2b3","at":1769500547347000000,"seq":389,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bfe73-d250-7d61-8d7e-238e1aadd5e4","at":1769500562000000000,"seq":390,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe74-89ae-7ec1-b7e4-d9fd1f5c77f9","at":1769500608942000000,"seq":391,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bfe74-a928-7afe-b456-e2db75e7b43f","at":1769500617000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe74-ad10-7336-9c7b-4073638f95f4","at":1769500618000000000,"seq":393,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfe74-b4e0-743c-a106-f135c0be33b9","at":1769500620000000000,"seq":394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe88-c0a5-748c-aef7-24962143c3be","at":1769501933733000000,"seq":395,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bfe88-c980-7d7d-8f31-4a8707fa5b05","at":1769501936000000000,"seq":396,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bfe89-2f10-7371-a4b8-3ed8bfc13221","at":1769501962000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe89-88e8-7464-b6de-2870e278a50b","at":1769501985000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

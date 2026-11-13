@@ -1,0 +1,64 @@
+{"v":1,"id":"019c2d35-7506-7eef-891e-454f5d4019e6","at":1770285004038000000,"seq":547,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d35-7506-78eb-8b1f-ff6f531e2e98","at":1770285004038000000,"seq":548,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c2d35-bf18-770e-9dcc-96304f2656fb","at":1770285023000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c2d35-f1e0-72e1-863d-8313be2a99fb","at":1770285036000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d36-615c-7ef8-b367-f5ff3948ab19","at":1770285064540000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c2d36-95f0-7145-9d00-94f53618fac2","at":1770285078000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c2d36-b530-7c08-a78c-3f780a6d74ad","at":1770285086000000000,"seq":553,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d37-1ac0-7b83-8b46-72462abe1a43","at":1770285112000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d37-29dd-7eb8-89aa-69a250bb0f36","at":1770285115869000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c2d37-3a00-7b6c-99e2-a6d4016352b2","at":1770285120000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d37-9f90-73ef-909e-00c33428f9b9","at":1770285146000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c2d37-a564-7dc6-80b1-8a058beef995","at":1770285147492000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c2d37-c6a0-70da-8844-9e34e29a08a4","at":1770285156000000000,"seq":559,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d37-f198-72de-8903-f53dcb0da693","at":1770285167000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d38-0908-7ed0-8153-c1f9ac68bea6","at":1770285173000000000,"seq":561,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d38-3fb8-78f3-97f6-5eabe6f8be4f","at":1770285187000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c2d3c-8534-7cd9-bd33-66244b394faf","at":1770285466932000000,"seq":563,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2d3c-8534-74ac-9d86-ff106bb2bfe4","at":1770285466932000000,"seq":564,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2d3c-9130-7bab-aebc-8a02f401bbbf","at":1770285470000000000,"seq":565,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c2d3c-9900-737b-84b2-e451bdcc135e","at":1770285472000000000,"seq":566,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c2d3c-eef0-7845-be4d-1bb2159f9143","at":1770285494000000000,"seq":567,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d3d-21b8-75c6-bf54-87489dae8d27","at":1770285507000000000,"seq":568,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d44-1b13-7e7f-a3e2-5cbb48fa294a","at":1770285964051000000,"seq":569,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d44-1b13-7f14-abcc-fc530f4ebe12","at":1770285964051000000,"seq":570,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c2d44-2e68-7bf1-9444-5014195e5d36","at":1770285969000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d44-a9c9-7d08-9bea-82dae786471b","at":1770286000585000000,"seq":572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c2d44-af50-76d3-b170-f9e19f89cc02","at":1770286002000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d44-bb08-7dc6-80d6-8438077a9eed","at":1770286005000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d44-fd70-7e4b-b6b5-b059f5bac386","at":1770286022000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d45-6eb8-7edd-8c17-0fd6a753262e","at":1770286051000000000,"seq":576,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2d45-9420-7c70-912f-459656cfd7c0","at":1770286060576000000,"seq":577,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c2d45-d830-78d4-a8b5-9c94133d6d32","at":1770286078000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d46-2650-7fa0-ad65-1f83af835721","at":1770286098000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c2d46-3c73-7c8c-b87a-c98b2f1f24ad","at":1770286103667000000,"seq":580,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c2d46-3dc0-76d8-8a22-7bd8b7c5ef9d","at":1770286104000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d46-60e8-75f0-8e6e-feb7d25469a6","at":1770286113000000000,"seq":582,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d46-93b0-703a-bbe6-124bd8964440","at":1770286126000000000,"seq":583,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d46-ca60-7ab2-9bfb-a180e1306473","at":1770286140000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c2d4c-9364-78fe-bb79-1487247a8506","at":1770286519140000000,"seq":585,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2d4c-9364-7f3f-9dea-25fd5b917a5b","at":1770286519140000000,"seq":586,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2d4c-cd70-721c-951f-0dd1580c4d82","at":1770286534000000000,"seq":587,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c2d4d-0fd8-7e4d-b727-0352de8cbc37","at":1770286551000000000,"seq":588,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d4d-3ad0-7771-b323-3d1d0b3cfa9d","at":1770286562000000000,"seq":589,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d63-0486-7bf2-a189-bce78dcdd0f1","at":1770287989894000000,"seq":590,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d63-0486-7f50-9fcc-6f7ce8cfde63","at":1770287989894000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c2d63-4b40-7a80-a537-bf9b2657624a","at":1770288008000000000,"seq":592,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d63-5310-7056-a790-f397bc885c4d","at":1770288010000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c2d63-56f8-7bb6-b842-3954ab54bc93","at":1770288011000000000,"seq":594,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d63-6a80-7c52-9a79-446ef91cd4a3","at":1770288016000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d6a-ebed-7587-a95f-8fd614b9ce98","at":1770288507885000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c2d6a-fc00-74b7-9c7f-25e658a609cb","at":1770288512000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d6b-626d-78a0-b46c-6758c307cd66","at":1770288538221000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c2d6b-6d48-7aab-9d9a-0e0e27b5869c","at":1770288541000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d6b-7518-7c29-988a-4e7d038be89d","at":1770288543000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d6b-7900-71a4-aee4-33346cc065bd","at":1770288544000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c2d6b-a7e0-72fb-8195-23ce67f588d7","at":1770288556000000000,"seq":602,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d6c-24e0-75fe-b1f5-ce1c530db921","at":1770288588000000000,"seq":603,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d6c-2e95-777a-bba8-5550ead049bf","at":1770288590485000000,"seq":604,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c2d6c-7ad0-71e5-b163-5f428dfb2003","at":1770288610000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d6c-7eb8-71e6-902c-c8c1f653698f","at":1770288611000000000,"seq":606,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2d6c-8a70-7f14-814b-dcfde8619c04","at":1770288614000000000,"seq":607,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d6c-a8de-7998-aed3-ead54f7882f3","at":1770288621790000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c2d6c-c120-7b00-9756-16c9ac024c5e","at":1770288628000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d6d-3650-70f4-abbc-8062dc551931","at":1770288658000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

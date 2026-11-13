@@ -1,0 +1,29 @@
+{"v":1,"id":"019d2ee4-b1df-7024-9adf-2dde5994ce3c","at":1774608232927000000,"seq":1347,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2ee4-b1df-7c7d-9431-931f573dfc60","at":1774608232927000000,"seq":1348,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee5-17b8-7c68-b29c-4d2122bc2f74","at":1774608259000000000,"seq":1349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2ee5-2b40-7550-b074-fce62e4fd45e","at":1774608264000000000,"seq":1350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2efc-a882-7d35-b730-576eabc35dd8","at":1774609803394000000,"seq":1351,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2efc-a882-705d-9f2c-715916801c1d","at":1774609803394000000,"seq":1352,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2efc-aae0-70c8-99f8-9aa9f052e748","at":1774609804000000000,"seq":1353,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2efc-c638-70cf-a3f1-0a05c733464d","at":1774609811000000000,"seq":1354,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d2efd-1458-719e-9f2b-4956efc5169f","at":1774609831000000000,"seq":1355,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d2f10-5a4a-7123-92eb-289ef70b0d56","at":1774611094090000000,"seq":1356,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2f10-5a4a-71e2-815b-525a8e4d530b","at":1774611094090000000,"seq":1357,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d2f10-7930-7a03-b495-34d8b2f3c231","at":1774611102000000000,"seq":1358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f10-8cb8-74ef-b758-7cc41173f513","at":1774611107000000000,"seq":1359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d2f10-a281-7bf9-ac85-31464e7ba680","at":1774611112577000000,"seq":1360,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d2f10-abf8-7db4-b5a3-108d8bd0054d","at":1774611115000000000,"seq":1361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2f10-b3c8-7664-8e9f-c6ef6180905a","at":1774611117000000000,"seq":1362,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d2f10-cf20-705d-8233-82e0acc5a14a","at":1774611124000000000,"seq":1363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f10-d6f0-7209-93ed-422f6cdf75b2","at":1774611126000000000,"seq":1364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f10-ea78-7c62-8a84-0eb61411756d","at":1774611131000000000,"seq":1365,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2f11-6dab-7dd0-87fe-7ca51c4ad4b4","at":1774611164587000000,"seq":1366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d2f12-29af-7d7e-a302-7adbd4f20599","at":1774611212719000000,"seq":1367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d2f12-2eb0-7625-8c7f-6e74e100c74b","at":1774611214000000000,"seq":1368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f12-2eb0-7b1d-aa88-ba562e1030b2","at":1774611214000000000,"seq":1369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d2f24-04db-7dfa-b672-e90286e453e9","at":1774612382939000000,"seq":1370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d2f24-2c28-726d-913c-97306c9b0816","at":1774612393000000000,"seq":1371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f24-4f50-7537-b529-61520c6bdad9","at":1774612402000000000,"seq":1372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f24-6ee9-7771-907b-b30268bc13a2","at":1774612410089000000,"seq":1373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d2f24-7e30-7dc5-8013-1a24f7d2221f","at":1774612414000000000,"seq":1374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f24-a928-7ba6-be30-b88f4ef22782","at":1774612425000000000,"seq":1375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

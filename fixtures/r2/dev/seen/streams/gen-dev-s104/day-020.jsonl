@@ -1,0 +1,13 @@
+{"v":1,"id":"019bdb02-acba-7436-9b6a-6614939c3f32","at":1768905944250000000,"seq":137,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdb02-acba-7c87-9279-ff69533c38a9","at":1768905944250000000,"seq":138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bdb02-afa8-7f64-9a4d-8111b8300cf1","at":1768905945000000000,"seq":139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bdb03-0980-70b4-8cc0-a32e91fa7961","at":1768905968000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb03-4fd0-7112-90db-0f6bfeb4c2b1","at":1768905986000000000,"seq":141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bdb10-51f7-7467-a18f-5f1985e3e488","at":1768906838519000000,"seq":142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bdb10-5ba8-78d6-8b89-7501f15e7ee8","at":1768906841000000000,"seq":143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb10-9a28-7194-bc15-9d71adf0ea48","at":1768906857000000000,"seq":144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bdb10-9aa6-72bf-b35e-ab6561950212","at":1768906857126000000,"seq":145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bdb10-b968-7493-8050-b56cefeb4ee9","at":1768906865000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb11-3707-7562-a97b-68551984a3a8","at":1768906897159000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bdb11-4dd8-7379-a439-290816606ff5","at":1768906903000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb11-4dd8-7d37-98d7-66f3423fd438","at":1768906903000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

@@ -1,0 +1,26 @@
+{"v":1,"id":"019c377b-5f64-760f-b156-23c8c329fe7f","at":1770457358180000000,"seq":493,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c377b-5f64-7111-9bc6-8b8003431186","at":1770457358180000000,"seq":494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c377b-a500-7c55-8f4a-cf53bce79af8","at":1770457376000000000,"seq":495,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3790-f154-7c58-a09f-6a2aa7892a02","at":1770458771796000000,"seq":496,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c3790-f220-79fc-a925-89646ec38c0d","at":1770458772000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3791-4810-7b6e-94aa-04d8016825e6","at":1770458794000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c3791-57b0-753e-873e-62f19d6d7277","at":1770458798000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3791-60da-79e8-ba45-6fd9c60a4e0c","at":1770458800346000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c3791-8690-762e-8d72-222291d8e7ad","at":1770458810000000000,"seq":501,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3791-8e60-7cc5-b718-b27c02477f8e","at":1770458812000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c3791-99de-72d8-93be-96c759cbfdc0","at":1770458814942000000,"seq":503,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c3791-a1e8-725e-8814-bf2370110a3a","at":1770458817000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3792-3270-7d21-b042-b2345079edaf","at":1770458854000000000,"seq":505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3792-49e0-7073-86b0-14970391fe22","at":1770458860000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3792-63ca-7e75-af10-cf682847db4b","at":1770458866634000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c3792-74d8-797b-a908-fbd556853b9d","at":1770458871000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3792-9be8-7f12-9ddb-2d0cf26386c0","at":1770458881000000000,"seq":509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3793-1223-705b-9f3d-1aecacfbe0d9","at":1770458911267000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c3793-43e0-7204-91ed-ef4ad80dafd4","at":1770458924000000000,"seq":511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3793-47c8-7019-9825-aca26ca66e50","at":1770458925000000000,"seq":512,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3793-a1a0-7ad9-b3bd-aaf96b3dc823","at":1770458948000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c37ab-4c08-746c-a4d1-1bd45a444245","at":1770460498952000000,"seq":514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c37ab-5fc0-7662-b57c-9e8ca4ed6fe7","at":1770460504000000000,"seq":515,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c37ab-7348-75d8-8f89-b826fd5cac6d","at":1770460509000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ab-7730-7fa0-9214-68a66c4ea153","at":1770460510000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c37ab-9e40-74ce-b345-c2d16f1f186d","at":1770460520000000000,"seq":518,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

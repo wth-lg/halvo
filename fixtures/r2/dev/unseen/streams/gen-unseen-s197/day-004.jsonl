@@ -1,0 +1,25 @@
+{"v":1,"id":"019b8894-9141-783a-86f0-26fbd99dcd7b","at":1767522996545000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8894-9141-7a43-850b-6abe4cb68fef","at":1767522996545000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8894-9308-7f62-9803-676d948dd9ba","at":1767522997000000000,"seq":2,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8895-5658-7090-a909-f35c6bb0c079","at":1767523047000000000,"seq":3,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b88a1-0c1c-79e4-8d81-9d03b05dd7c3","at":1767523814428000000,"seq":4,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b88a1-0c1c-73fb-8291-12611b58034b","at":1767523814428000000,"seq":5,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b88a1-0e58-7c13-9e29-4db4bc442540","at":1767523815000000000,"seq":6,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a1-6448-75b5-a4d3-796c8b17dcd1","at":1767523837000000000,"seq":7,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88ba-a15c-7527-b778-391e45724ace","at":1767525491036000000,"seq":8,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b88ba-a15c-791f-ae16-e8571ec4c26a","at":1767525491036000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b88ba-b0d8-7459-8172-7b441a94126d","at":1767525495000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b88bb-2dd8-733e-95ab-031b4329278d","at":1767525527000000000,"seq":11,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b88bb-5100-741d-88f7-2e5e450d259a","at":1767525536000000000,"seq":12,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b88bd-990c-73a8-9ef9-5cda75e3b24e","at":1767525685516000000,"seq":13,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019b88bd-aa90-7ca0-802a-49b0c745aaf8","at":1767525690000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88be-6a3f-710f-9f8f-5fbd4474a848","at":1767525739071000000,"seq":15,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019b88be-98d8-7c8d-9de7-4e1af9d3afda","at":1767525751000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b88be-a0a8-779e-80e3-728c283b2a39","at":1767525753000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88be-bfe8-7465-97fa-8ce2ef21d8ee","at":1767525761000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88bf-0638-7100-ab91-340cf46e2d7e","at":1767525779000000000,"seq":19,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b88bf-123f-71a5-a0df-0cfebdbfc8fc","at":1767525782079000000,"seq":20,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019b88bf-6010-7b1f-86ae-392cc9a5eeba","at":1767525802000000000,"seq":21,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b88bf-b218-73c6-a8ed-e523ecb8ef0a","at":1767525823000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88bf-d158-7f92-b020-092f034d3c25","at":1767525831000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88bf-d540-7b92-85bd-9eaf30ca7fe7","at":1767525832000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

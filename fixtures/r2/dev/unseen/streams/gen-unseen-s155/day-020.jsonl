@@ -1,0 +1,21 @@
+{"v":1,"id":"019bda6a-fd33-7c9a-899a-8965ee26093c","at":1768896003379000000,"seq":334,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda6a-fd33-7b2b-9bf3-ace6dd92e7ca","at":1768896003379000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bda6a-ffa0-77b0-ae9c-3f22eb1aaf08","at":1768896004000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bda6b-45f0-76f8-9c93-f86bfc3d1f36","at":1768896022000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6b-8c40-70f6-9f80-93482b6e902b","at":1768896040000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6b-931a-7e22-a646-b52b26da65af","at":1768896041754000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bda6b-9be0-7e83-bd5d-4aff1b48042d","at":1768896044000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6b-9fc8-74e0-b10c-fc7deaec1819","at":1768896045000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bda6c-3fe6-755d-aa8f-a6e158543182","at":1768896085990000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bda6c-6ed0-7952-bcc0-146f7d233c9a","at":1768896098000000000,"seq":343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6c-7e70-7752-9830-dd5d8e0ef707","at":1768896102000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bda6c-91f8-762f-ba24-31aeb07e0569","at":1768896107000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6c-95e0-7550-b746-5b642abf4f90","at":1768896108000000000,"seq":346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bda6c-e400-7889-a1c5-ef894e5107e5","at":1768896128000000000,"seq":347,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bda86-b00f-7409-9d61-b66f70e187ae","at":1768897818639000000,"seq":348,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bda86-ccd0-790a-b4fa-479c6f21aa11","at":1768897826000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda8c-8442-7ef3-8d84-7ffa2327853d","at":1768898200642000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bdaa6-fc30-775e-86cc-6e4a5fbe87f8","at":1768899935280000000,"seq":351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bdaa7-06d0-7afe-941d-7ba785f93114","at":1768899938000000000,"seq":352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdaa7-dda8-745c-95c4-a1c839995665","at":1768899993000000000,"seq":353,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdaa7-fce8-7a0a-be25-e5bc275aaf98","at":1768900001000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

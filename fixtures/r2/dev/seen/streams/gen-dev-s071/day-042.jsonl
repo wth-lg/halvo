@@ -1,0 +1,21 @@
+{"v":1,"id":"019c4b80-119b-7d10-84b5-e3391b5ef8cd","at":1770793210267000000,"seq":570,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4b80-119b-7c92-9764-0264ee20594b","at":1770793210267000000,"seq":571,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4b80-6e50-7693-918f-e268db04ce1e","at":1770793234000000000,"seq":572,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4b92-4e0e-752c-bf87-4f81516f1b8d","at":1770794405390000000,"seq":573,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c4b92-7b68-7183-b688-ea32f75f1802","at":1770794417000000000,"seq":574,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c4b92-8a17-76a4-af38-d1f9ca1522ef","at":1770794420759000000,"seq":575,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c4b93-0bf0-715e-8e0c-8de9e6dca718","at":1770794454000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c4b93-1b90-7ec0-824e-db0d28664443","at":1770794458000000000,"seq":577,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4b93-6e2e-7b2d-b989-4d936c67d45c","at":1770794479150000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c4b94-11a8-7c0d-8e2d-fbb5b6668970","at":1770794521000000000,"seq":579,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4b94-2148-7779-ba1c-aaa5e2112982","at":1770794525000000000,"seq":580,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4b94-2918-7036-895a-80d6555eeef7","at":1770794527000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b94-47ca-706f-b3fd-5db855246829","at":1770794534858000000,"seq":582,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4b94-5028-7243-82cc-e99012c1db3e","at":1770794537000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b94-57f8-7270-9541-b7be6485751a","at":1770794539000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c4b94-7e8f-7e14-807b-74b2fdb661f9","at":1770794548879000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c4b94-82f0-7c82-9fb9-d19079c3cad0","at":1770794550000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4b94-bd88-770e-a939-9d149b2ee57d","at":1770794565000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4ba7-3a68-7393-8bc6-379cb8b6dcff","at":1770795776616000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4ba7-62f8-71d5-bacc-ac782949091d","at":1770795787000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c4ba7-7298-7f26-bb03-cbfbbeaf628c","at":1770795791000000000,"seq":590,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

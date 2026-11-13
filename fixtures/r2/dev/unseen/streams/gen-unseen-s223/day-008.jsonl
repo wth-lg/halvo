@@ -1,0 +1,23 @@
+{"v":1,"id":"019b9d0b-ff2c-7dc0-9de3-0178bd3527fc","at":1767866367788000000,"seq":45,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9d0b-ff2c-7e59-949d-aeb5e06fee94","at":1767866367788000000,"seq":46,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9d0c-3a98-7ce1-9595-a9eb6f963fea","at":1767866383000000000,"seq":47,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9d0c-5dc0-7dfc-89a2-c9695e66e409","at":1767866392000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d0c-7918-7d12-be0d-5cbf1eff9742","at":1767866399000000000,"seq":49,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d23-670d-7a4e-b23f-fe94528fd835","at":1767867901709000000,"seq":50,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9d23-670d-75d4-8b1a-4e3638fab2c3","at":1767867901709000000,"seq":51,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9d23-a2c8-7000-a76a-157fb5a719d4","at":1767867917000000000,"seq":52,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b9d24-2f68-7b79-9b95-d5edcf431bee","at":1767867953000000000,"seq":53,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d24-6618-73f8-ae41-8bf52584172b","at":1767867967000000000,"seq":54,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b9d2b-fa6c-7ba8-8020-0ffdb3e3a716","at":1767868463724000000,"seq":55,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9d2b-fa6c-7020-840c-46fdfa1861a8","at":1767868463724000000,"seq":56,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b9d2c-4d88-7b4b-97d5-4639f7b965d8","at":1767868485000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d2c-5170-7c43-a577-844f61191083","at":1767868486000000000,"seq":58,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d2c-8e7e-73c8-bb93-183e96dcbe9a","at":1767868501630000000,"seq":59,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b9d2c-f968-7ca4-be3f-f68d9f24643b","at":1767868529000000000,"seq":60,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9d2d-012f-7bd9-94f2-97d6dd5726ed","at":1767868530991000000,"seq":61,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b9d2d-2460-70a4-a484-652cc7826830","at":1767868540000000000,"seq":62,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d2d-3bd0-7bc8-9851-61c3bf280789","at":1767868546000000000,"seq":63,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d2d-98e0-718c-894a-713a22cab34a","at":1767868569824000000,"seq":64,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b9d2d-a548-7b33-93a3-3583836ec375","at":1767868573000000000,"seq":65,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b9d2d-c488-7416-9724-828fa3e85fbe","at":1767868581000000000,"seq":66,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d2e-1a78-7dbe-94fc-4fa3ecfd1692","at":1767868603000000000,"seq":67,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

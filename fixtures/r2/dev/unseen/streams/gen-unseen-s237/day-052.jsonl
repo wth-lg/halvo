@@ -1,0 +1,45 @@
+{"v":1,"id":"019c7f8b-499a-7001-ba11-3d64f16dba88","at":1771666360730000000,"seq":827,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f8b-499a-7331-a21c-11b9be9fbaf8","at":1771666360730000000,"seq":828,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7f8b-71b8-7b62-bd31-948a52e84faf","at":1771666371000000000,"seq":829,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7f8b-7988-7fc4-b752-eb44c8f9f2df","at":1771666373000000000,"seq":830,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f8b-7d70-7170-8518-7b39e4d7cd59","at":1771666374000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7f90-6c28-735c-8f4c-3ab633d36cf1","at":1771666697256000000,"seq":832,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c7f90-b41d-769e-8f68-5ba7b40c22b7","at":1771666715677000000,"seq":833,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c7f90-c118-7303-81e8-a0b4d2f9fec7","at":1771666719000000000,"seq":834,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7f91-1708-751f-be7d-5b2b5a75fcf1","at":1771666741000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7f91-4dfb-7029-bfea-1fb32994983d","at":1771666755067000000,"seq":836,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c7f91-b730-7231-b39e-5ec6cb1c8215","at":1771666782000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c7f91-c7f9-7dfa-8b53-bf15d652cecd","at":1771666786297000000,"seq":838,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c7f91-de40-71df-a74b-259a9d6275f5","at":1771666792000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f91-e9f8-73f0-8d9e-4e93273b2e9a","at":1771666795000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f92-6ec8-757c-9417-8b07236024ca","at":1771666829000000000,"seq":841,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7f92-7a80-7ace-ab7d-28e40b69368c","at":1771666832000000000,"seq":842,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7fa4-8f4d-7a69-b39f-63da1371ddc3","at":1771668016973000000,"seq":843,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7fa5-0c68-7d38-8ba3-5d1308e371cb","at":1771668049000000000,"seq":844,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fa5-5133-7c8f-b3fa-f255e03bb135","at":1771668066611000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7fa5-5a88-782a-92d4-c9545b956ba3","at":1771668069000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c7fa5-989b-79d9-853c-e28068bc81f7","at":1771668084891000000,"seq":847,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7fa5-fab0-7839-897e-3f07dc6ab3c4","at":1771668110000000000,"seq":848,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fa6-0668-794c-951a-5bcb57284740","at":1771668113000000000,"seq":849,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7fa6-25a8-7df6-9dd3-42773153509c","at":1771668121000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fa6-53fd-79fa-9901-ba1dafe99e6d","at":1771668132861000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7fa6-8750-7877-ad30-6316fb5815cf","at":1771668146000000000,"seq":852,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fa6-9ad8-71f2-bc80-2dcef1f174b1","at":1771668151000000000,"seq":853,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7fa6-c9b8-7707-b452-e234471df6b5","at":1771668163000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c7fa7-3330-70fd-a80d-bfcb2bef9ca4","at":1771668190000000000,"seq":855,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7fa7-5605-7c76-b6c2-2b4cd2366243","at":1771668198917000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7fa7-8d08-7793-a905-4d82eed0a82c","at":1771668213000000000,"seq":857,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7fa7-a860-74e9-b362-2ef4738f050f","at":1771668220000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fa7-b418-70ba-932c-356da0a3cff8","at":1771668223000000000,"seq":859,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7fa7-c3b8-7d52-be21-0b9133bcedf0","at":1771668227000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c7fa7-cd28-7862-bbc6-b7bfde945e86","at":1771668229416000000,"seq":861,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7fa8-2d30-7ae2-8f7c-dff1b582dca7","at":1771668254000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c7fa8-44a0-7ce7-a785-b63c5d57ba4b","at":1771668260000000000,"seq":863,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fa8-4c70-7eb2-a204-a78afd4f1fd8","at":1771668262000000000,"seq":864,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fa8-7380-76be-bb62-16f01634ec51","at":1771668272000000000,"seq":865,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7fa8-7b38-782b-8a29-9220fd869fbc","at":1771668273976000000,"seq":866,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c7fa8-aa30-743f-8eb0-fa637ea1c0af","at":1771668286000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7fa8-e4c8-7aee-8a5f-9af34e10c63e","at":1771668301000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fa9-1f60-7679-889b-8e101dd412f4","at":1771668316000000000,"seq":869,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fa9-2bd1-7fc2-b631-09e7195c6f95","at":1771668319185000000,"seq":870,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7fa9-4e40-753d-a0cd-6ef480752359","at":1771668328000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

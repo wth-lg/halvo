@@ -1,0 +1,15 @@
+{"v":1,"id":"019c9913-a51d-7bd0-91f8-b6b18371001d","at":1772094727453000000,"seq":840,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9913-a51d-7a1b-8a1c-721958ccb2ec","at":1772094727453000000,"seq":841,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c9913-c298-7f79-ae24-4c0733436e23","at":1772094735000000000,"seq":842,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c9914-0500-7dec-9c0f-8178860224c9","at":1772094752000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9914-1414-74b1-a493-e29d86bcb665","at":1772094755860000000,"seq":844,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c9914-1888-7682-8854-eaa86b933556","at":1772094757000000000,"seq":845,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9914-2058-7255-b517-c1e02d168615","at":1772094759000000000,"seq":846,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9914-4768-7224-b770-7b7a606be4f6","at":1772094769000000000,"seq":847,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9914-5af0-7624-a45f-0f0d08cfdf2c","at":1772094774000000000,"seq":848,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9914-7882-79af-af53-007ade982feb","at":1772094781570000000,"seq":849,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c9914-d408-7ba6-874f-6c174b7fa7ad","at":1772094805000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c9914-dbd8-7740-8d8c-95d05c8c2729","at":1772094807000000000,"seq":851,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9914-eb78-7afa-91a0-ac65d72dddcd","at":1772094811000000000,"seq":852,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9915-0b94-7923-969d-c6a931d08dea","at":1772094819220000000,"seq":853,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c9915-31c8-7883-8e0d-81b9e7043337","at":1772094829000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

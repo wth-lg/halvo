@@ -1,0 +1,32 @@
+{"v":1,"id":"019c7a32-5ee7-7fc1-8ed2-dd2abca7fc15","at":1771576647399000000,"seq":822,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a32-5ee7-7b79-8d74-b4c7491d786a","at":1771576647399000000,"seq":823,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7a32-78b0-77c7-a91c-f2ac38ad77d1","at":1771576654000000000,"seq":824,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a32-a790-70d5-81da-2bd1ec40326e","at":1771576666000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a32-b348-7d4b-ad77-a9442c80e85e","at":1771576669000000000,"seq":826,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a40-1e87-796b-89f1-03a87a7c3156","at":1771577548423000000,"seq":827,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c7a40-2c80-78be-8cf6-7608f0d84860","at":1771577552000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a40-ffff-78d6-a4e7-3a9bccf9e95a","at":1771577606143000000,"seq":829,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c7a41-0358-73f5-b0f5-c071c7f6abca","at":1771577607000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c7a41-16e0-792b-8dfd-fed19a6e86e6","at":1771577612000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a41-2e50-74b0-852f-afc093d7a453","at":1771577618000000000,"seq":832,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a41-3238-7aa2-b8cb-2bb177c339e5","at":1771577619000000000,"seq":833,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a41-3a1c-7340-ada2-a6b8a645b77e","at":1771577621020000000,"seq":834,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c7a41-5178-7227-bf89-c0d1d71775a7","at":1771577627000000000,"seq":835,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a41-c752-75e1-9472-d70d8d2afc43","at":1771577657170000000,"seq":836,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c7a41-edb8-79da-ae3f-45e6263b1be6","at":1771577667000000000,"seq":837,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7a42-0910-766a-b80c-aec075867be7","at":1771577674000000000,"seq":838,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a42-3408-7c22-b7ac-aa08e5634829","at":1771577685000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a42-3bd8-74a6-bb62-0ec942cd27c3","at":1771577687000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a42-62e8-7f55-b0ab-76394a4414d7","at":1771577697000000000,"seq":841,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c7a42-c90e-77f0-9a2a-89c91b04dc34","at":1771577723150000000,"seq":842,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c7a42-e3d0-78f5-961f-1d0c4d1626f1","at":1771577730000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a43-06f8-7db8-bd28-fc53912fb122","at":1771577739000000000,"seq":844,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a43-4d48-708a-b258-13a3e62092c6","at":1771577757000000000,"seq":845,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a4e-7a6c-7fb4-9728-d73521deaeea","at":1771578489452000000,"seq":846,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a4e-7a6c-7481-9ce6-c98f05a720cf","at":1771578489452000000,"seq":847,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a4e-97e8-735c-8925-2eaaadb873d4","at":1771578497000000000,"seq":848,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a4f-2488-7dd4-90dd-537fbbd74150","at":1771578533000000000,"seq":849,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c7a4f-3810-7878-b0f0-b981ccd57784","at":1771578538000000000,"seq":850,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a5b-9c66-7adf-a013-4e835c70277a","at":1771579350118000000,"seq":851,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a5b-9c66-75ef-a131-e306728400d1","at":1771579350118000000,"seq":852,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a5b-c6e8-718d-a2e2-a43fad37d2d2","at":1771579361000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

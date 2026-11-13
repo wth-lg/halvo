@@ -1,0 +1,20 @@
+{"v":1,"id":"019c03d2-96ef-74a7-95b8-4138a4e7c433","at":1769590658799000000,"seq":595,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03d2-96ef-7f84-a5e3-c4a115e99d85","at":1769590658799000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c03d2-e9c0-7da3-97f9-b10e50c440d7","at":1769590680000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03d3-7278-7b61-853d-b792738dce09","at":1769590715000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03d3-7516-74b9-ade2-e2890818ba20","at":1769590715670000000,"seq":599,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c03d3-a158-771e-9395-947a24558a11","at":1769590727000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03d4-5120-7695-8419-979d3f96e019","at":1769590772000000000,"seq":601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c03d4-7c18-724d-bb6d-9c44930d2713","at":1769590783000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03df-3f34-79a7-8be0-b683bbbe4f14","at":1769591488308000000,"seq":603,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c03df-3f34-7537-8b81-2729d845969b","at":1769591488308000000,"seq":604,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c03df-5d40-7819-8be6-07b2f93433cd","at":1769591496000000000,"seq":605,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c03ec-c6b8-72f7-9f20-4f96ab3088d5","at":1769592374968000000,"seq":606,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03ec-c6b8-7724-b037-71363fd6619d","at":1769592374968000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c03ed-2498-7bef-8442-162fc2ebecba","at":1769592399000000000,"seq":608,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c03ed-2c68-7318-b161-2a23647ab487","at":1769592401000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c03ed-5760-7d9c-9837-e0ddd85de10e","at":1769592412000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03ed-5b48-7a5f-b48b-9be90f10319a","at":1769592413000000000,"seq":611,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c03ef-8c03-7182-b824-67ab3b805bb4","at":1769592556547000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c03ef-f358-78cf-a372-9d2fc4d93d92","at":1769592583000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f0-31d8-73c7-bbad-400c2ad8d601","at":1769592599000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

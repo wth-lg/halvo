@@ -1,0 +1,42 @@
+{"v":1,"id":"019b9d3d-3369-71dd-85ca-26a14b20eb59","at":1767869592425000000,"seq":131,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9d3d-3369-7ab7-8bbf-5eac36c75be6","at":1767869592425000000,"seq":132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d3d-4160-7b0d-ae08-948d39470956","at":1767869596000000000,"seq":133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d3d-6870-7b0f-a04f-b4f196bf2dbf","at":1767869606000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d3d-89bc-7e7d-b43a-913351b0572d","at":1767869614524000000,"seq":135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d3d-aad8-7cf5-b10d-65c3a974136a","at":1767869623000000000,"seq":136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9d3d-d01c-7cad-b4b5-04ad32450194","at":1767869632540000000,"seq":137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d3d-f128-7f36-b6e8-3d1eb2c37078","at":1767869641000000000,"seq":138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9d3e-0c80-75f6-855e-0e333e482b12","at":1767869648000000000,"seq":139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b9d3e-6658-71ce-b0d0-c26c79e58066","at":1767869671000000000,"seq":140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9d3e-ace7-7551-beff-5799f6684a3c","at":1767869689063000000,"seq":141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d3e-df70-7bef-929e-8c1c20f63fdc","at":1767869702000000000,"seq":142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d3f-1238-7d5c-b9f5-14ca613d9b10","at":1767869715000000000,"seq":143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b9d3f-3c69-7097-9099-9a40fb6c15be","at":1767869725801000000,"seq":144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d3f-48e8-779c-8cdd-e93ea82cd863","at":1767869729000000000,"seq":145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9d3f-bc98-7edf-9583-c5337b418c60","at":1767869758616000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b9d3f-e910-7110-898a-dee08d453e15","at":1767869770000000000,"seq":147,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9d40-1020-7d0a-9cb3-edfc33ff3d7e","at":1767869780000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d40-2f60-74c8-a3c0-447a2c6da488","at":1767869788000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b9d4e-68a4-72c1-b6e5-1bf0b4d465ae","at":1767870720164000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b9d4e-6fd0-71e7-af17-a1fe963095f3","at":1767870722000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d4e-8358-7027-b5ce-36a881529f22","at":1767870727000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b9d4e-9ac8-745a-b30e-ec2c522ffcef","at":1767870733000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d4f-20fa-74b9-9b00-79d64b365760","at":1767870767354000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b9d4f-3708-7de2-992d-bbfded69b9b9","at":1767870773000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d4f-3ed8-764a-ba2d-a8afd7bd6c55","at":1767870775000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d4f-4a90-72dd-8670-2fbaa0f0f552","at":1767870778000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b9d4f-93a8-7d66-9344-09ecb6fc1686","at":1767870796712000000,"seq":158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b9d4f-d348-7b86-9d04-9e2ce4689874","at":1767870813000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9d50-7435-7d82-bbce-53c7a734b7d5","at":1767870854197000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b9d50-d900-7ee3-ac28-78f872be2c94","at":1767870880000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d50-f840-7be6-a189-0e3deaff66b6","at":1767870888000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9d51-0bc8-7c62-acb9-7a4c940d6a73","at":1767870893000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d51-1b68-7ac0-9099-7be4a318e78d","at":1767870897000000000,"seq":164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9d68-a1fc-7ef3-b5c6-61ebbff46153","at":1767872438780000000,"seq":165,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9d68-a1fc-73a1-af63-cd07dc290ef3","at":1767872438780000000,"seq":166,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9d81-9e39-72f7-afc4-71acb81a9dcc","at":1767874076217000000,"seq":167,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9d81-bca0-71cf-8d03-236f33ad2605","at":1767874084000000000,"seq":168,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d81-c088-78c4-9b23-54d44c5ff7e0","at":1767874085000000000,"seq":169,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b9d82-2a00-7e82-ab8a-8544965da4e4","at":1767874112000000000,"seq":170,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d86-b876-70e7-87be-0404c1762cee","at":1767874410614000000,"seq":171,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9d87-0fe8-7ad1-a6fd-646056d7b7ec","at":1767874433000000000,"seq":172,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

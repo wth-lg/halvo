@@ -1,0 +1,16 @@
+{"v":1,"id":"019c6594-2dd1-79fd-926a-3c0323830267","at":1771230735825000000,"seq":748,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6594-2dd1-76e0-bd84-7047acb8d759","at":1771230735825000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6594-4dc0-7418-a19e-bbd9a88d8bbd","at":1771230744000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6594-5590-7382-8e3c-4bfc19559492","at":1771230746000000000,"seq":751,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c65af-475f-7fab-83a2-c16d9e7fe731","at":1771232511839000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c65af-4800-7bed-8764-122b6263a0f7","at":1771232512000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c65af-5f70-78f8-85ea-9d298972dec4","at":1771232518000000000,"seq":754,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65af-6740-752c-91bc-0b3ff73062e1","at":1771232520000000000,"seq":755,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65c9-c6a5-7570-9e9e-d081abdd906b","at":1771234248357000000,"seq":756,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c65c9-c6a5-7cdc-a110-d51a03e24375","at":1771234248357000000,"seq":757,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c65c9-d4e0-7270-8c21-ecb05628eed1","at":1771234252000000000,"seq":758,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c9-e868-7f6b-a0ba-c1ec63e2c5ce","at":1771234257000000000,"seq":759,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c65e3-4aca-7f9b-a866-6bd5a2231a3b","at":1771235920586000000,"seq":760,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65e3-4aca-784f-9b67-8805686571bd","at":1771235920586000000,"seq":761,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c65e3-5050-70ea-9a92-639390fcfa9f","at":1771235922000000000,"seq":762,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e3-a640-75a4-a566-5506ff6911c8","at":1771235944000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

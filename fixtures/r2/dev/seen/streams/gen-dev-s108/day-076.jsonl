@@ -1,0 +1,18 @@
+{"v":1,"id":"019cfb16-468c-78e3-a1f1-215659ff613d","at":1773739067020000000,"seq":1357,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cfb16-468c-7777-9d88-a82c17b4fa07","at":1773739067020000000,"seq":1358,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cfb16-4a60-77d6-96b3-90648deceaf1","at":1773739068000000000,"seq":1359,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cfb16-90b0-7409-98bf-6354987d7c3b","at":1773739086000000000,"seq":1360,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cfb16-9498-79af-892b-0c55602eca68","at":1773739087000000000,"seq":1361,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb16-e6a0-7443-a635-580e8c4dc1ad","at":1773739108000000000,"seq":1362,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb16-f640-777a-90ea-cd0d2902f8be","at":1773739112000000000,"seq":1363,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cfb16-fecf-7020-8305-6ca6f4bcbf15","at":1773739114191000000,"seq":1364,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cfb17-6f58-77c0-b19e-b137f7a81589","at":1773739143000000000,"seq":1365,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cfb17-a9f0-7da5-89db-f7e24a7d7ac2","at":1773739158000000000,"seq":1366,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb17-d4e8-74df-aa9f-9094f18b71ee","at":1773739169000000000,"seq":1367,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cfb17-e870-7fcd-9ef3-0117c9b35e81","at":1773739174000000000,"seq":1368,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfb2b-f453-7bd1-982c-380b361e2f62","at":1773740487763000000,"seq":1369,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cfb2c-4360-7331-a700-7965c7f50795","at":1773740508000000000,"seq":1370,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb2c-4b30-7da8-807e-d9a7543244bd","at":1773740510000000000,"seq":1371,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cfb2c-6688-7b09-a3f8-91af5fe714ff","at":1773740517000000000,"seq":1372,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cfb2c-9568-7bd2-8793-9c248246eb99","at":1773740529000000000,"seq":1373,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb2c-a120-7542-be86-b3c9bba4eea7","at":1773740532000000000,"seq":1374,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

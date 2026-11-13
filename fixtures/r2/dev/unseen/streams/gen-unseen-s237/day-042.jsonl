@@ -1,0 +1,19 @@
+{"v":1,"id":"019c4c02-f076-7b6c-868b-5f19bad5d126","at":1770801786998000000,"seq":558,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c02-f076-76dd-9aa2-429ad236d771","at":1770801786998000000,"seq":559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c4c03-4e38-7c64-8040-d48ef7edf44b","at":1770801811000000000,"seq":560,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4c0b-d13b-74e5-966c-b8094e0c2603","at":1770802368827000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c4c0b-d9b8-70a0-a172-0e37cf365b59","at":1770802371000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c0b-f8f8-7356-9375-8d54401c942a","at":1770802379000000000,"seq":563,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4c0c-6e28-7ea7-955f-b11f43da27db","at":1770802409000000000,"seq":564,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4c21-0383-73a6-8c5c-2e9d050e2680","at":1770803757955000000,"seq":565,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c4c21-51d0-7734-a08f-78ac256fa7c0","at":1770803778000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c4c37-e144-7365-aa76-a4a491c8291c","at":1770805256516000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c4c38-2bfe-7586-ae78-7333b971652f","at":1770805275646000000,"seq":568,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c4c38-3148-7f05-9b1f-ebc4ffd55074","at":1770805277000000000,"seq":569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c38-3918-7db9-b9ec-b923a61d4046","at":1770805279000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c4c38-b618-71b4-a871-4ab3b3b31212","at":1770805311000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c39-0a29-7253-ae3e-b916d4f0e94c","at":1770805332521000000,"seq":572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c4c39-13d8-7f15-8be5-9a4c859e2aac","at":1770805335000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c39-42b8-7c71-9291-c19fe6d1b41c","at":1770805347000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c39-61f8-7fb4-9405-03840f9befe9","at":1770805355000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c39-8cf0-7742-b07c-83a39ba3f444","at":1770805366000000000,"seq":576,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

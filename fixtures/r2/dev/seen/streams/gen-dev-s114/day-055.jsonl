@@ -1,0 +1,51 @@
+{"v":1,"id":"019c8ed8-e4ce-7694-a333-2655dc7aa71d","at":1771923104974000000,"seq":739,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8ed8-e4ce-7a30-9e72-f5c5eeab00ce","at":1771923104974000000,"seq":740,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c8ed8-e8d0-7219-b70f-395d1a5f9b8f","at":1771923106000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ed9-2368-7f44-8a96-4274400c5189","at":1771923121000000000,"seq":742,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ed9-286c-72cb-9118-12eb26f487f8","at":1771923122284000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c8ed9-65d0-7935-a718-ccc4a3d6939d","at":1771923138000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c8ed9-9898-7a0e-8f7e-9d3ba027e560","at":1771923151000000000,"seq":745,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8ed9-ca05-7400-8f2b-d5571e32e267","at":1771923163653000000,"seq":746,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c8ed9-fe28-7b8f-bcb4-cd062b6408cf","at":1771923177000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eda-0dc8-7dc7-af59-6fb9e7c8d8e5","at":1771923181000000000,"seq":748,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8eda-11b0-788f-b7ea-f6f0986bdf3e","at":1771923182000000000,"seq":749,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eda-1598-7c73-a8ff-8d56e281f50f","at":1771923183000000000,"seq":750,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8edf-bb99-72cb-9b24-65db846d0a29","at":1771923553177000000,"seq":751,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c8edf-bed0-7bfa-b0fd-fcda2ab35164","at":1771923554000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c8edf-da28-742d-b24a-b9c1fd2b112e","at":1771923561000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8edf-fb65-70f9-94a9-31a7182c7049","at":1771923569509000000,"seq":754,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee0-3018-702b-bc04-aa3951f11f98","at":1771923583000000000,"seq":755,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee0-5ef8-7abe-bfb5-8e72243f0113","at":1771923595000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee0-7829-7217-a9ed-94399149b11e","at":1771923601449000000,"seq":757,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee0-8608-7bb8-aab6-362cbb074e9c","at":1771923605000000000,"seq":758,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8ee0-a548-7f89-a5c0-01b225980857","at":1771923613000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee0-d040-7504-8255-80e467dba7aa","at":1771923624000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee0-d040-7145-af89-023ba9c051a9","at":1771923624000000000,"seq":761,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c8ee0-dfe0-74ae-9682-119fef9d125c","at":1771923628000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8ee1-0d21-7d1d-b8d6-c8143be71a32","at":1771923639585000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee1-1690-71d0-98ff-532d0275b349","at":1771923642000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c8ee1-4188-78eb-8c06-f1ccaee95fdd","at":1771923653000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee1-d5f8-748f-a6d4-5f6f34f07800","at":1771923691000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8ee1-f538-76f0-ae14-e1c34aeec6d7","at":1771923699000000000,"seq":767,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8ee2-0ca8-75e3-a644-94f3d1534dfe","at":1771923705000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efa-6a23-7c86-b691-12d237dbc9fa","at":1771925301795000000,"seq":769,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c8efa-a970-78e8-a300-a634cf7c61dc","at":1771925318000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c8efa-d468-7dc1-a7b5-07259557e4b8","at":1771925329000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efa-ee21-7e07-b4c5-199e0f1e2a0b","at":1771925335585000000,"seq":772,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c8efb-1ea0-7113-a578-a9ab04bf56ae","at":1771925348000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c8efb-3228-744b-98b1-b9dcef343d79","at":1771925353000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efb-6e6d-7542-905f-3d27bb9a892c","at":1771925368429000000,"seq":775,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c8efb-8818-71b8-8312-d57b2a95f6ad","at":1771925375000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c8efb-ab40-77a1-86ef-82da0b78121b","at":1771925384000000000,"seq":777,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8efb-af28-7683-8c09-f51cee7fb88a","at":1771925385000000000,"seq":778,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efb-c541-7541-a76d-d53139a6fbaf","at":1771925390657000000,"seq":779,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c8efc-5511-777a-bb48-a83d5963a943","at":1771925427473000000,"seq":780,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c8efc-62d8-7ddc-bb41-625918e5c695","at":1771925431000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c8efc-8600-7f38-a16f-50968505e553","at":1771925440000000000,"seq":782,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efc-c868-7e37-9296-a722033f9dc2","at":1771925457000000000,"seq":783,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8efd-078a-7600-b28e-6c7323290d2f","at":1771925473162000000,"seq":784,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c8efd-0ad0-7f87-9357-9e0eb8e0f26e","at":1771925474000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c8efd-1a70-7d7b-b371-123d115c5fdc","at":1771925478000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efd-39b0-7a28-97ed-f539a9bed324","at":1771925486000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8efd-5cd8-7ae9-96d1-25e1866b0923","at":1771925495000000000,"seq":788,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8efd-64a8-7a60-86d2-13ae48f5ef1b","at":1771925497000000000,"seq":789,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

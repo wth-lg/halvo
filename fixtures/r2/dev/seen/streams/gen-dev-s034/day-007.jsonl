@@ -1,0 +1,38 @@
+{"v":1,"id":"019b9744-b7da-7656-beba-dcfc2fd3a9cd","at":1767769421786000000,"seq":64,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9744-b7da-7fe3-91e7-fd4138f7f1b8","at":1767769421786000000,"seq":65,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b9745-318f-785b-a381-b969a71202b1","at":1767769452943000000,"seq":66,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b9745-35b0-7d26-8cfb-80000941c7dd","at":1767769454000000000,"seq":67,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9745-5108-75c3-9cd3-1078420c681e","at":1767769461000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b9745-6c60-762d-85bd-53bc83525171","at":1767769468000000000,"seq":69,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9745-8ba0-7298-b0e4-aff5ee5b1ac8","at":1767769476000000000,"seq":70,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9745-965e-716a-bbaa-dca8dd10b7d9","at":1767769478750000000,"seq":71,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b9745-e960-7078-b80b-71427de80b1d","at":1767769500000000000,"seq":72,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9746-27e0-7812-8ec4-077bd3fb87c9","at":1767769516000000000,"seq":73,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9746-3398-7a95-9924-575a991afea2","at":1767769519000000000,"seq":74,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9746-a478-799b-8616-3ba437a25f93","at":1767769547896000000,"seq":75,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b9747-0a70-7b85-b1d9-e0d5a7b7d704","at":1767769574000000000,"seq":76,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9747-21e0-78bc-9087-cec6032832db","at":1767769580000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9747-3d38-72aa-b814-e47641cd6182","at":1767769587000000000,"seq":78,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9747-48f0-7717-9c09-478e240c1634","at":1767769590000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b9747-6830-70b3-909a-0402c91f6b53","at":1767769598000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b975c-8a84-737e-a6db-fd76fed0d6a5","at":1767770983044000000,"seq":81,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019b975c-8e40-708e-b5c8-abebb8893ab4","at":1767770984000000000,"seq":82,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b975c-9de0-747a-a7d0-e15da2cea49f","at":1767770988000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b975c-dc60-7a1f-b82b-939d9d67643a","at":1767771004000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b975d-1da7-7b3c-9477-a9d73b18fab0","at":1767771020711000000,"seq":85,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019b975d-9010-7796-b4cb-57c95a9a5bf1","at":1767771050000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b975e-2328-7cf1-aeed-bcaf2d500cc0","at":1767771087656000000,"seq":87,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019b975e-43c0-7b93-b693-bda84612e718","at":1767771096000000000,"seq":88,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b975e-8b8a-778f-99d9-a64e4b5a6df0","at":1767771114378000000,"seq":89,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b975e-c890-741f-ac29-5d519eb93f75","at":1767771130000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b975e-e3e8-7689-b36f-74fdeb207764","at":1767771137000000000,"seq":91,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b975f-4978-72b6-b930-a40509b60bb5","at":1767771163000000000,"seq":92,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b975f-7dc0-7198-884e-8d7ea7445dda","at":1767771176384000000,"seq":93,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019b975f-8028-72a7-aa9d-7c292d8a0f4a","at":1767771177000000000,"seq":94,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b975f-b6d8-7009-a671-75708663abc8","at":1767771191000000000,"seq":95,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b975f-d230-71a5-a35a-ede7b94ddd0d","at":1767771198000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9771-2945-7af4-8988-8f2f012cf5e4","at":1767772334405000000,"seq":97,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b9771-3b38-7a95-931b-81a65aabacd3","at":1767772339000000000,"seq":98,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9771-4308-7e6b-9c31-80f75377ada4","at":1767772341000000000,"seq":99,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9771-46f0-72e4-828e-94598c428156","at":1767772342000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9771-4ad8-7ad1-8dd1-41a379cb0d83","at":1767772343000000000,"seq":101,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

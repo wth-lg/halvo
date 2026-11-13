@@ -1,0 +1,22 @@
+{"v":1,"id":"019be48b-3ce4-716a-9651-b8012cabd9a2","at":1769065888996000000,"seq":304,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be48b-3ce4-7e71-94d8-8b31892855c1","at":1769065888996000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be48c-453f-73e8-8b79-5df05a1af471","at":1769065956671000000,"seq":306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be48c-7950-7b79-a4c3-dd213f525c76","at":1769065970000000000,"seq":307,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be48c-8cb5-76c3-b1fa-965002d30e6f","at":1769065974965000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be48c-8cd8-726a-8027-dafef8791f3c","at":1769065975000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019be48c-ac18-7425-b0f8-e6fb39d0497e","at":1769065983000000000,"seq":310,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be48d-0dc0-713b-9461-b817572239ed","at":1769066008000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be48d-11a8-7273-9aff-a86ede3547d9","at":1769066009000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be48d-395e-71ee-8769-ea4e9ae60b84","at":1769066019166000000,"seq":313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be48d-5028-7ec4-b474-9ab34bfcf2a0","at":1769066025000000000,"seq":314,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be48d-5be0-7b4e-87a0-6da42e059f69","at":1769066028000000000,"seq":315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be48d-7f08-7032-9f88-a23632692ac5","at":1769066037000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019be48d-b1d0-7a49-92f4-c4463384f42a","at":1769066050000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be48d-bf31-729a-a634-91811785446b","at":1769066053425000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be48d-fc08-7f55-983e-308cb19b5cf7","at":1769066069000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be48e-1760-73ba-9c42-3f528712a424","at":1769066076000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be48e-269a-719e-93be-8f7ba3589cc0","at":1769066079898000000,"seq":321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019be48e-2ae8-704b-94ae-f76c06bc48bd","at":1769066081000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019be48e-36a0-7b29-8512-00993713ff9a","at":1769066084000000000,"seq":323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be48e-4258-7930-b7f7-e4b7e3e7ae9b","at":1769066087000000000,"seq":324,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be48e-4e10-77f5-a48c-922fd7b7bd18","at":1769066090000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

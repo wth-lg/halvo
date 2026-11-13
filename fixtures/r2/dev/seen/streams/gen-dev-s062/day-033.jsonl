@@ -1,0 +1,13 @@
+{"v":1,"id":"019c1d43-72df-7556-af33-26416fe6c16b","at":1770017485535000000,"seq":436,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1d43-72df-7ff9-ac26-577d1e4e2084","at":1770017485535000000,"seq":437,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1d44-4b88-7216-8a98-473462a3c7cb","at":1770017541000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d44-57ec-7e23-a9a5-0e05ef9abf47","at":1770017544172000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1d44-7a68-7c15-868e-285074c4689f","at":1770017553000000000,"seq":440,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1d44-8620-79fc-9836-e5edcd7b9230","at":1770017556000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d44-8a08-7f87-90e9-be1a062397a2","at":1770017557000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d48-0faa-7a0a-9c17-b2a7b000ed36","at":1770017787818000000,"seq":443,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1d48-0faa-701a-b2bc-616a15061a3a","at":1770017787818000000,"seq":444,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1d48-3b58-7315-9192-e3ecbe2ce0d2","at":1770017799000000000,"seq":445,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c1d48-a0e8-70f7-96f6-8741ffc0635e","at":1770017825000000000,"seq":446,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1d48-b088-764d-b4cd-60d725c56dd5","at":1770017829000000000,"seq":447,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c1d49-0e48-7e8e-a091-e7c0b41259ca","at":1770017853000000000,"seq":448,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

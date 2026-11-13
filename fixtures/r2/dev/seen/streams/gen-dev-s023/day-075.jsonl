@@ -1,0 +1,18 @@
+{"v":1,"id":"019cf620-9a7d-73bd-97ca-432f54ae3693","at":1773655857789000000,"seq":988,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf620-9a7d-7e60-9b28-5e496eef32bf","at":1773655857789000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf620-e970-70b0-bd45-7492ce7401e4","at":1773655878000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cf620-ed58-7e4a-a6af-e9df8816c385","at":1773655879000000000,"seq":991,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf620-f528-74e8-9a65-9a3fdb8a6323","at":1773655881000000000,"seq":992,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf628-9aea-7c37-a0c9-02c14b78548b","at":1773656382186000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cf628-d4c8-7127-a3b7-47f63edd280b","at":1773656397000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cf628-f020-7d88-9347-163bac0ecadc","at":1773656404000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf629-9430-757d-8203-f70ba3b9485f","at":1773656446000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf629-a337-73f4-8fde-398839e81f6e","at":1773656449847000000,"seq":997,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf629-a337-7575-a5d4-518ec2ac3081","at":1773656449847000000,"seq":998,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf629-a7b8-717d-8134-627013f9ac1d","at":1773656451000000000,"seq":999,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf629-ee3d-79b3-ba64-4f47e2bd6941","at":1773656469053000000,"seq":1000,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf629-ee3d-772f-a9ad-c50a24a61870","at":1773656469053000000,"seq":1001,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cf62a-1518-7095-b92c-e92a81e09c48","at":1773656479000000000,"seq":1002,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf62a-3070-7ba3-bb7a-6a3f98b54857","at":1773656486000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf62a-3840-784a-8718-cee6518d663d","at":1773656488000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf62a-e808-7a9e-b5cb-49559fa41158","at":1773656533000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

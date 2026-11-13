@@ -1,0 +1,21 @@
+{"v":1,"id":"019bb696-30e4-768e-bfeb-e94495d06f98","at":1768294854884000000,"seq":136,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb696-30e4-7b7d-a93e-1a35abc8dcae","at":1768294854884000000,"seq":137,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb696-44e0-7e01-a254-32c45edca24e","at":1768294860000000000,"seq":138,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6ae-3e83-7ef2-a961-439232db70c9","at":1768296431235000000,"seq":139,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb6ae-3e83-739c-80ea-3f6b94ea1899","at":1768296431235000000,"seq":140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bb6ae-4180-79d2-9a76-325b9b3eb162","at":1768296432000000000,"seq":141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6ae-5120-755d-b238-9afc8eda0784","at":1768296436000000000,"seq":142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6ae-87df-77f5-ba65-9e496d7fb253","at":1768296450015000000,"seq":143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bb6ae-ce20-7cbe-9a94-5cad86d84e68","at":1768296468000000000,"seq":144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb6af-4f08-7a24-971e-5804cfb654c4","at":1768296501000000000,"seq":145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb6af-8fb1-70a7-a1a5-728d231974e2","at":1768296517553000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bb6af-b880-7a93-be6b-ee85383092bb","at":1768296528000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bb6b0-06a0-75de-b7ba-0e163bbf2f0a","at":1768296548000000000,"seq":148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb6b0-1e10-7646-ac57-ad66fc6a9322","at":1768296554000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6b0-2102-7494-b3b8-30be185ecf6b","at":1768296554754000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bb6b0-4908-7a48-90c1-f0d6ee760a93","at":1768296565000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bb6b0-6460-72f0-8d6b-0362b24af6ea","at":1768296572000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6b0-b280-7149-b172-e30e1f7b3cb9","at":1768296592000000000,"seq":153,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb6b0-ba50-7188-9807-43175d2380a7","at":1768296594000000000,"seq":154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb6b0-fafd-736d-9353-19ad58b66888","at":1768296610557000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bb6b1-3750-793c-9128-65d3afec2bc1","at":1768296626000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

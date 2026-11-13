@@ -1,0 +1,43 @@
+{"v":1,"id":"019cae12-f39c-7218-b98a-69c17dbd2a4c","at":1772447003548000000,"seq":951,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cae12-f39c-7c7b-bacb-6ba44a7791c3","at":1772447003548000000,"seq":952,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cae13-5320-7ba6-bc06-e6f2a98b4988","at":1772447028000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae13-a910-79e6-ac0b-f9d7d5897a46","at":1772447050000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae13-c569-7b48-b541-b3b22bf0d94d","at":1772447057257000000,"seq":955,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cae13-eb78-7d7d-9736-2e2bcde6f7d7","at":1772447067000000000,"seq":956,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cae13-fb18-75e6-88bf-6fdd654b8e50","at":1772447071000000000,"seq":957,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cae14-02e8-78fc-877f-6658ce9b7a09","at":1772447073000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae14-4d20-7d28-978a-5f574e0a0e13","at":1772447092000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cae14-5cc0-7594-bb3e-376ecb364f9c","at":1772447096000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae14-6177-7f4d-a8e3-d01db3126060","at":1772447097207000000,"seq":961,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cae14-f518-700d-80f4-eb291778512d","at":1772447135000000000,"seq":962,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cae15-27e0-700c-bdaa-586a4e5e467f","at":1772447148000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cae15-3398-79d7-a014-dc8146c0a39d","at":1772447151000000000,"seq":964,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cae15-3f50-72fc-8bbc-a98fbe82a928","at":1772447154000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae15-5eba-7e7a-8153-31450ba2c175","at":1772447162042000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cae15-8988-7beb-91cb-6f64b849895e","at":1772447173000000000,"seq":967,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cae28-6384-7e98-b94c-a814b907a961","at":1772448408452000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cae29-2ce0-7445-88bd-b5329d233c4a","at":1772448460000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cae29-4c20-7dcb-96ee-77a04d04f9f1","at":1772448468000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae29-6a21-7d12-b9ce-0463ef915d4e","at":1772448475681000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cae29-7b00-7f43-a39c-face03058dd1","at":1772448480000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae29-7ee8-7070-8d58-d08cf0698230","at":1772448481000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cae29-9e28-7c4e-9bcd-04955d811d77","at":1772448489000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae29-a9e0-7ad2-9cb6-b2541ea062bb","at":1772448492000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cae29-d4d8-7a89-b8b8-0bf8a07adb49","at":1772448503000000000,"seq":976,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae29-dbfa-73a1-8a00-ad2242072777","at":1772448504826000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cae2a-1358-7c42-a865-7350af3deace","at":1772448519000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae2a-2eb0-7070-818f-e9f0c19b1c80","at":1772448526000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae2a-6d30-735c-a6b2-8f33c4912429","at":1772448542000000000,"seq":980,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cae2a-dc27-7125-81c3-94be6ec836a6","at":1772448570407000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cae2b-1528-7956-824e-a654da3d20d0","at":1772448585000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae2b-28b0-770e-93b1-ff793d81247a","at":1772448590000000000,"seq":983,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cae2b-6f4e-7a56-b26b-ba6641f5d198","at":1772448608078000000,"seq":984,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cae2b-76d0-7538-ac92-9c06586bc613","at":1772448610000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae2b-9de0-7f56-b557-596ccef64699","at":1772448620000000000,"seq":986,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cae2b-d490-7138-893a-d6fc29e710ae","at":1772448634000000000,"seq":987,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cae2b-d878-73cf-b2f8-bce8fdd0914f","at":1772448635000000000,"seq":988,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cae2b-dc60-7c81-a7f4-ecf0bd2a9aa6","at":1772448636000000000,"seq":989,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae2b-f6b4-7a31-9eb2-d194b36e03e0","at":1772448642740000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cae2c-41f0-77e2-9e0d-55fdde235824","at":1772448662000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae2c-5d48-7ba0-83db-fcc444476a71","at":1772448669000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae2c-6130-7e54-906a-a35fc8a8e197","at":1772448670000000000,"seq":993,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

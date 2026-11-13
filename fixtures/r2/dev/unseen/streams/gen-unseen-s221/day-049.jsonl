@@ -1,0 +1,17 @@
+{"v":1,"id":"019c7066-f825-73ab-b8a6-80261922482b","at":1771412322341000000,"seq":720,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7066-f825-7a4b-8dbe-328ec5bec388","at":1771412322341000000,"seq":721,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7067-1228-7d7d-87a3-d1e4e06ea915","at":1771412329000000000,"seq":722,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7067-3cbc-7c2b-96f5-10288a9382a3","at":1771412339900000000,"seq":723,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7067-ae68-7485-a389-a17ed25c9025","at":1771412369000000000,"seq":724,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7067-ba20-71a5-9d15-ffa5d3ca1361","at":1771412372000000000,"seq":725,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7067-be08-7b8b-985d-1a068d47f6fe","at":1771412373000000000,"seq":726,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7067-e900-7de2-ae0b-3520fa4c0d92","at":1771412384000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7067-eef7-7bdf-849d-e6e565456f51","at":1771412385527000000,"seq":728,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7068-3246-7b9a-af7b-91f7935962d7","at":1771412402758000000,"seq":729,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7068-42d8-7aa8-958c-1caddc52f33e","at":1771412407000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7068-8540-7306-a954-a6ce37b01a7f","at":1771412424000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7068-90f8-7a86-b5f0-e1c7cb42716a","at":1771412427000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7068-cf78-715b-a27d-d020219c3dad","at":1771412443000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7068-f2a0-7b61-88f1-a1bae585e98f","at":1771412452000000000,"seq":734,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c706d-a73e-7bdc-a9db-a25f04a6b144","at":1771412760382000000,"seq":735,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c706d-dc70-7056-8e22-ef9c20827046","at":1771412774000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

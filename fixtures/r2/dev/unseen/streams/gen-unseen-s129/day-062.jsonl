@@ -1,0 +1,16 @@
+{"v":1,"id":"019cb306-0bc1-73d1-a9e0-5d527f22ad1b","at":1772530043841000000,"seq":653,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb306-0bc1-735e-ad9a-7b617fff9a6e","at":1772530043841000000,"seq":654,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb306-1c00-7510-8493-26d592795ece","at":1772530048000000000,"seq":655,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb306-3f28-7126-a1b7-817668484649","at":1772530057000000000,"seq":656,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb30b-4890-783f-b2f2-a4475b2f0d85","at":1772530387088000000,"seq":657,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cb30b-fbe8-7693-82ce-bb9ee86b42c7","at":1772530433000000000,"seq":658,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb30c-08e1-7464-be17-39080533923a","at":1772530436321000000,"seq":659,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb30c-08e1-722d-9b2b-00013c90767c","at":1772530436321000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cb30c-51d8-7d56-844f-aa0fc3fd4a84","at":1772530455000000000,"seq":661,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb30c-8d59-7d0e-8316-09e367384781","at":1772530470233000000,"seq":662,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb30c-8d59-7667-b92c-06b4dd311cee","at":1772530470233000000,"seq":663,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb30c-bf38-7aee-ae80-f030226f1bba","at":1772530483000000000,"seq":664,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cb30c-d2c0-7366-8134-874c0b4376e8","at":1772530488000000000,"seq":665,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb30c-da90-7676-9565-2cbdc3fce6d8","at":1772530490000000000,"seq":666,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb30c-fdb8-76d7-803f-613aec3e0776","at":1772530499000000000,"seq":667,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cb30d-0970-7300-a80f-bb179dc579df","at":1772530502000000000,"seq":668,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}

@@ -1,0 +1,38 @@
+{"v":1,"id":"019bda7d-f2ea-7bcc-8221-c135e1c450c7","at":1768897245930000000,"seq":288,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda7d-f2ea-709f-b8a3-37154a9de9d1","at":1768897245930000000,"seq":289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bda7e-4920-7830-9f31-48cf163f1ecb","at":1768897268000000000,"seq":290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bda7e-54d8-716d-a27c-36e21569fc37","at":1768897271000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda8f-db19-7dbc-878d-2f5ce6c31f98","at":1768898419481000000,"seq":292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bda90-17b8-78b1-a658-de62fdc1235a","at":1768898435000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda90-7960-7800-bc50-022856f9d667","at":1768898460000000000,"seq":294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda90-8900-7ecb-a4d3-09093be0d9da","at":1768898464000000000,"seq":295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bda90-b2f1-76b9-9fa6-bffbfc1543b7","at":1768898474737000000,"seq":296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bda90-bbc8-7c2c-be07-b4f0e8e2f830","at":1768898477000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda91-7f18-7938-a88f-7e4b7d096f5b","at":1768898527000000000,"seq":298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda91-b809-7418-9b54-cfae29af0a2d","at":1768898541577000000,"seq":299,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bda91-c180-751c-9e68-442c71cb335c","at":1768898544000000000,"seq":300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda91-e4a8-7639-a448-8bb08af6fca3","at":1768898553000000000,"seq":301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bda91-fc18-700e-a094-b0eb8c0d06d5","at":1768898559000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda91-fc18-7c63-98dc-8ba4fb11f71e","at":1768898559000000000,"seq":303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bda92-1f40-725a-a93a-83a019e626ce","at":1768898568000000000,"seq":304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bda92-2efd-7020-bf26-1585bc607d43","at":1768898572029000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bda92-61a8-760a-b85b-d7daa388791a","at":1768898585000000000,"seq":306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bda92-88b8-79d0-b665-66bd061241a8","at":1768898595000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda92-f618-7e25-893c-43eead3e12e9","at":1768898623000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bda93-1170-77cb-b093-144d34686fca","at":1768898630000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda93-154b-771f-b65a-e9a944026821","at":1768898630987000000,"seq":310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bda93-5ba8-7f2d-9eb8-c3794945d571","at":1768898649000000000,"seq":311,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bda93-ae50-79f9-a46e-4244adc6d0f9","at":1768898670160000000,"seq":312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bda9b-e054-7788-919a-66a485df1101","at":1768899207252000000,"seq":313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bda9c-3d18-78a2-953a-f074e53399a0","at":1768899231000000000,"seq":314,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdaa1-b493-7a4c-8567-68acc8a62536","at":1768899589267000000,"seq":315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdaa1-bf40-72a8-b7c4-b2ebf26e8cf5","at":1768899592000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bdaa1-c710-7b4d-bc2f-33e0dc0e4b87","at":1768899594000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaa2-8b68-7c9f-ba41-e6cc319f5d6f","at":1768899644264000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdaa2-b940-71dc-ab8a-c1e1cd33d69f","at":1768899656000000000,"seq":319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdaa2-c8e0-7270-a18c-1e9809985490","at":1768899660000000000,"seq":320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bdaa3-26a0-731d-b2f1-5d6802c7fd61","at":1768899684000000000,"seq":321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdaa3-5ba7-743b-961e-467392677ef0","at":1768899697575000000,"seq":322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdaa3-6908-791d-854c-f60d2f1bb358","at":1768899701000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaa3-78a8-7c5d-9634-9a366578fd56","at":1768899705000000000,"seq":324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaa3-7c90-75d1-9c3f-160a6f3a23c0","at":1768899706000000000,"seq":325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

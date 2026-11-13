@@ -1,0 +1,25 @@
+{"v":1,"id":"019d2401-84ca-795e-a295-a2cf66190471","at":1774425572554000000,"seq":993,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2401-84ca-78b0-b5ea-48b67fd0141f","at":1774425572554000000,"seq":994,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d2401-9df8-7c1b-82ab-1db451b155ba","at":1774425579000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d2401-e65d-7550-95cf-e9225ca880de","at":1774425597533000000,"seq":996,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d2402-3268-701f-9583-b61f48efdbdc","at":1774425617000000000,"seq":997,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2402-45f0-71c0-bb0b-089dd0460ad3","at":1774425622000000000,"seq":998,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2402-70e8-7491-98a3-66a8bfecd1ba","at":1774425633000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d2402-aede-7053-867a-32c9ccf5b8a0","at":1774425648862000000,"seq":1000,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d2402-bf08-7cd8-ab2e-6afc01c7edb2","at":1774425653000000000,"seq":1001,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2403-8258-72e4-a1d2-94f712719497","at":1774425703000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2403-8640-7b70-8225-5d62d0de890f","at":1774425704000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d2403-86b2-716c-a925-b5b186b64d2f","at":1774425704114000000,"seq":1004,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d2403-99c8-74ec-b894-29d6ea96cede","at":1774425709000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d2403-a580-7e10-aca2-b059011665a5","at":1774425712000000000,"seq":1006,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d241e-c150-7943-8601-5b28808c23b8","at":1774427488592000000,"seq":1007,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d241f-66f8-7ab2-9850-46345e57b7ec","at":1774427531000000000,"seq":1008,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d241f-6ec8-7db6-8f8d-a959e1285449","at":1774427533000000000,"seq":1009,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d2437-a82e-7fac-bfda-fe144619325f","at":1774429120558000000,"seq":1010,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2437-d4e0-7ce9-a5f1-4391185bc7f1","at":1774429132000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d2437-e868-71de-831c-fb74ff4661fc","at":1774429137000000000,"seq":1012,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2437-fbf0-772b-a247-4fa992ccd7ef","at":1774429142000000000,"seq":1013,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2452-a349-7a74-b0b2-132e50e831f4","at":1774430888777000000,"seq":1014,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2452-bb98-71da-ba0d-73e977818074","at":1774430895000000000,"seq":1015,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2452-e690-79ac-b002-955dfab567a1","at":1774430906000000000,"seq":1016,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2453-01e8-7d7c-b0fb-d79c7b981396","at":1774430913000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

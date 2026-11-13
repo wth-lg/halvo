@@ -1,0 +1,33 @@
+{"v":1,"id":"019c5b35-06da-7be9-a54f-e64ae89fc8bf","at":1771056727770000000,"seq":468,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b35-06da-7725-84d3-af792ccf3ec4","at":1771056727770000000,"seq":469,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b35-55e0-7aac-bf28-bc83daa427a5","at":1771056748000000000,"seq":470,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c5b35-6959-7118-ab00-cba48b21100d","at":1771056752985000000,"seq":471,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5b35-bf58-7741-a6d6-13358afe720a","at":1771056775000000000,"seq":472,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b35-d6c8-7f6e-826e-b23e689e4518","at":1771056781000000000,"seq":473,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b35-fe3e-7cc3-8508-d481a7388be0","at":1771056791102000000,"seq":474,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5b36-3488-7886-a6b9-0dc6afe4501c","at":1771056805000000000,"seq":475,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b36-6f20-7128-9735-40a03fb3ea75","at":1771056820000000000,"seq":476,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b36-76f0-7970-a05e-0cbaba10bc2a","at":1771056822000000000,"seq":477,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c5b36-8690-74d5-a7ea-0eae4d9c5d75","at":1771056826000000000,"seq":478,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c5b46-4617-703e-9ac5-9409aa38529c","at":1771057858071000000,"seq":479,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b46-4617-7fd1-9ebe-5fe71a63df59","at":1771057858071000000,"seq":480,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b46-f598-7bc1-91c6-6132785b566c","at":1771057903000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5b47-0ba3-76e7-8178-f1391f921198","at":1771057908643000000,"seq":482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b47-1ca8-7128-b07b-a538c403e3b9","at":1771057913000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5b47-3be8-7977-9354-665ae9088302","at":1771057921000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c5b47-5116-73f2-9332-df09908c8488","at":1771057926422000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b47-5740-7786-9295-b6916011bc8e","at":1771057928000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c5b47-8c7d-7b04-b996-0c20f9343211","at":1771057941629000000,"seq":487,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b47-ad30-7f87-b0ba-608a394d6964","at":1771057950000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b48-39d0-7f36-a416-18b0d1246448","at":1771057986000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b48-41a0-74aa-a8a7-5cd42881c27e","at":1771057988000000000,"seq":490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5b48-4d58-70bd-9cd8-e90d0018f4ab","at":1771057991000000000,"seq":491,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b48-79d3-70ce-ae3c-f50ceeb268b7","at":1771058002387000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b48-bab8-7c75-a535-5c2e266cbb05","at":1771058019000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c5b48-ca58-77b9-b833-7537f741b5d4","at":1771058023000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b48-e1c8-7586-8e22-aeef1efd818c","at":1771058029000000000,"seq":495,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5b49-32ef-7f1b-aa58-107c6337259d","at":1771058049775000000,"seq":496,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5b49-6e68-7004-a059-b4a3a563ab40","at":1771058065000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b49-7a20-7263-851a-80dfd0b038ff","at":1771058068000000000,"seq":498,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5b49-8da8-7dcf-9376-192f3476368a","at":1771058073000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b49-9190-7849-83fc-7db4adb27e90","at":1771058074000000000,"seq":500,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

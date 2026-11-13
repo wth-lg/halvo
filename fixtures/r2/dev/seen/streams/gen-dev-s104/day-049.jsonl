@@ -1,0 +1,11 @@
+{"v":1,"id":"019c7046-6daa-7eca-83e5-0cb789463c76","at":1771410189738000000,"seq":617,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7046-6daa-7c79-9e1d-1ce3ebf04f85","at":1771410189738000000,"seq":618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c7046-a948-7bee-b006-b1f892d60a1e","at":1771410205000000000,"seq":619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7046-d440-7dae-baae-b77f338b1c46","at":1771410216000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7047-2902-75c4-ad6a-4ff74df209de","at":1771410237698000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7047-35e8-7d3d-a462-391f488dfc54","at":1771410241000000000,"seq":622,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7047-60e0-70b9-84a4-8deadce5f35a","at":1771410252000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7047-ad77-72e8-9ce6-260dd3d3cbc5","at":1771410271607000000,"seq":624,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c7047-e1c8-7488-aa73-569e0b33b479","at":1771410285000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c7047-f168-7d81-a5d8-034ddce2563b","at":1771410289000000000,"seq":626,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7047-f938-7cee-8fd5-92efed557ccb","at":1771410291000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

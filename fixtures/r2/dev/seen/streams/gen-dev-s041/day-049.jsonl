@@ -1,0 +1,21 @@
+{"v":1,"id":"019c6ff8-733a-79da-9e6e-98b8eed45644","at":1771405079354000000,"seq":760,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ff8-733a-7bd4-8d33-bd743f385702","at":1771405079354000000,"seq":761,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c6ff9-2588-79a6-93d0-ca4343e71db1","at":1771405125000000000,"seq":762,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ff9-2fe5-7fc9-ab47-7aace6213c40","at":1771405127653000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c6ff9-48b0-7a98-a14a-292532c353aa","at":1771405134000000000,"seq":764,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6ff9-4c98-7b7b-baee-9a400bc500f1","at":1771405135000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c6ff9-73a8-77d4-8281-b6e196137f0f","at":1771405145000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ff9-7974-7ca2-a72e-e9907d62aeab","at":1771405146484000000,"seq":767,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c6ff9-92e8-7577-a306-9278cf5d749c","at":1771405153000000000,"seq":768,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6ff9-96d0-77c8-8f08-9ac52af7a293","at":1771405154000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ff9-a670-7494-93dd-c4b49790d9b2","at":1771405158000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ff9-cf7c-72a3-9a8d-ed8ec25b443d","at":1771405168508000000,"seq":771,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c6ff9-e4f0-78f4-ac36-50d2984c9824","at":1771405174000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ff9-f0a8-7071-a8be-f6d848ff89af","at":1771405177000000000,"seq":773,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6ffa-3310-7552-a6fb-1d2e3475f7e0","at":1771405194000000000,"seq":774,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6ffa-7190-7092-b5e8-227572b5492c","at":1771405210000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ffa-cbf1-7546-a1f1-2bad846addc2","at":1771405233137000000,"seq":776,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c6ffb-7cf6-70a4-bf9a-2c8cc2bba581","at":1771405278454000000,"seq":777,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c6ffb-7f18-7239-92b6-619a6b176816","at":1771405279000000000,"seq":778,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6ffb-a240-7782-9cb4-e3c85c5f7df2","at":1771405288000000000,"seq":779,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6ffb-b5c8-77f1-8d89-2152aa1fa547","at":1771405293000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}

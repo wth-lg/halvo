@@ -1,0 +1,17 @@
+{"v":1,"id":"019c7517-3bd6-73f6-897b-15a5e30bfc2c","at":1771490982870000000,"seq":750,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7517-3bd6-75b1-a3a5-8b5d657e9a88","at":1771490982870000000,"seq":751,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7517-8e60-795c-9f18-cb084399e9d3","at":1771491004000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7517-cce0-7a97-aabc-7df8c64a20be","at":1771491020000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7517-d558-75bf-bc60-8b32e71a8a6d","at":1771491022168000000,"seq":754,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7517-fbc0-7956-8ddc-1bf822fd98ad","at":1771491032000000000,"seq":755,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7518-0b60-7b80-8074-b3b1032eff62","at":1771491036000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7518-0b60-7504-a0b8-f110665e0351","at":1771491036000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7518-4210-79ef-9b4a-868a4514d8ef","at":1771491050000000000,"seq":758,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7518-8e45-7b82-80d0-0fd20cdad1b0","at":1771491069509000000,"seq":759,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7518-d298-73e0-9446-5e80e97e3cdf","at":1771491087000000000,"seq":760,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7518-ffc3-7043-bde3-aabe11b5d514","at":1771491098563000000,"seq":761,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7519-20b8-7d66-b0ed-63a6e05c79ca","at":1771491107000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7519-3c10-72f5-90a5-08849c12683b","at":1771491114000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c7522-a444-77eb-8353-20b48d080ddc","at":1771491730500000000,"seq":764,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7522-d518-7625-89ff-5d917672ddc4","at":1771491743000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7522-fc28-7bc5-ab06-f29474eb5b65","at":1771491753000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

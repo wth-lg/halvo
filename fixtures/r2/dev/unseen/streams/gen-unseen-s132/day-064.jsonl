@@ -1,0 +1,18 @@
+{"v":1,"id":"019cbd0b-e452-787e-8837-cf9d5c19114b","at":1772698199122000000,"seq":866,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd0b-e452-7556-9aa5-64b27afc50fb","at":1772698199122000000,"seq":867,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cbd12-f8e9-76ca-a5ea-77b0ac761f56","at":1772698663145000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cbd13-0028-773f-9825-b54fd958af06","at":1772698665000000000,"seq":869,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd13-2f08-78e1-ae3d-fe6ed54f8c2a","at":1772698677000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd13-39bd-755d-8834-34877ef7bc01","at":1772698679741000000,"seq":871,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cbd13-d700-7d71-9bf3-529fb92d48f9","at":1772698720000000000,"seq":872,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd14-05e0-7188-8cda-81ca3d0b23e5","at":1772698732000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cbd14-2031-7194-b3b9-45673b25a11d","at":1772698738737000000,"seq":874,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cbd14-4848-79b0-bb85-889f4bace708","at":1772698749000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cbd14-82e0-7710-bd0b-52559d715e1c","at":1772698764000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd14-ec58-709e-83bf-7fd5f27f9626","at":1772698791000000000,"seq":877,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd15-2bb3-7568-9550-913111374c67","at":1772698807219000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cbd30-33c1-7e95-b442-9417e7c2b44d","at":1772700578753000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cbd30-82d8-7769-be23-bb4a6dbd30b0","at":1772700599000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd30-8aa8-71a4-9306-aaad4f44ddc7","at":1772700601000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd30-add0-76fe-b8e4-c2c299a98aa6","at":1772700610000000000,"seq":882,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbd30-d8c8-7838-ac68-eea10eb4d364","at":1772700621000000000,"seq":883,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

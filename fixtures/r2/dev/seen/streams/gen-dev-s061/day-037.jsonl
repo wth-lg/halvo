@@ -1,0 +1,19 @@
+{"v":1,"id":"019c31ea-6369-75dd-8c7b-14318886e33a","at":1770363970409000000,"seq":482,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c31ea-6369-7792-85f9-00e1b5d770c6","at":1770363970409000000,"seq":483,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c31ea-69a0-7e01-8992-7a2256d12e72","at":1770363972000000000,"seq":484,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c31ea-7170-7a21-acfd-413c78fbbd03","at":1770363974000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c31ea-7d28-7359-ae42-67bc3d772921","at":1770363977000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31ea-88e0-7c8f-b635-fd5dce7af226","at":1770363980000000000,"seq":487,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c31ea-9c68-7690-9329-bae7d494e036","at":1770363985000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31fa-107b-780f-a771-50cb3135a579","at":1770364997755000000,"seq":489,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c31fa-3498-794d-9747-b244c2b3b905","at":1770365007000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31fa-4438-7856-809c-1f58bb1793b5","at":1770365011000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c31fa-4ff0-72ac-b01d-6ce4c2bff497","at":1770365014000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3207-e283-7ba0-80c6-0d4f25df4e6f","at":1770365903491000000,"seq":493,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3208-1b30-75dd-9e12-1b47aa217595","at":1770365918000000000,"seq":494,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3208-55c8-725a-8bcb-97dcac9640ba","at":1770365933000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3208-6568-7790-b5d1-953835c4766c","at":1770365937000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3219-87b9-756f-ad72-292fd3ba42b3","at":1770367059897000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c321a-2602-7f41-b7e5-77416a8d3a96","at":1770367100418000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c321a-c870-73d4-b3f0-dc036fe39492","at":1770367142000000000,"seq":499,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c321a-ff20-765d-b7e4-2ee17cfd02b7","at":1770367156000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

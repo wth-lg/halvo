@@ -1,0 +1,26 @@
+{"v":1,"id":"019c5633-b9d5-77b9-b8f4-621315157053","at":1770972756437000000,"seq":710,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5633-b9d5-78b7-95fd-96b9c757f7f8","at":1770972756437000000,"seq":711,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c5633-f6a0-7f62-b311-486cff6e3360","at":1770972772000000000,"seq":712,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5634-c6fa-79c0-841c-9aaf702380a6","at":1770972825338000000,"seq":713,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c5634-d930-76d9-b721-a2fbfc380bdb","at":1770972830000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5635-13c8-76ec-9eeb-7df63de84635","at":1770972845000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c5635-2f20-7701-be4d-7a83e5a592b1","at":1770972852000000000,"seq":716,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5635-69b8-7813-bc45-968f3de64d94","at":1770972867000000000,"seq":717,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5635-7211-7f6f-9848-e21ac863bfa9","at":1770972869137000000,"seq":718,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c5635-7958-7485-8031-5e0df8f8d582","at":1770972871000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5635-fa40-7787-92a1-700d3b3887f8","at":1770972904000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5635-fdf5-765a-ba8e-82394fcaf503","at":1770972904949000000,"seq":721,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c5636-5418-7334-8bda-aa49224dd9cb","at":1770972927000000000,"seq":722,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5636-9298-71cb-aba3-d1c6e25b8130","at":1770972943000000000,"seq":723,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5636-c178-75ea-ba8b-dcac89221d1a","at":1770972955000000000,"seq":724,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5636-cd30-7929-bbed-0251a1dff337","at":1770972958000000000,"seq":725,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5636-d33e-7fb4-b1a9-1e80fdfacad0","at":1770972959550000000,"seq":726,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c5636-d500-7c97-b06e-ceb0ed7a9719","at":1770972960000000000,"seq":727,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5636-d500-771b-b31c-47832931ebdd","at":1770972960000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c5636-e0b8-7291-9587-3b362dbc7895","at":1770972963000000000,"seq":729,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5637-0bb0-7544-9c48-82e773ed09d5","at":1770972974000000000,"seq":730,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5637-17e5-785c-bc61-b2565d34039e","at":1770972977125000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c5637-5db8-76f2-86c1-ebe2d13cbc14","at":1770972995000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5638-198f-71b9-8e95-48fcd6700cbb","at":1770973043087000000,"seq":733,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c5638-3490-7897-bac1-7163e23ac4e2","at":1770973050000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5638-5f88-7aa9-b795-6ef78edb08f8","at":1770973061000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

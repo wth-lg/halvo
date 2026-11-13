@@ -1,0 +1,15 @@
+{"v":1,"id":"019c2d72-ddb9-792f-99f7-8ddad0f8e181","at":1770289028537000000,"seq":583,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d72-ddb9-7d44-a963-4eb9993fca6e","at":1770289028537000000,"seq":584,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c2d72-e370-7d75-95cc-7083a2011126","at":1770289030000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c2d72-f310-7ef8-b1b9-89f5962495aa","at":1770289034000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d73-54b8-702a-ba6a-cc100fcda022","at":1770289059000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d73-6b73-7816-9b84-f4b5538f208f","at":1770289064819000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c2d74-2b90-730f-8542-93c8ce097469","at":1770289114000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d74-3360-7093-bf3b-3cb953f80bfb","at":1770289116000000000,"seq":590,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2d74-52af-74a2-ba15-583dc6650dcc","at":1770289124015000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c2d74-6a10-7fe1-911d-57c7d610d65e","at":1770289130000000000,"seq":592,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d75-18a8-7496-ad2e-0e3be3ec6355","at":1770289174696000000,"seq":593,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c2d75-3918-7e97-b6dc-377fa766e7f2","at":1770289183000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c2d75-8b20-70db-a0f1-39df3f61b79a","at":1770289204000000000,"seq":595,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2d75-ed12-7932-9903-f7477fa30539","at":1770289229074000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c2d76-2760-7135-89fe-db59e6a9fe41","at":1770289244000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

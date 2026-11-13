@@ -1,0 +1,16 @@
+{"v":1,"id":"019c7a1c-05dc-76cf-8ca9-9f2d1a6c8a49","at":1771575182812000000,"seq":747,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a1c-05dc-7202-9e66-71f7bfbc79cb","at":1771575182812000000,"seq":748,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a1c-9338-72c4-8b6a-60e0e375bd63","at":1771575219000000000,"seq":749,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c7a1f-6283-7558-ac46-a89404dff462","at":1771575403139000000,"seq":750,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a1f-6283-7aed-931f-670fb38d4bbe","at":1771575403139000000,"seq":751,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7a1f-8138-79cf-b641-77c9f23a70ac","at":1771575411000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a1f-d728-77fd-8151-84cccf2b1ee2","at":1771575433000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a2e-ac08-75e1-8c75-dea724d40751","at":1771576405000000000,"seq":754,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7a2e-b7c0-7be9-b736-2ea1fa0fb808","at":1771576408000000000,"seq":755,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a2f-01f8-7a07-a8a7-9dedf1d6b178","at":1771576427000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c7a2f-05e0-79d7-9239-ee9dd08fc234","at":1771576428000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a2f-1198-7fb9-9bb0-bfbc77f6c88b","at":1771576431000000000,"seq":758,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a32-f9a1-72e0-b4f5-a973fef1290b","at":1771576687009000000,"seq":759,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a32-f9a1-7152-bf35-c7b02e36bf51","at":1771576687009000000,"seq":760,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a33-6c66-753d-9f09-a0f1e4c4482a","at":1771576716390000000,"seq":761,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c7a33-f398-771c-a061-6e23b679f30c","at":1771576751000000000,"seq":762,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

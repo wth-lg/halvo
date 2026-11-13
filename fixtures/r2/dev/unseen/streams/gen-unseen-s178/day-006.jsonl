@@ -1,0 +1,20 @@
+{"v":1,"id":"019b92f6-01bc-71dc-8bcf-f8595a68999d","at":1767697154492000000,"seq":141,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b92f6-01bc-77e4-99fa-0558aab63629","at":1767697154492000000,"seq":142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b92f6-4620-7013-a617-fc3d7c2234da","at":1767697172000000000,"seq":143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b92f6-6948-789e-ab1d-0e208223b376","at":1767697181000000000,"seq":144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92f6-c48c-7e43-aea0-5cc6777737dc","at":1767697204364000000,"seq":145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b92f7-24c8-7095-a925-e13588c233b0","at":1767697229000000000,"seq":146,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b92f7-6b18-7f12-921e-5fd4eb96f3aa","at":1767697247000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92f7-8288-7bb4-ba2d-689f4fada230","at":1767697253000000000,"seq":148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b92f7-899b-79dd-8dd8-2abc4694bb53","at":1767697254811000000,"seq":149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b92f7-a998-78a2-9ee5-04605f4f68e2","at":1767697263000000000,"seq":150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b92f7-b168-7486-9328-24175d8ca96f","at":1767697265000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92f8-1ae0-77d9-a2de-1a7e50314999","at":1767697292000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9309-1ecc-74cc-951b-106fbaa06ae1","at":1767698407116000000,"seq":153,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9309-1ecc-706b-8601-8a718a3a731d","at":1767698407116000000,"seq":154,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9309-2df8-73dd-9461-a4fd0d2894f8","at":1767698411000000000,"seq":155,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9309-31e0-7e5e-816f-fc8aa933e24f","at":1767698412000000000,"seq":156,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b9309-35c8-7863-bee2-88bb89237d33","at":1767698413000000000,"seq":157,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b9323-2ad4-7954-9e3e-17c51d3b3459","at":1767700114132000000,"seq":158,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9323-5548-7319-b8e6-e4cba7d204ce","at":1767700125000000000,"seq":159,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b9323-7488-790c-a962-75e5d0f9cc52","at":1767700133000000000,"seq":160,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

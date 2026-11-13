@@ -1,0 +1,33 @@
+{"v":1,"id":"019bb69b-b913-7aa1-b8b2-970683b2d4ad","at":1768295217427000000,"seq":254,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb69b-b913-7926-a051-317673063501","at":1768295217427000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bb69b-e648-7d8d-9544-53baaae871f9","at":1768295229000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb69c-0588-7382-94ca-58873969f027","at":1768295237000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb69c-76d0-7ae2-abf3-c2878bd73265","at":1768295266000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bb69c-8a1c-7109-9353-61dda33131ab","at":1768295270940000000,"seq":259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bb69c-99f8-7941-bcbb-738b9b20bdf4","at":1768295275000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb69c-ccc0-786d-acb2-a0b69f2dca25","at":1768295288000000000,"seq":261,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb69c-d878-7251-8151-5d4747b428a5","at":1768295291000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb69d-21ce-73b6-887d-d53bc9b4ad34","at":1768295309774000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bb69d-45d8-7383-a248-7424c13137ba","at":1768295319000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bb69d-70d0-70fa-a117-72307303255b","at":1768295330000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb69d-97e0-78df-b693-496ae1811c73","at":1768295340000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb69e-069d-7343-b7de-3fbbf3a5d65a","at":1768295368349000000,"seq":267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bb69e-14e0-71a9-89ab-c6930f2c8c90","at":1768295372000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb69e-8df8-7edb-83be-a6254e5fe972","at":1768295403000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb69e-99b0-7784-a14c-32efcbb913de","at":1768295406000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bb6b1-7aee-70b9-a713-b4782ffe2735","at":1768296643310000000,"seq":271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bb6b1-8188-7926-ba5a-30acaf2148f4","at":1768296645000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6b1-b068-7004-894e-47b9bf8cf07f","at":1768296657000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6b1-b679-766f-95ca-521ba463f293","at":1768296658553000000,"seq":274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bb6b1-eee8-7963-a20e-f937b021adc6","at":1768296673000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bb6b2-19e0-707d-a8e5-7640ffb3401e","at":1768296684000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6b2-293a-740b-968a-a4714b3268c9","at":1768296687930000000,"seq":277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bb6b2-2d68-7d8c-994f-c990b5c04715","at":1768296689000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6b2-40f0-7f62-a24a-a840e328d14c","at":1768296694000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6b2-8358-7a5a-bdc6-5f23bdebc6e9","at":1768296711000000000,"seq":280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb6b2-8740-705d-850b-91f4192c0231","at":1768296712000000000,"seq":281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bb6b2-af96-765b-946f-7ff5dac859b6","at":1768296722326000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bb6b3-2380-7df0-95a1-103716ece58b","at":1768296752000000000,"seq":283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb6b3-3320-7cb5-b8cc-1044b80a7bd7","at":1768296756000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6b3-4e78-7978-951d-f3059a4b031a","at":1768296763000000000,"seq":285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb6b3-90e0-7110-a157-cf86b220adde","at":1768296780000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

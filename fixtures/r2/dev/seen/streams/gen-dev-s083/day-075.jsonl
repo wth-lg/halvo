@@ -1,0 +1,22 @@
+{"v":1,"id":"019cf625-2cb2-7812-8cd0-80b65a439b7b","at":1773656157362000000,"seq":1044,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf625-2cb2-733c-928b-541c91b0eb16","at":1773656157362000000,"seq":1045,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cf625-98a8-75a2-bbaf-feb264ef3fbc","at":1773656185000000000,"seq":1046,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf625-b787-7d1b-a378-188c21361705","at":1773656192903000000,"seq":1047,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cf626-09f0-73f2-bd48-d5335592f8f6","at":1773656214000000000,"seq":1048,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf626-3779-79f3-9706-19819d26e10b","at":1773656225657000000,"seq":1049,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cf626-5bf8-7c5c-b4fd-3ef85911d42e","at":1773656235000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf626-8ec0-7af3-9252-3536d25e5fbc","at":1773656248000000000,"seq":1051,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf626-a28d-7586-92c9-74f357de0f8d","at":1773656253069000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cf627-1f48-713f-ad22-b7233efc309a","at":1773656285000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf627-2718-7377-8284-4619a30cf1f2","at":1773656287000000000,"seq":1054,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf627-4270-79bf-a1f7-1da6a98d8674","at":1773656294000000000,"seq":1055,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf627-4466-732a-b306-276aa06726bd","at":1773656294502000000,"seq":1056,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cf627-e680-7c24-8567-320bf07276c3","at":1773656336000000000,"seq":1057,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf628-2cd0-74cd-9510-03c33b8f58ae","at":1773656354000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf628-3aca-79f3-9ec4-8d45a278aaf6","at":1773656357578000000,"seq":1059,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cf628-6b50-7270-bbf2-24d08379d62f","at":1773656370000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf628-7708-7356-9a49-ce1d8a89619f","at":1773656373000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cf642-fb69-7015-8901-0c70f2c5a57c","at":1773658110825000000,"seq":1062,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf643-4268-7af0-a305-75bdb67bfdf1","at":1773658129000000000,"seq":1063,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf643-4a38-7ba1-a096-1a64cb19444c","at":1773658131000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf643-d6d8-7115-babf-c3ec443d0d95","at":1773658167000000000,"seq":1065,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

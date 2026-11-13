@@ -1,0 +1,8 @@
+{"v":1,"id":"019d1a3e-9cad-7e87-aa60-6127a014392e","at":1774261804205000000,"seq":1159,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1a3e-9cad-7c0b-aa1e-8114bf720a5c","at":1774261804205000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1a3e-e230-759d-afc6-6da23814031e","at":1774261822000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a3f-20b0-74f3-b028-2790e62a14fc","at":1774261838000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a3f-5378-7085-90fd-ac3b9c83d54c","at":1774261851000000000,"seq":1163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1a53-464b-791d-8d2c-45b365ba2c2c","at":1774263158347000000,"seq":1164,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1a53-464b-7aa1-8491-d0f15addc384","at":1774263158347000000,"seq":1165,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1a53-d960-718f-9bfd-7a778dd91d8f","at":1774263196000000000,"seq":1166,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}

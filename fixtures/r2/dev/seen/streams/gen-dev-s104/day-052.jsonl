@@ -1,0 +1,25 @@
+{"v":1,"id":"019c7f6b-d13f-7231-83d9-c74dda8ae59d","at":1771664298303000000,"seq":665,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f6b-d13f-7d80-b4d9-41a9ddffeff2","at":1771664298303000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7f6b-d7e0-7119-a79d-2564c22510da","at":1771664300000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f6b-f720-7a54-bec5-4db2e54c7f37","at":1771664308000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7f6b-fef0-7190-88bf-6ad6245d17f8","at":1771664310000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f6c-1a48-7384-9280-e48dd8e79444","at":1771664317000000000,"seq":670,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f7a-adba-7177-ab4e-e00e1a36344b","at":1771665272250000000,"seq":671,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7f7a-fec8-7082-aa46-34117becd445","at":1771665293000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f7b-0e68-7c87-8e67-e75d39d60c20","at":1771665297000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c7f7b-8c92-74d5-9205-fbd3aa1a1916","at":1771665329298000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7f7b-e928-7e50-8410-8b6b39dbba35","at":1771665353000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f7c-23c0-7c26-b5e9-266ebeb0ef31","at":1771665368000000000,"seq":676,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f7c-3748-78bd-990a-b972c01a242e","at":1771665373000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7f7c-3b30-71f5-9bb7-0f7e97d67d06","at":1771665374000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f7c-3f18-76fb-8d10-ed9195124182","at":1771665375000000000,"seq":679,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7f7c-43bd-75f5-8220-4e2708936c21","at":1771665376189000000,"seq":680,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7f7c-43bd-7e74-9eb5-6a3f68692538","at":1771665376189000000,"seq":681,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7f7c-79b0-70a6-b18b-37572c2f5034","at":1771665390000000000,"seq":682,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f7c-95f8-7ddc-a3a0-3f55a300d5b2","at":1771665397240000000,"seq":683,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f7c-95f8-7d50-8fbd-523c2f246491","at":1771665397240000000,"seq":684,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7f7c-cbb8-7656-8331-509c5481f774","at":1771665411000000000,"seq":685,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c7f7f-c5ce-7aba-981d-c2f2d27ac49a","at":1771665606094000000,"seq":686,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7f80-36b8-7d99-8d97-09bc55122e33","at":1771665635000000000,"seq":687,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7f80-59e0-77fb-bf41-cf55a76c8e7f","at":1771665644000000000,"seq":688,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f80-61b0-7adf-b09f-204c183bf1db","at":1771665646000000000,"seq":689,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

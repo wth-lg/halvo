@@ -1,0 +1,23 @@
+{"v":1,"id":"019b8875-52d8-7fba-9778-fcb1195455bf","at":1767520948952000000,"seq":18,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8875-52d8-798d-9a6b-6758fe433970","at":1767520948952000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8875-ef48-7e40-9b5f-9bcd2a164c67","at":1767520989000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b8886-4a9b-7c9d-8908-f39b2749fc05","at":1767522060955000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b8886-fd44-7d60-8206-148fbad183cf","at":1767522106692000000,"seq":22,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b8887-15e8-7905-ad8a-a0a4f9eae558","at":1767522113000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8887-2588-72e9-ae80-63e59d85269c","at":1767522117000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8887-8730-71e9-8625-aff5c87b391b","at":1767522142000000000,"seq":25,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b8887-c3dd-75f0-8dce-145ee3d592ad","at":1767522157533000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b8887-e108-7954-b202-5a6ab46c053c","at":1767522165000000000,"seq":27,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8887-fc60-71e8-bd8c-fc56c5abe6ac","at":1767522172000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b8898-9689-7015-90ce-c27f6881d378","at":1767523260041000000,"seq":29,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8898-9689-7d12-987b-87ccf76016e0","at":1767523260041000000,"seq":30,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8898-a600-7004-879c-240a065179f8","at":1767523264000000000,"seq":31,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8898-e098-7279-98e8-2f188ec6f1b4","at":1767523279000000000,"seq":32,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b8898-ec50-7a5b-83ea-4ad68425a387","at":1767523282000000000,"seq":33,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b8898-f038-77cb-a48b-b5a37bdcfdde","at":1767523283000000000,"seq":34,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a0-b9f7-7684-93a9-1d050e2239c6","at":1767523793399000000,"seq":35,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b88a0-b9f7-742b-a9fd-45d9b9c0b55b","at":1767523793399000000,"seq":36,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b88a1-0a70-775b-9c03-0f809ecaaeda","at":1767523814000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a1-3568-7b0d-be1b-c8cb82034e61","at":1767523825000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b88a1-4cd8-7a6f-a6eb-f467b419ff62","at":1767523831000000000,"seq":39,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b88a1-5890-7592-b0d4-dd6411f82abf","at":1767523834000000000,"seq":40,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

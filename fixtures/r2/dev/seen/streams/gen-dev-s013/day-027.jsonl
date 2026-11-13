@@ -1,0 +1,22 @@
+{"v":1,"id":"019bfea2-3569-73c6-926a-45bfb93721ac","at":1769503602025000000,"seq":339,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfea2-3569-75e6-8f19-c7b6f85b08a6","at":1769503602025000000,"seq":340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bfea2-b250-788d-8fa4-5799c85da63b","at":1769503634000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfea2-cda8-7f4b-bcbc-cd2461a5245c","at":1769503641000000000,"seq":342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bfea3-2c41-7f63-b3f5-15dc78c183dc","at":1769503665217000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bfea3-7988-790a-a09d-65667f17bd29","at":1769503685000000000,"seq":344,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bfea3-df18-7b46-8119-a734c6b76884","at":1769503711000000000,"seq":345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bfeb7-3aaf-7e41-a006-a5c1b0afcbaa","at":1769504979631000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bfeb7-6330-74f0-b87b-03cf3e6288dc","at":1769504990000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeb7-76b8-7ad4-b68d-8442a52e0e85","at":1769504995000000000,"seq":348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bfeb7-8270-7346-8449-2ba5ccee485a","at":1769504998000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeb7-d860-74a3-8d5e-1c84c97b465e","at":1769505020000000000,"seq":350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bfecb-003e-78fe-996e-bdfb7718b8c0","at":1769506275390000000,"seq":351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bfeda-2cbb-7c98-ad33-ed3771237e6a","at":1769507269819000000,"seq":352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bfeda-3540-7cf1-aa1a-1311190703c4","at":1769507272000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfeda-5098-7310-a51b-e4014d05757e","at":1769507279000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfef6-4310-72bb-821a-f17c7f7d5e5f","at":1769509110544000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bfef6-c5c0-7ac7-a670-7a501117fdcf","at":1769509144000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfef6-d560-7dbe-b5ce-3714830e587d","at":1769509148000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bfef7-3708-7653-b523-3c03b53806e2","at":1769509173000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfef7-3bbb-7e06-bbc2-707f503dc4cc","at":1769509174203000000,"seq":359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bfef7-7588-70f6-891e-97eb03f641a8","at":1769509189000000000,"seq":360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

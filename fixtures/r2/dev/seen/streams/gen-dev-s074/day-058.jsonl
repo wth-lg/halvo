@@ -1,0 +1,30 @@
+{"v":1,"id":"019c9e71-770d-7f78-b502-1d71b3ed7e2e","at":1772184762125000000,"seq":806,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e71-770d-789e-a809-6dbe1ce3d0dd","at":1772184762125000000,"seq":807,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c9e71-a958-7297-bd1e-71f269b770c4","at":1772184775000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e71-cc80-7e2a-99a0-6943d337ee3a","at":1772184784000000000,"seq":809,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e71-fb60-7f5f-8afe-85825eb7c13a","at":1772184796000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c9e72-48df-769e-8fab-32824f2f3ca1","at":1772184815839000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c9e72-4980-7d8d-abbc-92935f9f5ffd","at":1772184816000000000,"seq":812,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9e72-4d68-7f4b-b2a5-1204309c13c1","at":1772184817000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c9e72-ce50-724f-9040-9f6d23359cac","at":1772184850000000000,"seq":814,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9e72-e9f2-7391-b28a-aeb2d14168c5","at":1772184857074000000,"seq":815,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c9e73-0500-7d35-9e78-0281bdafb127","at":1772184864000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c9e73-3096-7623-b80f-d8084fefee63","at":1772184875158000000,"seq":817,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c9e73-4768-7aec-8afb-62358a0e117c","at":1772184881000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c9e8d-87ea-7d0b-a5d5-102189664643","at":1772186601450000000,"seq":819,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c9e8d-99b0-782d-a1fa-cc95bdb8f6ec","at":1772186606000000000,"seq":820,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c9e8d-d060-7134-8508-4a9e0591b9bc","at":1772186620000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e8d-d448-7599-9e4a-21d451032295","at":1772186621000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e8d-d8a3-7b35-ad0c-ecbb707ae348","at":1772186622115000000,"seq":823,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c9e8e-0328-7159-a083-dd9ceeecb409","at":1772186633000000000,"seq":824,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9e8e-0ee0-7bd0-9f18-76cc84a16e75","at":1772186636000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e8e-5530-710c-9cb7-c3e759f675c9","at":1772186654000000000,"seq":826,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e8e-b664-71d0-b1ec-23199155ad09","at":1772186678884000000,"seq":827,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c9e8e-da00-7dc5-ad15-bd03ea1315c0","at":1772186688000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c9e8e-fd28-77eb-b8b7-4e4fdba04638","at":1772186697000000000,"seq":829,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e8f-0e4e-7365-8c81-58fe209f5e91","at":1772186701390000000,"seq":830,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c9e8f-81f8-778e-9cfc-7085e98b5910","at":1772186731000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e8f-9198-79c5-850a-818f0c48a2a0","at":1772186735000000000,"seq":832,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c9e8f-9968-7ab2-aaaa-4c1cb9d01721","at":1772186737000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e8f-9d50-7b81-a1c5-03fffae37306","at":1772186738000000000,"seq":834,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e8f-b0d8-73e9-af8f-2fcf8742a05b","at":1772186743000000000,"seq":835,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

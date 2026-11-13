@@ -1,0 +1,20 @@
+{"v":1,"id":"019cfaae-ee67-75a5-8fa9-531d82c6f764","at":1773732294247000000,"seq":1183,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfaae-ee67-74da-b883-ae6a6a1409c3","at":1773732294247000000,"seq":1184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cfaae-f928-7dff-b044-5bd7494c4a1d","at":1773732297000000000,"seq":1185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfaaf-1868-78a0-a7aa-44c9eaffc0c7","at":1773732305000000000,"seq":1186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfaaf-1c50-7475-84a9-40df780ab77f","at":1773732306000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaaf-2038-722e-9dcf-5cb479104302","at":1773732307000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfac1-583a-7276-b7d3-208a494c60c6","at":1773733500986000000,"seq":1189,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cfac1-583a-7be5-9ffa-56fb8d7b7d21","at":1773733500986000000,"seq":1190,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cfac1-5848-759c-bed2-3c1a2069a1e5","at":1773733501000000000,"seq":1191,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cfac1-9e98-7c6a-84c5-0e68d7e6f0ea","at":1773733519000000000,"seq":1192,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cfad4-d8f3-7726-97ad-d90ee551cf28","at":1773734779123000000,"seq":1193,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfad4-d8f3-71ff-8ca0-40c44b1bfa49","at":1773734779123000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cfad5-2e68-77fd-8747-eefde94c88ca","at":1773734801000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad5-48e6-7a19-b9dd-9b7d5f61975a","at":1773734807782000000,"seq":1196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cfad5-9bc8-7bf6-8ce2-4e205e9cf647","at":1773734829000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfad6-597f-755d-930b-228f9eca6346","at":1773734877567000000,"seq":1198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cfad6-b8f0-77c0-807d-ad956b96ff23","at":1773734902000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad6-e3e8-7fac-9c80-31820d0380fb","at":1773734913000000000,"seq":1200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfad7-16b0-730b-ae74-f32d8e1c6018","at":1773734926000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad7-56c2-7cec-a517-efcb01dbad59","at":1773734942402000000,"seq":1202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}

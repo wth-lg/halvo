@@ -1,0 +1,28 @@
+{"v":1,"id":"019bbbe5-5432-7e11-b1ab-347b7fd2af3b","at":1768383927346000000,"seq":283,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbbe5-5432-739a-9659-055f601c357b","at":1768383927346000000,"seq":284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bbbe6-02a0-7131-b6ec-c6a73213bb43","at":1768383972000000000,"seq":285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbe6-16cc-7e2d-9a11-596a53b4ec80","at":1768383977164000000,"seq":286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bbbe6-2d98-7c69-a779-f342acc93269","at":1768383983000000000,"seq":287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bbbe6-fada-7660-88f1-1f55a77e5541","at":1768384035546000000,"seq":288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bbbe7-2b80-79cb-af89-294db56dfd6e","at":1768384048000000000,"seq":289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bbbe7-5290-78b6-8a9d-9106ac2180f6","at":1768384058000000000,"seq":290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bbbe7-b438-79c8-bbd4-a50c849133e4","at":1768384083000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bbbe7-d71f-7ef1-958a-239dbf0bfdb4","at":1768384091935000000,"seq":292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bbbe7-f6a0-7831-9f96-29351167b02f","at":1768384100000000000,"seq":293,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bbbe8-7f58-7e69-91cd-4781a401f4ef","at":1768384135000000000,"seq":294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bbbff-2ca6-723e-b106-1afbbd05dff6","at":1768385621158000000,"seq":295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bbbff-4f30-7518-ac64-7e76c0637102","at":1768385630000000000,"seq":296,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bbbff-d400-7206-a9c5-942693995985","at":1768385664000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbff-eb70-77af-90b2-2f8e5181e21a","at":1768385670000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bbbff-fb10-7a87-95e6-c633af64104f","at":1768385674000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc04-a0fd-7f7f-b21c-b36aac9f0179","at":1768385978621000000,"seq":300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bbc04-c1b8-7f9b-a480-9c419c11c18d","at":1768385987000000000,"seq":301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bbc04-c988-7e38-bdc5-21ca50250a85","at":1768385989000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bbc04-d928-7265-9f4d-4b082fabcfb0","at":1768385993000000000,"seq":303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bbc14-478e-797f-a4b7-bd1c43394db8","at":1768387004302000000,"seq":304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bbc14-c748-77ef-824d-c3e27ab10531","at":1768387037000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc14-cf18-702b-afba-724da077a925","at":1768387039000000000,"seq":306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bbc1f-10c1-7ecd-99ac-5d84a6c09963","at":1768387711169000000,"seq":307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bbc1f-2f58-78bc-8253-4c490bb8002c","at":1768387719000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc1f-3728-7a5f-a678-4aa7af325505","at":1768387721000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc1f-4e8c-79ac-a037-009293eceee1","at":1768387726988000000,"seq":310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}

@@ -1,0 +1,26 @@
+{"v":1,"id":"019cbd37-e6e7-709d-aaa7-3bd784253215","at":1772701083367000000,"seq":1071,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd37-e6e7-7f12-9b5c-cc7824b48173","at":1772701083367000000,"seq":1072,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cbd41-59bb-7aa9-80f3-fad491dc73f7","at":1772701702587000000,"seq":1073,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cbd41-8a38-75d8-aae4-3ac9ad986878","at":1772701715000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cbd41-e028-78f0-8a74-42dd09c3e43f","at":1772701737000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd41-e410-7115-998f-b2c3fb74febe","at":1772701738000000000,"seq":1076,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd41-ff68-7b32-b586-9a02d42580d8","at":1772701745000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd42-1ac0-7a00-92f2-5f3902f09daf","at":1772701752000000000,"seq":1078,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbd49-5ad0-7bc1-86d3-a8591b5492c6","at":1772702227152000000,"seq":1079,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cbd56-9008-7c14-ad69-e9dd694a3db7","at":1772703092744000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cbd56-94f0-73d0-9bf9-36ac2cc4c938","at":1772703094000000000,"seq":1081,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd56-a878-77f9-8973-6b561544ff9c","at":1772703099000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd57-2aa7-70a2-9d31-6bba246a34d5","at":1772703132327000000,"seq":1083,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cbd57-3ce8-74a7-9099-40c4f7b3fdc2","at":1772703137000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cbd58-292c-74e5-9795-3c383d515bc5","at":1772703197484000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cbd58-61e0-7cd8-8d28-c942a89e9bfa","at":1772703212000000000,"seq":1086,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cbd58-a448-7777-9708-f47110ce24bd","at":1772703229000000000,"seq":1087,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd58-b526-70df-953e-149cdb5539a0","at":1772703233318000000,"seq":1088,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cbd58-b7d0-7cf5-80bb-a4a38a374739","at":1772703234000000000,"seq":1089,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cbd59-4088-7d09-9c5c-0fba3331215c","at":1772703269000000000,"seq":1090,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cbd59-6b31-7f0f-91a3-be77fceb253a","at":1772703279921000000,"seq":1091,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cbd59-a230-7787-b4d4-f9d4628c4916","at":1772703294000000000,"seq":1092,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cbd59-ade8-7595-8e25-edd5b6ece12c","at":1772703297000000000,"seq":1093,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd59-d110-7630-bad2-139d07ae87c6","at":1772703306000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd59-fc08-7243-aabc-bcd25db62717","at":1772703317000000000,"seq":1095,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbd5a-0ba8-7ac2-9ced-cddc06f15e8f","at":1772703321000000000,"seq":1096,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

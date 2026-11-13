@@ -1,0 +1,47 @@
+{"v":1,"id":"019c0937-e946-7704-bbd8-118d273ebded","at":1769681185094000000,"seq":398,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0937-e946-72d0-8743-3158bbd09867","at":1769681185094000000,"seq":399,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c0937-f888-7ce5-94bf-b7e3cc64347d","at":1769681189000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0938-0440-7634-acdf-1b67cb11eda9","at":1769681192000000000,"seq":401,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0938-1f98-7f6f-8520-c557a510a4b0","at":1769681199000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0939-ef59-75df-a11f-5d404693a936","at":1769681317721000000,"seq":403,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0939-ef59-7cab-8378-7b8c047035ee","at":1769681317721000000,"seq":404,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c093a-1f50-78b3-9b61-4bb3a1b0f08d","at":1769681330000000000,"seq":405,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c093a-5600-7bb6-a791-8d52fdc25bc5","at":1769681344000000000,"seq":406,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c0951-8996-72b1-8cd1-c901ecd65b6d","at":1769682864534000000,"seq":407,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0951-8996-7fd5-918b-1d2e67377282","at":1769682864534000000,"seq":408,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c0952-4300-7675-9e74-4a36b31f6a99","at":1769682912000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0952-7d38-7cc2-9400-70a095dda225","at":1769682926904000000,"seq":410,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c0952-b448-77db-a3c7-f74f4ca49a50","at":1769682941000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c0952-fa98-7c9e-81a0-9bcf5f1b1492","at":1769682959000000000,"seq":412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0952-ff5f-7aaa-a06a-f3559aab5133","at":1769682960223000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c0953-3530-7886-9bd1-642a0576077a","at":1769682974000000000,"seq":414,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0953-6fc8-72b4-b1a5-8c070a6922bc","at":1769682989000000000,"seq":415,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0953-a7f0-76bc-9cf1-fbd455508bae","at":1769683003376000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c0965-2559-7177-98e0-1392086b6c14","at":1769684149593000000,"seq":417,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0965-2559-7243-82ef-d9d7b66cf895","at":1769684149593000000,"seq":418,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0965-6188-7cd2-beaf-773265dc9c0c","at":1769684165000000000,"seq":419,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c0965-78f8-7246-94c4-12fb64c1f3f3","at":1769684171000000000,"seq":420,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c097b-f794-796d-8fbd-a9914808a427","at":1769685645204000000,"seq":421,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c097b-f794-7b15-a55e-fe9365f114f2","at":1769685645204000000,"seq":422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c097c-19f0-7ed2-a5bd-ef25e4a889c5","at":1769685654000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c097c-2d78-7370-8ae0-69fdac9ff703","at":1769685659000000000,"seq":424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c097c-3160-72b4-a9f3-7b3512a7cfdd","at":1769685660000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c097c-3a8c-7006-8ab7-ea5df176cfbe","at":1769685662348000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c097c-44e8-731d-ba00-849704d80355","at":1769685665000000000,"seq":427,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c097c-aa78-7c23-80e5-8d43fa9ee35b","at":1769685691000000000,"seq":428,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c097c-c88d-7534-b61d-489ec047c281","at":1769685698701000000,"seq":429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c097d-8538-7d99-b5a7-af4a992589e4","at":1769685747000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c097d-d090-7881-8227-13b3f9418dd0","at":1769685766288000000,"seq":431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c097d-f680-7f97-ac22-38f26b5ce5b3","at":1769685776000000000,"seq":432,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c097e-0a08-787e-b6b1-7162b38cb87c","at":1769685781000000000,"seq":433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c097e-19a8-7f85-84d2-259bc70b7837","at":1769685785000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c097e-5889-7cb3-9ab5-2598ebc3dbcd","at":1769685801097000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c097e-8320-7649-9694-6c0a30c6cf36","at":1769685812000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c097e-c1a0-7f61-8b58-c7a595f9819b","at":1769685828000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c097e-dcf8-7609-8def-9b8df5771579","at":1769685835000000000,"seq":438,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c097f-30ff-7eb7-b188-226ec4f01337","at":1769685856511000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c097f-36d0-7aa6-971a-41b0421bbbec","at":1769685858000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c097f-4e40-76e0-ac30-a01d85d6a79a","at":1769685864000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c097f-84f0-7bf5-8cd7-0c105676cb76","at":1769685878000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c097f-9c60-72f8-991f-5e9dd1cb30d9","at":1769685884000000000,"seq":443,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c097f-a430-713c-8717-4b7b1f09dcaf","at":1769685886000000000,"seq":444,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

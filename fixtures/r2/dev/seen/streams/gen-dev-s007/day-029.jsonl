@@ -1,0 +1,19 @@
+{"v":1,"id":"019c08ba-e289-7c0b-9acf-64b2b57daa3c","at":1769672991369000000,"seq":399,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08ba-e289-73cd-bc88-ac10829d5d84","at":1769672991369000000,"seq":400,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c08bb-6200-76e3-bbba-a5f97d552498","at":1769673024000000000,"seq":401,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c08bb-7d58-73c4-b168-3967db7ab981","at":1769673031000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08bb-b408-7ef3-ae1e-db6dd026347e","at":1769673045000000000,"seq":403,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08d2-48e6-784d-a44e-f5a4164d99d3","at":1769674524902000000,"seq":404,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c08d2-4948-7c25-839d-17ae5182087d","at":1769674525000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d3-1e4a-792f-8377-de3a3eeda08e","at":1769674579530000000,"seq":406,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c08d3-89a9-72a5-a289-6e6cc60aba5a","at":1769674607017000000,"seq":407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c08d3-9168-73e7-9150-e699359e168a","at":1769674609000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d3-b0a8-76f7-8bfb-e30664ec3a6c","at":1769674617000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c08d3-b878-7550-bac7-4d447a315698","at":1769674619000000000,"seq":410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08d3-c430-72d3-a2e9-ec33987e85fb","at":1769674622000000000,"seq":411,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c08d3-f310-7c64-ab11-c959dd8a00db","at":1769674634000000000,"seq":412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08de-2cdb-71b1-9015-327a1093aaa5","at":1769675304155000000,"seq":413,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c08de-2cdb-78f4-a2ce-d4fbddb5fb12","at":1769675304155000000,"seq":414,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c08de-4b80-75be-928f-98609f6131af","at":1769675312000000000,"seq":415,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c08de-4f68-7d0b-bdff-88e802d0d687","at":1769675313000000000,"seq":416,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c08de-5f08-7545-9d28-0270dc499623","at":1769675317000000000,"seq":417,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

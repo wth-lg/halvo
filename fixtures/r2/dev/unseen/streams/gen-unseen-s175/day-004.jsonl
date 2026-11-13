@@ -1,0 +1,33 @@
+{"v":1,"id":"019b8881-68e6-76c1-b4da-3bba6b814535","at":1767521741030000000,"seq":62,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8881-68e6-7b61-8d75-6b3d25fdddb5","at":1767521741030000000,"seq":63,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b8881-8bf0-7f50-af11-0fb64c9f2a25","at":1767521750000000000,"seq":64,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8881-c77f-7727-83d7-89ba2a24ed37","at":1767521765247000000,"seq":65,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b8881-f950-71af-bf89-d60337733b00","at":1767521778000000000,"seq":66,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8882-1e97-717f-8f65-339bf1670a71","at":1767521787543000000,"seq":67,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b8882-3000-7d48-a8cf-c39fc5a153d1","at":1767521792000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8882-a918-7c1b-afd2-d6ffe60a0306","at":1767521823000000000,"seq":69,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8883-0ea8-7dc6-9265-50dd081b9d99","at":1767521849000000000,"seq":70,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b8883-15f1-7663-997e-1976ba067683","at":1767521850865000000,"seq":71,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b8883-9760-7782-978b-2197ea2db022","at":1767521884000000000,"seq":72,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8883-ca28-73aa-b0ab-32f6e0eed08a","at":1767521897000000000,"seq":73,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8898-2d39-76c7-ae5b-bebee7a629ee","at":1767523233081000000,"seq":74,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b8899-0b90-792a-8221-9f606ba6e9eb","at":1767523290000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b8899-258f-7b47-bc1b-86c7ef75d511","at":1767523296655000000,"seq":76,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b8899-e268-75d0-aa6d-6f11038c1e5f","at":1767523345000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b889a-0927-7783-a513-586a2b185758","at":1767523354919000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b889a-20e8-7779-aac9-64aed48aaa2f","at":1767523361000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b889a-5798-7035-8a45-a7f93466876b","at":1767523375000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b889a-9381-7864-890f-c1cee59fd164","at":1767523390337000000,"seq":81,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b889a-9381-7d99-879c-65a4172d98b7","at":1767523390337000000,"seq":82,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b889a-9618-7bae-a074-9dfc726f1242","at":1767523391000000000,"seq":83,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b889b-1ed0-7dd6-a0af-b267a497cf3c","at":1767523426000000000,"seq":84,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b889b-492f-7703-8445-98910e8d75ba","at":1767523436847000000,"seq":85,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b889b-492f-787b-8d82-82af0104eebf","at":1767523436847000000,"seq":86,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b889b-d280-74cd-bd75-60458552f0a0","at":1767523472000000000,"seq":87,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b889c-0d07-76d5-89f7-9b554d1beb80","at":1767523486983000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b889c-3bf8-739e-9667-30e34e75e1df","at":1767523499000000000,"seq":89,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b889c-8248-7a32-8d12-6ed8ad1f679b","at":1767523517000000000,"seq":90,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b889c-8630-763e-b98a-6dcc6845686e","at":1767523518000000000,"seq":91,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b889c-a9a0-7eb1-aced-74ec17934a96","at":1767523527072000000,"seq":92,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b889c-c4b0-7ac3-86b8-16fbb23de0f3","at":1767523534000000000,"seq":93,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b889c-ebc0-7edf-b3b5-b312723b4132","at":1767523544000000000,"seq":94,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

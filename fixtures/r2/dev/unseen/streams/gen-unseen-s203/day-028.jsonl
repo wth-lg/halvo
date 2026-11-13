@@ -1,0 +1,18 @@
+{"v":1,"id":"019c03f5-1fd5-78cb-b00c-047d5148ca66","at":1769592922069000000,"seq":540,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03f5-1fd5-7449-9812-ca3dfe84b51e","at":1769592922069000000,"seq":541,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c03f5-d728-7d7b-a8a1-b183d0453642","at":1769592969000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f6-18ff-7cbf-a8de-e349868f894c","at":1769592985855000000,"seq":543,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c03f6-63c8-78e4-b656-4871781e8469","at":1769593005000000000,"seq":544,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c03f6-7b38-70c1-ba2b-78b4c9c5e294","at":1769593011000000000,"seq":545,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c03f6-7b38-7899-8b5d-9fd96c98c6f4","at":1769593011000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c03f6-808d-783e-8d07-cd7032e86019","at":1769593012365000000,"seq":547,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c03f6-e6fe-7d03-a810-5a9a2fd2c852","at":1769593038590000000,"seq":548,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c03f6-f068-7c63-992e-a466680fa565","at":1769593041000000000,"seq":549,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c03f7-bf70-77e2-b723-805dc601abbc","at":1769593094000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c03f7-d6e0-76b8-9615-e00e9c33425a","at":1769593100000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f7-f817-732f-aa48-33d32f42e835","at":1769593108503000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c03f8-01d8-7903-a90f-06f162028266","at":1769593111000000000,"seq":553,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c03f8-0d90-7e1c-b47c-2bf544907917","at":1769593114000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f8-1948-7ac3-8dc4-18c2598379b3","at":1769593117000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f8-535f-77a6-bf28-60fa5c010547","at":1769593131871000000,"seq":556,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c03f8-5bb0-772b-86f4-4597a3faebda","at":1769593134000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

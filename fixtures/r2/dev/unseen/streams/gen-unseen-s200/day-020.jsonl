@@ -1,0 +1,9 @@
+{"v":1,"id":"019bdaba-76df-7f25-bd54-2cb685894d1d","at":1768901211871000000,"seq":230,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdaba-76df-756d-8f9e-a2ab692bacf4","at":1768901211871000000,"seq":231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bdaba-d138-7c98-b4d3-d5037a1a78af","at":1768901235000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdabb-84e8-7a1b-a646-6271e9e50b08","at":1768901281000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bdabb-8615-73d5-80c3-aebbf58eda73","at":1768901281301000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bdabc-05d0-7fd7-a804-e3d1f264a8a1","at":1768901314000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdabc-4c20-7fa7-839f-80ef6c400e35","at":1768901332000000000,"seq":236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdac2-f815-7d8d-946b-f192d00cf45e","at":1768901769237000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bdac3-8b98-71aa-b4ed-72af1a30fcaf","at":1768901807000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

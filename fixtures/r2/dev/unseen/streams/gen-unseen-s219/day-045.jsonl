@@ -1,0 +1,15 @@
+{"v":1,"id":"019c5bb7-15c5-7228-8e3d-e91c27396edf","at":1771065251269000000,"seq":651,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5bb7-15c5-73fc-b29b-2c9f17678256","at":1771065251269000000,"seq":652,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb7-5720-7079-b7cb-443be8ce5e82","at":1771065268000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb7-d420-728c-a061-4a373a8c3b16","at":1771065300000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb7-ef32-7116-8197-befd2f106543","at":1771065306930000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb7-f748-77d5-a0cd-a1a7bbe26aba","at":1771065309000000000,"seq":656,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bb8-ba98-7f1a-bee5-5d1b3ca9b69b","at":1771065359000000000,"seq":657,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5bbf-855f-7d80-9984-2173f2eb1bde","at":1771065804127000000,"seq":658,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5bbf-855f-7f11-9685-0df5442df6d3","at":1771065804127000000,"seq":659,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5bc0-793e-7082-849d-527941dddf3d","at":1771065866558000000,"seq":660,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5bc0-b978-7d57-9b4d-701f8ffdcdf6","at":1771065883000000000,"seq":661,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc0-e088-79cb-bf3d-801e4ac5893b","at":1771065893000000000,"seq":662,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c5bc0-e582-794e-ae64-c6cf11e3e901","at":1771065894274000000,"seq":663,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5bc1-b378-7124-a0f8-d4e03f9498e4","at":1771065947000000000,"seq":664,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c5bc1-c700-797e-9195-70405cf252e6","at":1771065952000000000,"seq":665,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

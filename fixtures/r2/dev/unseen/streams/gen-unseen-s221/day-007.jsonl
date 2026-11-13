@@ -1,0 +1,22 @@
+{"v":1,"id":"019b97fb-fedf-7b80-a834-e1f6d446d48b","at":1767781433055000000,"seq":100,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97fb-fedf-7bdf-be89-b980d17b0fc3","at":1767781433055000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b97fc-29a0-7029-abd0-601e74dbd100","at":1767781444000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97fc-6820-7fb6-b3a5-6b4760bed642","at":1767781460000000000,"seq":103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97fc-6820-7405-be6d-1b40733152fa","at":1767781460000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b97fc-6c54-7e59-a01c-16ea367920f6","at":1767781461076000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b97fc-fea6-7771-96c1-b49cef81014f","at":1767781498534000000,"seq":106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b97fd-17e8-7493-a85b-efc46c9b516c","at":1767781505000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97fd-3728-75e8-a15e-f1b6998c05bd","at":1767781513000000000,"seq":108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b97fd-bd61-7336-b80b-1ae4101263a1","at":1767781547361000000,"seq":109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b97fd-c3c8-79c3-8cd6-57863d0c36f5","at":1767781549000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97fe-5068-71fb-a240-13d40c686652","at":1767781585000000000,"seq":111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b97fe-7f48-7305-8e75-758a95969e42","at":1767781597000000000,"seq":112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b97fe-8178-7501-8352-d036b73460e9","at":1767781597560000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b97fe-8718-7344-af9d-345fb11fd96a","at":1767781599000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97fe-92d0-7d0e-8b73-838fedfaf57d","at":1767781602000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b97fe-ccd2-75c7-96d7-fc1df8f9b57e","at":1767781616850000000,"seq":116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b97ff-3eb0-71b6-be98-a588bd197396","at":1767781646000000000,"seq":117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b97ff-4298-7cab-b40e-27bc4fc3f2b2","at":1767781647000000000,"seq":118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9803-ca68-7125-8624-50a8df3225db","at":1767781943912000000,"seq":119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b9803-e230-7567-80d9-d14a40ebd4b3","at":1767781950000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9803-ea00-7c0a-858f-36991715907d","at":1767781952000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

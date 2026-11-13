@@ -1,0 +1,119 @@
+{"v":1,"id":"019c3286-b07b-7542-8120-6907e9274cb3","at":1770374213755000000,"seq":427,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3286-b07b-75be-b4f5-773c5948d60d","at":1770374213755000000,"seq":428,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c3287-5d50-71fd-9138-8aa367b37ec5","at":1770374258000000000,"seq":429,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3287-a417-7be4-b46c-9ce00ac90c72","at":1770374276119000000,"seq":430,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c3287-bef8-7e72-8ae0-87905931363b","at":1770374283000000000,"seq":431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3287-edd8-7a59-aa8c-8c784973272c","at":1770374295000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3288-1502-739f-8bb2-603ab136ae0f","at":1770374305026000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c3288-7eed-7cce-bbb5-30ae88db06b7","at":1770374332141000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c3288-bce0-7901-950f-915abafca2a3","at":1770374348000000000,"seq":435,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c32a1-1961-7b3a-a17b-08d1d1b1b0af","at":1770375944545000000,"seq":436,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c32a1-1961-7566-971b-2192159455d8","at":1770375944545000000,"seq":437,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c32a1-a3e0-795b-9735-3d092c44efdf","at":1770375980000000000,"seq":438,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32a1-da90-70ef-a826-7eadda0e8339","at":1770375994000000000,"seq":439,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ac-3601-79c0-a0cb-4491393db2f0","at":1770376672769000000,"seq":440,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019c32ac-4615-7c3d-80c7-70e2ea4ec967","at":1770376676885000000,"seq":441,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c32ac-4615-7106-955f-ca6ae7ffe819","at":1770376676885000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32ac-4a70-7271-8459-400df09c391e","at":1770376678000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ad-0dc0-7d72-9bd8-83138460a5cf","at":1770376728000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c32ad-22e3-71f6-9aec-95d786ba3d2e","at":1770376733411000000,"seq":445,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32ad-4858-7b8c-97d5-b98b671290fb","at":1770376743000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ad-57f8-75b9-a323-9dda8fbbd79b","at":1770376747000000000,"seq":447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ad-6b80-7bb8-ac9b-2278ff94f7c6","at":1770376752000000000,"seq":448,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c32ad-82f0-78ee-9404-4128eaa3ba4a","at":1770376758000000000,"seq":449,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c32ad-c0f4-72ce-9d71-376b4bd14ef2","at":1770376773876000000,"seq":450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32ae-6580-71e2-87ab-b566f0448151","at":1770376816000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c32ae-7138-7a69-85dd-deaaa89e2c2b","at":1770376819000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ae-9053-7668-9667-37f046d25937","at":1770376826963000000,"seq":453,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32ae-9848-7b76-a83c-a8e79ba92387","at":1770376829000000000,"seq":454,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ae-9c30-78e7-a230-233f82661acb","at":1770376830000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c32ae-e277-70e9-8a15-851180e60b9e","at":1770376847991000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32af-01c0-79a3-b8f5-2d61c83dae84","at":1770376856000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32af-2100-73e8-be18-93add83dbf66","at":1770376864000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32af-2fb0-73aa-bab5-3f44fa1baad2","at":1770376867760000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32af-57b0-7268-95ac-9a935d8ff404","at":1770376878000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c32af-a1e8-7f58-be97-b11f3070a33f","at":1770376897000000000,"seq":461,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c32af-e068-7862-81ce-543033eedd73","at":1770376913000000000,"seq":462,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c32b0-00a6-7af9-9c71-505d0a264868","at":1770376921254000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b0-3658-7e27-b776-6ee1740a898d","at":1770376935000000000,"seq":464,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c32b0-a795-7ed9-a983-b297ee251c94","at":1770376963989000000,"seq":465,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b1-0560-7827-ab41-b7c74fa7efe2","at":1770376988000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c32b1-1500-7523-a20b-ddda57ce7e8e","at":1770376992000000000,"seq":467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c32b1-43e0-79fc-9b72-846f9489b9a5","at":1770377004000000000,"seq":468,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c32b1-be28-7530-8919-14d97f8ea478","at":1770377035304000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b1-ebd8-7510-9253-16033a019b3d","at":1770377047000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b2-5168-7076-95bc-afa4eba2304a","at":1770377073000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b2-a58b-7b7b-9bb8-623a9dfd43b9","at":1770377094539000000,"seq":472,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b2-af28-7109-9525-2f6e01df8ee9","at":1770377097000000000,"seq":473,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c32b2-f190-7015-9330-f211c5ae8a05","at":1770377114000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b2-f578-7d3c-b843-53a4ce297f27","at":1770377115000000000,"seq":475,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c32b3-1359-7142-bb1e-7f88aadf7ad3","at":1770377122649000000,"seq":476,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b3-3010-76e2-ae9d-b924a4ee8a77","at":1770377130000000000,"seq":477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c32b3-8218-7b18-9c52-a6c76d4d3cc5","at":1770377151000000000,"seq":478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b3-a158-7c4f-8107-fe2faa1f522d","at":1770377159000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b3-c4c5-7aca-920f-49a2e393082a","at":1770377168069000000,"seq":480,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b4-31e0-7fdb-9637-e0d2890ecae7","at":1770377196000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c32b4-39b0-726a-9112-1e02aa3c7b79","at":1770377198000000000,"seq":482,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c32b4-4950-74c8-bda1-64653a96ba6b","at":1770377202000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c32b4-7b0f-7fca-9bcb-fab4f3596fae","at":1770377214735000000,"seq":484,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b5-3948-7a5d-81f9-4aa3da5f2b41","at":1770377263432000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b5-6e48-7330-a776-8284a8822c18","at":1770377277000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b5-85b8-7141-831b-b9f95410ddfd","at":1770377283000000000,"seq":487,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c32b5-8d88-7ef3-af00-b6221065c48f","at":1770377285000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b5-98fa-75b1-87fd-482061e8b28e","at":1770377287930000000,"seq":489,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b5-acc8-74f6-bb36-57c8d590eff3","at":1770377293000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c32b5-b0b0-7d0b-b986-e2da018007de","at":1770377294000000000,"seq":491,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c32b5-fae8-732b-992d-016b94cd8ec0","at":1770377313000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b6-0e70-78ca-90d0-9f4c79231f86","at":1770377318000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c32b6-43bc-798f-bbb4-84cb4d86b334","at":1770377331644000000,"seq":494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b6-6848-7481-a034-233b3569994d","at":1770377341000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c32b6-8b70-7f59-9049-2b0f1a2ea0b3","at":1770377350000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b6-9340-7368-b529-ba2fdf9dbdc1","at":1770377352000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b6-c9f0-7634-9e91-2f070ca83949","at":1770377366000000000,"seq":498,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c32b6-d990-73ff-b929-f2227181d1f9","at":1770377370000000000,"seq":499,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c32b6-f1fe-7aeb-a687-3a35a49056f3","at":1770377376254000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b7-4308-7454-bc91-4a020ad4ea00","at":1770377397000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c32b7-cfa8-7586-83dd-40c7e8dcae23","at":1770377433000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b8-009b-7a04-95f0-0fc5a2092495","at":1770377445531000000,"seq":503,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b8-0658-7431-b9d3-a4826278265d","at":1770377447000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c32b8-21b0-7b2b-9758-a01accdfb41c","at":1770377454000000000,"seq":505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c32b8-6030-7031-890e-4ddcd0aa0278","at":1770377470000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c32b8-a680-7fa0-a939-0ff325dc13a6","at":1770377488000000000,"seq":507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b8-dd05-7927-858c-8d163c0f0167","at":1770377501957000000,"seq":508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b8-dd30-7f87-a2f5-b39b0d01bf19","at":1770377502000000000,"seq":509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c32b8-e8e8-77d2-9be5-41cab6d6c2b2","at":1770377505000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b9-13e0-79a1-999f-6775ad68d183","at":1770377516000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c32b9-17c8-7c04-a5a7-53b0d47c1c7c","at":1770377517000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b9-1d57-754b-8a16-f7cb28d4025e","at":1770377518423000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c32b9-46a8-73bd-abfa-2492060c6444","at":1770377529000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b9-4a90-7e65-89b7-a32a50e94726","at":1770377530000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b9-4e78-7950-b548-7657514668d5","at":1770377531000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c32b9-65e8-70a8-bd5a-415dd8902e42","at":1770377537000000000,"seq":517,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c32b9-8a0d-73ac-be56-47781088f98c","at":1770377546253000000,"seq":518,"kind":"run_mark","app":null,"p":{"edge":"end"}}
+{"v":1,"id":"019c32c0-149b-7357-9421-b2b082145069","at":1770377974939000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c32c0-14d8-794e-8593-b7dcc71eeb60","at":1770377975000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c32c0-2478-7be7-adc4-206bf0a370b7","at":1770377979000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32c0-2860-7e2e-9939-498cc44390c2","at":1770377980000000000,"seq":522,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c32c0-4b88-7d8a-9d1c-307baa5d63cc","at":1770377989000000000,"seq":523,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c32d4-f832-771c-844b-d4ab6f3b6d25","at":1770379343922000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c32d5-0438-7ff6-821e-cc90dae697e5","at":1770379347000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32d5-2378-76b0-869f-ff562eba6302","at":1770379355000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32d5-36c4-7844-9601-4657f9196156","at":1770379359940000000,"seq":527,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c32d5-3ae8-76c4-8c34-46f84a048818","at":1770379361000000000,"seq":528,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c32d5-b400-72ba-a28f-7c0ad1d71e1c","at":1770379392000000000,"seq":529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c32d5-eab0-7847-91ab-02d6a647ef3b","at":1770379406000000000,"seq":530,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c32d6-017f-753d-9bc0-0e4554fb319c","at":1770379411839000000,"seq":531,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c32d6-2d18-7895-9844-51915ffd30aa","at":1770379423000000000,"seq":532,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32d6-4488-755e-ab03-5d527d01820c","at":1770379429000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c32d6-4c58-7af1-b6ef-ad4fbab1856b","at":1770379431000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32d6-52b5-7d67-b3fd-0076ce4dc217","at":1770379432629000000,"seq":535,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c32d6-67b0-7ed1-aced-385ed73adf02","at":1770379438000000000,"seq":536,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32d6-7750-72da-896a-59446f8c6eb5","at":1770379442000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32d6-7b38-7746-a808-388f92084472","at":1770379443000000000,"seq":538,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c32d6-8ad8-74ce-86f3-e6d0a7e1899d","at":1770379447000000000,"seq":539,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c32de-8f71-72be-860d-ebb10b99d286","at":1770379972465000000,"seq":540,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c32de-8f71-7505-bc70-9b1cb0d61aa0","at":1770379972465000000,"seq":541,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c32de-9188-770b-8150-75dd54b49590","at":1770379973000000000,"seq":542,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32de-c068-7fe2-99f2-75bf2d238ba5","at":1770379985000000000,"seq":543,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32de-ef48-7f27-9a6c-778d14cb0d34","at":1770379997000000000,"seq":544,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c32df-1270-7f48-83a0-87696ace4682","at":1770380006000000000,"seq":545,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

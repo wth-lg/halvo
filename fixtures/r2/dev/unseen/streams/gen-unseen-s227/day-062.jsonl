@@ -1,0 +1,58 @@
+{"v":1,"id":"019cb315-5386-71f2-9c07-89434d1894d5","at":1772531045254000000,"seq":904,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb315-5386-7e9c-af4d-8d56808bc4b7","at":1772531045254000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cb315-5a58-741f-ba82-2112417370c2","at":1772531047000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb315-8550-7ffd-bae6-556be3ba6208","at":1772531058000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cb315-cfc4-7178-9adc-3c3608f7dfc8","at":1772531077060000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cb316-0a20-70fa-8d12-32e71c1983cd","at":1772531092000000000,"seq":909,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb316-19c0-7b2c-8356-34082b453e62","at":1772531096000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb316-3518-7ca3-a324-89eebf2ec06b","at":1772531103000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cb316-40d0-77cc-964d-45d5a6b1bf42","at":1772531106000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb316-4dc7-717b-bb05-01bc8a636fe9","at":1772531109319000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cb316-6fb0-7236-a97a-99d176c6804a","at":1772531118000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb316-7780-78fa-a1e5-a4fc736e33c1","at":1772531120000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb316-977e-75c3-8fc5-86b1d9f7fec9","at":1772531128190000000,"seq":916,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cb316-9aa8-7a6c-a70e-ce38f03e1284","at":1772531129000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb316-9e90-7672-8ca4-0732c1db1625","at":1772531130000000000,"seq":918,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb316-bdd0-70d2-bc72-c67124e77375","at":1772531138000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb316-c988-7626-b540-5392a766b1ca","at":1772531141000000000,"seq":920,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb316-d158-7293-8471-9babcac1be21","at":1772531143000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cb316-d940-7e4b-8275-49d53bd9c2f9","at":1772531145024000000,"seq":922,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cb317-13c0-75ed-9b29-111752b3895f","at":1772531160000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb317-2b30-7410-86cd-9abe618d8fd2","at":1772531166000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb317-c999-70e8-ae59-5e81dbb3dcae","at":1772531206553000000,"seq":925,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cb318-184e-7f67-8f20-5933024e26a1","at":1772531226702000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cb318-2d00-7e6f-b1e6-b871a894f6c0","at":1772531232000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb318-5410-7bac-b27b-dd036d770ef7","at":1772531242000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb318-5fc8-7bb4-9a75-ab6992de661f","at":1772531245000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cb318-ad0d-7330-b234-ab6c63ee0403","at":1772531264781000000,"seq":930,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cb319-07c0-7b9c-a815-e840c8f49572","at":1772531288000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb319-80d8-7244-9bd1-d59cc9ac2bf7","at":1772531319000000000,"seq":932,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb322-97a6-7293-a8a1-a16b80d53011","at":1772531914662000000,"seq":933,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb322-97a6-704b-aead-b7cb246e2a15","at":1772531914662000000,"seq":934,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb322-cfa8-7114-8404-44b31d0c974b","at":1772531929000000000,"seq":935,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cb323-0270-782d-9029-fecc8906a711","at":1772531942000000000,"seq":936,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb323-0a40-7734-87a3-7485caa5230d","at":1772531944000000000,"seq":937,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb32f-23c5-7eef-b9cd-b4f66368bd0e","at":1772532736965000000,"seq":938,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb32f-23c5-73b9-877e-62e1e4c7b9f8","at":1772532736965000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb32f-56b0-7180-8e23-30eb1d0f06a9","at":1772532750000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb330-0290-7190-aaa6-22c1e511d6f5","at":1772532794000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb330-0b83-70b7-b4d0-8ca429a1a70e","at":1772532796291000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb330-48e0-79b9-92e4-fe4973e53621","at":1772532812000000000,"seq":943,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb330-50b0-7616-954f-5b75f4a11718","at":1772532814000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb330-6ff0-75c1-b37c-e5654ce1209a","at":1772532822000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cb330-b0f8-781d-862d-007388353dc4","at":1772532838648000000,"seq":946,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb330-cdb0-7f47-83a5-b34ffcfac62e","at":1772532846000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb331-5033-7ae6-8957-7faf0c866d0a","at":1772532879411000000,"seq":948,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb331-94e8-7eee-bd53-3056ca728d04","at":1772532897000000000,"seq":949,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb331-d368-74aa-b429-e1a32ffc0178","at":1772532913000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb34a-c9c6-71b4-a974-ca272551e910","at":1772534548934000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb34b-1440-791d-b536-3d9ae9e8a3f1","at":1772534568000000000,"seq":952,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb34b-2f98-72a1-9aab-5215049f5302","at":1772534575000000000,"seq":953,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb34b-3380-708f-81b4-07dbdc29c505","at":1772534576000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb34b-6e18-7bae-9dcf-e9d4ccc9973a","at":1772534591000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cb353-6e73-7572-bda5-bb98682741f2","at":1772535115379000000,"seq":956,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb353-6e73-747c-9366-48adaafa7671","at":1772535115379000000,"seq":957,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb353-74c8-7702-b243-483031db44b3","at":1772535117000000000,"seq":958,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb353-d288-7e9d-aa11-8a5696e3c837","at":1772535141000000000,"seq":959,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb353-ede0-7736-865f-f942e3935ac5","at":1772535148000000000,"seq":960,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cb354-0d20-7b06-83c1-ec2119e001e4","at":1772535156000000000,"seq":961,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019b8d7a-a7e3-780f-aea6-ff049864302b","at":1767605184483000000,"seq":5,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8d7a-a7e3-7dbf-8729-0741ad1087a3","at":1767605184483000000,"seq":6,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8d7b-a8c8-7a9a-99a2-dd532e2ea187","at":1767605250248000000,"seq":7,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8d7b-d2c8-7a8f-928e-9249a7cb060f","at":1767605261000000000,"seq":8,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d7b-da98-7d2e-b10c-b9c7cebfdd5a","at":1767605263000000000,"seq":9,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8d7c-1d00-71b4-9e36-f2e622702ee6","at":1767605280000000000,"seq":10,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d7c-76d8-7a07-8498-fd0aa4c04db1","at":1767605303000000000,"seq":11,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b8d8a-df2f-723e-a994-21e573b87a0d","at":1767606247215000000,"seq":12,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d8a-df2f-7b61-b066-1ea7439ad945","at":1767606247215000000,"seq":13,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b8d8b-3830-7d02-a813-64c924635ee5","at":1767606270000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b8d8b-76b0-7a72-9103-75d124a1a137","at":1767606286000000000,"seq":15,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8d8e-c69b-728d-a4d5-0f240f8c6e98","at":1767606503067000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b8d8e-d210-7e47-8ac9-0db2c41f0087","at":1767606506000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d8e-d5f8-73ab-9e3f-c039652de9e5","at":1767606507000000000,"seq":18,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d8e-e598-7108-abba-64fc0bb76014","at":1767606511000000000,"seq":19,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8d8e-fd08-7ec6-a88d-264f656b548c","at":1767606517000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d8f-00f0-7710-8d6b-836706a411cb","at":1767606518000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b8d9f-c8a0-7117-be51-76f9f4479397","at":1767607617696000000,"seq":22,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b8da0-1fc0-7354-929c-686dda35bb34","at":1767607640000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b8da0-3730-7eec-8889-fa36f3c539d2","at":1767607646000000000,"seq":24,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b8da0-46d0-76a2-ad17-ec1c57092c13","at":1767607650000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8da0-5670-77ac-b457-b24b05a187ee","at":1767607654000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

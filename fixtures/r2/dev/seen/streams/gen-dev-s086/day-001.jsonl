@@ -1,0 +1,38 @@
+{"v":1,"id":"019b7878-fc25-7da0-81ce-f21b5bc86467","at":1767252753445000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7878-fc25-7c2a-8b78-6ceafc9f03a0","at":1767252753445000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b7878-fe50-74b8-a1d7-8f3ab67237ba","at":1767252754000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7879-2d30-7dc8-ba6b-c2bdc27c7b89","at":1767252766000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7879-a260-7974-803f-f00572c2f1ec","at":1767252796000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b7879-a6f8-7e18-b6e9-7d5c2fae3f07","at":1767252797176000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b787a-b6f9-7e25-a1d3-7adc90bf89e4","at":1767252866809000000,"seq":6,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b787a-b7b8-7623-b520-39f0b22262c0","at":1767252867000000000,"seq":7,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b787a-bf88-70ed-81f0-894e7963de1b","at":1767252869000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b787a-dec8-73cf-86b0-15fd57ea6fec","at":1767252877000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b787a-fe08-7daa-bd5a-d7c92bc99d73","at":1767252885000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b787b-0447-77f8-9ffe-0f86dc0dd976","at":1767252886599000000,"seq":11,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b787b-4840-7335-96bd-74455f1fbf32","at":1767252904000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b787b-7720-78f4-a5c4-843680180c5a","at":1767252916000000000,"seq":13,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7897-2cc2-721e-9c20-4c9c199ccf6b","at":1767254731970000000,"seq":14,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b7897-4c20-7dee-9fa0-49356eeae514","at":1767254740000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7897-cd08-726f-9b58-60aa93fda6d1","at":1767254773000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b7897-d8c0-70e9-acf3-dcbd4744b36a","at":1767254776000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7897-e51c-73bc-9803-1177b6df9fa0","at":1767254779164000000,"seq":18,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b7897-ffd0-7bdf-98bf-5e09dcd95480","at":1767254786000000000,"seq":19,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7898-0f70-78e4-8a3c-2c02131fd88c","at":1767254790000000000,"seq":20,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7898-59a8-7d85-9a0d-82826d4f56f9","at":1767254809000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7898-6dc2-72df-83bf-ab7ad6615796","at":1767254814146000000,"seq":22,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b7899-2c98-7193-a006-fa6f65c053d7","at":1767254863000000000,"seq":23,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7899-3850-750c-b181-7d4ffe1f7843","at":1767254866000000000,"seq":24,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7899-5efb-7664-859d-ba9c60cd6c38","at":1767254875899000000,"seq":25,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b7899-72e8-764f-bd0c-f506d1cb4087","at":1767254881000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7899-b168-725d-b75b-b864f667755d","at":1767254897000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7899-c80d-7b90-9c77-95882aadd0c7","at":1767254902797000000,"seq":28,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b789a-8458-7332-9749-dbb2d7d9cb8b","at":1767254951000000000,"seq":29,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b789a-9bc8-7282-931b-f3456895dcdf","at":1767254957000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b789a-ab68-7e06-af21-63815f9fb7dd","at":1767254961000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b789a-d091-749d-9852-4f65b7a0b8f3","at":1767254970513000000,"seq":32,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b789b-0540-7173-bdf6-4050ae7d4694","at":1767254984000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b789b-2c50-7267-991f-73bba3a70fba","at":1767254994000000000,"seq":34,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b78a9-a8f4-7dc4-be9d-dd4fa808824e","at":1767255943412000000,"seq":35,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b78a9-c2b0-7980-b69d-55050ecdf89c","at":1767255950000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78aa-8600-7610-86a5-b46b4b551271","at":1767256000000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

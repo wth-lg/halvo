@@ -1,0 +1,19 @@
+{"v":1,"id":"019d1a19-f16f-7912-ac54-ca92857a415a","at":1774259401071000000,"seq":1150,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1a19-f16f-7ab3-ae8f-bd85095a1224","at":1774259401071000000,"seq":1151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d1a1a-0898-714c-aa8a-f880549b2546","at":1774259407000000000,"seq":1152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d1a1a-810c-7cc6-830c-7373fc201108","at":1774259437836000000,"seq":1153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d1a1b-0958-78c2-8ca5-893fc9be09ac","at":1774259472728000000,"seq":1154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d1a1b-3560-7c92-b258-d1938946f1f0","at":1774259484000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d1a1b-4118-7315-a89d-dbfd8622ef09","at":1774259487000000000,"seq":1156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a1b-92bc-703d-9902-14c1e6e27e68","at":1774259507900000000,"seq":1157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d1a1b-e528-7404-8439-18a9eb7389c2","at":1774259529000000000,"seq":1158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1a1c-8938-7c0a-b4e0-96b53c18d7c0","at":1774259571000000000,"seq":1159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1a28-661d-74be-af57-0fcc53c5dba5","at":1774260348445000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d1a28-c9f0-7439-a77c-30411620364c","at":1774260374000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a28-d823-772d-9f72-529b54312ba4","at":1774260377635000000,"seq":1162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d1a28-dd78-717c-a9e4-96da75d27264","at":1774260379000000000,"seq":1163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1a29-2f80-7698-a0ef-64b29a43c005","at":1774260400000000000,"seq":1164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d1a29-8958-72da-82ce-a66b49f67563","at":1774260423000000000,"seq":1165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1a29-98fd-71d1-99c7-cb1733f85993","at":1774260427005000000,"seq":1166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d1a29-b838-700c-8faa-97c1886e0f5f","at":1774260435000000000,"seq":1167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d1a2a-0a40-7a9f-8a1c-82279a274eac","at":1774260456000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

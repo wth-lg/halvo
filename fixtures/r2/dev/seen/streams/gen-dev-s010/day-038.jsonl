@@ -1,0 +1,40 @@
+{"v":1,"id":"019c3714-fd7e-7037-997a-81c8121d3350","at":1770450648446000000,"seq":619,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3714-fd7e-7bca-b6ae-3680b57f9fc1","at":1770450648446000000,"seq":620,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c3715-26b8-775d-b3ee-652ab81e78a4","at":1770450659000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3715-5598-79e1-87d9-b3c723b4bfd4","at":1770450671000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3715-8ff3-77c0-a1c2-da1663de9349","at":1770450685939000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c3715-9be8-7d74-b0d6-7dee78953694","at":1770450689000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c3715-c6e0-7ddd-ae53-4f66a3594033","at":1770450700000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3716-9497-753f-a1b0-ae2223ec21ad","at":1770450752663000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c3716-ff60-766d-83b4-ea233968face","at":1770450780000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c3717-9776-73f0-8cc0-127afcaf4567","at":1770450818934000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3717-af28-763b-a13d-e427e905412c","at":1770450825000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3717-bae0-7f64-ab0a-adf699950e81","at":1770450828000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3718-a765-757b-8479-3577d73313f3","at":1770450888549000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c3718-d038-7a12-b2e3-9bdf6441c76b","at":1770450899000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3718-fb30-77ad-b2d5-6529a2591e6b","at":1770450910000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c371b-f5fb-7737-aa6f-7da3c65428dd","at":1770451105275000000,"seq":634,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c371b-f5fb-7ac1-8398-f9d6a1aa81f5","at":1770451105275000000,"seq":635,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c371c-0870-797c-8507-cf12438a18f5","at":1770451110000000000,"seq":636,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c371c-1810-75d5-a286-319757cdc521","at":1770451114000000000,"seq":637,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c371c-6d17-72f4-8217-14a17bfb0f58","at":1770451135767000000,"seq":638,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c371c-6e00-76c2-aa22-be8e5205a77e","at":1770451136000000000,"seq":639,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c371c-f2d0-7ed7-b064-742ab8d3c5f8","at":1770451170000000000,"seq":640,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c372f-6484-7bc5-8e9e-b0384f8a4ea8","at":1770452378756000000,"seq":641,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c372f-6484-7dd3-9751-9e0edc9ddf54","at":1770452378756000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c372f-d21d-72e3-a32f-0d9bb8f5950c","at":1770452406813000000,"seq":643,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c372f-ea48-7308-be8a-65aa3dde4fb0","at":1770452413000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3730-4038-7eef-ac3c-0a0f2f556255","at":1770452435000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3730-4420-7509-9c50-6285b8b31f30","at":1770452436000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c3730-9fe9-775a-a50d-51798bf1add5","at":1770452459497000000,"seq":647,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c3731-0770-74fe-84a4-98cd5157080f","at":1770452486000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3731-5942-7e47-9e4e-9babd8793b6d","at":1770452506946000000,"seq":649,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3731-6918-780e-8582-0cffe45690ad","at":1770452511000000000,"seq":650,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3731-74d0-740b-8ea6-0424de8b7648","at":1770452514000000000,"seq":651,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3731-c6d8-708c-8c52-9aac104218f3","at":1770452535000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c3731-ea00-72ca-a387-398ace5b2584","at":1770452544000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3732-023c-7f3f-8fcb-f25e3f799c1f","at":1770452550204000000,"seq":654,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c3732-3ff0-71e7-a5d1-cc4926b17909","at":1770452566000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3732-4ba8-7095-af55-67458ccd0082","at":1770452569000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c3732-7e70-76e4-922e-6288c96af73c","at":1770452582000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3732-ad50-702d-90a5-198aad6f2dfc","at":1770452594000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

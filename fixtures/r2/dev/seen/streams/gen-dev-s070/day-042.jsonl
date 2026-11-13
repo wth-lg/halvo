@@ -1,0 +1,21 @@
+{"v":1,"id":"019c4b8d-bc21-7208-a19a-73bbbe120ad0","at":1770794105889000000,"seq":525,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4b8d-bc21-7910-8445-b460e5bcc45b","at":1770794105889000000,"seq":526,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4b8d-c460-7b14-9327-6e7f75b5dc4e","at":1770794108000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b8e-35a8-7519-b1e5-bb85597f0d33","at":1770794137000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c4b8e-4548-730b-b8a4-c3a90ef6db90","at":1770794141000000000,"seq":529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b8e-54e8-7581-911b-8a4f1edaefac","at":1770794145000000000,"seq":530,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4b98-7ef4-7bfc-aeee-85162884dc99","at":1770794811124000000,"seq":531,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4b98-ff60-7256-8dc8-6abb10a34627","at":1770794844000000000,"seq":532,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c4b99-0419-778d-8afd-35f2b466a923","at":1770794845209000000,"seq":533,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4b99-41c8-708d-95fd-9db170bb849a","at":1770794861000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b99-8818-74e3-9978-c45dc7bd0b58","at":1770794879000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b99-b310-78d3-bb14-f69e82b81665","at":1770794890000000000,"seq":536,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4b99-c6a2-77cf-a16f-b179e7aaa4bf","at":1770794895010000000,"seq":537,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4b9a-0130-7700-807c-0e199f470f64","at":1770794910000000000,"seq":538,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4b9a-7e30-7992-b387-20049b636465","at":1770794942000000000,"seq":539,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4b9a-82d0-761e-992a-6c6fd090056b","at":1770794943184000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4ba4-4666-7575-af87-568d32a2c73a","at":1770795583078000000,"seq":541,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4ba4-59a0-7ac5-90fc-fa945f684c61","at":1770795588000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c4ba4-6d28-7381-ab92-c76164965bfb","at":1770795593000000000,"seq":543,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4ba4-74f8-7365-9ffb-0253a8d85b9c","at":1770795595000000000,"seq":544,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4ba4-aba8-721e-942e-6976cb77915e","at":1770795609000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

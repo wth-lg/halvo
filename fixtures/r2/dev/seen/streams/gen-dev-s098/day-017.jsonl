@@ -1,0 +1,22 @@
+{"v":1,"id":"019bcb3e-355a-7705-8b0a-e9b14a8ac0f6","at":1768641410394000000,"seq":272,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb3e-355a-71a5-9122-88c4e62bb270","at":1768641410394000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bcb3e-5ae0-7858-860d-2599f258f55a","at":1768641420000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bcb3f-063e-7679-b62b-ff060a8cb70c","at":1768641463870000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bcb3f-da14-70c7-9ad0-18a572f4e7a7","at":1768641518100000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bcb40-0c78-7c8b-904b-5c8ddeda871b","at":1768641531000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb40-1060-7006-b113-c4710d50e0e0","at":1768641532000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb40-8978-7175-8d46-37e5510b9e41","at":1768641563000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb40-a0e8-7de4-8b31-685e0b81b5bc","at":1768641569000000000,"seq":280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb40-cbb8-7857-80e2-d72370d18707","at":1768641579960000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bcb41-0678-797e-8a12-1e4b2e5e3c2b","at":1768641595000000000,"seq":282,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb41-77c0-7c33-b766-7217218a6287","at":1768641624000000000,"seq":283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb41-77c0-7c5c-a39a-e05e23604613","at":1768641624000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bcb41-acb4-7ec4-9b90-3fc32f3ba7c7","at":1768641637556000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bcb42-0078-7bb5-b30a-c014a0d2393e","at":1768641659000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb42-5a50-7df0-9f70-bd3432a0c8e6","at":1768641682000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb42-5e38-7d8c-b278-36d5954a07bf","at":1768641683000000000,"seq":288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb42-69f0-75fe-9781-a99f835c43d9","at":1768641686000000000,"seq":289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb42-6f95-74c8-8d81-5b701be4ef1f","at":1768641687445000000,"seq":290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bcb42-8d18-7792-a1a7-a8153c48b0a8","at":1768641695000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb42-98d0-70c6-8618-d68a082258c4","at":1768641698000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb42-cf80-797b-95e8-0d53a860b584","at":1768641712000000000,"seq":293,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

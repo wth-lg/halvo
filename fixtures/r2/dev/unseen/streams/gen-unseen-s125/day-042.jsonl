@@ -1,0 +1,32 @@
+{"v":1,"id":"019c4bbb-7afe-7647-b7d6-b5b103f9a451","at":1770797103870000000,"seq":412,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4bbb-7afe-7282-a093-525985e16a6a","at":1770797103870000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c4bbb-a290-7414-9131-b2a64d772972","at":1770797114000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c4bbb-cd88-777f-8ac3-9e21bc3e4275","at":1770797125000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bbc-3c4e-7600-b977-17fa3ed0f671","at":1770797153358000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c4bbc-a848-7639-9409-f2b20dc6b912","at":1770797181000000000,"seq":417,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4bbc-c15d-7a2f-a07e-22b46f51b067","at":1770797187421000000,"seq":418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c4bbd-15a8-72b3-b81a-b103b8f321fc","at":1770797209000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c4bbd-5810-7438-ad98-0fe0e9f8fb2c","at":1770797226000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bbd-7b38-7ebc-bd4b-7c8bc3d5bded","at":1770797235000000000,"seq":421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4bbd-876c-713c-8e96-3428cc6ebab7","at":1770797238124000000,"seq":422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c4bbd-8ad8-7778-9101-61ccac7ad969","at":1770797239000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c4bbd-f838-7937-825b-de64c1e43426","at":1770797267000000000,"seq":424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bbe-80f0-7022-8723-2f7b2c26feb5","at":1770797302000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bbe-84d8-7bb7-aa5c-6436fd015970","at":1770797303000000000,"seq":426,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4bc8-9401-75fe-bac6-a60a435b2e20","at":1770797962241000000,"seq":427,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4bc8-9401-79c8-9965-8008d19d677a","at":1770797962241000000,"seq":428,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4bc8-d960-7b03-9485-be604ce192ba","at":1770797980000000000,"seq":429,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc9-1fb0-70ad-83cd-f112a941236a","at":1770797998000000000,"seq":430,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c4bc9-3b08-7c44-9797-2f0c486b0003","at":1770798005000000000,"seq":431,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c4bc9-6600-789d-9663-dd29208892f2","at":1770798016000000000,"seq":432,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd7-2331-7dfe-bc22-911285bb02f2","at":1770798916401000000,"seq":433,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4bd7-2331-74cd-a0ac-a6b23209a6df","at":1770798916401000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd7-5850-78f0-a6d3-8a4dd7ffabc4","at":1770798930000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd7-c998-79ba-b285-4aeb7fb39f51","at":1770798959000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd8-1df3-7666-9330-04e1491f5e30","at":1770798980595000000,"seq":437,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd8-36f8-7239-9793-c88a7767c33e","at":1770798987000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c4bd8-5c27-7dbb-a62e-c4f8c5c184e1","at":1770798996519000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd8-c4e7-7cc1-ab5f-ef21fd06beb3","at":1770799023335000000,"seq":440,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd8-c780-7a6f-83b7-2f76357e5ada","at":1770799024000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd8-fa48-7690-9cfc-59ddf27eda30","at":1770799037000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd9-0218-7a42-9e08-587764abd332","at":1770799039000000000,"seq":443,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

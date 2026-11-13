@@ -1,0 +1,23 @@
+{"v":1,"id":"019d3886-113e-758c-b911-06d2de9d7ae1","at":1774769803582000000,"seq":1225,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3886-113e-745d-9e90-55cf6d890496","at":1774769803582000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d3886-16c8-72a3-8b1e-9c5921f80269","at":1774769805000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3886-8fe0-70b0-b432-d38580277c7f","at":1774769836000000000,"seq":1228,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3886-b6f0-7f2b-95e5-15969ac3b9b3","at":1774769846000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3886-d248-764c-acb4-43fe6f4fb8f8","at":1774769853000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d3891-ce89-79ed-852b-da6dd60db035","at":1774770572937000000,"seq":1231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d3892-6b08-7179-ac29-dc046db31132","at":1774770613000000000,"seq":1232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d3892-72d8-7c3b-8c24-d71dcc615783","at":1774770615000000000,"seq":1233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d38a7-e411-783e-a1e1-50615fa3a381","at":1774772020241000000,"seq":1234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d38a8-3140-7722-85f0-c436bccd1d94","at":1774772040000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38a8-3140-7371-9dbe-0615e9df5680","at":1774772040000000000,"seq":1236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d38a8-4090-706d-b568-cf2498a2dc6d","at":1774772043920000000,"seq":1237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d38a8-6408-7d6d-8bb9-6b589dd400be","at":1774772053000000000,"seq":1238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d38a8-67f0-7d5b-8990-9f9d2d750eb4","at":1774772054000000000,"seq":1239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d38a8-8282-71da-8495-3f87578a287a","at":1774772060802000000,"seq":1240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d38a8-d550-798e-bf14-0ecc65efa937","at":1774772082000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38a8-f0a8-7569-ac8e-093e2d6be9e8","at":1774772089000000000,"seq":1242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d38a8-f490-7723-9174-24d66c13947b","at":1774772090000000000,"seq":1243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d38a9-17b8-7b42-a07c-a1869649bbdb","at":1774772099000000000,"seq":1244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d38a9-225c-71a0-ba0e-08d5eed96fef","at":1774772101724000000,"seq":1245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d38a9-5e08-7c31-98e7-42522454e55e","at":1774772117000000000,"seq":1246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d38a9-6da8-71de-a912-c2e62a52b317","at":1774772121000000000,"seq":1247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

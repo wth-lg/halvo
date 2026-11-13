@@ -1,0 +1,15 @@
+{"v":1,"id":"019d38a0-5ae3-7aaa-ae1a-3fc95da5bfef","at":1774771526371000000,"seq":1296,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d38a0-5ae3-71f2-b709-10ec8d99cffb","at":1774771526371000000,"seq":1297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d38a0-ab78-7859-9d68-bcb8dc78f7f6","at":1774771547000000000,"seq":1298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d38a0-bb18-7dce-9420-4f2fdb3bc301","at":1774771551000000000,"seq":1299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38a1-0938-7ef3-828b-f5275258881f","at":1774771571000000000,"seq":1300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38b7-3334-79ed-a285-97d7429e094b","at":1774773023540000000,"seq":1301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d38b7-a260-7f6b-bf12-51dac18c8763","at":1774773052000000000,"seq":1302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38b7-c1a0-7d5a-a68e-70dae4d446b9","at":1774773060000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38b7-fd88-7d7f-88b7-4425763fe9ce","at":1774773075336000000,"seq":1304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d38b8-07f0-74dc-80d4-d2056ae95a7b","at":1774773078000000000,"seq":1305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38b8-1790-7fc5-8ea0-b9bc75b36b45","at":1774773082000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38b8-2730-7642-9a35-8f0e2f14a7dc","at":1774773086000000000,"seq":1307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d38b8-3ea0-7df3-bb06-3287ad902e6f","at":1774773092000000000,"seq":1308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d38cc-0fd8-75ad-a68a-ff832fb12a17","at":1774774390744000000,"seq":1309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d38cc-62e0-77de-aaa7-41d32967f5c9","at":1774774412000000000,"seq":1310,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

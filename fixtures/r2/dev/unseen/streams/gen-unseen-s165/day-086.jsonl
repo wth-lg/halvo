@@ -1,0 +1,10 @@
+{"v":1,"id":"019d2ee3-714e-7471-8e87-2d2c255ff791","at":1774608150862000000,"seq":1357,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2ee3-714e-750e-8bf6-29e8566ee738","at":1774608150862000000,"seq":1358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee3-7d90-7d00-a5be-ad658db9f4df","at":1774608154000000000,"seq":1359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee3-e8cc-7686-add6-092426daadc0","at":1774608181452000000,"seq":1360,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee4-6408-7e31-96cf-263b8144b50e","at":1774608213000000000,"seq":1361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee4-6889-7c87-b36d-02fa999ee696","at":1774608214153000000,"seq":1362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee4-8b18-7426-97c7-7dd321ccab81","at":1774608223000000000,"seq":1363,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2ee5-72ec-7639-b7b3-cbae3970abcb","at":1774608282348000000,"seq":1364,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee6-4098-7e6a-a251-1750336b4810","at":1774608335000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee6-4868-79b8-8aef-d7d09bf0b5a6","at":1774608337000000000,"seq":1366,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

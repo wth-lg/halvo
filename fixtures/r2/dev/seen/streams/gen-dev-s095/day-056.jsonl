@@ -1,0 +1,36 @@
+{"v":1,"id":"019c93db-60a9-7cb1-8692-80b350882c37","at":1772007153833000000,"seq":867,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c93db-60a9-7a87-b316-adadba557c3a","at":1772007153833000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c93e0-9941-7096-b747-d1ce2863d12d","at":1772007496001000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c93e0-c820-7611-b1cb-946fb520b5a0","at":1772007508000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93e0-eb48-70e6-b170-36e9b1f131d8","at":1772007517000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c93e1-1e10-76e1-ae61-3553ac1f14e2","at":1772007530000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93e1-65ea-7461-b073-1da85f992514","at":1772007548394000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c93e1-83a0-73bd-a442-c0879fe84d17","at":1772007556000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93e1-ed18-7b00-b1c8-7a6922865afc","at":1772007583000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93e1-fcb8-714f-b1c0-0b12dbc27694","at":1772007587000000000,"seq":876,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c93e2-0c58-7f2b-93ce-3b9a54b99e9d","at":1772007591000000000,"seq":877,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c93e2-19d4-7c2b-a315-a5f22df4de6d","at":1772007594452000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c93e2-27b0-7485-b073-dabac2d5499b","at":1772007598000000000,"seq":879,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c93e2-2f80-7240-8249-87a55bda5993","at":1772007600000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93e2-6630-7192-8ebe-85137282e6d3","at":1772007614000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93e2-71e8-7e9f-bef2-7c5ffb4c5144","at":1772007617000000000,"seq":882,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c93e2-b1cc-7547-97df-533c19f73438","at":1772007633356000000,"seq":883,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c93e2-bc20-7881-bd48-72594d1776be","at":1772007636000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93e2-d390-7201-9778-91fa1df3b966","at":1772007642000000000,"seq":885,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c93e2-d778-79b6-9018-5731607f24d3","at":1772007643000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c93e3-19e0-77d9-9dfe-2a88958fee20","at":1772007660000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93f8-ff45-7ff9-8744-aa1c94c20672","at":1772009094981000000,"seq":888,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c93fa-0195-7cab-944d-6aa0d5779d22","at":1772009161109000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c93fa-33f0-78aa-a9cb-a406c74ce865","at":1772009174000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93fa-4778-79da-a023-fc5cc56f4b89","at":1772009179000000000,"seq":891,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c93fa-5330-7b78-8c6b-625d20b5993f","at":1772009182000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93fa-7ea1-7116-8bc2-9354bb3182b2","at":1772009193121000000,"seq":893,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c93fa-e3b8-799d-b65c-2a46b607b0c3","at":1772009219000000000,"seq":894,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c93fb-364c-7a3d-bcfa-abfc0eef29d9","at":1772009240140000000,"seq":895,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c93fb-4178-719a-a1be-e77705eca3df","at":1772009243000000000,"seq":896,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c93fb-60b8-73ea-842b-5ee2e195ad8b","at":1772009251000000000,"seq":897,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9411-1e90-7cea-bc96-1f7339aa7715","at":1772010675856000000,"seq":898,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9411-1e90-7341-b220-8de3c78fba55","at":1772010675856000000,"seq":899,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9411-6188-7d07-8a6c-bdc247da5e56","at":1772010693000000000,"seq":900,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c9411-84b0-7ff2-a04f-7df88f80dd31","at":1772010702000000000,"seq":901,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9411-c330-7c4f-9455-59e534be031a","at":1772010718000000000,"seq":902,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}

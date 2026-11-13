@@ -1,0 +1,20 @@
+{"v":1,"id":"019bc12b-2cf8-7edc-856e-830b02e362e1","at":1768472390904000000,"seq":295,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc12b-2cf8-71c6-9fef-7d53e95e85d7","at":1768472390904000000,"seq":296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc12b-bde0-72aa-97d6-134428b7178c","at":1768472428000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bc12b-fc60-7094-8acd-3392cd7516a6","at":1768472444000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc139-d15e-7fb9-8ad0-d33149d93120","at":1768473350494000000,"seq":299,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc139-eac8-70e8-bf22-5cc147814e25","at":1768473357000000000,"seq":300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bc13a-0238-7b24-b713-921768c34b81","at":1768473363000000000,"seq":301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13a-3cd0-790f-890e-c04124455ba5","at":1768473378000000000,"seq":302,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc13a-7768-78fc-9f20-1fd425703193","at":1768473393000000000,"seq":303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc14c-e3dd-72f0-9411-819f5db147a6","at":1768474600413000000,"seq":304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bc14c-f1e0-7660-96ca-7914ec482a74","at":1768474604000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc14d-0568-74a4-b25f-0488acaf2f0d","at":1768474609000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bc14d-3830-7b8b-93bf-27e83829fafa","at":1768474622000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc14d-4fcf-7524-828f-4655605c112d","at":1768474628047000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bc14d-a590-7d99-80ce-15578da67318","at":1768474650000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc14d-e028-78c0-b382-2d151765235e","at":1768474665000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc14e-1c51-70fb-a520-890d76747434","at":1768474680401000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bc14e-2e48-7c03-bf83-83bb5d7aef5c","at":1768474685000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc14e-41d0-78e9-97d0-7cb2d5053c41","at":1768474690000000000,"seq":313,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc14e-6110-790e-a766-0d837b26416d","at":1768474698000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

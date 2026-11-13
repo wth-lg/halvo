@@ -1,0 +1,32 @@
+{"v":1,"id":"019bf44f-c6c5-753d-8251-9bf883e967bf","at":1769330427589000000,"seq":519,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf44f-c6c5-7371-8f46-cd75e2075bba","at":1769330427589000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bf450-4948-7f53-babe-4f00582c95ba","at":1769330461000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bf450-65d6-7123-a511-6588f355bf01","at":1769330468310000000,"seq":522,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bf450-6888-7f5a-b5e5-9caccf464258","at":1769330469000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf450-d5e8-7164-a9e0-d84aa9870018","at":1769330497000000000,"seq":524,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf450-de43-72e8-9975-0db7ffb4aeef","at":1769330499139000000,"seq":525,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bf451-1468-7cb6-bbb5-d0202fb46c7e","at":1769330513000000000,"seq":526,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf451-2408-7a09-9f96-5e2174cef2b4","at":1769330517000000000,"seq":527,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf451-b0a8-7411-9680-137a47510121","at":1769330553000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bf451-b52f-7fbb-a838-8fd32e483a4a","at":1769330554159000000,"seq":529,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bf451-e370-727d-a728-8468861303d9","at":1769330566000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bf451-f310-7648-b3b3-dadaaf8dac6e","at":1769330570000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf451-fec8-7214-8277-5ba45c21e835","at":1769330573000000000,"seq":532,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf468-ba11-7f4c-8d68-09886bd47beb","at":1769332062737000000,"seq":533,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf468-d670-71ef-b068-3ad541f25b7d","at":1769332070000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bf469-2878-797a-8b40-db2a302967f9","at":1769332091000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf469-42ea-7048-9b53-bbe3432faf02","at":1769332097770000000,"seq":536,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bf469-6310-74ef-a48c-9fa70038e890","at":1769332106000000000,"seq":537,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf469-7a80-7fe8-97bd-1164c6d0c20c","at":1769332112000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bf469-d259-77eb-b074-e71447814898","at":1769332134489000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf469-e010-7080-b03d-946a733d7bee","at":1769332138000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46a-0338-7e6c-919a-8c4a368b286c","at":1769332147000000000,"seq":541,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf46a-4d65-7c2b-b5cd-dd5581833489","at":1769332165989000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf46a-a360-7eeb-97d9-657fba777807","at":1769332188000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46a-d240-717d-82e9-bb699c3c8cb3","at":1769332200000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46a-df31-75c1-af50-4f7b9872bd5b","at":1769332203313000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf46a-e1e0-74a3-bd0a-ffe3a3af70f2","at":1769332204000000000,"seq":546,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf46a-e5c8-7b13-bf2f-093adad6b01e","at":1769332205000000000,"seq":547,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf46b-1890-7806-b9d8-b0c3bbdf053a","at":1769332218000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf46b-2c18-72d7-815c-944a894762cf","at":1769332223000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf482-6ab9-7a73-8c06-f79c76e05a98","at":1769333746361000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}

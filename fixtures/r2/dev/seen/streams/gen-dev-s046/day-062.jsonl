@@ -1,0 +1,11 @@
+{"v":1,"id":"019cb2da-d502-72ac-9170-f55c6f7e9690","at":1772527211778000000,"seq":847,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb2da-d502-7f37-91d5-83cd73533d5c","at":1772527211778000000,"seq":848,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb2da-d5e0-7c91-89a0-46375a1b5ed8","at":1772527212000000000,"seq":849,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2db-1078-719c-b797-a4b0e13b82ab","at":1772527227000000000,"seq":850,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb2db-2400-7d6d-b2ad-5df47ba50737","at":1772527232000000000,"seq":851,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2db-6280-7da0-a51c-7b767a765773","at":1772527248000000000,"seq":852,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cb2db-8afc-7976-aa55-dfc170a08d04","at":1772527258364000000,"seq":853,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cb2db-b870-72df-879d-117ad3a36208","at":1772527270000000000,"seq":854,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cb2db-c86e-77cf-b06d-4dc289163458","at":1772527274094000000,"seq":855,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cb2db-f308-7d2c-8e38-1227e631976b","at":1772527285000000000,"seq":856,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cb2dc-8778-70e6-aaca-13dab54577ed","at":1772527323000000000,"seq":857,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,20 @@
+{"v":1,"id":"019d4379-e5f4-7942-b35a-72d03221b6cc","at":1774953555444000000,"seq":1168,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4379-e5f4-7814-9cd4-309872e89bcb","at":1774953555444000000,"seq":1169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d437a-ab27-7c31-9e6b-31bca1c328e4","at":1774953605927000000,"seq":1170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d437a-b728-7dd3-b9e2-113c4711d11d","at":1774953609000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d437b-95d0-7432-aa63-ea5d1ac6179f","at":1774953666000000000,"seq":1172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d437b-b51b-7924-8165-0d13a7cbc686","at":1774953674011000000,"seq":1173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d437b-b8f8-73a0-bddc-39cc17354c57","at":1774953675000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d437c-5538-7818-9ff6-e35691964ac6","at":1774953715000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d437c-b9de-7141-859e-6ec5f3f06910","at":1774953740766000000,"seq":1176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d437c-c680-7e96-98b1-7bc2ff30957f","at":1774953744000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d437c-e9a8-76fb-b7c4-4ebd8b8b7149","at":1774953753000000000,"seq":1178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d437d-1888-712f-b4e0-fdab783e5067","at":1774953765000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d437d-37c8-7510-90a4-c1c011fdc774","at":1774953773000000000,"seq":1180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d437d-4aef-7d71-926f-c31d6e9b9e3f","at":1774953777903000000,"seq":1181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d437d-8200-722e-97ef-2bb213e416db","at":1774953792000000000,"seq":1182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d437d-8db8-702a-91bc-af504b9afcf6","at":1774953795000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d437d-9588-7b7a-b3c4-02c3b5739813","at":1774953797000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d437d-9970-7d4c-b02e-74e1184f566e","at":1774953798000000000,"seq":1185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d437d-9c33-7a0b-a993-e5e097e72153","at":1774953798707000000,"seq":1186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d437e-a310-7de5-aa08-05c6fcc0396d","at":1774953866000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

@@ -1,0 +1,29 @@
+{"v":1,"id":"019cdc6a-d54f-799e-a1e8-223fc13b40e8","at":1773224514895000000,"seq":764,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc6a-d54f-7098-b773-428808415d5b","at":1773224514895000000,"seq":765,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cdc6a-e558-7b27-a215-32410abaa3af","at":1773224519000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cdc6b-0498-7b1e-a39f-0a734c35c1f9","at":1773224527000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc6b-177d-76b7-84d7-d2bc41be4d82","at":1773224531837000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cdc6b-1820-7eef-ac14-eadd8a0341ca","at":1773224532000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc6b-8580-7d8c-801e-505fba7a0dfd","at":1773224560000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cdc6b-a0d8-77d7-94d3-c26888351657","at":1773224567000000000,"seq":771,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc6b-a4c0-72d6-9ec2-a7836a3a66af","at":1773224568000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc6b-ee12-7ba9-a9ac-3f7b12f143e4","at":1773224586770000000,"seq":773,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cdc6c-4100-71f7-a303-ad9f8e2c9ba6","at":1773224608000000000,"seq":774,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc6c-50a0-7c27-9bd6-622f69f8710c","at":1773224612000000000,"seq":775,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc6c-fd81-7661-99b7-d997d29b2422","at":1773224656257000000,"seq":776,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cdc6d-5e28-77b8-a5b9-ba379e05fb38","at":1773224681000000000,"seq":777,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc6d-65f8-7717-a505-d2cafeab1d63","at":1773224683000000000,"seq":778,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc7d-ca31-77a9-8722-9e7afdf9bb84","at":1773225757233000000,"seq":779,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cdc7e-07c8-7984-b87e-2665811c5968","at":1773225773000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cdc7e-4e18-7a7c-8d5d-207f70c0470a","at":1773225791000000000,"seq":781,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc8b-c652-7677-8d58-317b535285a0","at":1773226673746000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cdc8c-09b8-77f1-923e-c563ae84067f","at":1773226691000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc8c-1d40-7de6-9565-a465d9891d8d","at":1773226696000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc8c-33db-78f1-b4d6-8cf8303fad79","at":1773226701787000000,"seq":785,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cdc8c-4450-7dc3-910d-6e8cef12f4c3","at":1773226706000000000,"seq":786,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdc8c-6778-7b5d-bc11-0eead711bb5b","at":1773226715000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc8c-82d0-7d44-bee6-81318676024d","at":1773226722000000000,"seq":788,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc9c-f34f-7078-bb49-4f287c3cd7a6","at":1773227799375000000,"seq":789,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cdc9c-f5c0-7b4a-87c3-5e6494940fc1","at":1773227800000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc9d-5380-74ba-8924-0388974c19fd","at":1773227824000000000,"seq":791,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdc9d-5768-76e2-9db6-308563396a80","at":1773227825000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

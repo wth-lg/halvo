@@ -1,0 +1,12 @@
+{"v":1,"id":"019c189d-dfcc-7b30-90ca-07b467ad82fc","at":1769939525580000000,"seq":412,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c189d-dfcc-75a4-b9a6-da04a1b229e8","at":1769939525580000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c189d-e940-7211-a8a4-d424d5b9b12f","at":1769939528000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c189e-2ba8-755a-9371-9871cf87a07a","at":1769939545000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c189e-34e8-7cee-80cb-72b79dc8d2d7","at":1769939547368000000,"seq":416,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c189e-34e8-762b-bcf1-356803164ab9","at":1769939547368000000,"seq":417,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c189e-9138-748a-a070-e4b4ac6ffc5b","at":1769939571000000000,"seq":418,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c189e-bc30-7515-9de8-1b1ceaa2e736","at":1769939582000000000,"seq":419,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c189f-1afa-7cbf-bd79-cade9aab8f6b","at":1769939606266000000,"seq":420,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c189f-1afa-7b73-a7d9-effac2c73ea0","at":1769939606266000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c189f-21c0-7442-9a8d-977d01cb2ea6","at":1769939608000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c189f-6fe0-7cf4-b786-d6c99382974e","at":1769939628000000000,"seq":423,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

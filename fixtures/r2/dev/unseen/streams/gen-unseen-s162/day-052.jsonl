@@ -1,0 +1,20 @@
+{"v":1,"id":"019c7fb0-70d1-7e07-8f97-581026c0c916","at":1771668795601000000,"seq":602,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7fb0-70d1-788d-9e9a-39f6b9d2461a","at":1771668795601000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c7fb0-7260-7d77-abd4-3cb56f514045","at":1771668796000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fb0-7a30-7e82-b8b0-9ae0a4c077a1","at":1771668798000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fb0-f730-719e-90f1-683d51dd51ad","at":1771668830000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7fb1-8165-79a8-8007-a504c9308427","at":1771668865381000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c7fb1-8ba0-70cc-9452-44ff4497ce48","at":1771668868000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fb1-e960-726a-931d-ee8b2078f042","at":1771668892000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fbd-1bc0-7a34-a947-b499a88daca6","at":1771669625792000000,"seq":610,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7fbd-3400-77d1-86d7-604b9f3511f0","at":1771669632000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fbd-43a0-76ad-aaa6-51fc6fbf3c69","at":1771669636000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c7fbd-4b70-772b-8d7b-e5fe1107bde0","at":1771669638000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fbd-5c9a-755f-a2bb-6926a15f4d73","at":1771669642394000000,"seq":614,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7fbd-91c0-7dad-af83-27543bfe0054","at":1771669656000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fbe-3da0-7c0e-99e3-11f8f16681e9","at":1771669700000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7fbe-4958-7605-a241-d653d1d35c0d","at":1771669703000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fbe-68e2-7d0a-be82-9959e00d43cc","at":1771669711074000000,"seq":618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7fbf-06db-7432-ae82-14ecffc48246","at":1771669751515000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7fbf-0ca8-775e-a561-9e8b22c017e6","at":1771669753000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7fbf-2be8-7ff7-a2cf-b8b5b15a6b41","at":1771669761000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

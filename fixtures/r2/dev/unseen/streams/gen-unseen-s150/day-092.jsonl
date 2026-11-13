@@ -1,0 +1,24 @@
+{"v":1,"id":"019d4dbc-f2f9-7e4c-8cdf-306557a0a06c","at":1775125721849000000,"seq":1250,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4dbc-f2f9-7ced-a02c-1fe3b3ed54ec","at":1775125721849000000,"seq":1251,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4dbd-2e28-7264-8aa2-733024ee4c4f","at":1775125737000000000,"seq":1252,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d4dbd-64d8-7875-a0c3-21e5e4615fff","at":1775125751000000000,"seq":1253,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d4dbd-ab28-7fe6-9dd8-1ab16b82b336","at":1775125769000000000,"seq":1254,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dc5-184d-75d1-8273-35e227acbfd5","at":1775126255693000000,"seq":1255,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4dc5-184d-79f5-b65f-aa943a37a5f4","at":1775126255693000000,"seq":1256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d4dc5-7b28-7ff0-836c-28ce798c403d","at":1775126281000000000,"seq":1257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d4dc5-8eb0-7dae-b9c4-79e896ff1222","at":1775126286000000000,"seq":1258,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4dcf-ed14-7048-a655-c65fb9e11b28","at":1775126965524000000,"seq":1259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d4dcf-eef0-7d3c-80f2-c022a2ce5ba4","at":1775126966000000000,"seq":1260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dd0-0660-7e76-8e91-39aef9a7ce16","at":1775126972000000000,"seq":1261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dd0-7a57-7aa0-962b-5a6f7f420deb","at":1775127001687000000,"seq":1262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d4dd0-8748-7617-9a99-99e7231fd452","at":1775127005000000000,"seq":1263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4dd0-a2a0-722b-ba12-7c1fee3e466c","at":1775127012000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d4dd0-a688-7670-ad11-4a6fe6b7f62d","at":1775127013000000000,"seq":1265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4dd1-0830-76c3-bd5a-5009f4240704","at":1775127038000000000,"seq":1266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dd1-0ded-78b9-b005-41e58e1d90ea","at":1775127039469000000,"seq":1267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d4dd1-71a8-7410-83b8-1e8d56ba1af4","at":1775127065000000000,"seq":1268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4dd1-ac40-7fbf-8cf0-8ed604ad8159","at":1775127080000000000,"seq":1269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4dd1-e2f0-7237-b3fd-8258038133da","at":1775127094000000000,"seq":1270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d4de9-3e6e-7749-a941-2a645927580a","at":1775128624750000000,"seq":1271,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4de9-3e6e-7781-b3c8-0f2a07db625b","at":1775128624750000000,"seq":1272,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4de9-6678-756c-80f2-d3f17b3a3328","at":1775128635000000000,"seq":1273,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}

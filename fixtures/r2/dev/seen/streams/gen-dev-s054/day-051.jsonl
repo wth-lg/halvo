@@ -1,0 +1,20 @@
+{"v":1,"id":"019c7a21-05f0-77a4-922a-a4cf6d877ff1","at":1771575510512000000,"seq":610,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a21-05f0-7f7f-89bc-631c0dc417f3","at":1771575510512000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a21-4270-7b8a-b259-0072af0cc5ea","at":1771575526000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a21-61b0-7402-b26b-446c58b2fa24","at":1771575534000000000,"seq":613,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a28-87b3-730e-955c-e9812f6f7bbf","at":1771576002483000000,"seq":614,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a28-a510-71db-9262-a1043fd72294","at":1771576010000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a28-f01e-7af2-9cd6-26cd4e8b0683","at":1771576029214000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a29-54d8-7a94-96ef-ce95547eebed","at":1771576055000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7a29-cdf0-7774-b9a1-82525d3acf31","at":1771576086000000000,"seq":618,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a29-e178-7ad5-a3fd-ba4e3c7f7a45","at":1771576091000000000,"seq":619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a29-e948-72ed-83d3-7cb6f7794b06","at":1771576093000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a29-f321-7525-b150-0421a9a68843","at":1771576095521000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a29-f500-720a-805b-e4fc9f163f65","at":1771576096000000000,"seq":622,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a2a-2bb0-78e8-bbb1-6b97a5c6ecc7","at":1771576110000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7a2a-2f98-74b3-8a8c-b7f098c18f08","at":1771576111000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a2a-7b49-70d1-9b39-e0f24322ac1b","at":1771576130377000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a2a-9140-7f7c-8dfa-bd40473a7178","at":1771576136000000000,"seq":626,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a2a-9140-7fa7-a49d-2e3524b650bf","at":1771576136000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c7a2a-9910-7049-b099-8a499594a40d","at":1771576138000000000,"seq":628,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a2a-bc38-7ee6-aa30-32791bf0d57a","at":1771576147000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

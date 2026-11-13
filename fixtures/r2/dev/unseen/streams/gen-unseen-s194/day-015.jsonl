@@ -1,0 +1,16 @@
+{"v":1,"id":"019bc096-eb7f-75b0-8427-246a712c47d5","at":1768462674815000000,"seq":206,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc096-eb7f-71a5-a9a0-92749881bc42","at":1768462674815000000,"seq":207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc096-ffc0-745b-9bba-1b7e9aaa5b4d","at":1768462680000000000,"seq":208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc097-03a8-7be6-b38c-68b3ac4c038e","at":1768462681000000000,"seq":209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc097-0b78-7306-882e-6239bd1d0559","at":1768462683000000000,"seq":210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bc097-1730-712f-8bd5-5bdcd7ae399f","at":1768462686000000000,"seq":211,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc097-1b18-76e2-9ea1-0d6035945257","at":1768462687000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc098-d399-7864-9ef9-ba52cd99d98b","at":1768462799769000000,"seq":213,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc098-d399-7b0d-ad46-d725d790ae09","at":1768462799769000000,"seq":214,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc098-dc50-7842-b8ee-e06198fd0dc7","at":1768462802000000000,"seq":215,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bc099-0748-765d-812a-aa83658cc930","at":1768462813000000000,"seq":216,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc099-0f18-7fb7-9424-2b11fa88d306","at":1768462815000000000,"seq":217,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0a5-35df-7d8d-bc4b-990c4b86401a","at":1768463611359000000,"seq":218,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bc0a5-6740-70b0-a0d6-30966ae90a9f","at":1768463624000000000,"seq":219,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc0a5-b560-7594-89a4-fca7f8711c66","at":1768463644000000000,"seq":220,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0a5-c118-7c89-b156-f7198f2853f6","at":1768463647000000000,"seq":221,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

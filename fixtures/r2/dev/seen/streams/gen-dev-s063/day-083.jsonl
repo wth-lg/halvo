@@ -1,0 +1,12 @@
+{"v":1,"id":"019d1f33-c54b-797f-8aaa-1a78210a42b5","at":1774344979787000000,"seq":1221,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1f33-c54b-70b4-85f8-f57be292a957","at":1774344979787000000,"seq":1222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1f34-00b8-7afa-8e18-35ca61a0d553","at":1774344995000000000,"seq":1223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f34-3380-7a98-9be9-fa72fa27f5fb","at":1774345008000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f34-3768-7280-b7d0-8f6f3fec323c","at":1774345009000000000,"seq":1225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1f34-4320-7cb3-943b-eaef13818c17","at":1774345012000000000,"seq":1226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1f34-a0e0-7231-934f-435aaa9dbba9","at":1774345036000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d1f34-afbb-7cfc-94e9-6523423f5fe2","at":1774345039803000000,"seq":1228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1f34-cbd8-7bc4-81ce-ddadf07ff937","at":1774345047000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f34-fab8-702c-b76c-316f9953f671","at":1774345059000000000,"seq":1230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1f34-fea0-789d-9c35-54ea84cb8036","at":1774345060000000000,"seq":1231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1f35-0a58-7be0-9056-cba7cf94471b","at":1774345063000000000,"seq":1232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

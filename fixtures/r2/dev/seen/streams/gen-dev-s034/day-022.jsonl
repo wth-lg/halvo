@@ -1,0 +1,33 @@
+{"v":1,"id":"019be4b5-2586-7e95-93ab-d1caa85f51e0","at":1769068635526000000,"seq":301,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be4b5-2586-7d20-8818-ce91d8a57966","at":1769068635526000000,"seq":302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019be4b5-3700-7d98-8eb7-b6c87fddf653","at":1769068640000000000,"seq":303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b5-5a28-7f1f-8a1f-643ed2848bde","at":1769068649000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b5-6fe3-77be-adc5-f7b05d96ffe7","at":1769068654563000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019be4b5-fe38-7b02-90a7-80d5a15ee603","at":1769068691000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019be4b6-0608-76eb-ab66-e58e3bfe5f9c","at":1769068693000000000,"seq":307,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be4b6-09f0-7510-b2c2-0502b3ba137e","at":1769068694000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b6-0db1-7523-ab72-5378f3cbbd8e","at":1769068694961000000,"seq":309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019be4b6-15a8-7643-afe8-d47f53e92f9c","at":1769068697000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019be4b6-3100-7999-9913-44e52b6fbddb","at":1769068704000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b6-3cb8-7f28-af8b-be0c63b7f450","at":1769068707000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be4b6-92a8-7aba-9385-464623b8db36","at":1769068729000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4b6-f459-72a3-a22a-9dfecc5cb9cc","at":1769068754009000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019be4b7-6d68-704a-b2de-b22148283f4c","at":1769068785000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019be4b7-9478-776d-9f7d-173bf4e3e33e","at":1769068795000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4bf-7790-7f5d-8694-326742057cfb","at":1769069311888000000,"seq":317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be4bf-a2f8-7841-b303-1eacd3e90629","at":1769069323000000000,"seq":318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c0-1cb1-73c9-abe4-9c4a48340a92","at":1769069354161000000,"seq":319,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be4c0-2bb0-7234-b522-66c5e9b158c6","at":1769069358000000000,"seq":320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c0-6e18-78e1-8c46-59950302d9ea","at":1769069375000000000,"seq":321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019be4c0-8588-7519-a71f-0f68b8a6f21b","at":1769069381000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c0-ecba-7988-a797-395515f15e97","at":1769069407418000000,"seq":323,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be4c1-2d80-775d-8e25-920839f6bcd1","at":1769069424000000000,"seq":324,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be4c1-4cc0-72ea-a303-52cab6e17475","at":1769069432000000000,"seq":325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be4c1-6818-7fa7-89d4-510757bab9ab","at":1769069439000000000,"seq":326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c1-8758-7d51-b363-92830b4d0251","at":1769069447000000000,"seq":327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c1-b79b-74d6-9a94-886fc376d9d8","at":1769069459355000000,"seq":328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be4c1-dd48-79cf-afbc-43190336832c","at":1769069469000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c2-17e0-7ff2-8ae3-adc38fff4a0e","at":1769069484000000000,"seq":330,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be4c2-3ef0-7c68-b7b8-b027fad86baa","at":1769069494000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c2-5278-74e3-b61e-4dc1f4ca4de0","at":1769069499000000000,"seq":332,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be4c2-7d70-7322-9785-ddac262dc9f1","at":1769069510000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

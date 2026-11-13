@@ -1,0 +1,22 @@
+{"v":1,"id":"019c60ca-86ec-7cc2-bce8-11e2d5000126","at":1771150411500000000,"seq":677,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c60ca-86ec-7c36-bbe2-bbaf15265268","at":1771150411500000000,"seq":678,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c60ca-8cc8-7963-bb26-9d24e1c450ed","at":1771150413000000000,"seq":679,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c60ca-d377-7e8d-ba96-fe94d9bdd3d9","at":1771150431095000000,"seq":680,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60ca-d377-719d-8eb1-64c246444c68","at":1771150431095000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c60cb-1d50-7b3b-822f-2e7a61a12a23","at":1771150450000000000,"seq":682,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60cb-63a0-760a-bb5c-afb499232b6a","at":1771150468000000000,"seq":683,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c60cb-6b70-7d02-89b7-019a93e08e37","at":1771150470000000000,"seq":684,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60cb-c930-7e5b-9c1c-7954c66ebe52","at":1771150494000000000,"seq":685,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60cb-dccc-7045-b4fa-7bd65bbfc0b0","at":1771150499020000000,"seq":686,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c60cb-dccc-7a7a-84f0-f21025b7c42b","at":1771150499020000000,"seq":687,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c60cb-f810-7bb4-90b8-77ef7965f671","at":1771150506000000000,"seq":688,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60cc-1368-764e-8d43-707baf20b537","at":1771150513000000000,"seq":689,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c60cc-2ec0-7551-b3f4-fc44bc91feca","at":1771150520000000000,"seq":690,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c60e7-0996-79f7-b985-765b8f5ec0de","at":1771152279958000000,"seq":691,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60e7-0996-7bc3-8e25-1837835faa78","at":1771152279958000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c60e7-57e0-7869-a631-353f0c294e85","at":1771152300000000000,"seq":693,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c60e7-6b68-789c-83a7-133028b00624","at":1771152305000000000,"seq":694,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c60e7-c158-78b7-a91c-e304d62234b9","at":1771152327000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c60ee-191f-73a5-95ed-a879fd1541df","at":1771152742687000000,"seq":696,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c60ee-191f-7840-a2d5-00533719825a","at":1771152742687000000,"seq":697,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c60ee-b2b0-7663-902b-37846b3d3890","at":1771152782000000000,"seq":698,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

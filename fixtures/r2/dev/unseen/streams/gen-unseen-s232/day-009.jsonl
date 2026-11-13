@@ -1,0 +1,43 @@
+{"v":1,"id":"019ba1cd-2bff-7dc3-a5df-709fb5faea95","at":1767946136575000000,"seq":147,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1cd-2bff-7752-b611-b48a2d0740a5","at":1767946136575000000,"seq":148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ba1cd-4ce8-7707-bb95-584f68faafca","at":1767946145000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1cd-872a-776b-b137-90074d7adc34","at":1767946159914000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ba1cd-9720-7d61-ad61-c691fcf463ff","at":1767946164000000000,"seq":151,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba1cd-d1b8-7812-a04a-0724807051dd","at":1767946179000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1cd-f8c8-74da-b906-f0d47b272dad","at":1767946189000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ce-2d73-7c2b-af41-d84339e28715","at":1767946202483000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ce-5688-7ec8-8f12-c4daa27a9c88","at":1767946213000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba1ce-98f0-7e5d-bfd3-34e5783a1aee","at":1767946230000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1cf-3822-7c80-9f18-1d360c57108a","at":1767946270754000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba1cf-a290-7193-a3d3-ca67d2e32cae","at":1767946298000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1cf-ba00-7fb8-bf5a-72fde36a114b","at":1767946304000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba1d0-0820-72db-8cf4-d44d782b463f","at":1767946324000000000,"seq":160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba1d0-2073-7b36-a829-06988bc53d79","at":1767946330227000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ba1d0-94c0-7697-a01a-705b37ce4964","at":1767946360000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1e7-9393-735b-8fd9-0efcaab8f54f","at":1767947867027000000,"seq":163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ba1e7-be70-7496-b37c-293013812043","at":1767947878000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba1e8-2f05-78ab-8d86-00549805c20c","at":1767947906821000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ba1e8-4b10-7414-941a-d717ed112a38","at":1767947914000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1e8-4ef8-7e4c-ae75-2f8ba4b5e0ad","at":1767947915000000000,"seq":167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba1e8-6668-7aef-b83e-31d33ede7337","at":1767947921000000000,"seq":168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba1e8-6758-7ad1-b294-92bd239f08ad","at":1767947921240000000,"seq":169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ba1e8-81c0-74b8-8797-9be3f73ba2ba","at":1767947928000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba1e8-c428-77db-980d-e410969b8242","at":1767947945000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ba1e8-fad8-7247-89bd-0579e1f80dbe","at":1767947959000000000,"seq":172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba202-8d97-762d-b519-b123d4c3412c","at":1767949634967000000,"seq":173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ba202-c850-7eca-b615-017b969fc2f4","at":1767949650000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba203-1a58-7fa5-bc19-f3eef8fffc3a","at":1767949671000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ba203-6b6e-784b-a8ba-0d2b32181d0e","at":1767949691758000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ba203-8ba0-72a6-974f-f28768984f70","at":1767949700000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba203-9370-799e-96a6-664f9a783b87","at":1767949702000000000,"seq":178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba203-ba80-7607-8fab-8b49c5e411bc","at":1767949712000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba203-f2b3-7d34-9c46-74b9810e226b","at":1767949726387000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ba204-0c88-7159-be3a-b9f2cdca939c","at":1767949733000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba204-52d8-7e35-b47d-f4927c3c3eb7","at":1767949751000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba204-56c0-76e2-9a94-94c8b3bf2838","at":1767949752000000000,"seq":183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba204-85c0-7181-8e5a-9d92dab764aa","at":1767949764032000000,"seq":184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019ba204-a0f8-790b-beef-0b7c2582e841","at":1767949771000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba204-b098-782d-8886-0afdf451baa1","at":1767949775000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba204-db90-7dd1-bd12-cf388ec0301f","at":1767949786000000000,"seq":187,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba204-df78-7bc7-8845-de7120c12a50","at":1767949787000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ba204-ef18-74a1-a5fe-d45777b32715","at":1767949791000000000,"seq":189,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

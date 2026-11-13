@@ -1,0 +1,11 @@
+{"v":1,"id":"019d0a68-746e-7e29-a795-dd25542b8be0","at":1773996110958000000,"seq":1015,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0a68-746e-70f0-89fd-793abbf52847","at":1773996110958000000,"seq":1016,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0a68-8050-7deb-84d0-ee6714ae0709","at":1773996114000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d0a68-a378-71ba-b0e8-8594aef52a33","at":1773996123000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a68-c583-7e99-90eb-bb70113c3e94","at":1773996131715000000,"seq":1019,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0a68-c6a0-791b-bcad-d9cfa482db92","at":1773996132000000000,"seq":1020,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a68-edb0-7d3b-849a-927b9dd284a9","at":1773996142000000000,"seq":1021,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a6e-6fb8-7a12-90b3-1173ffdc00c0","at":1773996502968000000,"seq":1022,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0a6e-6fb8-74b1-8625-23095ae02818","at":1773996502968000000,"seq":1023,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0a6f-03c1-70f8-9a13-0bf267e4ebfd","at":1773996540865000000,"seq":1024,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d0a6f-7590-7112-b6f2-64a005462907","at":1773996570000000000,"seq":1025,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}

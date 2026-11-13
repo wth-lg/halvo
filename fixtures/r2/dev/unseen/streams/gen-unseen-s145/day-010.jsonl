@@ -1,0 +1,13 @@
+{"v":1,"id":"019ba73b-c990-7848-b56d-32fa4bbed213","at":1768037271952000000,"seq":163,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba73b-c990-7764-ad3b-97f65fb364ab","at":1768037271952000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ba73c-2b68-79b0-8448-6fe2cb3ec75c","at":1768037297000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba73c-3720-75bf-a075-8e4779e56086","at":1768037300000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba73c-8203-7def-883c-ad44a3cea58c","at":1768037319171000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ba73c-8d10-73b1-bbe0-3bb294b1938a","at":1768037322000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ba73c-90f8-75e1-a8da-2d315190bab8","at":1768037323000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba73c-9cb0-7351-89e0-2f0a90728f75","at":1768037326000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba73c-a868-7a7c-a3e2-2012ffb0c261","at":1768037329000000000,"seq":171,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba73c-f282-7438-b709-e2ed08b5411f","at":1768037347970000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ba73c-f688-70cc-98ed-00f6318b27ba","at":1768037349000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba73d-40c0-7968-8294-07d1ffba62db","at":1768037368000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ba73d-8328-7dc5-8874-46dbd0fc95f0","at":1768037385000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,20 @@
+{"v":1,"id":"019ca313-e19f-73b6-8d17-98d5ab437b2c","at":1772262515103000000,"seq":877,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca313-e19f-7c51-b021-1caa66545650","at":1772262515103000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca314-39cb-7205-81cc-d86adf02ecf0","at":1772262537675000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca314-7744-7ad8-aa8e-98117aae43ad","at":1772262553412000000,"seq":880,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca314-df20-7e7b-af36-bbf3df3d9d71","at":1772262580000000000,"seq":881,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca315-3283-7df5-afd3-9aff27593b9d","at":1772262601347000000,"seq":882,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca315-f090-76b2-a7f5-49ea3a1834ca","at":1772262650000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca316-0800-7d9d-8dd3-e3e5dc3006f6","at":1772262656000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca316-09e7-7a73-8839-efed2a99761b","at":1772262656487000000,"seq":885,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca316-5df0-735b-9d5a-9d8727819339","at":1772262678000000000,"seq":886,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca316-65c0-75f1-96f2-99aae24e149a","at":1772262680000000000,"seq":887,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca316-e2c0-7ccd-b574-8d2714072fbc","at":1772262712000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ca316-efac-75b8-ba75-9dce09eb8fd8","at":1772262715308000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019ca317-05e8-73f3-8cdb-0a12f47e1b81","at":1772262721000000000,"seq":890,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca317-1588-7ccb-a4d9-b91142852f74","at":1772262725000000000,"seq":891,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca317-5bd8-77fc-a748-acabb63b4131","at":1772262743000000000,"seq":892,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca331-0e5b-7098-91c0-9e1244edff1a","at":1772264427099000000,"seq":893,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca331-0e5b-77b7-9f07-0717c2f4bd89","at":1772264427099000000,"seq":894,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca331-67d0-7e84-88ca-41f86d767c2f","at":1772264450000000000,"seq":895,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca331-a268-7b61-99b8-ff753a339160","at":1772264465000000000,"seq":896,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

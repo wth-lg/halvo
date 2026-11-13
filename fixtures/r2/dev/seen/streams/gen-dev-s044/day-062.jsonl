@@ -1,0 +1,40 @@
+{"v":1,"id":"019cb27f-c029-787b-a8a0-971f4872df7b","at":1772521242665000000,"seq":777,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb27f-c029-7a56-a43b-7c02e649ab73","at":1772521242665000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb27f-e888-7f13-b690-510f9e92bc2f","at":1772521253000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb280-0bb0-78d2-859b-483e4262549e","at":1772521262000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb280-1768-7bd7-a908-9f9eddedb546","at":1772521265000000000,"seq":781,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb280-36a8-7026-bfd8-e1c1c6d7e7e0","at":1772521273000000000,"seq":782,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb28e-d476-740a-a602-5d79100e961d","at":1772522230902000000,"seq":783,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb28e-ffd0-7974-8f61-d6c7d07632c8","at":1772522242000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb28f-1f10-7066-af60-0daf54375e05","at":1772522250000000000,"seq":785,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb28f-9828-75e6-bc8c-9ce746b80085","at":1772522281000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cb292-78e5-72ca-a70f-310b882dc56c","at":1772522469605000000,"seq":787,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb293-577a-79d8-9719-a8f415823ba3","at":1772522526586000000,"seq":788,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb293-8410-79de-8e54-8d69565bb6ef","at":1772522538000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb293-87f8-7eb1-85fb-f1c341ae6640","at":1772522539000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb294-04f8-7e36-aafb-23c802e7d22d","at":1772522571000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb294-09f3-742d-93a5-71d674d689cb","at":1772522572275000000,"seq":792,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cb295-104c-7309-99ab-2e06f3448b1e","at":1772522639436000000,"seq":793,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cb295-1a50-753d-992e-fc420e6dc3db","at":1772522642000000000,"seq":794,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb295-1a50-7a62-85aa-37a653bcbd21","at":1772522642000000000,"seq":795,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cb295-60a0-7050-9738-f3b719b08000","at":1772522660000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb295-6488-70d4-acc2-7b25080e38d1","at":1772522661000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb295-7810-70a5-bcac-09f554d881de","at":1772522666000000000,"seq":798,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb295-8f58-7755-a356-bcab0528a983","at":1772522671960000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cb295-aec0-7e47-a70f-a16591c55e1c","at":1772522680000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb295-b690-7d7f-a5cb-9f89a0311036","at":1772522682000000000,"seq":801,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb295-c630-702e-af7e-8b4042516394","at":1772522686000000000,"seq":802,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb295-d1e8-7d3d-a7b4-b957b9ddf122","at":1772522689000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cb295-ed40-79bc-9436-cc007bf1b345","at":1772522696000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb295-ee9a-742e-b716-215ff497b627","at":1772522696346000000,"seq":805,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cb295-f510-7830-8c55-5ccc6b88cd3a","at":1772522698000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cb296-1068-76a9-9656-bf62fe9b87fc","at":1772522705000000000,"seq":807,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb296-2008-7c74-977b-d12af7f93ee7","at":1772522709000000000,"seq":808,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb296-2824-70df-bc8a-3b33c96b24b4","at":1772522711076000000,"seq":809,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cb296-2fa8-7a36-892c-0327d23b7652","at":1772522713000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb296-4718-729b-b43f-59bf1c067a6a","at":1772522719000000000,"seq":811,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb296-52d0-7bd4-b62b-e64e31c5e2f7","at":1772522722000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb297-3685-7d9b-8c2c-74f81b26beec","at":1772522780293000000,"seq":813,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb297-ba30-706a-b5fd-949d63b355b2","at":1772522814000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb298-28a5-7699-be16-7f3c4764e4ac","at":1772522842277000000,"seq":815,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb298-6610-78c9-bba4-3d85826cc1b7","at":1772522858000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

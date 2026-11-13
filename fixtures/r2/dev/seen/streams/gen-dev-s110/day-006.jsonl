@@ -1,0 +1,28 @@
+{"v":1,"id":"019b9240-3a56-73fa-9436-9aaee01d6d5f","at":1767685241430000000,"seq":101,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9240-3a56-712d-9127-5268db2b207c","at":1767685241430000000,"seq":102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b9240-4c30-744b-93cf-ce2dba0935e5","at":1767685246000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9240-f040-732b-a603-c4b19fd7205f","at":1767685288000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9240-f810-792d-a564-a8be4c6404eb","at":1767685290000000000,"seq":105,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9242-978b-7581-b0a7-54f3f07b9a1e","at":1767685396363000000,"seq":106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b9242-a1d8-75cc-a965-4df84ac29cd4","at":1767685399000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b9242-b178-7788-9ec6-c55753002d26","at":1767685403000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9242-d888-71fe-b44f-5e4d0ba34437","at":1767685413000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9242-e766-7283-9119-a4ed49353f00","at":1767685416806000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b9243-26a8-7328-83f1-c4304a7de19c","at":1767685433000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b9243-5475-7d3d-adde-c8675e0c8dfb","at":1767685444725000000,"seq":112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b9243-bf00-710e-a419-64bbff24c953","at":1767685472000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9244-0ad4-7e3b-b923-03d74f3489e2","at":1767685491412000000,"seq":114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b9244-4ba0-7f48-98b9-86cbe92040d3","at":1767685508000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9246-bca0-7121-ace4-ebbb8d69ecad","at":1767685668000000000,"seq":116,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9246-bca0-7708-bacd-f9dc940f908d","at":1767685668000000000,"seq":117,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9246-c858-7628-9c77-c5463d9f86a0","at":1767685671000000000,"seq":118,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9246-dbe0-74f0-b578-310426278b0c","at":1767685676000000000,"seq":119,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9246-dfc8-70e6-a86f-95d5a7a744bc","at":1767685677000000000,"seq":120,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b9247-1a60-7bcb-9df1-bae7a374f9d5","at":1767685692000000000,"seq":121,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9247-54ae-750a-921f-383e716bcc2a","at":1767685706926000000,"seq":122,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9247-7ff0-7d23-8053-5ad0b357ddb4","at":1767685718000000000,"seq":123,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b9248-08a8-741e-9059-6bf7fe85e54e","at":1767685753000000000,"seq":124,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b9249-6f74-7aec-8781-ba392de63cad","at":1767685844852000000,"seq":125,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9249-8778-7843-b279-5ed2d48020c0","at":1767685851000000000,"seq":126,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b9249-a775-797c-a3e2-3f916333c809","at":1767685859189000000,"seq":127,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b924a-23b8-7f92-b7eb-38cec116d40f","at":1767685891000000000,"seq":128,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

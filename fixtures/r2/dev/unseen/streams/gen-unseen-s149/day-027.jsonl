@@ -1,0 +1,22 @@
+{"v":1,"id":"019bfe6d-92e1-7f23-9434-482b25bbf8a0","at":1769500152545000000,"seq":342,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bfe6d-92e1-749a-b55a-1f6f1683bd1d","at":1769500152545000000,"seq":343,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bfe6d-b3e8-7f13-8762-124e34fa5bfe","at":1769500161000000000,"seq":344,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe6f-73d5-784d-9dee-151f72ec580a","at":1769500275669000000,"seq":345,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bfe6f-7520-7918-87fe-acc9b3b2fb00","at":1769500276000000000,"seq":346,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe6f-d2e0-7b64-b37c-c200d7c549a6","at":1769500300000000000,"seq":347,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bfe6f-dab0-79ce-8a12-fe44186c9c45","at":1769500302000000000,"seq":348,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe6f-f9f0-7c7c-8673-97f5c99391ac","at":1769500310000000000,"seq":349,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bfe70-135b-75b1-8665-e00cb5828a22","at":1769500316507000000,"seq":350,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bfe70-4fe0-7e83-be8e-38173e9fc6a1","at":1769500332000000000,"seq":351,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bfe70-5f80-72f7-8771-4877a6b9741c","at":1769500336000000000,"seq":352,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe70-b188-73e2-8495-9d79886fcdc0","at":1769500357000000000,"seq":353,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bfe70-b958-7180-ac5f-5b16e8b82b03","at":1769500359000000000,"seq":354,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe82-ea97-7f24-8cc9-e1cc93079ac6","at":1769501551255000000,"seq":355,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bfe83-5ec8-7cad-83fc-e1dadb385e23","at":1769501581000000000,"seq":356,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe83-e38c-7305-a81f-bcfdbbfec6b5","at":1769501614988000000,"seq":357,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bfe83-fef0-7257-abe4-d05d7b4b5883","at":1769501622000000000,"seq":358,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bfe84-6c50-7229-9a10-9f864f6f76f6","at":1769501650000000000,"seq":359,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bfe96-c905-7f87-a197-241501e66382","at":1769502853381000000,"seq":360,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bfe96-db10-7424-9dac-d48fe6611250","at":1769502858000000000,"seq":361,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfe97-2548-7352-8601-21db3b674912","at":1769502877000000000,"seq":362,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe97-9690-7aac-80d8-fb01fd3a70af","at":1769502906000000000,"seq":363,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

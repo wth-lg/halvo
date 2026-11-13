@@ -1,0 +1,12 @@
+{"v":1,"id":"019bbbf0-d2e5-77ab-8d9f-c612ec10b784","at":1768384680677000000,"seq":259,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbbf0-d2e5-7127-a879-6eea266894dd","at":1768384680677000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bbbf0-fb38-78bb-a0e3-6d37dc9d38b4","at":1768384691000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbf1-c351-7d98-a64b-ff073a9488bf","at":1768384742225000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bbbf1-f150-7ff2-8ca7-98f93ec83bb7","at":1768384754000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bbbf1-f920-7674-8b6b-1f0c71fbc72d","at":1768384756000000000,"seq":264,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bbbf1-fd08-78a2-9452-9d0ec635fb12","at":1768384757000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbf2-0017-7cf6-80c6-c26b3f988ddc","at":1768384757783000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bbbf2-2be8-78f9-8ca5-debb2b1ac42a","at":1768384769000000000,"seq":267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bbbf2-6298-75dd-9a15-42009a64fd84","at":1768384783000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbbf2-c440-735f-af10-7253c218c494","at":1768384808000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bbbf2-dbb0-7b1b-8429-7ec92295cf31","at":1768384814000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

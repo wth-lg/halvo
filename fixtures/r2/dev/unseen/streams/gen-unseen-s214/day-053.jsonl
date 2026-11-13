@@ -1,0 +1,27 @@
+{"v":1,"id":"019c842a-253b-708d-be39-1693dca5d7d3","at":1771743880507000000,"seq":601,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c842a-253b-776f-8f3c-564982d7fa21","at":1771743880507000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c842a-ea78-7f4c-b011-838b98ba752c","at":1771743931000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c842a-ee60-7bb2-8923-178751b93b77","at":1771743932000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c842b-2631-79b8-b335-9c2361f0fe7f","at":1771743946289000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c842b-3898-7c49-9256-22a61853488e","at":1771743951000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c842b-d930-7208-9fa7-0fe07e6c92c7","at":1771743992112000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c842c-2eb0-7add-b64b-7751a1539886","at":1771744014000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c842c-5d90-78be-8622-c686940474d3","at":1771744026000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c842c-7118-7290-ac58-0cd0d2ff8662","at":1771744031000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c842c-9147-7a59-a418-9482eac6daab","at":1771744039239000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c842c-da90-7db2-b3df-3fac85b558e6","at":1771744058000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c842d-4bd8-7a92-ba71-c8512a30f145","at":1771744087000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8442-cbb7-71d0-b49a-33814f98cecf","at":1771745495991000000,"seq":614,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8442-d390-7916-9485-91795179966c","at":1771745498000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c8442-fe88-7def-99e8-af390fddfb39","at":1771745509000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8443-0658-7f18-b3b8-9e18c9876351","at":1771745511000000000,"seq":617,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8443-2598-7a99-9ce0-c02e12867e75","at":1771745519000000000,"seq":618,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8456-7e1b-7cfc-98f6-c623195ab36a","at":1771746786843000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c8456-a9b0-75dd-b3b1-d804ceaf25f5","at":1771746798000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8456-ad98-7fc2-8fb8-3ce299729902","at":1771746799000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8456-e830-7ae3-a886-42bcdfaa9b70","at":1771746814000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c8456-ee08-7b5b-b2f5-6d0670b6c126","at":1771746815496000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c8457-1328-76d5-a005-1a15fadd811d","at":1771746825000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8457-1af8-7fa6-8b3b-777fc16a9b4a","at":1771746827000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c8457-5590-7aa0-bdaf-d2bcf21c865d","at":1771746842000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8457-b738-7ccd-89af-5b1fa28eb8ea","at":1771746867000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

@@ -1,0 +1,16 @@
+{"v":1,"id":"019d1a1d-2181-7804-b7e4-3d5963ec9e29","at":1774259609985000000,"seq":1269,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1a1d-2181-756a-b8af-baee20e87645","at":1774259609985000000,"seq":1270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d1a1e-0fdc-7fef-928d-e2ab36ed536a","at":1774259671004000000,"seq":1271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d1a1e-3300-794c-a69b-5b142608cc00","at":1774259680000000000,"seq":1272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1a1e-8cd8-7e6e-a7a5-cc25c84086cb","at":1774259703000000000,"seq":1273,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1a1e-9c78-7e2c-ad31-f4ec6313cd60","at":1774259707000000000,"seq":1274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a1e-b6ac-7677-b009-ded718224a0c","at":1774259713708000000,"seq":1275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d1a1e-b7d0-71de-97ec-edba4675aa37","at":1774259714000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d1a1e-d710-79ab-8835-58e6dec99af9","at":1774259722000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a1e-dee0-7b6a-8324-548fd1a03936","at":1774259724000000000,"seq":1278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a1e-f052-7168-8470-c562b174a18e","at":1774259728466000000,"seq":1279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d1a1f-05f0-7a11-9d7c-2c3e00808efc","at":1774259734000000000,"seq":1280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a36-55c9-7abf-afc8-31f06ca61c43","at":1774261261769000000,"seq":1281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1a36-6e20-70b7-bf88-f3e8e8366c8b","at":1774261268000000000,"seq":1282,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1a36-75f0-7bc8-bf55-15540df02da5","at":1774261270000000000,"seq":1283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a36-8978-75ca-9eec-23003b3a872e","at":1774261275000000000,"seq":1284,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

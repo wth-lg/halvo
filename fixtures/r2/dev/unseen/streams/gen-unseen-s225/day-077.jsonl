@@ -1,0 +1,43 @@
+{"v":1,"id":"019cffdf-8e7d-7391-8a12-1a0a1035028c","at":1773819367037000000,"seq":890,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cffdf-8e7d-7475-96e2-1c6e89cc4b72","at":1773819367037000000,"seq":891,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cffdf-ad98-7706-a157-979571f4efb9","at":1773819375000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cffdf-c120-7259-a7bd-2c4f86a7b5c0","at":1773819380000000000,"seq":893,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdf-c508-78db-9934-3a4af2f57b78","at":1773819381000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdf-dffa-7137-acab-2a77c6335dba","at":1773819387898000000,"seq":895,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for July - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cffe0-0388-7192-88c7-4c150be486ed","at":1773819397000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cffe0-7ccd-745f-9ced-b8a5bded9d08","at":1773819428045000000,"seq":897,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cffe0-bb20-7940-bcd1-b9ca59cba332","at":1773819444000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe0-bf08-7bac-953b-f1d588a94e04","at":1773819445000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe0-cac0-7266-9e80-71ac92bf4ec1","at":1773819448000000000,"seq":900,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cffe0-cea8-7b36-ab33-169433cf9907","at":1773819449000000000,"seq":901,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cffe0-daa3-7fcf-b556-e4be651b6f3b","at":1773819452067000000,"seq":902,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cffe0-ede8-72b0-80a6-ce3b8f90b0e4","at":1773819457000000000,"seq":903,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cffe1-0d28-7b39-b69b-93576abc5500","at":1773819465000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe1-18e0-7b50-87cb-432427e91831","at":1773819468000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe1-3438-768b-95ad-ab845afaa6e6","at":1773819475000000000,"seq":906,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cffe1-76a0-7ff0-a757-22b86f209418","at":1773819492000000000,"seq":907,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cffe1-986b-70ca-b45b-a4a833fbe957","at":1773819500651000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cffe1-b138-796a-b682-cceeca74245c","at":1773819507000000000,"seq":909,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cffe1-c4c0-7655-af00-cde9a8e91b4f","at":1773819512000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe1-fb70-7cb8-965d-b28d9c78115d","at":1773819526000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe2-3608-724e-9dd8-5eb0c0d84069","at":1773819541000000000,"seq":912,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfff6-aae3-7187-9110-0c2d96e498b5","at":1773820881635000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfff6-fe58-7d1a-aff2-5130e563fedf","at":1773820903000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff7-11e0-757d-997a-12397bc56211","at":1773820908000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cfff7-1d98-7648-9979-85e8546df21d","at":1773820911000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff7-2906-7f44-b5ba-cfdc6c4df7e5","at":1773820913926000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfff7-6fa0-7cc5-89ac-315b8de4661c","at":1773820932000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cfff7-7b58-7cf1-86fa-5689199b62d1","at":1773820935000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff7-cd60-7cd6-b29e-b779421aac0e","at":1773820956000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff8-1b2a-76a0-b7be-05f5d6486cdf","at":1773820975914000000,"seq":921,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfff8-2b20-7772-979d-9921a8f3423f","at":1773820980000000000,"seq":922,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfff8-3ea8-7952-951e-b73a05a9c670","at":1773820985000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cfff8-4290-7dcd-86ef-bd59f6aa5c30","at":1773820986000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfff8-53a0-72f9-9bab-106034125b17","at":1773820990368000000,"seq":925,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfff8-7170-76cc-8705-090fcd6d9c3b","at":1773820998000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cfff8-84f8-79ae-943e-baedfdedd37b","at":1773821003000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff8-90b0-74af-b253-e44ef02b1982","at":1773821006000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff8-e525-7396-b3f5-237d7b516357","at":1773821027621000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfff8-ee70-7678-b5dc-19ba6bda191f","at":1773821030000000000,"seq":930,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff9-34c0-7ed0-accd-30e7b7c5b29e","at":1773821048000000000,"seq":931,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfff9-3915-7a88-a1f1-8d44843f5c3a","at":1773821049109000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}

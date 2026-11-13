@@ -1,0 +1,9 @@
+{"v":1,"id":"019c3225-a099-7aad-a764-06c3799cf850","at":1770367852697000000,"seq":544,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3225-a099-7659-9711-86bf17409cf0","at":1770367852697000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c3226-629a-7013-ae69-a68224aaf79f","at":1770367902362000000,"seq":546,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c3226-70d0-7f1a-b94e-cc1167b840ca","at":1770367906000000000,"seq":547,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3226-97e0-75f2-8d19-4b270dd55327","at":1770367916000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3226-a780-7614-a4e0-90509ee3f0b1","at":1770367920000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c322c-9ac2-7724-8608-0ed052e2189d","at":1770368309954000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c322c-f4c8-71e3-a197-af5d5781db0c","at":1770368333000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322d-0468-7c09-91d4-fb944c7efca2","at":1770368337000000000,"seq":552,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

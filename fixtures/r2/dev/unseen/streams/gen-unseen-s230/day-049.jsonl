@@ -1,0 +1,26 @@
+{"v":1,"id":"019c7025-b39d-73f5-ba04-f83845dbd1c2","at":1771408044957000000,"seq":615,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7025-b39d-798a-b8b4-4bb1d9fbf78b","at":1771408044957000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7026-2128-7296-8f63-28755cafb1c7","at":1771408073000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7026-28f8-7f83-a5ef-5a9653cdd7c6","at":1771408075000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7026-8f7e-72d9-bd14-758d8084e7ca","at":1771408101246000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7026-e860-7da4-ac65-8a351a3c6d4c","at":1771408124000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7026-ffd0-793a-b095-157abaee6401","at":1771408130000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7027-3e50-7c58-9888-4208e0ce4568","at":1771408146000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7027-428e-7b14-a066-1926403896e3","at":1771408147086000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7027-4620-7618-8f15-ad2b6680c189","at":1771408148000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7027-55c0-7c2f-a12b-e6f473f4a4b0","at":1771408152000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7027-78e8-79c6-bed3-83bd763d1115","at":1771408161000000000,"seq":626,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7027-85a0-7cf7-970c-e124d81fc573","at":1771408164256000000,"seq":627,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7027-9440-7845-afe3-814de8c6edb1","at":1771408168000000000,"seq":628,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7027-f200-7b5b-ad61-6ff7f62b8306","at":1771408192000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7028-28b0-7610-a0ca-55eb0b60d45d","at":1771408206000000000,"seq":630,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7028-397c-733e-aed8-64e70268e0d9","at":1771408210300000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c7028-7ea0-7a7e-9c50-1afb57d9102d","at":1771408228000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7028-c8d8-7ee0-afe5-524d09c9daf3","at":1771408247000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7043-39fc-7fb2-bb03-708711e81550","at":1771409979900000000,"seq":634,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7043-39fc-7593-a02c-f2b99f46b609","at":1771409979900000000,"seq":635,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7043-8498-7b18-a948-3319670550ac","at":1771409999000000000,"seq":636,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c7043-bcf4-7f84-a7ee-a260d7b8b2ed","at":1771410013428000000,"seq":637,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c7043-f1f8-7a12-9f3a-900a84891c14","at":1771410027000000000,"seq":638,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c704f-0e0c-7989-a721-28fe33598c3d","at":1771410755084000000,"seq":639,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c704f-34c8-7b4c-bca3-dda518a31213","at":1771410765000000000,"seq":640,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

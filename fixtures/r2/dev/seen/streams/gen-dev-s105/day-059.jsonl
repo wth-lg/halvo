@@ -1,0 +1,18 @@
+{"v":1,"id":"019ca351-10b3-7211-83a8-821fc6d4139e","at":1772266524851000000,"seq":683,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca351-10b3-7097-9756-57224ab606a7","at":1772266524851000000,"seq":684,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ca351-28b8-7adc-85a4-825f36c89a60","at":1772266531000000000,"seq":685,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca351-4028-782e-86c6-8b29f1d90b66","at":1772266537000000000,"seq":686,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca351-9de8-751d-851d-b3b9213b7305","at":1772266561000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ca352-06b5-7500-970d-06a81738f9ef","at":1772266587829000000,"seq":688,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ca352-6138-7cae-8e80-f7fde84dd137","at":1772266611000000000,"seq":689,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca352-90dc-7eef-9b81-fc21f36ae7aa","at":1772266623196000000,"seq":690,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ca353-2870-7752-8447-7110184686f5","at":1772266662000000000,"seq":691,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca353-3428-7d5e-bbd7-b49086bc8034","at":1772266665000000000,"seq":692,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca353-8c86-79d2-af1a-fe241e09a318","at":1772266687622000000,"seq":693,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ca353-efa8-7809-b24a-88a66f36c2cb","at":1772266713000000000,"seq":694,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca353-f390-7a00-ad93-1e1be1ade01d","at":1772266714000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca354-5150-70dd-89a6-6b5c8a22e551","at":1772266738000000000,"seq":696,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca363-cd01-7a91-addb-7e79ae430e71","at":1772267752705000000,"seq":697,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ca364-04d8-7f74-bab9-382d945c6599","at":1772267767000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca364-2be8-7b6d-9f8f-762e83ff0dce","at":1772267777000000000,"seq":699,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca364-5163-754d-8639-4f18100afcf5","at":1772267786595000000,"seq":700,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}

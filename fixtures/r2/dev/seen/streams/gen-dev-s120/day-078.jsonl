@@ -1,0 +1,33 @@
+{"v":1,"id":"019d05a4-a8b1-7fde-b55c-3cd318519fb2","at":1773916170417000000,"seq":1192,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d05a4-a8b1-79db-bf3d-9d618b8ec6ff","at":1773916170417000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05a5-963a-790f-9357-c636b25c395a","at":1773916231226000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05a5-c820-7753-87b2-cef44a3a6d7c","at":1773916244000000000,"seq":1195,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d05a5-cc08-77a2-ad4e-672e6700086f","at":1773916245000000000,"seq":1196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d05a5-fee6-721e-97b9-02fbdca2dfc3","at":1773916258022000000,"seq":1197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05a6-06a0-793a-b1b4-b5dc51e03728","at":1773916260000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a6-4cf0-75f6-b491-7e609eff18bf","at":1773916278000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a6-4eb5-71ef-b405-91f979b6bdae","at":1773916278453000000,"seq":1200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05a6-7fb8-7f07-a71e-2ab39ced6f97","at":1773916291000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d05a6-8788-72ef-9308-b406c1bf9bcf","at":1773916293000000000,"seq":1202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d05a6-8b70-7856-a6eb-ca1f6186b661","at":1773916294000000000,"seq":1203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a6-9728-7743-ab6f-157d45d2b437","at":1773916297000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a6-a0e1-7e03-b276-76360650efdb","at":1773916299489000000,"seq":1205,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d05a6-a0e1-7180-88e5-ce444e8e4814","at":1773916299489000000,"seq":1206,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d05a6-cdd8-7632-ab2b-7e9c7ac107c6","at":1773916311000000000,"seq":1207,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d05a6-f8d0-745a-8d43-7e8476610a46","at":1773916322000000000,"seq":1208,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d05a7-0488-7e43-bcb6-9c16c287b76c","at":1773916325000000000,"seq":1209,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d05a7-604c-75e3-9556-54290d430b79","at":1773916348492000000,"seq":1210,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d05a7-604c-78d9-ad80-dede440b422c","at":1773916348492000000,"seq":1211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05a7-b838-7b79-81a4-c2185224ce7a","at":1773916371000000000,"seq":1212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a7-fe88-71c2-a210-ffbd352b5053","at":1773916389000000000,"seq":1213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a8-3896-74b0-ae88-61b3639cb14c","at":1773916403862000000,"seq":1214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05a8-3d08-7565-b979-8abf080b07d9","at":1773916405000000000,"seq":1215,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d05a8-6030-730b-927a-0397cf2be7e9","at":1773916414000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a8-8740-79f0-a4b0-7cf44ae7643a","at":1773916424000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d05a8-aa68-7883-8a64-8202c4143a30","at":1773916433000000000,"seq":1218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d05be-5b0f-711f-abe6-1d4d02865ad6","at":1773917854479000000,"seq":1219,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d05be-5b0f-7194-8fcf-3782d4ff3430","at":1773917854479000000,"seq":1220,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d05be-68d0-7664-a015-d3d0ea9790fe","at":1773917858000000000,"seq":1221,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d05be-f570-7f66-a2a9-138180e23e8a","at":1773917894000000000,"seq":1222,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d05be-f958-71af-9955-2ec4a032ef20","at":1773917895000000000,"seq":1223,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05bf-0128-75e0-b5ec-28406c90fdf4","at":1773917897000000000,"seq":1224,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

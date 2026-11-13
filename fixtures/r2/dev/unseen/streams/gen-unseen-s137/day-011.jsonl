@@ -1,0 +1,38 @@
+{"v":1,"id":"019babf7-5178-7e76-9023-54e6aa0834d9","at":1768116670840000000,"seq":70,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019babf7-5178-7cd0-9714-0c8a6673e083","at":1768116670840000000,"seq":71,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019babf7-84e0-734b-a67d-b1678b857111","at":1768116684000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babf8-4830-7488-83ff-74c4ac8055ed","at":1768116734000000000,"seq":73,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019babf8-5a01-739a-a044-e3f3c8101e8c","at":1768116738561000000,"seq":74,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019babf8-5bb8-7b46-845e-d05bd131eacf","at":1768116739000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babf8-6b58-715b-9547-54383a02268d","at":1768116743000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babf8-f410-7c1f-a715-d3a8420da74a","at":1768116778000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019babf9-545a-7713-894c-d190da920832","at":1768116802650000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019babf9-7cc8-7a07-95ba-5d44cf6bc2f8","at":1768116813000000000,"seq":79,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019babfa-0968-7f8d-aaea-b6fcd46cbfef","at":1768116849000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019babfa-1a5e-7847-9a4b-0b553ff5ae72","at":1768116853342000000,"seq":81,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019babfa-7ab0-70b7-84c4-3e24605ba7cc","at":1768116878000000000,"seq":82,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babfa-a5a8-7a7c-a3cf-f8c18071528f","at":1768116889000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babfb-0f20-737b-af14-088d79c3af51","at":1768116916000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019babfb-1d6c-7c7e-8e4c-e614d6698c98","at":1768116919660000000,"seq":85,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019babfb-2e60-7d2e-995f-1fe81d1cae36","at":1768116924000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babfb-6ce0-7f0d-ae77-c7e37e84cf00","at":1768116940000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac10-2335-7008-aa3a-4dbb63caa8a9","at":1768118297397000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bac10-7798-7533-814f-0c46682f371e","at":1768118319000000000,"seq":89,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bac10-b618-74c0-9aa3-508b71d5a0f1","at":1768118335000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac15-2a52-7193-b16e-f621e9834421","at":1768118626898000000,"seq":91,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bac15-2a52-759c-aa14-2d503db0f81e","at":1768118626898000000,"seq":92,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bac28-4a7e-733b-b0e1-03fc703dfe88","at":1768119880318000000,"seq":93,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac28-4a7e-7c68-977e-8aff95d2334b","at":1768119880318000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bac28-4d28-7ccf-b14f-57dd74053bb9","at":1768119881000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac28-6c68-7d10-99d7-d6cbec51d858","at":1768119889000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac28-8651-76fb-bd16-50d6890adac4","at":1768119895633000000,"seq":97,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bac28-9378-7c34-82ab-c2945549cb82","at":1768119899000000000,"seq":98,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bac28-aed0-7193-9b89-e85edcdac8aa","at":1768119906000000000,"seq":99,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac28-b6a0-7f0d-ab26-908118ba90a4","at":1768119908000000000,"seq":100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac28-bfba-7ae7-a377-14f695c75a5f","at":1768119910330000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bac28-d5e0-763a-be90-d8e4863e7105","at":1768119916000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bac28-e968-784e-bcfe-151abc6fb855","at":1768119921000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac29-00d8-7962-8477-e4898f126593","at":1768119927000000000,"seq":104,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac29-47d6-7d54-97e6-194b72cb4539","at":1768119945174000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bac29-b0a0-712e-a2ac-30f6b710e4c9","at":1768119972000000000,"seq":106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bac29-cfe0-7d19-9314-19b67fc0e302","at":1768119980000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

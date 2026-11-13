@@ -1,0 +1,6 @@
+{"v":1,"id":"019c6b3b-3e18-77ca-b22c-64c3f0ec5d8e","at":1771325570584000000,"seq":776,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6b3b-3e18-7ada-8139-97ed265c612d","at":1771325570584000000,"seq":777,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6b3c-3598-7cbc-8e96-310cab42117f","at":1771325633944000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6b3c-5ce0-7206-a646-7cdf46cfe6cc","at":1771325644000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b3c-83f0-7de9-8afa-a7aec6b63bc0","at":1771325654000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c6b3c-a718-7ee7-979c-069b57395f70","at":1771325663000000000,"seq":781,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

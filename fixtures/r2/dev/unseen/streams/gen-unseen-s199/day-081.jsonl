@@ -1,0 +1,13 @@
+{"v":1,"id":"019d1477-ee81-7b73-b730-584c5ac544ae","at":1774164897409000000,"seq":1111,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1477-ee81-7216-9177-a92136d3cb2e","at":1774164897409000000,"seq":1112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1477-f8a0-78c6-a54c-256bb78556a0","at":1774164900000000000,"seq":1113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1478-3ef0-7ee2-87e3-7ad87f82d4cc","at":1774164918000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1478-8540-7759-adbb-845a4fb377fb","at":1774164936000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1478-9cb0-70db-ab96-e49b181694f0","at":1774164942000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d1478-bfd8-78e7-a623-56987177cd52","at":1774164951000000000,"seq":1117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1489-8072-7bd9-a6cd-00ead620aae3","at":1774166048882000000,"seq":1118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d148a-53d8-7a9d-8bfe-a61f1d69ef58","at":1774166103000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d148f-a13e-7e7f-b3e0-c6e183daff74","at":1774166450494000000,"seq":1120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1490-09e4-743d-bbfc-a2f2a50680ea","at":1774166477284000000,"seq":1121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1490-e388-7e32-b542-db03d8786403","at":1774166533000000000,"seq":1122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d1490-f328-7cd8-b705-a570b5dea831","at":1774166537000000000,"seq":1123,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

@@ -1,0 +1,31 @@
+{"v":1,"id":"019d3342-8166-7283-a5c7-82fe875340a4","at":1774681489766000000,"seq":1058,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3342-8166-75b6-9f0c-7982fbb85142","at":1774681489766000000,"seq":1059,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3343-0ef0-73e4-bd5d-75f83c9cf2da","at":1774681526000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3343-3dd0-7168-a56f-5f0161eb5514","at":1774681538000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3343-5928-74a5-929f-f9d3bf565e10","at":1774681545000000000,"seq":1062,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d3343-9126-7c40-9d40-81dfed444606","at":1774681559334000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3343-ab30-7a29-92fe-50dc30215a0a","at":1774681566000000000,"seq":1064,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3343-af18-7343-a853-c534059f6871","at":1774681567000000000,"seq":1065,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d3343-c688-7b6a-9a3d-2bf51cf433c3","at":1774681573000000000,"seq":1066,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3343-ccae-758a-af79-998aa1d0b512","at":1774681574574000000,"seq":1067,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3344-8dc0-74e5-952a-3c03236014c1","at":1774681624000000000,"seq":1068,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3344-90be-7a46-a7af-5079beb51abe","at":1774681624766000000,"seq":1069,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3344-90be-70bc-9a3c-f4058820f95f","at":1774681624766000000,"seq":1070,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3344-9d60-7124-958c-1eeef7383113","at":1774681628000000000,"seq":1071,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3344-a918-7a7d-9162-cd04757d7547","at":1774681631000000000,"seq":1072,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d3344-d4e8-70e9-96bb-cef838eff6cd","at":1774681642216000000,"seq":1073,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3344-d4e8-7c07-ac91-2eba1130c7a1","at":1774681642216000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3344-f350-75ce-a0e6-79b6e322d941","at":1774681650000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3344-f738-7f33-b09f-6654c9f4ddc1","at":1774681651000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3345-54f8-7fad-a0ab-b04c64af3b73","at":1774681675000000000,"seq":1077,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d335c-1204-7485-bf9b-5ed93c91f78a","at":1774683165188000000,"seq":1078,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d335c-20e8-7cde-9ec7-fabe0d5a6e37","at":1774683169000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d335c-47f8-7b3a-932c-07e22cd86f1b","at":1774683179000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d335c-74f9-7149-b9c9-49b32d35ca3c","at":1774683190521000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d335c-9a00-7e83-a92b-0df2fed06173","at":1774683200000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d335c-9de8-7034-be7d-91634c413475","at":1774683201000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d335c-b170-73d5-821b-c3b90f5b6e9f","at":1774683206000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d335c-e509-71a9-9bf0-53422e58c1b5","at":1774683219209000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d335d-0760-7d93-866d-106448ad932f","at":1774683228000000000,"seq":1086,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d335d-0760-74f4-a890-461e4afa097f","at":1774683228000000000,"seq":1087,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d335d-1700-7dc6-ab82-adee3f23c829","at":1774683232000000000,"seq":1088,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

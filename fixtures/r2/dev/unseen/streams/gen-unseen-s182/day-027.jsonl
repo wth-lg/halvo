@@ -1,0 +1,19 @@
+{"v":1,"id":"019bfe75-1244-787b-a10e-d9d75737d7f7","at":1769500643908000000,"seq":381,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfe75-1244-7d81-bd73-208dab51f4f5","at":1769500643908000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bfe75-4568-7889-b01f-3a44f1e9e222","at":1769500657000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe75-6c78-70cf-8b84-90401dfac5e2","at":1769500667000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe75-7641-771d-8e88-c2f1612d0cd1","at":1769500669505000000,"seq":385,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bfe75-8000-7347-bc9b-128e67357426","at":1769500672000000000,"seq":386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe75-9b58-7181-af9a-d50ca2df58ac","at":1769500679000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe75-c268-7484-86fe-7c61f4934f4c","at":1769500689000000000,"seq":388,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfe75-c87a-769e-9e6f-1579349374bd","at":1769500690554000000,"seq":389,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bfe76-04d0-7d78-99d2-59be00265a06","at":1769500706000000000,"seq":390,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bfe76-3798-711f-8892-23eceebd00c1","at":1769500719000000000,"seq":391,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfe76-3f68-7ec2-9c40-77884d145f63","at":1769500721000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bfe76-52f0-7a81-b102-e92e29c7c2b7","at":1769500726000000000,"seq":393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe76-5668-7367-a734-6d897a1a8165","at":1769500726888000000,"seq":394,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bfe79-ef10-7828-9d52-cf3e3d11037b","at":1769500962576000000,"seq":395,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bfe7a-0440-7f5f-b780-6343740c5b0d","at":1769500968000000000,"seq":396,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfe7a-1bb0-7fbf-81bf-9089514cd5f7","at":1769500974000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bfe7a-65e8-7589-bb49-f1a4929eca1c","at":1769500993000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe7a-90e0-7a77-9fed-d52cb028d97c","at":1769501004000000000,"seq":399,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

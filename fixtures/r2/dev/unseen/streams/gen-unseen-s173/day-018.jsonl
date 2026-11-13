@@ -1,0 +1,27 @@
+{"v":1,"id":"019bd075-beeb-746d-aea1-94cab39ea76e","at":1768728936171000000,"seq":217,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd075-beeb-7c45-8293-4fe0643501b1","at":1768728936171000000,"seq":218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd075-f108-763a-b604-d1acf3b18b2c","at":1768728949000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd076-6cdc-73d3-a14a-3aa9dc9e5fcf","at":1768728980700000000,"seq":220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd076-9900-77c6-bb09-675af5f65859","at":1768728992000000000,"seq":221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd076-a0d0-7e3c-84cc-8523df0d33fe","at":1768728994000000000,"seq":222,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd076-cbc8-76bf-a76d-4082613d9a65","at":1768729005000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bd077-0bb9-78fe-8b0a-1a4969e59b59","at":1768729021369000000,"seq":224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd077-1dd0-78e1-aa65-0409d9a92cd3","at":1768729026000000000,"seq":225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd077-25a0-7d4b-a51e-c99c563e93d3","at":1768729028000000000,"seq":226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd077-5480-78f8-b00d-6d031d530fd6","at":1768729040000000000,"seq":227,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd077-5826-7b7a-bbf3-7c1f25017d95","at":1768729040934000000,"seq":228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bd077-8360-7ff5-8cb1-10452fe5ca86","at":1768729052000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd07b-ff8e-78f4-8a15-35395632ee53","at":1768729345934000000,"seq":230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bd07c-07a0-70aa-9193-fc5a1d645da3","at":1768729348000000000,"seq":231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bd07c-0f70-7a4d-9694-45fe2183deb0","at":1768729350000000000,"seq":232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd07c-5d90-7c35-95eb-55bb86454da6","at":1768729370000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd08d-47db-7500-8f0e-5d6851d09bb7","at":1768730478555000000,"seq":234,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd08d-47db-72dc-b71d-a5400fbf819a","at":1768730478555000000,"seq":235,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd08d-9ba0-7b9c-a9cb-c5aae3c5b91a","at":1768730500000000000,"seq":236,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd08d-a370-7716-8bab-0cdfc4a5accc","at":1768730502000000000,"seq":237,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0a8-91c0-7cc9-9376-c384e9e89662","at":1768732266944000000,"seq":238,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bd0a8-95e0-70a2-8617-e47e7d8cf890","at":1768732268000000000,"seq":239,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bd0a8-a198-7eae-a2eb-69ce0fbd3f7a","at":1768732271000000000,"seq":240,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bd0a8-a968-7205-8174-b5b6687ad626","at":1768732273000000000,"seq":241,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0a8-c0d8-74ad-a620-b794a979612e","at":1768732279000000000,"seq":242,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0a8-c4c0-7821-8cce-2d8dd5363b35","at":1768732280000000000,"seq":243,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

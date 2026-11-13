@@ -1,0 +1,10 @@
+{"v":1,"id":"019ca8f1-2296-7890-949c-69d9627a47a9","at":1772360901270000000,"seq":767,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca8f1-2296-78ab-8bf5-9165f5fd1729","at":1772360901270000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca905-2d21-78b9-9042-fbb667769d7d","at":1772362214689000000,"seq":769,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca905-2d21-711f-9d5d-4f04cd4c8262","at":1772362214689000000,"seq":770,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca905-e208-7b70-a017-a56f7e83ac49","at":1772362261000000000,"seq":771,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca915-ad2a-7a34-9eac-651940a54467","at":1772363296042000000,"seq":772,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ca915-d410-79ed-a287-14a54478c42c","at":1772363306000000000,"seq":773,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca915-d7f8-79ec-8f16-29e8c69d615b","at":1772363307000000000,"seq":774,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca915-f350-7388-899b-1beef407060d","at":1772363314000000000,"seq":775,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ca915-ff08-7c59-a828-e7b969c732eb","at":1772363317000000000,"seq":776,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}

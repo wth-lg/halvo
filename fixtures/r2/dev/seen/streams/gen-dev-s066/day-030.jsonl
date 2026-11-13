@@ -1,0 +1,31 @@
+{"v":1,"id":"019c0e32-5a73-7117-b9ec-07609f0c3af7","at":1769764706931000000,"seq":497,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e32-5a73-7802-85f4-7dc9ee867a88","at":1769764706931000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c0e32-8998-7551-bb25-b04fabc52a0c","at":1769764719000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e33-0698-7fb4-916d-a45445115f66","at":1769764751000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e33-517c-7ba6-82e4-1a0175b571cd","at":1769764770172000000,"seq":501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c0e33-9338-79b3-ba0f-3240a16c3a54","at":1769764787000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e33-aaa8-726d-9522-def336a5f153","at":1769764793000000000,"seq":503,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0e34-1038-784a-9156-41c158e4664e","at":1769764819000000000,"seq":504,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e34-27a8-75b0-954e-c1f9d016a1f0","at":1769764825000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e34-2b9d-7197-a831-6a8009e3e84e","at":1769764826013000000,"seq":506,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c0e34-52a0-74dc-b791-e6e07ce15b48","at":1769764836000000000,"seq":507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e34-6a10-7aeb-9704-5af74bd9f64d","at":1769764842000000000,"seq":508,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0e34-6df8-7286-9829-8cc2774bc39c","at":1769764843000000000,"seq":509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e34-a0c0-7bd4-9124-68fcdf0a77dd","at":1769764856000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c0e34-a4a8-77da-8f3c-5da23b38f450","at":1769764857000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e34-e3bc-7371-8f47-9405102b971c","at":1769764873148000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c0e34-e710-7a46-8e32-a9cf03ab1c6b","at":1769764874000000000,"seq":513,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e35-40e8-702e-9da8-bf54e6395432","at":1769764897000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c0e35-4ca0-76cc-af17-6a2253a525df","at":1769764900000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e35-5858-73c2-8af8-7f358a6abb4d","at":1769764903000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e35-c1d0-7297-8884-2240e40cf60e","at":1769764930000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e4b-9170-708c-b84c-61d080cbafd7","at":1769766359408000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c0e4b-97a8-77e3-900a-c9d87f0a3438","at":1769766361000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e4b-beb8-7ff8-a604-9ae2b3c19ab0","at":1769766371000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e4b-d0e2-7ac1-9df5-16d1ee8b5ef5","at":1769766375650000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c0e4b-e9b0-7e79-863b-9292778770a3","at":1769766382000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e4c-10c0-72d6-b4b2-cde192aa8fd9","at":1769766392000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c0e4c-1890-770e-adb5-ab21b3afd349","at":1769766394000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e4c-67e3-70a4-b25e-33a72d7e39de","at":1769766414307000000,"seq":525,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c0e4c-6a98-7b46-9239-d2dd294a6737","at":1769766415000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c0e4c-9590-7831-9b52-15e179aab362","at":1769766426000000000,"seq":527,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

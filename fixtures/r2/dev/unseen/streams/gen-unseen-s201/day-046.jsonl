@@ -1,0 +1,19 @@
+{"v":1,"id":"019c6029-9173-72c4-b1b3-37ce870070e7","at":1771139862899000000,"seq":715,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6029-9173-7ab3-b76f-2578058a9f2a","at":1771139862899000000,"seq":716,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c602a-7b7e-7a20-9c7d-8f30daa525f6","at":1771139922814000000,"seq":717,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c602b-0cc0-704e-806a-dabb908aeffd","at":1771139960000000000,"seq":718,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c602b-4b40-749e-95cc-de07fcc7d2da","at":1771139976000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c602b-7638-7e3f-b6d7-383dacee64f5","at":1771139987000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c602b-86de-7a61-81d8-05938bb72149","at":1771139991262000000,"seq":721,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c602b-d010-7f38-9eec-a3f197d04d60","at":1771140010000000000,"seq":722,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c602b-d3f8-7275-b7db-20f578160c3d","at":1771140011000000000,"seq":723,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c602c-1e30-7d12-95bf-65fb75489abb","at":1771140030000000000,"seq":724,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c603a-a8aa-7137-87ee-07f2e69e8a66","at":1771140982954000000,"seq":725,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c603a-fec8-7676-b7d0-5f9ec84d7762","at":1771141005000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c603b-186b-77f0-a8ae-5b3e3c2fc05a","at":1771141011563000000,"seq":727,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c603b-be30-763f-a668-2e67264cd98c","at":1771141054000000000,"seq":728,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c603b-d5a0-7e0f-94ab-a1b4bed691b0","at":1771141060000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c603b-e928-7ab9-809f-45811d7cb124","at":1771141065000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c603b-f8e0-77a5-bb7a-3ee046e1c13d","at":1771141069024000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c603c-27a8-784f-8579-78d2cbe28b78","at":1771141081000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c603c-a4a8-73c8-93bc-f59eac09e0f4","at":1771141113000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

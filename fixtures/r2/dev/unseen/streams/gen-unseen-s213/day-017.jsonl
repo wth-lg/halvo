@@ -1,0 +1,64 @@
+{"v":1,"id":"019bcb08-a7b3-78e5-843a-0716e786bcdb","at":1768637900723000000,"seq":200,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb08-a7b3-7a56-85ab-bd82280b4706","at":1768637900723000000,"seq":201,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb08-ef18-793c-bd42-ec1d6520671f","at":1768637919000000000,"seq":202,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bcb09-21e0-745e-a5e9-932857dc9ece","at":1768637932000000000,"seq":203,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb09-50c0-7ac1-a599-34c5c0c65a35","at":1768637944000000000,"seq":204,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bcb18-ec24-7abd-a1a9-0524a813250b","at":1768638966820000000,"seq":205,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb18-ec24-738c-9e2e-b84884c3cbce","at":1768638966820000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bcb19-239d-7934-b5cd-3a9ef710477c","at":1768638981021000000,"seq":207,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb19-239d-798d-bfbe-1bfa15860460","at":1768638981021000000,"seq":208,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb19-3710-77e0-9ad0-325ba5ecb2cc","at":1768638986000000000,"seq":209,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bcb19-6208-78cb-9f88-e70b87f727a2","at":1768638997000000000,"seq":210,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bcb19-6236-72c9-b281-6d6b8493b364","at":1768638997046000000,"seq":211,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bcb19-7d60-70da-a112-eaf69f04be6a","at":1768639004000000000,"seq":212,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb19-a088-7db6-b651-61d109f6d8c5","at":1768639013000000000,"seq":213,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bcb19-b505-736d-900e-0f13b072b773","at":1768639018245000000,"seq":214,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb19-b505-7d45-81f3-12c0ba4648df","at":1768639018245000000,"seq":215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bcb19-df08-7b97-959a-66f82f450d79","at":1768639029000000000,"seq":216,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb19-e2f0-7927-8595-2e4b7bb593d8","at":1768639030000000000,"seq":217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb19-fa60-7cd2-9ce6-549aff487726","at":1768639036000000000,"seq":218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb1a-40b0-7d65-b710-6a7cd61d7a38","at":1768639054000000000,"seq":219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb1a-6f90-74c4-90a2-762c5620032b","at":1768639066000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bcb1a-bcc4-7ac2-b7fb-44c557919356","at":1768639085764000000,"seq":221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bcb1a-c580-7652-8fa2-807e2ffdd841","at":1768639088000000000,"seq":222,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb1a-e8a8-7288-befd-25831c55a4ae","at":1768639097000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb1b-2340-7875-936c-e1c9358598f0","at":1768639112000000000,"seq":224,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb1b-4280-75b7-a61c-664439de252a","at":1768639120000000000,"seq":225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb2b-d086-7b0b-be2c-d785c67b66e4","at":1768640204934000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bcb2c-1ee8-7ad8-a469-86a4b4ffa739","at":1768640225000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb2c-3a40-7bef-8f52-39ab51adb71e","at":1768640232000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bcb2c-556a-735c-a86f-68799b78a22f","at":1768640238954000000,"seq":229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bcb2c-af70-7657-b3b5-058a2127c402","at":1768640262000000000,"seq":230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb2c-de50-7e75-9d83-e53150273826","at":1768640274000000000,"seq":231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bcb2d-5768-724d-b916-2a1f0c104be9","at":1768640305000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb2d-5b54-734d-9aa6-0993f15f0e26","at":1768640306004000000,"seq":233,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bcb2d-6ed8-7525-85e2-1caa25fc7bf9","at":1768640311000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb2d-7e78-79c2-87ed-a2ae933639e2","at":1768640315000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bcb2d-8a30-7ed1-830c-62fcbd547330","at":1768640318000000000,"seq":236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb2d-95e8-7cab-b542-ab93d901971f","at":1768640321000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb2d-a40e-7f81-af2d-5bb8b023c218","at":1768640324622000000,"seq":238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bcb2d-f790-74df-8777-0ca1235a3616","at":1768640346000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bcb2e-1ab8-7e16-b5b8-68582a2b5e44","at":1768640355000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb2e-2e40-7f51-b33f-83fdc56ec1d8","at":1768640360000000000,"seq":241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb49-9c87-7a75-8573-fa71f0e7f2d5","at":1768642157703000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bcb49-a968-791a-90b3-e6618bb25d27","at":1768642161000000000,"seq":243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb49-d460-7864-ab68-85eb1bc638e2","at":1768642172000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb60-8ace-7502-b47f-da651f3be613","at":1768643660494000000,"seq":245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bcb60-e6a0-7491-b72a-d011f6d823f8","at":1768643684000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bcb60-f640-79a4-b74d-274cce686319","at":1768643688000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb61-1872-7ae6-ac20-692b29cbd3fd","at":1768643696754000000,"seq":248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bcb61-38a8-7c19-a876-fb463a72619a","at":1768643705000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb61-7728-7351-8adc-572026f74144","at":1768643721000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bcb61-a608-7e98-a68f-6b540def6163","at":1768643733000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb63-60e6-7848-b895-7a61390f4b79","at":1768643846374000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bcb63-72f8-7b88-86aa-61d493149f3b","at":1768643851000000000,"seq":253,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb63-eff8-7534-b185-76a15960ea42","at":1768643883000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bcb64-1320-7b9e-a6eb-c0f2b78bc97f","at":1768643892000000000,"seq":255,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb74-f9bc-7b68-ba3e-41858d4459db","at":1768644999612000000,"seq":256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bcb75-4d48-7188-b62e-bb45e9edec8e","at":1768645021000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bcb75-6c88-7ad6-99b0-809c3ab37ec5","at":1768645029000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb75-7c28-7d6e-9e70-2e4e372a12b4","at":1768645033000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb75-f825-749b-aa25-5fba55aa9d28","at":1768645064741000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bcb75-fd10-7f43-90ea-44728f6063a8","at":1768645066000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb76-9d38-7628-a528-c959f2bdccb3","at":1768645107000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb76-a8f0-707d-ac12-1a0afd084fcb","at":1768645110000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

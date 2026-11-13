@@ -1,0 +1,33 @@
+{"v":1,"id":"019cbd22-4c74-7a52-9aa9-a28470b26320","at":1772699667572000000,"seq":1010,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd22-4c74-7029-80ac-ed430476b96d","at":1772699667572000000,"seq":1011,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd22-84d0-75e2-a08b-386757a9c57d","at":1772699682000000000,"seq":1012,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd22-92fb-74b4-ae25-dd85d831c8a2","at":1772699685627000000,"seq":1013,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd22-92fb-70da-8a65-05ebf687d138","at":1772699685627000000,"seq":1014,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cbd22-bf68-7422-a9ae-13193d789cef","at":1772699697000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd22-dea8-70ee-bb46-9a87093fa6fa","at":1772699705000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cbd23-2cc8-79ac-81b6-561947543a56","at":1772699725000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd23-9360-71ad-9857-7632d860f142","at":1772699751264000000,"seq":1018,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cbd23-b968-796a-b80f-7acfc63ee949","at":1772699761000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd24-1516-70df-9b67-067c524afce3","at":1772699784470000000,"seq":1020,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cbd24-80a0-7448-a8ff-d26b1424f023","at":1772699812000000000,"seq":1021,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd24-8870-7502-b929-70647dcf3357","at":1772699814000000000,"seq":1022,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd24-8c58-78be-a4a1-b4ccc3dcaee2","at":1772699815000000000,"seq":1023,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbd24-99eb-79fa-9ee0-c68eb1d875e8","at":1772699818475000000,"seq":1024,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cbd24-a7b0-7590-b8fc-d013e90256d2","at":1772699822000000000,"seq":1025,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd24-ee00-7ca7-a814-f697e9ec7672","at":1772699840000000000,"seq":1026,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd24-f5d0-7bc7-b9e6-e94d5a348df1","at":1772699842000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cbd24-faf5-7980-8bd3-ad4782ee58df","at":1772699843317000000,"seq":1028,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cbd25-0d40-70cd-a99c-83c01c38b16a","at":1772699848000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cbd25-6ee8-780c-8272-5376765447f7","at":1772699873000000000,"seq":1030,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd26-088a-7f5f-8323-1dc04ad6d0fe","at":1772699912330000000,"seq":1031,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cbd26-12f8-7e1a-8b3b-ab7b30bd3a1f","at":1772699915000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd26-7888-7f16-9068-740a8981ef7d","at":1772699941000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd26-fb28-7e6e-ab1d-54bde26b04b2","at":1772699974440000000,"seq":1034,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd26-fb28-7be4-af25-ca0033bff64a","at":1772699974440000000,"seq":1035,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd27-0528-75b4-a853-750ca5e3634f","at":1772699977000000000,"seq":1036,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd27-5b18-7d41-b2a5-421c6b8e43fb","at":1772699999000000000,"seq":1037,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd27-66d0-79f3-9dcf-e4d4302e6cbf","at":1772700002000000000,"seq":1038,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cbd27-a550-72cc-bb56-d3c773b6035e","at":1772700018000000000,"seq":1039,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd32-28dc-7e48-859a-c615d7f97edf","at":1772700707036000000,"seq":1040,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd32-8e48-7830-8288-655f3a631234","at":1772700733000000000,"seq":1041,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cbd32-c4f8-7763-b491-e21aa51a4bd8","at":1772700747000000000,"seq":1042,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

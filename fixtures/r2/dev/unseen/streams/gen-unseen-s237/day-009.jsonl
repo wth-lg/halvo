@@ -1,0 +1,12 @@
+{"v":1,"id":"019ba1b2-47c4-7887-930a-e57e6ad09cba","at":1767944374212000000,"seq":102,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1b2-47c4-7030-982d-2933d4fdf2ef","at":1767944374212000000,"seq":103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba1b3-0a40-7332-845d-a2e0b2621700","at":1767944424000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ba1ca-8ad8-72f6-aa73-4f7fcb744a9a","at":1767945964248000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ca-9d68-79d3-932a-b2a739b83fbf","at":1767945969000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ba1ca-ad08-72d0-b1ed-571579602c5a","at":1767945973000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ca-fb28-7dbd-95a1-675be742172e","at":1767945993000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1cb-021d-72d5-b9d0-43fda562c9b5","at":1767945994781000000,"seq":109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba1cb-9380-7b84-8359-80a0c272bf14","at":1767946032000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ba1d4-6392-7681-92cc-44ca18027b7f","at":1767946609554000000,"seq":111,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba1d4-6392-7adf-8e2c-7738b69e3b1b","at":1767946609554000000,"seq":112,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba1d4-9fe8-7038-ba8d-f8cc72920c79","at":1767946625000000000,"seq":113,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

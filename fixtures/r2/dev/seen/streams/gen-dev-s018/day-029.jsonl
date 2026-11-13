@@ -1,0 +1,22 @@
+{"v":1,"id":"019c0932-52f7-71e4-bf5c-6a99745fd8a3","at":1769680818935000000,"seq":242,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0932-52f7-76d2-9980-321fb2692345","at":1769680818935000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0932-62d8-7cfc-bbc2-528e5f42b044","at":1769680823000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c0932-7660-7844-88ea-773a81c116c6","at":1769680828000000000,"seq":245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0948-ccc4-7160-872e-9eb9346da9d1","at":1769682291908000000,"seq":246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c0948-e878-7f06-a118-1347d1c5cc0f","at":1769682299000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0949-2ec8-7e72-ab97-365a2aef13f0","at":1769682317000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0949-33b6-7668-b035-3b7214c57146","at":1769682318262000000,"seq":249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c0949-4638-7ec8-a2b4-23beddac191e","at":1769682323000000000,"seq":250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0949-7900-7707-8394-812309a508ca","at":1769682336000000000,"seq":251,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0949-97e9-7f2a-8ff4-8b7fffb08e5a","at":1769682343913000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0949-daa8-78ed-9b23-2b40c9ca7065","at":1769682361000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c094a-24e0-7a18-bb1d-50a6b42b0999","at":1769682380000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c094a-2c0d-7bfb-94fd-6430b70f427f","at":1769682381837000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c094a-3c50-79f1-b24a-ee7be784774d","at":1769682386000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c094a-7300-70d6-905d-e0f3d3a39630","at":1769682400000000000,"seq":257,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c094a-c8f0-7416-99d3-1127f1abfb5e","at":1769682422000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c094a-f000-783f-a56c-9653cc4d0a3d","at":1769682432000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c094b-0b58-7580-9c4c-409709247984","at":1769682439000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c0950-f168-7c4e-8305-9ed7d3aa6985","at":1769682825576000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0951-1638-7a96-9372-f1d2417f0143","at":1769682835000000000,"seq":262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0951-c600-73ee-af82-0cd205e77123","at":1769682880000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

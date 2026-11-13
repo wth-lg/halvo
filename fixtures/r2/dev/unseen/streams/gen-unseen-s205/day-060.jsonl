@@ -1,0 +1,21 @@
+{"v":1,"id":"019ca880-9889-70f7-aa56-476834392f63","at":1772353525897000000,"seq":838,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca880-9889-7be0-9d7d-0735d071b6d0","at":1772353525897000000,"seq":839,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca880-e328-75ea-9f88-bf1e864ebf26","at":1772353545000000000,"seq":840,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca880-e710-703b-a950-1b7d0ab89ad4","at":1772353546000000000,"seq":841,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88b-c682-7f2a-bd55-1722d476a6e2","at":1772354258562000000,"seq":842,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca88c-06b8-7b26-a311-4c8b528a5f02","at":1772354275000000000,"seq":843,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca88c-2dc8-7331-b21e-3be351dd9c78","at":1772354285000000000,"seq":844,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88c-3d68-7b6f-b139-cf54e248c104","at":1772354289000000000,"seq":845,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca899-c3d5-70ea-9017-a83b26ace74a","at":1772355175381000000,"seq":846,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca89a-08a8-7c53-a0f9-1a935fd38b66","at":1772355193000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ca89a-1848-7c8a-90f2-11dbf91a4872","at":1772355197000000000,"seq":848,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca89a-4412-7280-beb0-e4a91145f824","at":1772355208210000000,"seq":849,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca89a-4b10-78bc-a8bb-0f9397d19557","at":1772355210000000000,"seq":850,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca89a-52e0-79b3-833c-5be5bdfaef4d","at":1772355212000000000,"seq":851,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca89a-a100-72be-8cad-5229d581d666","at":1772355232000000000,"seq":852,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca89a-bc58-7714-aa52-b975af9882c0","at":1772355239000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca89a-c3d5-710e-ab24-8c2d17deb863","at":1772355240917000000,"seq":854,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca89a-f308-7a5b-889b-0dd39b4a38c2","at":1772355253000000000,"seq":855,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca89b-1248-72dd-a5f7-1704e32dce95","at":1772355261000000000,"seq":856,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca89b-3570-7703-9694-a78aa2d21c2a","at":1772355270000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca89b-38ae-730a-8dac-76d967520679","at":1772355270830000000,"seq":858,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}

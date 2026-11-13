@@ -1,0 +1,11 @@
+{"v":1,"id":"019cf0ce-bd14-7691-842b-78690619a0bc","at":1773566606612000000,"seq":899,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf0ce-bd14-75a6-bd0f-a97c8fb4da8d","at":1773566606612000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ce-c280-7433-acae-a493fb64e85e","at":1773566608000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0cf-4b38-76ce-8762-56e9bd0599a3","at":1773566643000000000,"seq":902,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf0cf-56f0-7e08-9fc4-76825ab5d377","at":1773566646000000000,"seq":903,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0de-ad24-7c07-b1c3-49460b8d9db0","at":1773567651108000000,"seq":904,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf0de-ad24-7c97-987e-e656d286d73d","at":1773567651108000000,"seq":905,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf0de-cfe0-77d5-98d2-349b23bd9917","at":1773567660000000000,"seq":906,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0de-e368-7be4-883d-e1909df1cd0b","at":1773567665000000000,"seq":907,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0df-33d5-70d4-a0cf-d9e85a2b7d29","at":1773567685589000000,"seq":908,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cf0df-d1b0-7d00-8596-73f024c2c841","at":1773567726000000000,"seq":909,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

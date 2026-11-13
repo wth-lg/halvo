@@ -1,0 +1,11 @@
+{"v":1,"id":"019bdab3-6ebd-7fa8-b87e-387418888da6","at":1768900751037000000,"seq":296,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdab3-6ebd-7f81-8595-1b034304d9c7","at":1768900751037000000,"seq":297,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdab3-8220-78d4-b246-b366ca438cf4","at":1768900756000000000,"seq":298,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdab3-8608-789f-812f-7960b12b65c1","at":1768900757000000000,"seq":299,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bdab3-91c0-7561-bf9b-0e48779c484d","at":1768900760000000000,"seq":300,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bdacd-b703-776c-8f32-5bb432d408cd","at":1768902473475000000,"seq":301,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdacd-b703-7c42-b46e-59964d00b30a","at":1768902473475000000,"seq":302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bdace-2670-7b29-9c08-f15c83474605","at":1768902502000000000,"seq":303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdace-64f0-702b-b632-5674bea01662","at":1768902518000000000,"seq":304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdad2-4d4e-7289-a9b5-9c7e5ed83305","at":1768902774094000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bdad2-b668-754b-93e1-684e1b80c5e3","at":1768902801000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

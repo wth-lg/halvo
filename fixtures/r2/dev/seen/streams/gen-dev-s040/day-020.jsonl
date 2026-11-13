@@ -1,0 +1,47 @@
+{"v":1,"id":"019bda41-193a-71e5-91c7-a0c0a68839ec","at":1768893258042000000,"seq":182,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda41-193a-7a4c-b1a5-fb7a18a1cf94","at":1768893258042000000,"seq":183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bda41-2c98-7bca-a225-54c347ba5161","at":1768893263000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda59-c26d-7966-aa87-2a3d4a23c0f9","at":1768894874221000000,"seq":185,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bda59-c26d-75b1-9d2e-f7898b6cc021","at":1768894874221000000,"seq":186,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bda59-d130-729d-a32a-a9b16ad84dbc","at":1768894878000000000,"seq":187,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bda68-b4b5-71ee-8554-6301d931c5bf","at":1768895853749000000,"seq":188,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda68-b4b5-7b48-8ac7-5ab4089fb1b5","at":1768895853749000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bda68-b998-7ba4-ae24-052a32826628","at":1768895855000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bda68-d4f0-7d73-be2a-154c9ed1385f","at":1768895862000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda69-03d0-784d-b092-369465ade1fd","at":1768895874000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda69-30f7-789e-a3f7-24fddfc9443b","at":1768895885559000000,"seq":193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bda69-6190-72f3-b4ff-150c72f249e4","at":1768895898000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda69-b780-78b4-b8cb-e4597818cc95","at":1768895920000000000,"seq":195,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bda69-c720-72a5-88c8-e9319448a12b","at":1768895924000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6a-08a2-716d-901c-8040339c93b6","at":1768895940770000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda6a-0d70-72c1-a826-2c46a88a362d","at":1768895942000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bda6a-4fd8-7e7f-82d7-f019bacd7308","at":1768895959000000000,"seq":199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6a-73d8-7fa7-9f03-ab3d59c71e6a","at":1768895968216000000,"seq":200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda6a-d4a8-7ddf-af47-1d307af1d8f5","at":1768895993000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6a-f187-7c5a-a796-6fed702af35e","at":1768896000391000000,"seq":202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda6b-3268-7d8a-9e9b-2942eec934db","at":1768896017000000000,"seq":203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6b-b350-7f0f-af54-5a1816985de1","at":1768896050000000000,"seq":204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bda6b-bb20-7bb9-964d-c3d1fa382b9e","at":1768896052000000000,"seq":205,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bda6b-c6d8-72d7-84d1-a84dc134c8ab","at":1768896055000000000,"seq":206,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bda6b-e33e-729f-890e-eb5cb7d36b71","at":1768896062270000000,"seq":207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda6b-fd88-7622-8122-2aefa109e941","at":1768896069000000000,"seq":208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bda6c-4ba8-75f2-aa59-e947a8d26c6c","at":1768896089000000000,"seq":209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bda6c-99c8-739e-9acc-af93f5f6b62b","at":1768896109000000000,"seq":210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bda6c-e3be-735f-b563-8a75fad8c963","at":1768896127934000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda6d-1ab0-7bb4-a3f3-a7d60f7f329e","at":1768896142000000000,"seq":212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bda6d-3220-7b0f-ace1-53b7f57ab482","at":1768896148000000000,"seq":213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6d-97b0-749c-900f-8f896fae763d","at":1768896174000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6d-a59a-78a1-976c-0fa8e694b702","at":1768896177562000000,"seq":215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bda6d-c2a8-7c78-8fd1-04e660a4b7ce","at":1768896185000000000,"seq":216,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda6d-c690-7b55-ab7f-e37f5ba28dbe","at":1768896186000000000,"seq":217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bda6d-e1e8-7a52-8562-26eb83b111a7","at":1768896193000000000,"seq":218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6d-f188-7aaf-b990-d20881563074","at":1768896197000000000,"seq":219,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bda6e-1212-7e52-b251-5df87efa6872","at":1768896205330000000,"seq":220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bda6e-1898-7b9b-b02f-96eefb6fb647","at":1768896207000000000,"seq":221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6e-d418-7ac0-b08b-d828f8533fc6","at":1768896255000000000,"seq":222,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bda6e-dbe8-7e36-887a-d5f558383744","at":1768896257000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6e-f358-76f2-a12f-01aaa5c572a4","at":1768896263000000000,"seq":224,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda6f-05d5-798b-b6f6-c994a06e1ec7","at":1768896267733000000,"seq":225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bda6f-2df0-7628-a032-3a5fff3c274e","at":1768896278000000000,"seq":226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bda6f-35c0-7b07-b4ea-4f7d68f2fec8","at":1768896280000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6f-b2c0-7c76-b8ba-ba2e8e1e88c1","at":1768896312000000000,"seq":228,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

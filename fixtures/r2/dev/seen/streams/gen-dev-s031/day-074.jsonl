@@ -1,0 +1,11 @@
+{"v":1,"id":"019cf0ee-fb89-73af-af8a-ec367ab08512","at":1773568719753000000,"seq":855,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf0ee-fb89-7339-b3bd-bcb8c5558b62","at":1773568719753000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ef-90f0-7556-9c99-de3918296189","at":1773568758000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cf0ef-94d8-74a7-9060-85d589372807","at":1773568759000000000,"seq":858,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf0fb-4c0d-7f14-97ad-a51d140b240f","at":1773569526797000000,"seq":859,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf0fb-7fa0-77ff-bc0f-f64f7785ee05","at":1773569540000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0fb-8770-7a7e-96d5-617c549aa6e3","at":1773569542000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0fb-be20-7c8d-a754-d0c033885b57","at":1773569556000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cf0fb-daa8-7602-9abe-2b6274c62a98","at":1773569563304000000,"seq":863,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf0fc-3f08-77bb-9997-e8cc47e6a141","at":1773569589000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf0fc-79a0-7213-a383-ab54b6fb8251","at":1773569604000000000,"seq":865,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

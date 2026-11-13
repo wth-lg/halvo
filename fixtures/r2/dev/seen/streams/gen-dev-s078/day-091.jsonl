@@ -1,0 +1,17 @@
+{"v":1,"id":"019d47da-7259-72ab-96a2-c6f20b016613","at":1775026991705000000,"seq":1189,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d47da-7259-7b49-a93e-71c74c559185","at":1775026991705000000,"seq":1190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d47da-fc38-721c-b4c4-97bde42eec33","at":1775027027000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47dd-f508-71ce-9e54-6de0b3afaaf8","at":1775027221768000000,"seq":1192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d47de-d0b0-75fb-bda6-ea582aad1ffe","at":1775027278000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47de-dde5-7a55-8164-a6601427bc56","at":1775027281381000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d47df-3a28-7cfa-937f-f7d351d1b72f","at":1775027305000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d47df-8078-79fb-b4ce-7876d1ce73de","at":1775027323000000000,"seq":1196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d47df-8848-7065-96a5-7939f6c6f629","at":1775027325000000000,"seq":1197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47df-a3a0-7a16-8f33-4cc811f2cdf6","at":1775027332000000000,"seq":1198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d47df-b117-7a53-af90-fb1085136559","at":1775027335447000000,"seq":1199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d47df-c2e0-748f-8c62-a945eb8cbb1b","at":1775027340000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d47df-d668-7ab2-a91e-c61969706be9","at":1775027345000000000,"seq":1201,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d47e0-0d18-7109-9350-49f99c4cd3d7","at":1775027359000000000,"seq":1202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d47e0-4174-72a4-99da-b537bb7b299a","at":1775027372404000000,"seq":1203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d47e0-5368-725a-ab73-dd55fc5da8c3","at":1775027377000000000,"seq":1204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d47e0-6ec0-7e3c-ba0b-493c57bdc2a9","at":1775027384000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

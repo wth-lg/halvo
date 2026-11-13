@@ -1,0 +1,25 @@
+{"v":1,"id":"019c0438-7247-77a4-95cb-3028a40f7123","at":1769597334087000000,"seq":357,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0438-7247-7807-a0ed-0d671bb4ff0e","at":1769597334087000000,"seq":358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c0439-1686-7679-b60f-3f792f7b7877","at":1769597376134000000,"seq":359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c0439-21b8-74fc-931c-ff6071b62b33","at":1769597379000000000,"seq":360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0439-5098-7446-822c-3f6ee7427419","at":1769597391000000000,"seq":361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0439-cbfe-713f-9e60-915840291f00","at":1769597422590000000,"seq":362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c043a-1fa0-7b1a-a8b5-c2c9b607b34e","at":1769597444000000000,"seq":363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c043a-7d60-7ebd-8e37-c5761881fd04","at":1769597468000000000,"seq":364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043a-8bf5-7342-a4e0-462a23bff7a1","at":1769597471733000000,"seq":365,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c043a-8d00-7e9d-9227-be2b39ee9199","at":1769597472000000000,"seq":366,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c043a-98b8-7c21-a066-4597ab6b066b","at":1769597475000000000,"seq":367,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c043b-090b-712d-a3cb-385b5410e405","at":1769597503755000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c043b-3110-72a3-9e07-9c551622528e","at":1769597514000000000,"seq":369,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c043b-4c68-7635-8e59-8f48e04fa067","at":1769597521000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c043b-67c0-7252-bc96-5362eb3cf64b","at":1769597528000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043b-7f30-7d82-9bb7-60eab2315c31","at":1769597534000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043b-939c-78b8-b51e-a1b37d36b222","at":1769597539228000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c043b-9a88-724d-9a1c-993f64cfd52d","at":1769597541000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043c-2728-7ae1-9cdb-8753e108636d","at":1769597577000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043c-36c8-7aed-8ac9-a7b4e030fa4f","at":1769597581000000000,"seq":376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c043c-3ab0-7e73-8bca-017c8223aaf4","at":1769597582000000000,"seq":377,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0446-6974-7884-ac94-df5670443bed","at":1769598249332000000,"seq":378,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0446-6974-767f-8821-b5b00c4ae55a","at":1769598249332000000,"seq":379,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0446-6ff8-7c39-a55e-59b817695e82","at":1769598251000000000,"seq":380,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c0446-9708-753f-b3b6-4d4abf991270","at":1769598261000000000,"seq":381,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

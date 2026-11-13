@@ -1,0 +1,24 @@
+{"v":1,"id":"019d2937-a2a3-7603-9774-6f1779ed0378","at":1774513005219000000,"seq":1118,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2937-a2a3-7cb3-9471-96a2307f5c95","at":1774513005219000000,"seq":1119,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2937-ad80-731c-a166-2da32c7a9d23","at":1774513008000000000,"seq":1120,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2937-bd20-79c7-a7a5-d5f4cd3f223b","at":1774513012000000000,"seq":1121,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d2937-e818-7b13-9dfb-ceba499804df","at":1774513023000000000,"seq":1122,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2938-0a54-77d1-8965-8aa6c9f4da19","at":1774513031764000000,"seq":1123,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2938-16f8-788f-b282-9ed01a9dc0c7","at":1774513035000000000,"seq":1124,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d2938-3a20-71d3-a6bc-d5f62eaf8edd","at":1774513044000000000,"seq":1125,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d2938-4da8-7b82-b773-8562dbf559f6","at":1774513049000000000,"seq":1126,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2938-ab68-79f6-befd-86608a26d737","at":1774513073000000000,"seq":1127,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d2942-65a8-7e62-9262-5a067794e469","at":1774513710504000000,"seq":1128,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2942-65a8-74a9-8dfa-615252ac6771","at":1774513710504000000,"seq":1129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2942-6798-7d30-b0c3-d87127984817","at":1774513711000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d2942-a618-7af1-96ef-2f815d3b9170","at":1774513727000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2942-dcc8-77b1-9b89-ef06c77bb257","at":1774513741000000000,"seq":1132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2942-ec68-7d59-a89e-c76e38035eb8","at":1774513745000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d294e-02d3-794f-a1ef-2f5a47625476","at":1774514471635000000,"seq":1134,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d294e-3708-74ac-b682-c9105d2d0990","at":1774514485000000000,"seq":1135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d294e-90e0-7c70-9f28-37e18af17858","at":1774514508000000000,"seq":1136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d294e-db18-7605-aaa4-38d28c0b9f12","at":1774514527000000000,"seq":1137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2966-6606-71f3-abc3-f94a7d358023","at":1774516069894000000,"seq":1138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2966-79f8-7698-82aa-528c516bb78f","at":1774516075000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2966-ef28-7c2d-8f2b-00ecc26ab9fb","at":1774516105000000000,"seq":1140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d2967-2da8-7d63-a00d-b96c4ebf9ca7","at":1774516121000000000,"seq":1141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

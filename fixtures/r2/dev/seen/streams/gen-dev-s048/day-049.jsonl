@@ -1,0 +1,34 @@
+{"v":1,"id":"019c6faa-2bea-79c3-8fa2-144b9da747f9","at":1771399949290000000,"seq":495,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6faa-2bea-7162-95bf-c3995040f477","at":1771399949290000000,"seq":496,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6faa-3298-7fb9-850b-64de5d27f84d","at":1771399951000000000,"seq":497,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6faa-5d90-77e8-ab39-8f39fbfc1946","at":1771399962000000000,"seq":498,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6faa-6178-7e6d-a5e1-5857dd2aa1aa","at":1771399963000000000,"seq":499,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6faa-9828-720b-b245-10dc67142829","at":1771399977000000000,"seq":500,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6fba-3221-7c3f-8cee-adf80a5a9e85","at":1771400999457000000,"seq":501,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6fba-3440-7a37-98ac-98b0095d71f5","at":1771401000000000000,"seq":502,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c6fba-a588-7da2-8219-191abfe229b3","at":1771401029000000000,"seq":503,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c6fba-c8b0-7c5d-9a16-3ddb51f78da9","at":1771401038000000000,"seq":504,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c6fc0-38eb-752b-a00a-359bf5da4566","at":1771401394411000000,"seq":505,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fc0-38eb-737b-b238-6071b21ec347","at":1771401394411000000,"seq":506,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc0-3f20-767f-b579-7f9f9e62f760","at":1771401396000000000,"seq":507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc0-98f8-75f1-a2b8-93720f5aadb0","at":1771401419000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc0-a774-74a6-aacf-8877165a7c9d","at":1771401422708000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc0-faa0-7fb5-aea8-abbc127da0b6","at":1771401444000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc1-968c-7cd5-82df-f4613c26108c","at":1771401483916000000,"seq":511,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc1-f0b8-7139-99d2-f04bd8fa31ab","at":1771401507000000000,"seq":512,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6fc1-f888-7ef2-b941-d40bdbea93fd","at":1771401509000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc2-3af0-7334-b5ec-2caca283678d","at":1771401526000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc2-4ff9-7581-ad8f-65eb43ebc20f","at":1771401531385000000,"seq":515,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc2-6200-7a39-b5d3-be9996ecae47","at":1771401536000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c6fc2-98b0-7d03-89fa-a4ebba790272","at":1771401550000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc2-9c98-73fa-8338-f645ac8e9e17","at":1771401551000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc2-abb3-7db5-b9b7-26569322c743","at":1771401554867000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc2-db18-7dcb-8a95-9db5f526760e","at":1771401567000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6fc2-e2e8-7d11-a21c-0442ddaacb35","at":1771401569000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc3-1094-79d9-a194-71c40451f209","at":1771401580692000000,"seq":522,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc3-2d20-7922-bedb-a192a5cb1a10","at":1771401588000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc3-4c60-74ae-a891-a02d6a8cbec9","at":1771401596000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc3-4c60-79a7-ae8d-719abceb2965","at":1771401596000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c6fc3-ac92-7d89-a0a2-3ee06db6fc2d","at":1771401620626000000,"seq":526,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6fc4-65a0-781c-921e-98fe8147f504","at":1771401668000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fc4-88c8-70d6-a060-ea700e9a17c2","at":1771401677000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

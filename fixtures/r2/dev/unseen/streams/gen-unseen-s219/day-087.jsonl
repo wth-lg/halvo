@@ -1,0 +1,14 @@
+{"v":1,"id":"019d33f3-3f35-7129-a677-0008526195ec","at":1774693072693000000,"seq":1193,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d33f3-3f35-7056-88c0-e68b6721ba45","at":1774693072693000000,"seq":1194,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d33f3-4068-74c2-9578-926903d4f154","at":1774693073000000000,"seq":1195,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d33f3-4838-721b-ae7f-e3cc39cea196","at":1774693075000000000,"seq":1196,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d33f3-57d8-7f17-8a52-1c9fd578628c","at":1774693079000000000,"seq":1197,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d33f3-5bc0-7b99-a695-6f53431d0df0","at":1774693080000000000,"seq":1198,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33f3-6778-7f59-9c8a-3843bc0ab37e","at":1774693083000000000,"seq":1199,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33ff-0c87-792d-93eb-24fbea49ac56","at":1774693846151000000,"seq":1200,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d33ff-0c87-7b84-8a96-3ede28adda38","at":1774693846151000000,"seq":1201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d33ff-2b30-71a7-aac8-3d5e11f03c59","at":1774693854000000000,"seq":1202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33ff-55bd-7fcb-aea1-812a22c20c60","at":1774693864893000000,"seq":1203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d33ff-7d38-73e8-88e2-3342fdf30987","at":1774693875000000000,"seq":1204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d33ff-dee0-7c7d-85bf-75e347fe6fd0","at":1774693900000000000,"seq":1205,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d33ff-e6b0-7e35-998b-cf2b38a4b789","at":1774693902000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

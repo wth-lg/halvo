@@ -1,0 +1,12 @@
+{"v":1,"id":"019c3296-f09e-7a78-8821-9f9b2fb5ebdf","at":1770375278750000000,"seq":462,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3296-f09e-7ce0-a6e8-76fbf9a463c8","at":1770375278750000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3297-7280-7cf2-bfa9-47e3a14c8cf5","at":1770375312000000000,"seq":464,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c32a4-5aa4-780f-91fd-1a3fa939e566","at":1770376157860000000,"seq":465,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c32a4-e24d-7cfe-adac-67da08176ac5","at":1770376192589000000,"seq":466,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c32a4-fb58-7213-9a73-982149106b4f","at":1770376199000000000,"seq":467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c32a5-5d00-79d3-97e5-c0b6dea33992","at":1770376224000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c32b9-9fc1-75dd-9f01-f28f3e5523fb","at":1770377551809000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c32b9-b7f0-775d-94c8-05ab6d54165d","at":1770377558000000000,"seq":470,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c32b9-b7f0-7687-bd71-84b59b944349","at":1770377558000000000,"seq":471,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c32b9-bbd8-7227-b7fd-90e851f4ba62","at":1770377559000000000,"seq":472,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c32b9-fe40-72d9-a349-88ec1b4713e0","at":1770377576000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

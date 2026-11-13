@@ -1,0 +1,9 @@
+{"v":1,"id":"019c22e4-4954-748d-89b8-675e83a4629a","at":1770111912276000000,"seq":580,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22e4-4954-79df-a7dd-d596d635b339","at":1770111912276000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c22e4-57e0-703e-adc9-ddfbebbef4c4","at":1770111916000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c22e4-a985-77a9-a6ca-f1bc9d2e67f2","at":1770111936901000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c22e4-add0-768e-9e34-5a47d45abc76","at":1770111938000000000,"seq":584,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c22e4-c540-7f74-9bdf-2ab698faec35","at":1770111944000000000,"seq":585,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c22e5-11ed-7f65-a1bb-e6bb3619b17e","at":1770111963629000000,"seq":586,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c22e5-26e8-70c1-830e-78aa61a5488f","at":1770111969000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c22e5-3688-73bf-a85c-32406bcd2a2c","at":1770111973000000000,"seq":588,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

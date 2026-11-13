@@ -1,0 +1,34 @@
+{"v":1,"id":"019c6599-360b-7f56-8090-934129b526ba","at":1771231065611000000,"seq":645,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6599-360b-70c8-b06a-76733e23a4b2","at":1771231065611000000,"seq":646,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6599-6288-705a-a55d-96818be9dc33","at":1771231077000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6599-e8ba-7eb0-8ea2-d0e40dc32193","at":1771231111354000000,"seq":648,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c6599-fae0-705d-8963-eb77127929ae","at":1771231116000000000,"seq":649,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c659a-02b0-7d7d-87c7-ed7b61b5c80a","at":1771231118000000000,"seq":650,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c659a-2076-7104-9aab-085c0c9c2f10","at":1771231125622000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c659a-4ce8-7fad-825f-1b9f4003c00f","at":1771231137000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c659a-ae90-7fec-847e-8a0f78fd45a9","at":1771231162000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65a9-cf45-7689-a66d-4475dbebdf12","at":1771232153413000000,"seq":654,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c65a9-fc88-76e9-8bbd-28bd53397694","at":1771232165000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c65aa-8158-70cb-868f-d00a87cf8c0a","at":1771232199000000000,"seq":656,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65aa-9cb0-71c3-b34b-968c5a8f9c7e","at":1771232206000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c65b8-92e6-754c-8731-5c3277c6a3d1","at":1771233120998000000,"seq":658,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c65b8-92e6-782d-ba7a-68d9be66cd05","at":1771233120998000000,"seq":659,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c65b8-a670-7313-baa2-11019c14b892","at":1771233126000000000,"seq":660,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65b8-d550-790b-b1d7-944ffd70f687","at":1771233138000000000,"seq":661,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c2-3f64-78bd-af90-7b0d16c078b9","at":1771233754980000000,"seq":662,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65c2-3f64-76d0-b73d-adc883677585","at":1771233754980000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c65c2-4360-7495-832b-b6cc0b178bfc","at":1771233756000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c2-a8f0-7c79-bff0-647fd9429980","at":1771233782000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c2-f4fd-7d83-a5f8-3c19f75f135f","at":1771233801469000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c65c3-02c8-70bb-aa53-d7a2165fd9db","at":1771233805000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c3-0e80-71f3-9328-9ca917e374a9","at":1771233808000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c3-1650-74bc-b5ed-cd1e1fe6a2a4","at":1771233810000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65c3-50e8-727f-9380-74400c70a253","at":1771233825000000000,"seq":670,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c65c3-8768-77c6-8072-3719e967e812","at":1771233838952000000,"seq":671,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c65c3-a6d8-73e7-a8e9-6edd4c7d4fb7","at":1771233847000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c65c4-3378-7098-afa7-3d54e3487b89","at":1771233883000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c4-52d8-7bda-b3fc-7234892dda2c","at":1771233891032000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c65c4-6a28-7648-88d7-0293d6af6976","at":1771233897000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c65c4-eb10-74b0-8b07-eb39d81e039d","at":1771233930000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c5-1dd8-7d7e-92ea-71c2364f6dfc","at":1771233943000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c65c5-3160-770d-8d64-3fcfce2a2c26","at":1771233948000000000,"seq":678,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

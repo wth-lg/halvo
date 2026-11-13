@@ -1,0 +1,21 @@
+{"v":1,"id":"019c7a84-e836-7950-8db9-d5a2be40ebca","at":1771582056502000000,"seq":658,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a84-e836-7aee-a337-649ab4ce9b93","at":1771582056502000000,"seq":659,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c7a85-4fb8-7bfb-8192-c9bc0ed32209","at":1771582083000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c7a85-e8a2-7412-a6db-fa2394440b68","at":1771582122146000000,"seq":661,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c7a86-0b38-7230-a021-02e5d449473c","at":1771582131000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a86-a74e-7b67-9d80-ef003267e3e4","at":1771582170958000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c7a87-14d8-797f-a5b5-11cc397d57b2","at":1771582199000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a87-2860-770b-b2f4-5681a419f57c","at":1771582204000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a87-2860-7c6c-a516-01229ecfd509","at":1771582204000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c7a87-8df0-7941-8cc3-5381d2ea8032","at":1771582230000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a87-b210-7646-8342-6cc9274cd6b5","at":1771582239248000000,"seq":668,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c7a87-f380-71c8-8f1a-917b51284551","at":1771582256000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c7a97-2d53-7d85-8615-812a3c82fdff","at":1771583253843000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7a97-3d90-7911-ab6f-9c25cd6480cf","at":1771583258000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7a97-97b0-71fa-af27-ad13de259fd9","at":1771583281072000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7a98-1144-7b50-9957-7094790c51dd","at":1771583312196000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7a98-2fc0-75b7-86cb-915ae524fddc","at":1771583320000000000,"seq":674,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a98-5ab8-7580-acb7-0e2575294f80","at":1771583331000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a98-8d80-7fad-9833-450a783f2f68","at":1771583344000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a98-a108-791e-973e-f8f0108fea4c","at":1771583349000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a98-ef28-71b9-ab53-1c5ddb33fd3d","at":1771583369000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

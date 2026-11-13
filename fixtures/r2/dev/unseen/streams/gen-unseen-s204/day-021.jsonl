@@ -1,0 +1,23 @@
+{"v":1,"id":"019be001-74f4-7a44-9f42-70ee99971d24","at":1768989750516000000,"seq":236,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be001-74f4-7f60-90b2-cc8197df65ab","at":1768989750516000000,"seq":237,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be001-a1d0-7df3-9821-4d38448f8d55","at":1768989762000000000,"seq":238,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019be007-6aeb-7b49-8c60-034084e705db","at":1768990141163000000,"seq":239,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be007-6aeb-7e09-9cb1-62e64510dcf5","at":1768990141163000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019be007-df78-789a-aa24-13554b4c6780","at":1768990171000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be008-5890-73e2-b37d-34f2d7159057","at":1768990202000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be008-6ac9-7e4b-b6a2-9f0f758a6040","at":1768990206665000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019be009-5678-75eb-bf5c-1ca46af03455","at":1768990267000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be009-5678-7df0-b4d4-7e5940a4e413","at":1768990267000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019be009-59b0-7a3d-af0f-1b14a2c75280","at":1768990267824000000,"seq":246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019be009-c7c0-739c-a99c-beee39916a8b","at":1768990296000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be00a-15e0-7685-beb7-71e58226436c","at":1768990316000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be00a-5078-7237-9b63-6f818809a42f","at":1768990331000000000,"seq":249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be00a-5847-723c-9f3c-f1ea2f1bdf16","at":1768990332999000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019be00a-a668-7cd2-b999-cf12166694d6","at":1768990353000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be00a-b9f0-7bc6-8ba5-4688ffd39062","at":1768990358000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be00a-c5a8-756d-87ca-8086aa1c0ab4","at":1768990361000000000,"seq":253,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be01c-3589-79b7-96ca-708e91deb18e","at":1768991503753000000,"seq":254,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be01c-3589-7664-8c24-931a945e1284","at":1768991503753000000,"seq":255,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be01c-3a68-7592-b2d1-0632868c522b","at":1768991505000000000,"seq":256,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be01c-6178-7a1e-803e-3b034a4a0b68","at":1768991515000000000,"seq":257,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019be01c-84a0-79d1-a1e5-4e346b79ba67","at":1768991524000000000,"seq":258,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

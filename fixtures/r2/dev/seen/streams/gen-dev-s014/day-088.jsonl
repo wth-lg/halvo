@@ -1,0 +1,28 @@
+{"v":1,"id":"019d3892-cbbb-7d39-814a-2697c1863ec5","at":1774770637755000000,"seq":1280,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3892-cbbb-782b-86d0-22c54b97af34","at":1774770637755000000,"seq":1281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3892-d480-7af7-a9f1-982fe96ce68c","at":1774770640000000000,"seq":1282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3893-1eb8-7a74-ab55-027dcdd73091","at":1774770659000000000,"seq":1283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d389d-97de-7196-a8ef-5963cdd3336b","at":1774771345374000000,"seq":1284,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d389d-97de-793d-8c37-a7e4f52afba7","at":1774771345374000000,"seq":1285,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d389d-a608-7a51-aa12-45445ee963b4","at":1774771349000000000,"seq":1286,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d389d-c548-7b27-a7be-04574be1899e","at":1774771357000000000,"seq":1287,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d389d-dcb8-7619-8f0c-8cb6c6f3adf3","at":1774771363000000000,"seq":1288,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d38aa-ed4d-780c-9592-b5fca7040b1e","at":1774772219213000000,"seq":1289,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d38aa-ed4d-709c-84c6-0c16682f04a1","at":1774772219213000000,"seq":1290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d38ab-32c8-7f93-b557-0773d1955a9c","at":1774772237000000000,"seq":1291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ab-55f0-74c2-9509-64245165c6de","at":1774772246000000000,"seq":1292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d38ab-eb23-7bb5-8343-79799a48cc78","at":1774772284195000000,"seq":1293,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d38ac-05b8-73c0-8c7d-1cb31f89c227","at":1774772291000000000,"seq":1294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d38ac-3c68-7482-a76a-f647d299b2ea","at":1774772305000000000,"seq":1295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d38ac-6760-7e0e-8e39-97ad26d480a9","at":1774772316000000000,"seq":1296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ac-6f30-754a-b717-e167cca85ad1","at":1774772318000000000,"seq":1297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38b4-ae43-739f-b355-c7dae467e04c","at":1774772858435000000,"seq":1298,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d38b5-4100-7d0b-b116-cacfee897e28","at":1774772896000000000,"seq":1299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d38b5-46e4-79fc-9c52-9cbb47418f4a","at":1774772897508000000,"seq":1300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d38b5-5488-73c7-81af-c2181bef2d22","at":1774772901000000000,"seq":1301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38b5-8f20-7ed4-bf4e-6c5a526be179","at":1774772916000000000,"seq":1302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38d0-26a4-7522-b5f2-c9d2526c5c77","at":1774774658724000000,"seq":1303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d38d0-27b8-7fe0-b0dc-1a9fc77adc4d","at":1774774659000000000,"seq":1304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38d0-5a80-7900-a942-e85ea1e40450","at":1774774672000000000,"seq":1305,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d38d0-6a20-7594-9805-95f0f6c83650","at":1774774676000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38d0-71f0-7715-8f19-e2f3468a4581","at":1774774678000000000,"seq":1307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

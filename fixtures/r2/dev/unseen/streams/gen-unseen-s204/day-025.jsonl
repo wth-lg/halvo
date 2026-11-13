@@ -1,0 +1,30 @@
+{"v":1,"id":"019bf447-d571-7413-9de4-ec8d4285574a","at":1769329907057000000,"seq":307,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf447-d571-7d6e-becf-4e0bf1ebdaae","at":1769329907057000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bf447-f860-7241-8dc5-39848aecb84e","at":1769329916000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf448-8118-796f-a75b-f5ff3c200e04","at":1769329951000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf448-d2c2-7f42-a4f9-928c26b10889","at":1769329971906000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bf448-daf0-7d29-9410-17d5094e66a0","at":1769329974000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf448-ee78-7731-b9b4-ecf7ead431d6","at":1769329979000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf448-fe18-7d2e-baca-a2aaf68cee3a","at":1769329983000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bf449-1545-717e-ba78-0217a5396f82","at":1769329988933000000,"seq":315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bf449-2cf8-71fb-a3d5-84dc7a867475","at":1769329995000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf449-4080-7b9a-ac73-4603c1c87dca","at":1769330000000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf449-594b-7f9b-a706-f086458f8041","at":1769330006347000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bf449-8ab8-7ae1-9554-d9796f111735","at":1769330019000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bf449-b998-70da-a535-26138fea1132","at":1769330031000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf449-e297-7e4b-abf7-ac68f32ddc60","at":1769330041495000000,"seq":321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bf449-fc00-78f2-9d10-7ff01a1ab8d5","at":1769330048000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bf44a-1758-7ed4-bd03-b74962b0b585","at":1769330055000000000,"seq":323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf44a-1f28-7808-a4f4-ebe8fe2e918a","at":1769330057000000000,"seq":324,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf44b-e4c9-7025-acf4-392b66b56b53","at":1769330173129000000,"seq":325,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf44b-e4c9-7977-b5d7-ce653c499a47","at":1769330173129000000,"seq":326,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf44b-f3e8-7342-a061-04be5bdbf8e1","at":1769330177000000000,"seq":327,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bf44c-0f40-7cd0-b9cb-2244f8159c4c","at":1769330184000000000,"seq":328,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bf44c-51a8-7efd-8831-82f3a670656c","at":1769330201000000000,"seq":329,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf44c-6d00-70fd-8d35-285125781272","at":1769330208000000000,"seq":330,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf450-1d8f-7755-81ae-ea1866200e30","at":1769330449807000000,"seq":331,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf450-1d8f-7187-8dbb-8ae94f799aee","at":1769330449807000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bf450-39a8-7a7c-aa92-712c9519c4c8","at":1769330457000000000,"seq":333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf450-3d90-74c2-af64-3c4bd5d6d2a8","at":1769330458000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bf450-7ff8-707c-b7c7-d31d3bb33932","at":1769330475000000000,"seq":335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf450-c260-7b7b-be5e-127f9857bbdf","at":1769330492000000000,"seq":336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019cc265-d1e5-71af-9a30-13f58ab24390","at":1772787978725000000,"seq":881,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc265-d1e5-776a-afb4-4164f0cef008","at":1772787978725000000,"seq":882,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cc265-ee50-7314-9983-25af83c8663b","at":1772787986000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc266-1d30-7bc3-b5d3-42d974193517","at":1772787998000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc266-3d03-7b98-8423-a3d2e4fb7de8","at":1772788006147000000,"seq":885,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cc266-5bb0-7984-bea9-4eacae16ba89","at":1772788014000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cc266-6f38-741f-84b5-92aec8ca2cee","at":1772788019000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc266-b588-711a-aa00-1bc6ef2d4d72","at":1772788037000000000,"seq":888,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc266-c140-708a-9cfd-7c145c19d788","at":1772788040000000000,"seq":889,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc266-c6ef-73b4-a362-a0d785aa284f","at":1772788041455000000,"seq":890,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cc266-d0e0-7a0c-add1-af580dad6934","at":1772788044000000000,"seq":891,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc267-1348-74a5-9612-794220f3697f","at":1772788061000000000,"seq":892,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc267-49f8-7658-8a7b-04e39468b97f","at":1772788075000000000,"seq":893,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc270-21ff-7d2b-857a-5aae542c6484","at":1772788654591000000,"seq":894,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cc270-69e8-76c0-bf7d-78926d30fc92","at":1772788673000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cc270-8d10-7712-a6d8-8f81641d41fd","at":1772788682000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc270-e65e-7b7c-a14d-9f499595450b","at":1772788704862000000,"seq":897,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cc271-2568-78d3-90e5-638e8d3916c7","at":1772788721000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc271-38f0-74e9-b6f9-ca92b9fbc225","at":1772788726000000000,"seq":899,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc274-4980-77f0-9d78-08dba9028c28","at":1772788926848000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cc274-daa0-73c2-8728-4e7cc0454b8c","at":1772788964000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc274-e658-73d1-ba02-8af14cb96e5f","at":1772788967000000000,"seq":902,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

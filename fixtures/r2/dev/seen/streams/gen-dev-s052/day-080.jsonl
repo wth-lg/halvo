@@ -1,0 +1,34 @@
+{"v":1,"id":"019d0f62-19dc-72e5-970a-3ae2ec4d9306","at":1774079580636000000,"seq":1203,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0f62-19dc-77ae-b2e4-b858a32aa0c9","at":1774079580636000000,"seq":1204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d0f62-4640-7dbb-8cd0-54f80c802f11","at":1774079592000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f62-5e32-77fe-b8cf-9376cc55a34d","at":1774079598130000000,"seq":1206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d0f62-d6c8-7be1-86bf-0f114093d59a","at":1774079629000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0f62-e668-70c8-be7b-d0adfe2fa86c","at":1774079633000000000,"seq":1208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0f63-1548-75ea-9784-a449dfa03d85","at":1774079645000000000,"seq":1209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f63-4316-7a50-b4c7-239ed2d9b365","at":1774079656726000000,"seq":1210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d0f63-57b0-7856-a8c5-75e5491b5854","at":1774079662000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f63-e068-7f15-9df2-25a42d0e06ea","at":1774079697000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0f64-021b-7ec0-9ec3-f0b4e0187176","at":1774079705627000000,"seq":1213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d0f64-3e28-71d5-94a8-b69a48d14e8b","at":1774079721000000000,"seq":1214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0f64-5d68-732d-9cb8-da68a9ba7e47","at":1774079729000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f64-7ca8-74b7-befb-cc1b6259af15","at":1774079737000000000,"seq":1216,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0f64-a6ba-7ede-97b9-d9839e362b26","at":1774079747770000000,"seq":1217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d0f64-a7a0-7e34-bd23-e96f86d67f4d","at":1774079748000000000,"seq":1218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f64-ceb0-7d17-ad04-81d35ca4dc62","at":1774079758000000000,"seq":1219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6a-6c6d-72b1-bbe0-50e99beebad7","at":1774080126061000000,"seq":1220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6b-3750-71c0-9f7a-5e69b3b191cf","at":1774080178000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6b-7058-71ba-b21f-7888a67b79dc","at":1774080192600000000,"seq":1222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6b-8188-7e60-a8d3-7232836868b7","at":1774080197000000000,"seq":1223,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0f6b-9128-739e-99ef-bc28711d7188","at":1774080201000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6b-a898-730d-ac50-1130474cd4a7","at":1774080207000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6b-db60-7caf-b3f0-e5e0c766e750","at":1774080220000000000,"seq":1226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0f6c-0495-7dd9-b487-d629e7b6f5d1","at":1774080230549000000,"seq":1227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6c-15f8-7d99-8eeb-05bf2f68090f","at":1774080235000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6c-40f0-7e21-a459-d020e3e4167a","at":1774080246000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6c-48c0-7354-9a09-e5e0a4f8223b","at":1774080248000000000,"seq":1230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0f6c-6030-78b6-a67f-b3c91d722f3e","at":1774080254000000000,"seq":1231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0f6c-68cb-7639-b405-a8616ad38ec7","at":1774080256203000000,"seq":1232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6c-92f8-74a2-b38d-f3868367007c","at":1774080267000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d0f6c-9ac8-7f9d-ac77-c05a73991ec4","at":1774080269000000000,"seq":1234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6d-3320-702d-8484-82c2cd61d06b","at":1774080308000000000,"seq":1235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0f6d-4a90-76cc-8128-ce1b445f4cf6","at":1774080314000000000,"seq":1236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

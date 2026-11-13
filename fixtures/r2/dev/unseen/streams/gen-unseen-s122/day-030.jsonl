@@ -1,0 +1,13 @@
+{"v":1,"id":"019c0e2d-254f-711f-93ff-112cb246a826","at":1769764365647000000,"seq":352,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e2d-254f-78a2-b55f-9d3443bb28e5","at":1769764365647000000,"seq":353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c0e2d-26b0-7c80-8329-531512427eee","at":1769764366000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e2d-d00c-79ba-a189-c6cd62322289","at":1769764409356000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c0e2d-f1d0-72cd-a70a-c3089a60bfaa","at":1769764418000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e2e-3050-7f1c-9754-ab4a676c5424","at":1769764434000000000,"seq":357,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e2e-3820-75b2-96c6-90903911b324","at":1769764436000000000,"seq":358,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e2e-4f90-7e8f-892b-c5b60e1edfcb","at":1769764442000000000,"seq":359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c0e2e-6884-7302-803b-03b41b8863f6","at":1769764448388000000,"seq":360,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c0e2e-72b8-77dc-af64-731aa3a4ea7c","at":1769764451000000000,"seq":361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e2e-c0d8-7956-9ce1-64784f4e5a7d","at":1769764471000000000,"seq":362,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e2e-e400-7d53-9001-3109c38628bf","at":1769764480000000000,"seq":363,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0e2f-0340-7a67-93bd-c44bdc3368d9","at":1769764488000000000,"seq":364,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

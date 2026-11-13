@@ -1,0 +1,17 @@
+{"v":1,"id":"019c08db-50ee-76f5-bce1-8c239f07af6e","at":1769675116782000000,"seq":298,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c08db-50ee-78df-9ae1-bb77dc5b23be","at":1769675116782000000,"seq":299,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c08e7-e4d4-72a2-93e5-4039caeeeb14","at":1769675941076000000,"seq":300,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c08e7-f040-7ee9-a002-f7180f397947","at":1769675944000000000,"seq":301,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c08e7-ffe0-789d-b526-a9092d1a7b7f","at":1769675948000000000,"seq":302,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c08e8-26f0-7a8b-bf18-91c063d9b866","at":1769675958000000000,"seq":303,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e8-4c0c-7c0d-bb93-2c38d7651620","at":1769675967500000000,"seq":304,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c08e8-78f8-79e0-94c4-21b8b0806c8a","at":1769675979000000000,"seq":305,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e8-8c80-71cb-801a-945c75832104","at":1769675984000000000,"seq":306,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c08e8-9068-7de4-a8de-c9241bde8b6b","at":1769675985000000000,"seq":307,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c08e9-ffc9-734f-88b7-145967b9d4d0","at":1769676079049000000,"seq":308,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08e9-ffc9-74f7-80ea-ed9a0d702238","at":1769676079049000000,"seq":309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c08ea-1708-73aa-afdc-33f490ce0d08","at":1769676085000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c08ea-377a-718e-911a-ce8c3d33bff0","at":1769676093306000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c08ea-4200-7df1-8690-e9798cc6c3ba","at":1769676096000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c08ea-ab78-7664-8620-f0b8e2f71764","at":1769676123000000000,"seq":313,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c08ea-e610-7cd4-ae3e-4886a222c790","at":1769676138000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

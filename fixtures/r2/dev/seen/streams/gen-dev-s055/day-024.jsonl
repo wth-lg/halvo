@@ -1,0 +1,21 @@
+{"v":1,"id":"019bef25-fb15-778e-9cc8-dd99bc213afd","at":1769243802389000000,"seq":491,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef25-fb15-7a35-9082-deac263d723e","at":1769243802389000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bef3e-7808-7aad-862a-94eadb3a6747","at":1769245407240000000,"seq":493,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef3e-7808-77da-9f76-869643dc3892","at":1769245407240000000,"seq":494,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef3e-7b00-7937-9988-dd739a1a0102","at":1769245408000000000,"seq":495,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bef3e-8e88-7dbf-b32b-4095af1e16f6","at":1769245413000000000,"seq":496,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef3e-b1b0-75ff-bcf7-f656c570f912","at":1769245422000000000,"seq":497,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bef3e-b980-73fe-81a6-815d8b610f12","at":1769245424000000000,"seq":498,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef3e-bd68-72b2-a379-e951808e07a6","at":1769245425000000000,"seq":499,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bef3e-ccea-7baa-98b4-7c4bf8fbde51","at":1769245428970000000,"seq":500,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef3e-ccea-7ac5-943c-e9ff49dea0bc","at":1769245428970000000,"seq":501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bef3e-f800-7585-9bdb-cbbdedfb431c","at":1769245440000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef3f-07a0-777e-ad0c-2e90161d2ed1","at":1769245444000000000,"seq":503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef3f-3517-72e5-b1be-d647ae99600e","at":1769245455639000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bef3f-4df0-72c4-9fc7-297f2350b73b","at":1769245462000000000,"seq":505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bef3f-7500-741f-9798-d443d60b15bd","at":1769245472000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef3f-7cd0-70d3-acaa-f781e0dc47ea","at":1769245474000000000,"seq":507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef3f-84a0-70b5-8f81-dd11dca9d211","at":1769245476000000000,"seq":508,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef3f-c994-7ddd-8e0b-2e740b9e9247","at":1769245493652000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bef40-22e2-71ce-8322-a6ff1619822d","at":1769245516514000000,"seq":510,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef40-22e2-7347-8e2a-00193aa7071c","at":1769245516514000000,"seq":511,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"app_change"}}

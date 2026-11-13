@@ -1,0 +1,21 @@
+{"v":1,"id":"019caddb-4a1b-744b-8e7b-783429b13238","at":1772443355675000000,"seq":898,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019caddb-4a1b-7096-bbe1-ff30d28b22e5","at":1772443355675000000,"seq":899,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019caddc-38b0-7e11-b57f-e3b62a806a50","at":1772443416752000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019caddc-4560-73f1-8c66-2414e0706351","at":1772443420000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019caddc-a708-7d9f-b7c4-bccec3b5e880","at":1772443445000000000,"seq":902,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019caddc-cefc-7e95-81a2-919c6cbe7f33","at":1772443455228000000,"seq":903,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 3 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019caddc-d5e8-765e-9b93-faaaa916382f","at":1772443457000000000,"seq":904,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019caddc-e970-7298-80b4-3eaa0576cc5b","at":1772443462000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019caddd-2fc0-749f-8c93-181479ba02df","at":1772443480000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019caddd-6288-7c15-96ff-47432ac320b1","at":1772443493000000000,"seq":907,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019caddd-a4f0-73ef-aa3f-e78300c6ff44","at":1772443510000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019caddd-d62c-78e6-baaa-11b6b010ed27","at":1772443522604000000,"seq":909,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019caddd-dba0-7a05-a0c2-71c4d2fc45d8","at":1772443524000000000,"seq":910,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cadde-0a80-7817-94b0-08e41bb00586","at":1772443536000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadde-1638-77fb-9879-2ef4046d3615","at":1772443539000000000,"seq":912,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cade5-d13e-7f55-bee1-3f4c3e02e5d2","at":1772444045630000000,"seq":913,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cade5-d13e-7786-8bc5-1e84afc96ab4","at":1772444045630000000,"seq":914,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cade5-da80-7649-af31-47d4bfcf178b","at":1772444048000000000,"seq":915,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cade5-ee08-7509-a932-036dc71a7cfb","at":1772444053000000000,"seq":916,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cade6-3070-72a7-9208-a30aa6c36a2d","at":1772444070000000000,"seq":917,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cade6-3c28-73ea-86eb-959700a4a722","at":1772444073000000000,"seq":918,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

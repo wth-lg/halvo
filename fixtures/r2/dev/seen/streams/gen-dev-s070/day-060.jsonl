@@ -1,0 +1,18 @@
+{"v":1,"id":"019ca85a-c781-7bf4-af6b-96617b7800f0","at":1772351047553000000,"seq":888,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca85a-c781-7e5c-8f84-b5de6926f4d3","at":1772351047553000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca85a-f438-7302-81b3-1ac77c003970","at":1772351059000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca85b-4640-773d-ac49-6407f6ffaee5","at":1772351080000000000,"seq":891,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ca85d-562b-7a42-bd7b-5d0f8923dddf","at":1772351215147000000,"seq":892,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ca85d-6150-7aa0-86a4-a70ab38e735c","at":1772351218000000000,"seq":893,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca85d-b740-7775-baa6-f0114de0b79e","at":1772351240000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ca85d-bee9-7719-8a87-2194b87a28db","at":1772351241961000000,"seq":895,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ca85e-3c2e-7e24-a1d5-e6ab035c51cc","at":1772351274030000000,"seq":896,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ca85e-6ed8-709d-8554-b776dd234175","at":1772351287000000000,"seq":897,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca85e-6ed8-7599-bc5a-0706cf19c64a","at":1772351287000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ca85e-8648-79b9-b84d-f4272998a2e4","at":1772351293000000000,"seq":899,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca85e-8d26-779f-9971-82719ad9a626","at":1772351294758000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ca872-6b8c-79ed-8b87-11502f8b7304","at":1772352596876000000,"seq":901,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca872-6c08-74f8-b5bc-b90ae0439f49","at":1772352597000000000,"seq":902,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca872-9ed0-780d-b629-c4696e57a5b3","at":1772352610000000000,"seq":903,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca872-b640-7f70-b772-eb70da44c3b0","at":1772352616000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca872-ba28-7608-baf4-193258a933ad","at":1772352617000000000,"seq":905,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

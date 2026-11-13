@@ -1,0 +1,43 @@
+{"v":1,"id":"019ccd14-66bf-7922-bdb8-e90a5bf12de9","at":1772967192255000000,"seq":977,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccd14-66bf-7af7-b4ab-4a3cb94b8a17","at":1772967192255000000,"seq":978,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccd14-7178-7dda-82db-fd52a6172369","at":1772967195000000000,"seq":979,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ccd14-7d30-774f-bb89-c2033f53bc8e","at":1772967198000000000,"seq":980,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd14-a058-766e-88c8-b5bdebdaa792","at":1772967207000000000,"seq":981,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd14-aff8-77dc-be7f-6b244991b478","at":1772967211000000000,"seq":982,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccd14-aff8-7767-9668-cd2eba948205","at":1772967211000000000,"seq":983,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ccd27-5e60-7773-aaed-77896dfd7313","at":1772968435296000000,"seq":984,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccd27-5e60-7676-9d91-30578320f9da","at":1772968435296000000,"seq":985,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ccd27-68f0-7821-b37c-cc869d05b160","at":1772968438000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ccd27-b710-7d47-bf1a-53e4a0af4a5e","at":1772968458000000000,"seq":987,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ccd2c-2bf3-75c2-901c-9193b8dd9046","at":1772968750067000000,"seq":988,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ccd2c-bc38-7777-961c-893953e3e9c0","at":1772968787000000000,"seq":989,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd2c-c408-7e59-bfb6-11a290534444","at":1772968789000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd2c-e3c1-7c94-9bc2-151bf804c6a4","at":1772968797121000000,"seq":991,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ccd2c-e730-7198-96e6-8faddd21a720","at":1772968798000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ccd2d-0e40-7bc8-874e-8a4924a3b3ac","at":1772968808000000000,"seq":993,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ccd2d-19f8-75d2-bf2e-67605731ab59","at":1772968811000000000,"seq":994,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ccd2d-73d0-7b2f-afa3-0309fe5d078b","at":1772968834000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd2d-d0fa-749b-a55d-9be487a525a6","at":1772968857850000000,"seq":996,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ccd2d-d960-75bd-940a-36bfcea1d451","at":1772968860000000000,"seq":997,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccd2e-1010-7364-930d-81eb24f3c0e0","at":1772968874000000000,"seq":998,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ccd2e-13f8-7eab-ab0b-14a15d30f386","at":1772968875000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ccd2e-512e-7c15-ba7f-808992407763","at":1772968890670000000,"seq":1000,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ccd2e-5660-7ae9-874c-04e48b00b0ca","at":1772968892000000000,"seq":1001,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd2e-5a48-7259-bc4b-70b8f4667bad","at":1772968893000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd2e-71b8-7e7b-a9f4-c949639e5959","at":1772968899000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ccd2e-75a0-7868-b7a0-0c33a2c92561","at":1772968900000000000,"seq":1004,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ccd3b-9eec-7558-a5bb-0eeae8349638","at":1772969762540000000,"seq":1005,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccd3b-9eec-772a-be31-2a0bf7f8714f","at":1772969762540000000,"seq":1006,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccd3c-4c98-75cd-8873-125fbbd701dc","at":1772969807000000000,"seq":1007,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ccd53-dd5e-7e2e-9256-cb8387fda659","at":1772971351390000000,"seq":1008,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccd53-dd5e-7fb8-96e8-e77200a42d7b","at":1772971351390000000,"seq":1009,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ccd54-06d0-72c2-b63e-b19aacb811b2","at":1772971362000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd54-1db6-743c-9c0f-646d8d57af68","at":1772971367862000000,"seq":1011,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ccd54-35b0-72c4-acb2-d7c2acbb6137","at":1772971374000000000,"seq":1012,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ccd54-7c00-79a2-b8fd-d35ab91c7ba6","at":1772971392000000000,"seq":1013,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd54-c38d-7121-b59a-53a645638673","at":1772971410317000000,"seq":1014,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ccd54-e190-7c73-950c-7c8fdb0e775d","at":1772971418000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd55-4720-7fac-b380-3aa15a40b896","at":1772971444000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd55-c4c7-77f9-bc34-c69f7ede3da3","at":1772971476167000000,"seq":1017,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ccd55-eb30-7603-9073-f1ea476fa866","at":1772971486000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd56-7000-7117-b659-3bd72b82ced6","at":1772971520000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

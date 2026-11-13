@@ -1,0 +1,20 @@
+{"v":1,"id":"019c74e1-f7bc-761f-9ab2-1670d40abdcc","at":1771487492028000000,"seq":656,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c74e1-f7bc-71ce-a1cd-f690e069c099","at":1771487492028000000,"seq":657,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c74e2-2680-7950-8d46-c924ccf13a1c","at":1771487504000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74e2-6118-703a-8a50-dbdd6e460d6d","at":1771487519000000000,"seq":659,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c74f2-ad67-7e56-8778-c618d27198fc","at":1771488587111000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c74f2-d020-7e49-9cfe-e9aea0a4f30b","at":1771488596000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c74f3-06d0-7833-bba0-9f01ca0cefb7","at":1771488610000000000,"seq":662,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c74f3-8f88-7176-a5df-e0d94b0ddd68","at":1771488645000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74f3-a310-7b55-88ad-09a89d01e6b7","at":1771488650000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c74fc-2cb3-74fb-a7cf-c7c2135b1e4f","at":1771489209523000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c74fc-74ad-70bc-b8e5-83300da4dcfc","at":1771489227949000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c74fc-7cb0-7c6f-83ec-b0dca5d802e3","at":1771489230000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74fc-a7a8-7ebb-8486-b9ae373e57f7","at":1771489241000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74fc-d500-77b1-9477-18905c479715","at":1771489252608000000,"seq":669,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c74fc-fd98-7d2c-9341-faca743cf1a5","at":1771489263000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7504-a117-730d-a12c-eab73a1cd2ce","at":1771489763607000000,"seq":671,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7504-a688-7efe-9db7-a0c4398527de","at":1771489765000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7504-b628-7e85-87be-a122cd7a4500","at":1771489769000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7504-c5c8-7f7b-b4f3-aed754f0c4ce","at":1771489773000000000,"seq":674,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7504-c5c8-7cbf-b900-68a792a6ce23","at":1771489773000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

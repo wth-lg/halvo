@@ -1,0 +1,21 @@
+{"v":1,"id":"019cc74d-dd05-70a5-9e18-f40e2fd6718f","at":1772870294789000000,"seq":944,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc74d-dd05-73bd-9e1a-bea6e6e34ab6","at":1772870294789000000,"seq":945,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc74e-56f0-7ba5-a366-c10bc60d9b86","at":1772870326000000000,"seq":946,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cc74e-9570-7715-8307-06d45044c212","at":1772870342000000000,"seq":947,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc768-0d05-7c41-89e8-6500f03f397a","at":1772872011013000000,"seq":948,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc768-0d05-7fe2-b499-e8d68b2af3de","at":1772872011013000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cc768-6ab8-7c75-834c-91922239aaca","at":1772872035000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc768-ac21-7079-832c-126d7a377d60","at":1772872051745000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cc768-b108-7c01-b621-8b0744f8a7e8","at":1772872053000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc768-c0a8-7080-b1ec-603c11ca4297","at":1772872057000000000,"seq":953,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc768-c878-7d44-a49b-9d5333d42107","at":1772872059000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc769-31f0-79a9-b93b-8f20145a1d77","at":1772872086000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc769-372c-7b05-a8e5-3bb4d03d5f70","at":1772872087340000000,"seq":956,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cc769-4190-7322-a923-58f88889d2ff","at":1772872090000000000,"seq":957,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc769-e1b8-7ea0-9e07-8c614dc698c8","at":1772872131000000000,"seq":958,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc769-e988-7119-a352-1ce1e53d8019","at":1772872133000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc76a-101b-77a1-889a-597cd36f8d80","at":1772872142875000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cc76a-2808-7f1c-b067-27ca81e1a0e0","at":1772872149000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cc76a-3f78-7578-aa99-6bd3e65dad5d","at":1772872155000000000,"seq":962,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc76a-6a70-7d5f-817d-fdd9ce080386","at":1772872166000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc76a-6e58-7202-856c-f1827cfabe7c","at":1772872167000000000,"seq":964,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

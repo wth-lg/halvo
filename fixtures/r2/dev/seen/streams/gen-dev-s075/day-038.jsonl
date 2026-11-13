@@ -1,0 +1,22 @@
+{"v":1,"id":"019c36f2-932c-755a-8cd8-77966dff3baa","at":1770448393004000000,"seq":556,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c36f2-932c-7776-9e43-4288bca82d50","at":1770448393004000000,"seq":557,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c36f3-1bf8-7c16-bea7-a74817bbf7f3","at":1770448428024000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c36f3-3b20-7589-991d-536807beb5f6","at":1770448436000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c36f3-4ea8-7378-b020-d4da57f4a501","at":1770448441000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c36f3-8558-70db-9893-8d60e39fcdd3","at":1770448455000000000,"seq":561,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c36f3-9110-7ab6-8320-1ddce60525a1","at":1770448458000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c36f3-99f9-7d0f-b1ab-2d68692afd68","at":1770448460281000000,"seq":563,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c36f3-99f9-7a39-b564-be93f04d4c16","at":1770448460281000000,"seq":564,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c36f3-b820-7c24-9060-fcec6de46a93","at":1770448468000000000,"seq":565,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c36f3-eae8-7054-9e59-d80122a41fed","at":1770448481000000000,"seq":566,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c36f3-f6a0-7d96-8173-bc9be3653f8c","at":1770448484000000000,"seq":567,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c36f4-0a28-74c6-af5f-42576cb21ad0","at":1770448489000000000,"seq":568,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c36f4-1dbb-78e3-b110-b155e0a70960","at":1770448494011000000,"seq":569,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c36f4-1dbb-7474-b4d4-024dcf78033d","at":1770448494011000000,"seq":570,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c36f4-2580-7683-84d7-da1761530c83","at":1770448496000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c36f4-3908-77a4-a525-918e46367413","at":1770448501000000000,"seq":572,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c36f4-40d8-7d68-ab41-d997346a1941","at":1770448503000000000,"seq":573,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c36f4-589e-7be4-950b-46b3847d6815","at":1770448509086000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c370a-96c6-7c2d-bda3-18f335c08274","at":1770449966790000000,"seq":575,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c370a-9f68-7608-872a-a7ed884a6015","at":1770449969000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c370c-e346-7a6d-82b8-6230f788b5b6","at":1770450117446000000,"seq":577,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}

@@ -1,0 +1,20 @@
+{"v":1,"id":"019c60a3-2eef-73e3-9f47-889e0a3bbec1","at":1771147833071000000,"seq":687,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60a3-2eef-7bde-808c-7f3c3166f7ab","at":1771147833071000000,"seq":688,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c60a3-b46c-7d1a-9cf4-b11c23e5dea2","at":1771147867244000000,"seq":689,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c60a4-5852-72c7-a23f-cad058b104ee","at":1771147909202000000,"seq":690,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c60a4-6b10-7080-a609-8b579a0ca610","at":1771147914000000000,"seq":691,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60a4-7ab0-74f0-a5ec-7efcf7d759dd","at":1771147918000000000,"seq":692,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60a4-9092-78df-b76c-bb0ed26118c4","at":1771147923602000000,"seq":693,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c60a4-a5a8-70cc-bf7c-8b6bc232e685","at":1771147929000000000,"seq":694,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60a4-bd18-71fd-a8aa-3588e4ff21e0","at":1771147935000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60a4-c8d0-78a5-a62d-0fffba9b4047","at":1771147938000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60a4-ccb8-7901-9a70-50c3999f1552","at":1771147939000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c60a4-f7b0-720e-b920-404dd102e737","at":1771147950000000000,"seq":698,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c60b4-1ca7-757d-bb54-f4a16f51121b","at":1771148942503000000,"seq":699,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c60b4-1ca7-7e11-9371-1c41d7d9041a","at":1771148942503000000,"seq":700,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c60b4-6cb8-74da-b7c1-1bd8479002f3","at":1771148963000000000,"seq":701,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c60cb-e927-75bf-949e-60764c855315","at":1771150502183000000,"seq":702,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60cb-e927-719f-b18e-b4209d108fde","at":1771150502183000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c60cc-03c8-7a4f-a6f4-9c6e56c42df0","at":1771150509000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c60cc-07b0-7048-9920-1a0440d14bbf","at":1771150510000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60cc-355d-7774-9b30-84a14b4285af","at":1771150521693000000,"seq":706,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}

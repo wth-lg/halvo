@@ -1,0 +1,23 @@
+{"v":1,"id":"019d3892-c5c9-7b91-9372-ea87770d4f8e","at":1774770636233000000,"seq":1184,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3892-c5c9-77a3-8355-7fec797df4be","at":1774770636233000000,"seq":1185,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3893-0660-7a39-890a-c22efcdebd9a","at":1774770652768000000,"seq":1186,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3893-3df8-7550-93be-50665d9c9efc","at":1774770667000000000,"seq":1187,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3893-6120-7e71-96a8-4edb5d40f9b5","at":1774770676000000000,"seq":1188,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d3893-74a8-71bd-86e2-709368777154","at":1774770681000000000,"seq":1189,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3895-c1b6-7024-a7d2-e1d70a0030ad","at":1774770831798000000,"seq":1190,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3895-c1b6-7cec-9236-2b8526a93330","at":1774770831798000000,"seq":1191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3895-e990-72f5-9090-bebca4579986","at":1774770842000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d3896-23a0-747d-b647-e5f88a42fac0","at":1774770856864000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3896-2bf8-7e7d-bed1-ea079ced0664","at":1774770859000000000,"seq":1194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3896-7248-7c24-bfcb-e985fb414793","at":1774770877000000000,"seq":1195,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3896-7630-7863-8431-56be4b5b5ad8","at":1774770878000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3896-7630-7c48-8c08-280aee5ed567","at":1774770878000000000,"seq":1197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d3896-7c89-7fad-af3f-19849c0f5f97","at":1774770879625000000,"seq":1198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3897-0aa0-7d03-ba31-6af5b56abe1e","at":1774770916000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3897-6f96-7dd1-88aa-ab1a44a6bcf9","at":1774770941846000000,"seq":1200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3897-7fd0-7000-be9a-4329e5dd8717","at":1774770946000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d3897-8f70-7462-988c-2d9a785f0f2b","at":1774770950000000000,"seq":1202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3899-10f6-7ead-9365-945e6ec371e6","at":1774771048694000000,"seq":1203,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3899-10f6-7ea8-bf17-8d9aa6c12f1d","at":1774771048694000000,"seq":1204,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3899-2998-7bfa-9ddc-6128068e9abe","at":1774771055000000000,"seq":1205,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3899-3d20-7972-9710-8b9d851ee00e","at":1774771060000000000,"seq":1206,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

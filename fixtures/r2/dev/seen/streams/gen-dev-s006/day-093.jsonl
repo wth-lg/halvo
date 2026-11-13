@@ -1,0 +1,26 @@
+{"v":1,"id":"019d52db-1e14-7f9d-9686-e10692772528","at":1775211585044000000,"seq":1247,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52db-1e14-7c1a-8a44-308cd6440842","at":1775211585044000000,"seq":1248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d52db-5880-73ca-a436-3205e19ad068","at":1775211600000000000,"seq":1249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d52db-6c08-7910-9cf4-8eccbbff6df6","at":1775211605000000000,"seq":1250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52db-b640-79fd-b623-feb78fbfa568","at":1775211624000000000,"seq":1251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52dc-114c-745f-927f-55eb5cfac70c","at":1775211647308000000,"seq":1252,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52dc-114c-76c1-bf2f-21532224597d","at":1775211647308000000,"seq":1253,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52dc-3b10-7913-8cf0-907d4b97635f","at":1775211658000000000,"seq":1254,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d52dc-42e0-74f2-b9d9-c2c4a2d8b730","at":1775211660000000000,"seq":1255,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52dc-4ab0-73bf-abff-dfd24b3ae8de","at":1775211662000000000,"seq":1256,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52dc-5280-778b-a4c8-17c2e8623a57","at":1775211664000000000,"seq":1257,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d52dc-56fe-7027-9bd4-51e97b2bacec","at":1775211665150000000,"seq":1258,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52dc-56fe-7e7e-84a6-3c71c0eb23b9","at":1775211665150000000,"seq":1259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d52dc-5e38-71eb-81ca-d4eac8210802","at":1775211667000000000,"seq":1260,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52dc-7d78-7e89-8616-b9386b63f515","at":1775211675000000000,"seq":1261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52eb-8cd8-728f-a44b-596de3293948","at":1775212661976000000,"seq":1262,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52eb-8cd8-785c-ba61-e89078202e2c","at":1775212661976000000,"seq":1263,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52eb-ac30-7587-8c4a-39dac961d846","at":1775212670000000000,"seq":1264,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52ec-34e8-76d9-8d14-c256eedfdf9f","at":1775212705000000000,"seq":1265,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d52ec-4c58-7472-9fab-5526a0bc7a2e","at":1775212711000000000,"seq":1266,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5300-01e3-783f-a197-87d64f576aa5","at":1775214002659000000,"seq":1267,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d5300-01e3-7c1b-8001-205e3c22f435","at":1775214002659000000,"seq":1268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d5300-8420-72df-a3fa-f1fc7e2bb9a6","at":1775214036000000000,"seq":1269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5300-ca70-788b-8c33-1d4c585d3c4c","at":1775214054000000000,"seq":1270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d5300-ca70-758f-aef1-8f37ab638d91","at":1775214054000000000,"seq":1271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d5300-d628-74a7-9f01-eb5769648aca","at":1775214057000000000,"seq":1272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

@@ -1,0 +1,33 @@
+{"v":1,"id":"019c036b-d2fc-755d-a990-4ec8e6efafd4","at":1769583923964000000,"seq":338,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c036b-d2fc-7158-bd42-ac90dcd7e64c","at":1769583923964000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c036c-30e0-7bf1-ab18-aa6fe45c1fcb","at":1769583948000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c036c-5d4f-70d2-8db3-f0b4bf3af32c","at":1769583959375000000,"seq":341,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c036c-5d4f-74ea-92d5-6dd34b6ebbea","at":1769583959375000000,"seq":342,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c036c-d108-7086-9493-b92c9868c249","at":1769583989000000000,"seq":343,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c036c-ec60-72a9-a35d-51c3c34214db","at":1769583996000000000,"seq":344,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c036c-f430-789b-9e8b-22edaec963e6","at":1769583998000000000,"seq":345,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c036c-f80a-7420-8c38-f3dded6c079b","at":1769583998986000000,"seq":346,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c036c-f80a-7614-b8b5-125914d492f7","at":1769583998986000000,"seq":347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c036d-0f88-7bd4-96b4-7cff5d8a9eed","at":1769584005000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c036d-7ce8-7129-948c-06e2899aec03","at":1769584033000000000,"seq":349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c036d-ca5a-72e2-a12f-d4dff5984a49","at":1769584052826000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c036e-1d10-7389-844f-c048e26a461a","at":1769584074000000000,"seq":351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c036e-b568-7bfe-bb4a-104ce4544740","at":1769584113000000000,"seq":352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c036e-b7c3-7359-9819-f7876b62a670","at":1769584113603000000,"seq":353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c036e-ec18-7f88-bd00-3836cce5b34f","at":1769584127000000000,"seq":354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0387-86cf-7108-9c96-2aeeb304e7c5","at":1769585739471000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c0387-cb48-72c7-8561-297d18dd852d","at":1769585757000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0387-ded0-7440-98f5-d83d03ec7693","at":1769585762000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0388-6bd2-7e59-9593-f36ad9e666c9","at":1769585798098000000,"seq":358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c0388-add8-7af5-aadc-57e6a16c26b5","at":1769585815000000000,"seq":359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0388-bd78-7a16-be17-69c13a82977d","at":1769585819000000000,"seq":360,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0388-f428-7e63-8dc1-3908dab64f58","at":1769585833000000000,"seq":361,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0389-3e60-7df1-b077-24d0086d443d","at":1769585852000000000,"seq":362,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0389-7d22-7d34-b20b-902128b310fe","at":1769585868066000000,"seq":363,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c0389-abc0-774c-afda-96499b6d2c52","at":1769585880000000000,"seq":364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0389-de88-7b18-88d0-01ef24ff6539","at":1769585893000000000,"seq":365,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c038a-01b0-7882-82ca-2c9b7770531d","at":1769585902000000000,"seq":366,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c038a-3c48-7bd0-a5d9-2b3c3535d9ab","at":1769585917000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038a-3d48-70ca-87f1-6d68ad8deef0","at":1769585917256000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c038a-4be8-7b26-aaa6-1f205368c08e","at":1769585921000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038a-6b28-7575-a16f-781789573358","at":1769585929000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

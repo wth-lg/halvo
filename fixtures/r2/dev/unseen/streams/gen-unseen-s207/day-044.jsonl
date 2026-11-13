@@ -1,0 +1,19 @@
+{"v":1,"id":"019c55e7-1aa4-79e2-b5c2-1a8df8ccdb75","at":1770967734948000000,"seq":692,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c55e7-1aa4-73e8-aaf5-0d903573a55f","at":1770967734948000000,"seq":693,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c55e7-97d8-7865-a4d8-bb8a6bc2270b","at":1770967767000000000,"seq":694,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c55e7-c2d0-7c96-9713-499e420d290d","at":1770967778000000000,"seq":695,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55e7-c6b8-721e-8760-fe3f444f01f8","at":1770967779000000000,"seq":696,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c55f5-22c8-7898-a9c8-cff023e0ca1b","at":1770968654536000000,"seq":697,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c55f5-22c8-7a51-97d7-7439e8330028","at":1770968654536000000,"seq":698,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c55f5-6ae8-7908-b6bf-1830656c1012","at":1770968673000000000,"seq":699,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5610-7458-79b6-9d89-6077f783fe73","at":1770970444888000000,"seq":700,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c5610-b730-74c9-8a17-f2e70117adab","at":1770970462000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c5610-c6d0-7388-b0cf-9138d6bc3d23","at":1770970466000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5610-ec37-7ed9-ba5e-9b92ca4540a3","at":1770970475575000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c5610-f1c8-7e57-89be-a67b334ba5d5","at":1770970477000000000,"seq":704,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5611-0550-793c-9851-fe0356ac9df9","at":1770970482000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5611-0d20-7ef4-9b16-a34e2033e74d","at":1770970484000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5611-1cc0-7fb9-ae03-b7dff6e66aa7","at":1770970488000000000,"seq":707,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5611-2490-7e39-89e9-309b89e92794","at":1770970490000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c5611-2f74-7f70-9ef8-32d4720a26fb","at":1770970492788000000,"seq":709,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c5611-a232-7193-9cba-4736bc2c98aa","at":1770970522162000000,"seq":710,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}

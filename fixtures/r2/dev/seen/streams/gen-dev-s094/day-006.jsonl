@@ -1,0 +1,22 @@
+{"v":1,"id":"019b926d-f325-7d37-9eb9-06e899a374c5","at":1767688237861000000,"seq":82,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b926d-f325-7e29-8895-2932d86f83ef","at":1767688237861000000,"seq":83,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b926e-68e0-7316-84fe-a0d770e67756","at":1767688268000000000,"seq":84,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b926e-7880-788a-9d4b-216492dbca09","at":1767688272000000000,"seq":85,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b926e-8050-7e29-a33f-3f8cb4add052","at":1767688274000000000,"seq":86,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9287-aadf-771f-87d2-373cfb4ce22a","at":1767689923295000000,"seq":87,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9287-aadf-756a-8850-7715ddc118d8","at":1767689923295000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9288-0f48-7f6b-bb9a-d1bb52cc80a4","at":1767689949000000000,"seq":89,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b9288-6d08-7db6-af78-dbb719ea30b0","at":1767689973000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9288-7aab-7d40-b04d-d7e4e29a4ff9","at":1767689976491000000,"seq":91,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9289-18e8-7e4a-988f-dc22ec5c12ab","at":1767690017000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9289-3c10-7cfb-9da2-1417b415fd8b","at":1767690026000000000,"seq":93,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9289-6e21-78d7-b382-33f3ab2631ba","at":1767690038817000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9289-8e18-78a1-81e0-a29dd4f5a261","at":1767690047000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9289-a588-7262-b85e-10954d747f43","at":1767690053000000000,"seq":96,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9289-cc98-7584-86ff-a4f256bb14fe","at":1767690063000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9289-d35c-7134-aec2-2e8f65d827c3","at":1767690064732000000,"seq":98,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9289-e7f0-7e39-97fa-fbce27d28ceb","at":1767690070000000000,"seq":99,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9289-f790-793a-b3f3-64d79b5b1177","at":1767690074000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b928a-0348-72c7-addb-5431a0793c3d","at":1767690077000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b928a-16d0-7ecf-8fe0-9819ac488a63","at":1767690082000000000,"seq":102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b928a-5938-7570-a81c-4c866b65ffca","at":1767690099000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

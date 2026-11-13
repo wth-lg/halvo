@@ -1,0 +1,22 @@
+{"v":1,"id":"019cfadb-a363-74b7-8a99-3bfc7c60d1c0","at":1773735224163000000,"seq":1186,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cfadb-a363-7be6-ab62-05014f9c58b2","at":1773735224163000000,"seq":1187,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cfadc-2f60-7f02-bccb-467e3f56c145","at":1773735260000000000,"seq":1188,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfadc-5670-7071-9846-ff8ca16d4c5a","at":1773735270000000000,"seq":1189,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfadc-6de0-731a-aeb3-ea0579fc0ac3","at":1773735276000000000,"seq":1190,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cfae0-eb6b-7878-94e8-ee3cf4128098","at":1773735570283000000,"seq":1191,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfae0-eb6b-788a-b72b-0e173036e4ab","at":1773735570283000000,"seq":1192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cfae1-b210-73a6-9849-44ab1a17eb34","at":1773735621136000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cfae2-5d68-74d2-9354-41e7541ce764","at":1773735665000000000,"seq":1194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cfae2-8557-7528-be09-64af40eb21e5","at":1773735675223000000,"seq":1195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cfae2-a7a0-70df-9a8a-1314c1159962","at":1773735684000000000,"seq":1196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfae2-bb28-7f18-b744-1de8e6e95d20","at":1773735689000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfae3-7df0-7a6b-a536-dae642260ee4","at":1773735738864000000,"seq":1198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cfae3-efc0-77f7-b9cd-764a7b314cdb","at":1773735768000000000,"seq":1199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfae4-4998-75be-aeda-ff2f844291b5","at":1773735791000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfae4-836d-78ac-bbab-a85450a61b6a","at":1773735805805000000,"seq":1201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cfae4-8430-7e5e-a015-5816161f98a2","at":1773735806000000000,"seq":1202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cfae4-8818-79ed-9231-81055e59e9ae","at":1773735807000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfaef-3c78-7535-9c8c-9cdb04bdb9f5","at":1773736508536000000,"seq":1204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cfaef-4230-7b17-937f-bd880223c97a","at":1773736510000000000,"seq":1205,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfaef-d6a0-70fc-8a36-712b4f30c0a0","at":1773736548000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaef-de70-7ff7-ab82-b56c0e11bfc7","at":1773736550000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,0 +1,13 @@
+{"v":1,"id":"019cf0a8-5edc-7643-a657-cf1bf7fe3453","at":1773564092124000000,"seq":1016,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf0a8-5edc-7c0f-9139-7af1a88c03e4","at":1773564092124000000,"seq":1017,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cf0a8-ac80-74f0-a3fd-3c91dea65f45","at":1773564112000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0a8-e718-7187-8c4d-a8a5ebd45cf2","at":1773564127000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0a9-28f1-728c-acea-4b5889eb1ae4","at":1773564143857000000,"seq":1020,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cf0a9-5860-7370-b450-c7f89a6815f0","at":1773564156000000000,"seq":1021,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf0a9-f888-7e98-8b0a-ba39c8dde6e2","at":1773564197000000000,"seq":1022,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0aa-332a-7288-ba00-86fd3880f3b9","at":1773564212010000000,"seq":1023,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cf0aa-5648-7b88-8081-344cdbcb665d","at":1773564221000000000,"seq":1024,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cf0aa-9d75-74c1-892e-0d0f2a939a1e","at":1773564239221000000,"seq":1025,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ab-0de0-7fd3-b609-1d6e3d970a6a","at":1773564268000000000,"seq":1026,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf0ab-1d80-7192-b84b-2c0f637a4059","at":1773564272000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ab-67b8-759d-8846-a78fa2de4602","at":1773564291000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

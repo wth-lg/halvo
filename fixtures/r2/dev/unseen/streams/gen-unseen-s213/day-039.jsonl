@@ -1,0 +1,11 @@
+{"v":1,"id":"019c3cb9-abd9-775f-a705-59e4ba178cf1","at":1770545327065000000,"seq":595,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3cb9-abd9-7765-bd53-65101a43b895","at":1770545327065000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c3cba-0cdf-76d9-a936-96dadad85992","at":1770545351903000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c3cba-76b8-7e74-85f0-ea25ea4fcf16","at":1770545379000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cba-8e28-7c1c-a5de-abd55b144169","at":1770545385000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3cba-efd0-7fba-a77b-969b5853d388","at":1770545410000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c3cbb-0592-70b2-9091-e6c3859ae82c","at":1770545415570000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c3cbb-3620-730b-9fc1-419fcf56f427","at":1770545428000000000,"seq":602,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3cbb-da30-7e81-b9e3-d04882072265","at":1770545470000000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c3cbc-3408-7f05-bf68-e503bfff723e","at":1770545493000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c3cbc-7670-7343-b7ae-e35f901a18c0","at":1770545510000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

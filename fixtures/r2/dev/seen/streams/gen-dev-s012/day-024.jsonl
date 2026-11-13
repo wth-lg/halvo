@@ -1,0 +1,52 @@
+{"v":1,"id":"019befa1-eb03-7ab6-97e4-89219be4e2f2","at":1769251924739000000,"seq":366,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019befa1-eb03-70c4-8068-7aa75bcd268a","at":1769251924739000000,"seq":367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019befa2-0378-78d7-bd8c-37b7334a704d","at":1769251931000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019befa2-0760-71f3-ac3e-7692b8eeb471","at":1769251932000000000,"seq":369,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019befa2-8078-7a50-a777-6f67b90f19fa","at":1769251963000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befa2-ab70-7b29-bfa1-5fb14138ecb9","at":1769251974000000000,"seq":371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019befad-4761-7209-adaa-5296f147b644","at":1769252669281000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019befad-59d0-77a1-870f-7b78b8e75ab8","at":1769252674000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befad-6d58-7528-ace2-cd74ec3c25ca","at":1769252679000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befad-7140-776c-a54e-7fec50ff5e22","at":1769252680000000000,"seq":375,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019befad-9468-7f19-9026-fd188a3090e1","at":1769252689000000000,"seq":376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019befad-9c38-778b-86e4-b2146b80b71b","at":1769252691000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019befbc-84d9-71bb-8af6-35de479591f5","at":1769253668057000000,"seq":378,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019befbc-9ff8-75b8-ad37-eaeaaebeb4ab","at":1769253675000000000,"seq":379,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019befbd-0588-7b38-a80d-2de44c389428","at":1769253701000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befbd-89dd-7f33-ac6b-2d8165e92d02","at":1769253734877000000,"seq":381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019befbd-99f8-79aa-9dfe-3d3d8a3730de","at":1769253739000000000,"seq":382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befbd-efe8-76da-a4b5-1b7cd942d5d8","at":1769253761000000000,"seq":383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019befbe-4b7f-7eab-8bf0-b8208139b364","at":1769253784447000000,"seq":384,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019befbe-4b7f-7a5c-8061-82468e651cfd","at":1769253784447000000,"seq":385,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019befbe-9010-77eb-8da7-ecb9641f6e03","at":1769253802000000000,"seq":386,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befbe-da48-741b-a32f-9ecb81c6f556","at":1769253821000000000,"seq":387,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019befbf-1bc3-7bec-a062-26689a0750f6","at":1769253837763000000,"seq":388,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019befbf-6eb8-7dbc-8fad-750d1288fe77","at":1769253859000000000,"seq":389,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befbf-7a70-7e4c-ad5c-bc5ab44cc6a5","at":1769253862000000000,"seq":390,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019befbf-7e58-79d8-8688-591794b49d94","at":1769253863000000000,"seq":391,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019befbf-8df8-7b93-94d2-d0eb47590a25","at":1769253867000000000,"seq":392,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befbf-ea4a-7e83-b1d7-1c632c67caba","at":1769253890634000000,"seq":393,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019befbf-ea4a-750e-9b4f-fa7e63bc97e4","at":1769253890634000000,"seq":394,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019befc0-0af8-707d-87ec-8e1a1f12a5e4","at":1769253899000000000,"seq":395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befc0-12c8-7e5d-b8f8-86cb14bc7964","at":1769253901000000000,"seq":396,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befc0-1e80-7789-b638-656c32615f0c","at":1769253904000000000,"seq":397,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019befc0-2a38-7256-a98f-47526b4536b2","at":1769253907000000000,"seq":398,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019befd2-e73b-7a03-a041-d931fff7dfb7","at":1769255135035000000,"seq":399,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019befd2-fe88-7831-aa6a-367879e2cff9","at":1769255141000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019befd3-1210-79f6-a280-c29672ac61eb","at":1769255146000000000,"seq":401,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019befd3-301f-77d9-8497-97649bfbcc48","at":1769255153695000000,"seq":402,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019befd3-6030-7fc9-8f8b-dce5899b879f","at":1769255166000000000,"seq":403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befd3-aa68-7829-b3ad-66f58298d6b2","at":1769255185000000000,"seq":404,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019befd3-ae50-7810-b549-9e1d9d6c0567","at":1769255186000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befd3-c5c0-7407-aa4e-8bfdbc8626bd","at":1769255192000000000,"seq":406,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019befdb-8c42-716d-bb5a-c974fa503fe8","at":1769255701570000000,"seq":407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019befdb-99a8-7f71-8925-009d3f0e8dff","at":1769255705000000000,"seq":408,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019befdb-ad30-728d-ae8d-bc0e555ea42b","at":1769255710000000000,"seq":409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019beff0-5a2b-7832-98eb-a6b4e7057ee0","at":1769257065003000000,"seq":410,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019beff0-5e10-73d8-a74f-a55b3e108f68","at":1769257066000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beff0-90d8-7d27-b518-7036626afc71","at":1769257079000000000,"seq":412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beff0-bfb8-7606-bf10-1f30273a2d03","at":1769257091000000000,"seq":413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019beff1-0ae4-784e-8086-d9ae7002a127","at":1769257110244000000,"seq":414,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019beff1-4870-7a08-aea1-11166f6a1e33","at":1769257126000000000,"seq":415,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019beff1-4a2b-7ece-8766-ea42b8db08d0","at":1769257126443000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019beff1-c188-7fd1-8f6b-e04fd4ccdacd","at":1769257157000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

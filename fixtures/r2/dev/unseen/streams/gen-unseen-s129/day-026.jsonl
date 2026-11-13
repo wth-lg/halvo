@@ -1,0 +1,38 @@
+{"v":1,"id":"019bf932-112a-7d66-bd53-774fcb38729e","at":1769412366634000000,"seq":242,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf932-112a-7471-bed2-28e5077581ea","at":1769412366634000000,"seq":243,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf932-31d8-78c4-977d-5fe783fd6bcd","at":1769412375000000000,"seq":244,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf941-b69d-70f4-9634-4f554e1735df","at":1769413392029000000,"seq":245,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf941-b69d-78a4-b46a-613b56e4b45d","at":1769413392029000000,"seq":246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bf942-5733-7f91-be4f-1b88794d4663","at":1769413433139000000,"seq":247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bf942-6a30-7768-b2aa-f2642f5f5b1e","at":1769413438000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf942-9910-7efc-b80f-be149cd49e87","at":1769413450000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bf942-d790-7e8c-b94c-3af1656116cc","at":1769413466000000000,"seq":250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf942-ef00-7819-9525-706f456d9fcf","at":1769413472000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf943-104e-7cfb-ad3a-34c1b4ff20f0","at":1769413480526000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019bf943-96f8-7c4e-a788-9bd46b133140","at":1769413515000000000,"seq":253,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf955-13fc-7ac2-89dc-6e05c818d4c2","at":1769414661116000000,"seq":254,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bf955-36b0-7dd9-b688-738ffd2cb6a2","at":1769414670000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bf955-4650-7477-824f-c0dbdc95bf7d","at":1769414674000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf955-9bdc-7d3c-ade5-28022682c1d1","at":1769414695900000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bf955-f618-740f-afdc-1acae770a5c8","at":1769414719000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bf956-940f-74a1-90a7-ea57ca8475fb","at":1769414759439000000,"seq":259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for July - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bf957-1728-7843-a5da-bf5b0985cb86","at":1769414793000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf957-4220-703c-8ec1-44b20fa0bfaa","at":1769414804000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf957-9d26-746c-be76-d32d8c4db370","at":1769414827302000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bf957-bf20-7505-8eea-bfdefae216d2","at":1769414836000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf957-c6f0-7c32-a7cc-7f92e998c6f5","at":1769414838000000000,"seq":264,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf958-6718-7d61-a8bd-6f5bf7b2ee3a","at":1769414879000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf958-9040-70a1-a75f-b6a552d72ef6","at":1769414889536000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bf959-0f10-7291-a4da-7582425d2efc","at":1769414922000000000,"seq":267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf959-12f8-74b9-985b-fdbe629dcb39","at":1769414923000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf959-3b84-735c-8f41-0d80e8de15fe","at":1769414933380000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bf959-b320-7b6a-a2cf-33a6cce402c1","at":1769414964000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf959-c2c0-77a8-b94f-0b07cd1fe412","at":1769414968000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf959-edb8-7702-8ca4-8f9d6c73f9a9","at":1769414979000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf959-fb14-7402-8eb3-c9d2d71e7306","at":1769414982420000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bf95a-6ea0-7002-b0c7-cf6e5fc88ea3","at":1769415012000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf95f-0ce8-7838-9e5d-f50a881f4c4e","at":1769415314664000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bf95f-25a8-7a60-80d2-de546adb4516","at":1769415321000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf95f-6040-76e6-a8fb-fa4214902efa","at":1769415336000000000,"seq":277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf95f-6428-743c-bcbd-da4febc18292","at":1769415337000000000,"seq":278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf95f-6bf8-7230-ad2c-7bc6fab16601","at":1769415339000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

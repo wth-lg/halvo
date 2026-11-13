@@ -1,0 +1,22 @@
+{"v":1,"id":"019c60d1-6c3b-760c-8910-5f1fbac16854","at":1771150863419000000,"seq":532,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60d1-6c3b-78f3-9b37-86b21439f488","at":1771150863419000000,"seq":533,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c60d1-7e20-707b-8c71-1472fe6adaff","at":1771150868000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60d1-91a8-7c92-8850-6e0adc194e83","at":1771150873000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c60d1-be1c-79fa-a0b8-7e3e5b581328","at":1771150884380000000,"seq":536,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c60d2-35b8-7152-b079-5273d6e24e22","at":1771150915000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60d2-54f8-7873-9f45-13d12c5d94e7","at":1771150923000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60d2-6880-795c-bc08-6fd6cde701ee","at":1771150928000000000,"seq":539,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c60d2-7b0d-79cc-ac9f-7360a5573e12","at":1771150932749000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c60d2-d5e0-71d5-948d-abd371665641","at":1771150956000000000,"seq":541,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60d2-f462-742d-b26b-73d762d4ae83","at":1771150963810000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c60d3-1460-7fe2-9be0-a25b95d18436","at":1771150972000000000,"seq":543,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c60d3-1c30-7656-8a8e-c15ae938900c","at":1771150974000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c60de-28be-7976-a8e2-084d0d060eac","at":1771151698110000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c60de-3408-711b-a357-0b5747b2b179","at":1771151701000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60de-4790-7bd4-b890-3d9a91f72716","at":1771151706000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60de-a938-77fc-bf21-b373556410f0","at":1771151731000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c60de-c490-77f9-8ce6-375b433b8eed","at":1771151738000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60e7-894a-72be-ac61-b74edd93e85c","at":1771152312650000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c60e7-8aa8-74b4-bb24-0e9d6e9f4dfc","at":1771152313000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c60e7-a218-7a97-8b45-4abdede9fcb5","at":1771152319000000000,"seq":552,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c60e7-bd70-7875-8b4b-e3943b24a1d2","at":1771152326000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,29 @@
+{"v":1,"id":"019b922c-2593-7fbc-8b87-821e252c7dae","at":1767683925395000000,"seq":73,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b922c-2593-72cd-8ce5-d0f8801f28bc","at":1767683925395000000,"seq":74,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b922c-6a58-77ee-b073-f5cea1f6f470","at":1767683943000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b922c-9550-79c0-b3fa-17259843353e","at":1767683954000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b922c-e9ab-7261-8827-af0f26bebdf6","at":1767683975595000000,"seq":77,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b922c-ef28-7597-aa5b-a63ff7f454d4","at":1767683977000000000,"seq":78,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b922d-29c0-7e13-8504-f46ef34e6c7e","at":1767683992000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b922d-be30-79e5-a608-80d1354c499c","at":1767684030000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b922d-d1b8-7772-b509-c988ad7f0f20","at":1767684035000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b922d-e158-712a-b88b-11cd0ec075bc","at":1767684039000000000,"seq":82,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b922d-e47c-7d94-966d-e3ee34456300","at":1767684039804000000,"seq":83,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b922e-0098-7904-ab8e-441e54bacec0","at":1767684047000000000,"seq":84,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b922e-2b90-79b0-b710-2b60bf398b5a","at":1767684058000000000,"seq":85,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b922e-2b90-71fa-a027-a8cb11c78c0a","at":1767684058000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b922e-3b30-7ba5-8089-a42a8b1b7de0","at":1767684062000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b922e-62ac-7cb3-8452-e2d0f16580c4","at":1767684072108000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b922e-6df8-7f42-a8ea-d501d40d7d9e","at":1767684075000000000,"seq":89,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b922e-79b0-7cd7-a0dd-8757290da7fc","at":1767684078000000000,"seq":90,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b922e-9cd8-7bee-8604-9ac480f51f56","at":1767684087000000000,"seq":91,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b922e-b830-7584-bff9-0d667de354c2","at":1767684094000000000,"seq":92,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b923c-c9a7-791c-82b9-052eed171436","at":1767685015975000000,"seq":93,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b923c-c9a7-76b8-99d5-bd8eea557183","at":1767685015975000000,"seq":94,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b923d-8540-7790-9835-77238c5297b9","at":1767685064000000000,"seq":95,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b923d-8540-701c-a096-0d17fd3e884b","at":1767685064000000000,"seq":96,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b923d-98c8-7c75-a0de-956e15c4524f","at":1767685069000000000,"seq":97,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b923d-a181-7616-8b48-835b29143591","at":1767685071233000000,"seq":98,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b923d-c3c0-723b-bcfc-29ca6df82c3d","at":1767685080000000000,"seq":99,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b923d-d748-7d0a-a1ed-86be2047b351","at":1767685085000000000,"seq":100,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b923e-19b0-7525-9d1d-a8a102243cd3","at":1767685102000000000,"seq":101,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

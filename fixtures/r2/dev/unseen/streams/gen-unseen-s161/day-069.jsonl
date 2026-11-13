@@ -1,0 +1,36 @@
+{"v":1,"id":"019cd6e1-c92e-717c-94bb-904de1124e39","at":1773131647278000000,"seq":846,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6e1-c92e-74d7-a7b2-69d900fcdb46","at":1773131647278000000,"seq":847,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e2-0a80-758d-98ba-dbbbabf729e5","at":1773131664000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd6f8-307e-7369-93d9-f1dc76468e6b","at":1773133115518000000,"seq":849,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd6f8-307e-7472-8e97-1c2ac8526cc1","at":1773133115518000000,"seq":850,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd6f8-6528-7ee4-bf75-87e803e8c6b9","at":1773133129000000000,"seq":851,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f8-8468-7d4f-a3bb-159d522fcd7d","at":1773133137000000000,"seq":852,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cd6f8-9020-78d1-98cd-60e940b05003","at":1773133140000000000,"seq":853,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd710-447d-76a3-9b90-fbc3923885ae","at":1773134693501000000,"seq":854,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd710-447d-7f2b-9852-480c77698ab3","at":1773134693501000000,"seq":855,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cd710-90a8-795f-b6f6-7780adab25db","at":1773134713000000000,"seq":856,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cd710-cf28-72fc-a166-6055b0e13a07","at":1773134729000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd710-e050-72c2-9d3f-65d4e713db2a","at":1773134733392000000,"seq":858,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cd711-411a-751f-a0c7-ddd0aeca5cfe","at":1773134758170000000,"seq":859,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cd711-86c0-759e-bda6-708e97d9fb51","at":1773134776000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd711-e098-7b79-ab4f-2a8048960182","at":1773134799000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd711-ec50-7951-b0d1-a9f314eb586c","at":1773134802000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cd711-fbf0-7a4f-8996-3570bf6c868d","at":1773134806000000000,"seq":863,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd712-07a8-7599-907f-18fd0f13167e","at":1773134809000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd712-42ce-7779-9df5-e84adc1f88b0","at":1773134824142000000,"seq":865,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cd712-51e0-7337-a61e-973e8dbb8253","at":1773134828000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd72c-bdbf-754a-960e-86b378fee6da","at":1773136559551000000,"seq":867,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cd72d-707f-7b4c-9638-c50fbd4adb5e","at":1773136605311000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cd72e-4ce1-7bc7-af2c-c4203d9efe9e","at":1773136661729000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cd72e-7cd0-7dbd-8307-84d088fa5ea3","at":1773136674000000000,"seq":870,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd72e-9058-7435-9396-dda630af1255","at":1773136679000000000,"seq":871,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd72e-a422-7c01-bc98-8f355fbc1d73","at":1773136684066000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cd72e-bb50-77d4-a3ba-85a6d02859b6","at":1773136690000000000,"seq":873,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd72e-d2c0-736a-9662-910e702346ee","at":1773136696000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd72e-f9d0-7b0c-8d03-38a33e247e79","at":1773136706000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd72f-5b78-7b2c-a123-83006a572c2d","at":1773136731000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd72f-a549-7884-a4a9-92d1ff1fc1a8","at":1773136749897000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cd730-2e68-7558-aa8b-3cc82f91058f","at":1773136785000000000,"seq":878,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd730-3250-7dec-8bf3-4d99db4d0fef","at":1773136786000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cd730-3e08-7e91-b9c2-e21151829c96","at":1773136789000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd730-4da8-795e-a41d-74062b4efdc5","at":1773136793000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

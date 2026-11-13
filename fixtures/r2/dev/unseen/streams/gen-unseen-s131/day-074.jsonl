@@ -1,0 +1,6 @@
+{"v":1,"id":"019cf0b7-a187-7712-9005-ec3ba2354a57","at":1773565092231000000,"seq":1004,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf0b7-a187-7cae-894d-76031d029598","at":1773565092231000000,"seq":1005,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf0b7-f585-7df5-811d-2aa994a89acd","at":1773565113733000000,"seq":1006,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cf0b8-5c20-77e9-b976-2893d657bee9","at":1773565140000000000,"seq":1007,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cf0b8-6fa8-7c9d-8100-5ec89a060d9f","at":1773565145000000000,"seq":1008,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cf0b8-7778-7f4d-bbb6-bb26932a61a0","at":1773565147000000000,"seq":1009,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019bda6d-dd95-71e3-a803-83a740ffbb06","at":1768896191893000000,"seq":218,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bda6d-dd95-7a26-a09a-f60d0d941ee3","at":1768896191893000000,"seq":219,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bda6e-5330-7e25-81aa-53adfa41f570","at":1768896222000000000,"seq":220,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda72-3727-7c1e-b5e9-777ccd54bdd4","at":1768896476967000000,"seq":221,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bda72-7d98-768b-af50-78c6d6165dff","at":1768896495000000000,"seq":222,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda73-1208-7349-a912-8b711cf6e662","at":1768896533000000000,"seq":223,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda73-2978-74e2-a2b8-b84a3e74cbcd","at":1768896539000000000,"seq":224,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bda8a-2f67-7836-b1f0-caf111b7b889","at":1768898047847000000,"seq":225,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda8a-2f67-7309-85a3-7ccdc17c433a","at":1768898047847000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bda8a-5af8-7ac3-8ce8-18d59810724b","at":1768898059000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda8a-66b0-7748-9bbd-26ec2096e9cc","at":1768898062000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bda8a-66f9-75ab-93e8-1dbb35d45f6e","at":1768898062073000000,"seq":229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bda8b-2230-7535-ba58-eb738b07757a","at":1768898110000000000,"seq":230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bda8b-3d19-758b-b03c-f475f577aeba","at":1768898116889000000,"seq":231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bda8b-8f90-716b-b4c8-05d3740d0eb5","at":1768898138000000000,"seq":232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bda8b-ce10-73dc-a860-2595e0d29b97","at":1768898154000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bda8c-019f-7bdd-bb02-528d125601bf","at":1768898167199000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bda8c-3788-79e4-ab39-cd2a39f395c6","at":1768898181000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bda8c-6280-7420-8ef7-efe9962353fe","at":1768898192000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda8c-cfe0-7511-a157-f453bb91116a","at":1768898220000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bda8c-d3c8-7846-9a5b-a07c0795e427","at":1768898221000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

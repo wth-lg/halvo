@@ -1,0 +1,12 @@
+{"v":1,"id":"019c46d5-5b97-7d47-9888-89f432a0371c","at":1770714913687000000,"seq":695,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c46d5-5b97-7032-98e7-c76c4819fd35","at":1770714913687000000,"seq":696,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c46d5-5cd0-7208-b52e-885d99f1b113","at":1770714914000000000,"seq":697,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46d5-64a0-77b7-9c9d-adce0e43488b","at":1770714916000000000,"seq":698,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46d5-7058-7adc-bbb0-9dc26be5b185","at":1770714919000000000,"seq":699,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c46e4-0b6f-7a7e-8de6-1121af0f954f","at":1770715876207000000,"seq":700,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c46e4-0b6f-7385-9a7a-0a12475faa42","at":1770715876207000000,"seq":701,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c46e4-1a40-7a25-9c19-4fc8c1a20747","at":1770715880000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c46e4-f7af-74df-a183-3d2b1c19f3a6","at":1770715936687000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c46e4-fcd0-71a2-bcd1-921ec9425f90","at":1770715938000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c46e5-1440-7063-bb8b-9dc1af81ba2a","at":1770715944000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46e5-2f98-7e81-be9c-239c166d6a29","at":1770715951000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

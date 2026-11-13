@@ -1,0 +1,20 @@
+{"v":1,"id":"019ce6b3-5212-7976-9e14-eda5b1c4abd2","at":1773397037586000000,"seq":1137,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6b3-5212-7d27-97e1-8ee3b5634448","at":1773397037586000000,"seq":1138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b3-a9a0-713f-a7eb-393b5a91f95f","at":1773397060000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce6b3-b170-7ae5-a861-8d08b34cf861","at":1773397062000000000,"seq":1140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6b3-ccc8-7ad1-b880-15fa19a6d048","at":1773397069000000000,"seq":1141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce6b3-d0b0-75ff-af26-4c22b25474b3","at":1773397070000000000,"seq":1142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6cd-f5e7-70eb-a7c8-ace7876063a1","at":1773398783463000000,"seq":1143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce6ce-6560-7441-8438-a85fc6f8c576","at":1773398812000000000,"seq":1144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6ce-8888-71f7-adbb-71a2f1872abe","at":1773398821000000000,"seq":1145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6ce-9058-7455-9b3e-f96ebb569fc4","at":1773398823000000000,"seq":1146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6ce-af98-7b6a-9877-920877b3a974","at":1773398831000000000,"seq":1147,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce6e1-0457-7545-9f2c-c441dd3dc279","at":1773400032343000000,"seq":1148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce6e1-2240-756c-a361-b9c5c762b4fc","at":1773400040000000000,"seq":1149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6e1-35c8-783f-9bf7-b13dcf585247","at":1773400045000000000,"seq":1150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ce6e1-39b0-7ae3-8c5e-8e3acc70c031","at":1773400046000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6e6-f061-7643-8a9a-3197fc12f357","at":1773400420449000000,"seq":1152,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce6e6-f061-7cb5-835e-299de2ffa736","at":1773400420449000000,"seq":1153,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce6e7-4878-735b-815d-0ce2fe027379","at":1773400443000000000,"seq":1154,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6e7-5430-7d0b-bc31-5a089a01565f","at":1773400446000000000,"seq":1155,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ce6e7-8ec8-7f0e-9c27-057fdc80cb6b","at":1773400461000000000,"seq":1156,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

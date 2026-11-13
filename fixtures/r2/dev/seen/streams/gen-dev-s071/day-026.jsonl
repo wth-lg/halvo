@@ -1,0 +1,34 @@
+{"v":1,"id":"019bf920-b093-7c36-921f-aa39d431adcd","at":1769411227795000000,"seq":323,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf920-b093-7af6-9c94-293f0df49dfe","at":1769411227795000000,"seq":324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf920-efe0-71e8-bd0d-42e623588056","at":1769411244000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf921-2690-7bd6-949b-5c955587c651","at":1769411258000000000,"seq":326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf928-12e3-75c9-9e43-197d03f07233","at":1769411711715000000,"seq":327,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf928-1400-76ee-a9e3-ac140d7f2239","at":1769411712000000000,"seq":328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf928-46c8-77ed-902e-215480bdb7b5","at":1769411725000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf929-03b6-71a9-9312-8d967de57bd0","at":1769411773366000000,"seq":330,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf929-96b8-7a03-bec6-d28619d5fb3b","at":1769411811000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bf929-d2d1-7d82-b0ac-51b4724df5b0","at":1769411826385000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf929-f860-7041-a3b8-a923223cfa5a","at":1769411836000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf929-fc48-7c6b-8a5f-7b056c53c160","at":1769411837000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bf92a-2f10-755f-b498-04d4384d4ab4","at":1769411850000000000,"seq":335,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf92a-32f8-7517-ac7a-7d0d0d3aa70f","at":1769411851000000000,"seq":336,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf92a-4db4-705a-9baf-3d65ae69cfd6","at":1769411857844000000,"seq":337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf92a-5620-7e8c-a2f1-68a1eb8f437f","at":1769411860000000000,"seq":338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf92a-ac10-7e79-969f-108f919ae3af","at":1769411882000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf92a-bbb0-7a8d-b984-bce3dd51f14a","at":1769411886000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf92a-bf4c-7ca2-b5be-9119c5af2b86","at":1769411886924000000,"seq":341,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bf92a-c380-797a-bea5-c7b6ac321ad2","at":1769411888000000000,"seq":342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bf92b-1588-73dd-8bb9-d58707b8d9b0","at":1769411909000000000,"seq":343,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf92b-2528-70e6-b503-ac34946db197","at":1769411913000000000,"seq":344,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf92b-5020-7a79-a479-d8cfab937160","at":1769411924000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf93e-bafd-7c27-9324-fe24a849b9b9","at":1769413196541000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf93f-0ae8-7602-94b9-8a36dcb30eb1","at":1769413217000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf93f-0ae8-749e-ae5d-b01159cac93a","at":1769413217000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bf93f-64c0-7b2a-b447-df4b71044cff","at":1769413240000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf93f-6736-7076-982d-fb467634791e","at":1769413240630000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf93f-af70-77bf-b248-7ab24e92b885","at":1769413259120000000,"seq":351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf93f-bab0-7e0b-a953-00f08ec43507","at":1769413262000000000,"seq":352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf93f-ce38-73b5-9806-74179ef405d7","at":1769413267000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bf93f-f150-7343-9cf3-224d244991ab","at":1769413275984000000,"seq":354,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf940-85d0-7f7c-80ef-0a0cf7098bb1","at":1769413314000000000,"seq":355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf940-a128-7556-82a5-198672097bf6","at":1769413321000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

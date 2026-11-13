@@ -1,0 +1,31 @@
+{"v":1,"id":"019bf4ce-71c1-7609-ad86-9af8d7c9b71c","at":1769338728897000000,"seq":365,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf4ce-71c1-732e-9f20-8c10f5b79bea","at":1769338728897000000,"seq":366,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf4cf-0a80-7da9-890b-0a0323c79fb8","at":1769338768000000000,"seq":367,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bf4cf-1a20-7bc4-91c7-27a51833873e","at":1769338772000000000,"seq":368,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4e1-3a34-7b12-acfb-67c4edab985b","at":1769339959860000000,"seq":369,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bf4e1-3ac0-7a33-b184-fb8002eeea2a","at":1769339960000000000,"seq":370,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4e1-69a0-769c-ac9d-77cadeaae54c","at":1769339972000000000,"seq":371,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bf4f8-4255-772f-ac3a-ba9ea877f910","at":1769341469269000000,"seq":372,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf4f8-4255-7788-9e03-2025073529ec","at":1769341469269000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf4f8-58b8-73e2-9b35-14f917c2da31","at":1769341475000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4f8-8f68-73d8-b6ff-5f27293909e7","at":1769341489000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4f8-b63d-7c4c-9459-57b0779bfbf3","at":1769341498941000000,"seq":376,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf4f8-c618-7fcc-8aa8-64c487b76031","at":1769341503000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bf4f8-d9a0-70fe-945a-9d48665ba6e5","at":1769341508000000000,"seq":378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf4f8-e170-7f8a-bf11-d3e6147963d8","at":1769341510000000000,"seq":379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf4f8-f8fa-77d7-8011-3cd91b1187c5","at":1769341516026000000,"seq":380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bf4f9-1820-7188-ad6e-6522baa3c94a","at":1769341524000000000,"seq":381,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf4f9-3760-77a7-8934-cb62f65e0d47","at":1769341532000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf4f9-638c-7497-9dd3-4302cc4f4f26","at":1769341543308000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf4f9-6a28-7f6d-a033-5b1c0e5ad04f","at":1769341545000000000,"seq":384,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf4f9-9908-7971-8064-495dd39b81e7","at":1769341557000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4f9-b848-71eb-a951-a6389899c62b","at":1769341565000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf4f9-e226-7203-8046-dd0a9d159a11","at":1769341575718000000,"seq":387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bf4f9-e728-7a23-8410-295b3c9f523b","at":1769341577000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4fa-1220-72c8-b21b-5c185d5480bf","at":1769341588000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf513-9fb4-7da7-a68a-1eb25e11c88f","at":1769343262644000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bf514-58b0-72a1-a1df-279ecf922b9c","at":1769343310000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf514-afd8-7d54-854d-7e4e3195724e","at":1769343332312000000,"seq":392,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bf515-0490-75c8-835b-ec2eb1b04bbe","at":1769343354000000000,"seq":393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf515-2ba0-7b65-84fe-88c983eb3054","at":1769343364000000000,"seq":394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf515-2f88-7049-bef0-321ca508417c","at":1769343365000000000,"seq":395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

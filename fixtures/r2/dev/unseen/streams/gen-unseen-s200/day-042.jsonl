@@ -1,0 +1,37 @@
+{"v":1,"id":"019c4c55-d834-7ab4-bd66-e5a992b22581","at":1770807220276000000,"seq":580,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c55-d834-73a6-9ba8-d0514100ab8c","at":1770807220276000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c4c55-f278-7599-b53c-edcffc3033ac","at":1770807227000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c56-38c8-7aec-8920-225f9d66fdce","at":1770807245000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c4c56-8cff-7ab8-84a6-1319069682e6","at":1770807266559000000,"seq":584,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c4c56-92a0-73eb-b8a1-96b63172c71f","at":1770807268000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c56-c180-732e-891f-df28097029e4","at":1770807280000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c56-c180-737a-ab20-0d59884521f5","at":1770807280000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c4c5d-fd6a-7cff-b3ad-5acc72a31bf8","at":1770807754090000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c5e-00f8-7c34-b33d-bc28e9413ef9","at":1770807755000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c5e-08c8-75c5-8d37-c38b7de3b9a8","at":1770807757000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c4c5e-2420-715b-82fc-03b3101239c5","at":1770807764000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c5e-4835-7bb3-8892-1a2cc0adca9e","at":1770807773237000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c5e-5eb8-7652-8b06-ab1503b01470","at":1770807779000000000,"seq":593,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c5e-a8f0-7159-98c6-e4eddb22962c","at":1770807798000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c5e-dbb8-7131-acff-7b3fad56c261","at":1770807811000000000,"seq":595,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4c5e-faf8-7f0f-bb8c-0c571cf583b4","at":1770807819000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c5f-0431-750a-9af2-5ffd3e0e7a2c","at":1770807821361000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c5f-3978-758a-9f85-079de074c349","at":1770807835000000000,"seq":598,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c5f-7410-7844-9913-6fe9cb19e14f","at":1770807850000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4c6d-3b2b-750b-b39f-2a064b16004f","at":1770808752939000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c4c6d-8d70-7d7a-8378-3f3a3023313d","at":1770808774000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c6d-acb0-71e6-8444-112eb757dd1a","at":1770808782000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c6d-e93d-7573-b697-744dedeb5863","at":1770808797501000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c4c6e-0688-760e-b99d-10c5451a7c9d","at":1770808805000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c6e-0e58-74ce-b2d6-90921eb26695","at":1770808807000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c6e-75c0-7f43-adaf-4b8d5bbe9e35","at":1770808833472000000,"seq":606,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c4c6e-7bb8-7713-96b0-20fb89a338dd","at":1770808835000000000,"seq":607,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c6e-b650-7e54-8e94-dfc8b29217a4","at":1770808850000000000,"seq":608,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c6e-e148-715c-ae17-52c368dd5987","at":1770808861000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c4c6f-1be0-7bc5-a96c-378990d51ad7","at":1770808876000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c6f-2092-75b4-9267-ff47ba3b519c","at":1770808877202000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c4c6f-3350-7455-99ae-61b2946a3326","at":1770808882000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c6f-6230-7d72-bf01-a7d186c24d3e","at":1770808894000000000,"seq":613,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4c6f-6618-7bf3-8d39-70fedfec76d9","at":1770808895000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c6f-71d0-70dd-be21-fce397a1630d","at":1770808898000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c6f-75b8-76ee-805a-7a1c47c2e2f1","at":1770808899000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

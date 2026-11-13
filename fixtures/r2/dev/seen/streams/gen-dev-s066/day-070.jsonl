@@ -1,0 +1,15 @@
+{"v":1,"id":"019cdc65-689b-74ef-9dd2-17ae39681517","at":1773224159387000000,"seq":1042,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc65-689b-741c-b866-0b3654e55731","at":1773224159387000000,"seq":1043,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc65-72d0-7172-b980-6d6fc79fea28","at":1773224162000000000,"seq":1044,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc65-cca8-7e59-b22a-17b34caf019e","at":1773224185000000000,"seq":1045,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc65-f3b8-779f-9b7a-5d2d4d474d5e","at":1773224195000000000,"seq":1046,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc66-2298-7589-bdd4-a17f6c395936","at":1773224207000000000,"seq":1047,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc79-aa22-7bd7-8e13-26399d804353","at":1773225486882000000,"seq":1048,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc79-aa22-7c46-81a1-b15ed9ebd9f8","at":1773225486882000000,"seq":1049,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cdc79-aa98-77d8-949e-4fdd743771df","at":1773225487000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cdc7a-13aa-7cb6-a29e-34ffa95f733c","at":1773225513898000000,"seq":1051,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cdc7a-3b20-76ef-bd1f-4240ea4b45b6","at":1773225524000000000,"seq":1052,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cdc7a-42f0-7d88-8a77-6b2f33d97b8b","at":1773225526000000000,"seq":1053,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdc7a-4ea8-7a91-a8f9-be1ac4ac04b8","at":1773225529000000000,"seq":1054,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdc7a-749b-7f57-9cee-404b8c7aff4c","at":1773225538715000000,"seq":1055,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cdc7a-94f8-77e6-939b-f35625d2ada1","at":1773225547000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

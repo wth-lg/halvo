@@ -1,0 +1,24 @@
+{"v":1,"id":"019c3773-3fa7-7ee1-ac19-955401b9fe5d","at":1770456825767000000,"seq":520,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3773-3fa7-7d26-9821-6c58a1846c72","at":1770456825767000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c3773-5418-7480-8ec9-f626b21d2686","at":1770456831000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3773-7740-78f3-8f8f-29ef013dffbe","at":1770456840000000000,"seq":523,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3773-8eb0-73de-a271-f4ef60a39760","at":1770456846000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3773-e0b8-7639-b020-34c579043143","at":1770456867000000000,"seq":525,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3773-e0b8-7401-898a-f7a8b9404788","at":1770456867000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c3778-0ced-79fd-90b9-16a883dabced","at":1770457140461000000,"seq":527,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c3778-16d8-7135-b7a6-5c31f4a0e58f","at":1770457143000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3779-10b8-7dba-a03c-51444017c1a3","at":1770457206968000000,"seq":529,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c3779-14c0-76af-af41-7303a5d90e25","at":1770457208000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c3779-5340-74ed-91bb-06eb7db2c059","at":1770457224000000000,"seq":531,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3779-5b10-737d-a284-f15413afe05d","at":1770457226000000000,"seq":532,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3779-8220-7bb6-8a8e-1af0a6b2220f","at":1770457236000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3779-a868-76e7-9442-9b8be7010d25","at":1770457245800000000,"seq":534,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c3779-b100-7bd4-a6fc-4a2692732863","at":1770457248000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3779-d810-75bd-b420-730c7bcabde8","at":1770457258000000000,"seq":536,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c377a-2bc6-781f-998a-492bc633cd2a","at":1770457279430000000,"seq":537,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c377a-6c80-792a-9d6e-cb18162dafac","at":1770457296000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c377a-ca40-773f-85f5-21436aee5da8","at":1770457320000000000,"seq":539,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c3787-a61e-7c55-947e-bbfcef0fe4a4","at":1770458162718000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c3787-b6d8-73d3-b96e-c32da12da258","at":1770458167000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c3787-ca60-7dd5-a03c-c9e30a5f7221","at":1770458172000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3787-ed88-7f25-bab8-6055aabc7fb8","at":1770458181000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,27 @@
+{"v":1,"id":"019d0537-3355-7051-96be-f7d74a5b4fdf","at":1773908996949000000,"seq":1172,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0537-3355-75be-a851-73f186354d6a","at":1773908996949000000,"seq":1173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0537-a0e8-7459-aa8b-86083c2a737d","at":1773909025000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0537-a4d0-725c-bc78-31fd47d5b82f","at":1773909026000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d0537-fc48-7aad-952a-28cdff44a8f4","at":1773909048392000000,"seq":1176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d0538-0e48-781b-ac76-69eb9afa7402","at":1773909053000000000,"seq":1177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0538-48e0-7de6-9072-32c449b2af6c","at":1773909068000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0538-6050-7a53-b842-60983b9a3df9","at":1773909074000000000,"seq":1179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d054c-c867-78d7-abf1-24e7f43ada3b","at":1773910411367000000,"seq":1180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d054d-5780-7ec9-b8c2-ea49b33b2fb0","at":1773910448000000000,"seq":1181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d054d-7aa8-7e29-89f3-8811d8971df2","at":1773910457000000000,"seq":1182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d055d-d3b1-71dd-ad2f-045d13db47ab","at":1773911528369000000,"seq":1183,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d055d-d3b1-7d71-8ed8-f9918f5f367a","at":1773911528369000000,"seq":1184,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d055e-0120-732d-9e16-0ca345fb8f5d","at":1773911540000000000,"seq":1185,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d055e-3000-7a1b-9190-0fdfcbe1b4a1","at":1773911552000000000,"seq":1186,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d055e-66b0-71a5-93d0-e780af78c0cb","at":1773911566000000000,"seq":1187,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d055e-9978-7656-9d16-7dce0217da30","at":1773911579000000000,"seq":1188,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d055e-ae83-7e6e-aa5e-78b64e216d4b","at":1773911584387000000,"seq":1189,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d055e-ae83-7067-a3fd-64f1617066e1","at":1773911584387000000,"seq":1190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d055e-bca0-7dfe-a5e1-c093df33bfb8","at":1773911588000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d055e-c088-7bfe-bc0a-a4aca6f55f05","at":1773911589000000000,"seq":1192,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d055e-d410-71af-9d1d-abfb8392f9af","at":1773911594000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d055e-e3b0-7938-9929-88cc7905c189","at":1773911598000000000,"seq":1194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d055e-e85a-7ddd-b0eb-4c7c2b96cd95","at":1773911599194000000,"seq":1195,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d055e-e85a-7bd2-8927-80895bde0627","at":1773911599194000000,"seq":1196,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d055f-7ff0-75ae-9913-f3a0747f666a","at":1773911638000000000,"seq":1197,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d055f-9760-74e0-9e2e-4965a59d7216","at":1773911644000000000,"seq":1198,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}

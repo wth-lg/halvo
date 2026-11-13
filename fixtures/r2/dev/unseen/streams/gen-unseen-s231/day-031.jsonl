@@ -1,0 +1,20 @@
+{"v":1,"id":"019c1303-859c-7f16-af17-30cc69d6f215","at":1769845523868000000,"seq":511,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1303-859c-7c99-9a1a-834d4f5e649c","at":1769845523868000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1303-8df0-7c41-bf4d-0700672732a1","at":1769845526000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1303-e3e0-7839-8bc0-37c77ec65bea","at":1769845548000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c131b-5381-7448-938c-ee8b49d7addf","at":1769847083905000000,"seq":515,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c131b-5381-745b-b68d-a8dc4c530d2c","at":1769847083905000000,"seq":516,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c131b-6b50-7797-b5c8-7bc8e848b3c6","at":1769847090000000000,"seq":517,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c131b-b970-757a-90df-4fb8e10d6d90","at":1769847110000000000,"seq":518,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c1326-b093-726e-aeee-532544407c33","at":1769847828627000000,"seq":519,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1326-b093-7dbd-9013-ac8cdb0c973b","at":1769847828627000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1327-90b0-7243-95bb-dc0e67051451","at":1769847886000000000,"seq":521,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1327-9880-74cd-8133-8d5a1df8373c","at":1769847888000000000,"seq":522,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1340-a577-7ecd-9157-13a33a690d5f","at":1769849529719000000,"seq":523,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c1340-f0f6-7eee-980e-3ebef8276ac9","at":1769849549046000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c1341-6210-73b6-99a9-94ae6cae6d79","at":1769849578000000000,"seq":525,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1341-7598-7d60-ad42-7a11a0d2e685","at":1769849583000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c1341-7980-74d1-be86-bf24d56ebe2c","at":1769849584000000000,"seq":527,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1341-8056-7b33-b4ea-e45badf8bf22","at":1769849585750000000,"seq":528,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c1341-a090-7966-bc55-0234d0ca45b4","at":1769849594000000000,"seq":529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c1342-2948-77c5-9b17-59dc47070cb6","at":1769849629000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

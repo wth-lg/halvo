@@ -1,0 +1,23 @@
+{"v":1,"id":"019c9929-e1d7-71fc-9a30-bfd1db52e9d3","at":1772096184791000000,"seq":924,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9929-e1d7-7297-a981-640f5d39646e","at":1772096184791000000,"seq":925,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9929-e690-78d1-a176-dcf078b37976","at":1772096186000000000,"seq":926,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c992a-2ce0-75a6-a3cc-5b6ae6930d6e","at":1772096204000000000,"seq":927,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c992a-3898-7d66-8b4f-907535925873","at":1772096207000000000,"seq":928,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c992a-5bc0-79e3-a6a3-40c82314b857","at":1772096216000000000,"seq":929,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c993c-e18d-7081-a3e4-26e5ca8d13f9","at":1772097429901000000,"seq":930,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c993c-e18d-76d6-a5fb-c627f4ed10e0","at":1772097429901000000,"seq":931,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c993c-e1f0-79d5-a2bf-28705217a1dc","at":1772097430000000000,"seq":932,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c993d-3010-73b6-b9fa-665a006c3f9d","at":1772097450000000000,"seq":933,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9954-92eb-7e75-b054-b819583d5351","at":1772098982635000000,"seq":934,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c9954-bf50-740f-a110-4103adfe9a77","at":1772098994000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9955-82a0-7e31-9584-b68e78f7b4a0","at":1772099044000000000,"seq":936,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9955-9a02-7477-b0ed-af6f3b147a9a","at":1772099049986000000,"seq":937,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview this week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c9955-b568-78fe-8017-46443eb520a7","at":1772099057000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9955-e060-7aa2-89a8-afab5448b79e","at":1772099068000000000,"seq":939,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9956-0f40-729d-b857-9eb56308a3ec","at":1772099080000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9956-1328-7d1c-abeb-d8b4fef99183","at":1772099081000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9956-19f5-790c-91a0-3f5c20af24a8","at":1772099082741000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c9956-cd28-74b9-a165-e24894415777","at":1772099128616000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c9969-4b98-7042-b125-e5fc4ba14331","at":1772100340632000000,"seq":944,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9969-4b98-722c-aa1c-2242f4094b04","at":1772100340632000000,"seq":945,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9969-4d08-74a1-94ef-0cb1c97b6688","at":1772100341000000000,"seq":946,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

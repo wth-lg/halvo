@@ -1,0 +1,20 @@
+{"v":1,"id":"019d3db1-8f4d-738c-81ad-f34e2a744556","at":1774856539981000000,"seq":1314,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3db1-8f4d-7e0a-b1cc-09a5927fe035","at":1774856539981000000,"seq":1315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3db1-a2e8-7649-9091-be3c903fe33f","at":1774856545000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d3db1-a6d0-7c61-a227-c4fc17774f71","at":1774856546000000000,"seq":1317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3db1-f108-707e-bb41-18fe0060eddd","at":1774856565000000000,"seq":1318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3dc6-2407-7de5-8ef0-45b92082ea55","at":1774857888775000000,"seq":1319,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3dc6-28d0-7340-85a9-cfea526a4c85","at":1774857890000000000,"seq":1320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d3dc6-3c58-78e5-bc3b-046fec22d74b","at":1774857895000000000,"seq":1321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dc6-4810-7326-9473-ae36fa816f51","at":1774857898000000000,"seq":1322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dc6-8c54-7356-87b0-225e5386f6c4","at":1774857915476000000,"seq":1323,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3dc6-9e00-7a3c-bf6d-aaba8e58533a","at":1774857920000000000,"seq":1324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dc7-26b8-7348-bc5b-6713848cb9fa","at":1774857955000000000,"seq":1325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d3dc7-3c8e-7b87-97e6-981de2ecaf48","at":1774857960590000000,"seq":1326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3dc7-74d8-7b97-a98f-c28126f83fbb","at":1774857975000000000,"seq":1327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dc7-7ae8-7c8a-8150-e67892bef643","at":1774857976552000000,"seq":1328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3dc7-bb28-77e3-b5b6-846780d8ae89","at":1774857993000000000,"seq":1329,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3dc8-2c70-75ac-a5e4-a03ad3b64292","at":1774858022000000000,"seq":1330,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3dc8-2c70-7042-886b-733637b46482","at":1774858022000000000,"seq":1331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d3ddc-6f99-7f61-81e9-169953c981aa","at":1774859349913000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3ddc-73d8-7345-8cc4-3bccd7a1a918","at":1774859351000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

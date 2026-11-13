@@ -1,0 +1,23 @@
+{"v":1,"id":"019bf966-0b8f-791b-a926-f5bc81f168d2","at":1769415773071000000,"seq":523,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf966-0b8f-76c2-854e-7fc86726be29","at":1769415773071000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bf966-26a0-7267-ac64-f202125d3ac3","at":1769415780000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bf966-bef8-729a-ba8f-27fd2ad98aad","at":1769415819000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf966-f923-7057-a6a9-f121928bb6ab","at":1769415833891000000,"seq":527,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bf967-5b38-7b7c-a409-1ce0ff9b5f01","at":1769415859000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf967-66f0-7ed7-9805-c76f00d5bf3f","at":1769415862000000000,"seq":529,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf967-79fd-7020-8324-c18ea3493d1d","at":1769415866877000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bf967-f778-7b43-b586-a04659772255","at":1769415899000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf967-feb5-7804-8c8b-91477bc117a1","at":1769415900853000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bf968-3210-7d4f-9fc3-1a9de1ddb946","at":1769415914000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf968-8800-7d59-9f1b-2effb84396f8","at":1769415936000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bf974-0371-7709-a95c-fbf4a47c4766","at":1769416688497000000,"seq":535,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf974-1cd8-7fba-933c-f8d10eab6661","at":1769416695000000000,"seq":536,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf974-7e80-72dc-85a0-cfbe050c5d6b","at":1769416720000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bf98b-4339-71f6-b7d2-66ee5dd2eb5d","at":1769418212153000000,"seq":538,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf98b-4339-74fb-8500-9156d2677121","at":1769418212153000000,"seq":539,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf98b-e2c8-7693-af62-b57c64bcc82a","at":1769418253000000000,"seq":540,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bf98c-2530-741e-8604-65531656a5c2","at":1769418270000000000,"seq":541,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bf99f-6fc1-74d5-a3d6-8ffdcba8c14f","at":1769419534273000000,"seq":542,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bf99f-ad30-7bb1-85b2-1f64f23e2323","at":1769419550000000000,"seq":543,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf99f-f768-7393-8270-5c93ac34d1d7","at":1769419569000000000,"seq":544,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bf9a0-12c0-75c8-9271-6c122b46a746","at":1769419576000000000,"seq":545,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

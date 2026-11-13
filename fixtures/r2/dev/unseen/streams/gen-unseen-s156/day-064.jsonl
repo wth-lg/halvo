@@ -1,0 +1,22 @@
+{"v":1,"id":"019cbd23-70e1-71a4-9e97-d79fd3484d00","at":1772699742433000000,"seq":997,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd23-70e1-7f83-940b-834bd7d36985","at":1772699742433000000,"seq":998,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd23-a5e0-7bf6-84fd-d9877a4a670a","at":1772699756000000000,"seq":999,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cbd23-a5e0-70c2-b004-54aaa938a983","at":1772699756000000000,"seq":1000,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cbd2e-dacb-7426-aabb-6143bac0ba46","at":1772700490443000000,"seq":1001,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd2e-dacb-7670-9e78-239f7ddf9b6c","at":1772700490443000000,"seq":1002,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cbd2f-0020-73f0-a943-2a3d7005f58a","at":1772700500000000000,"seq":1003,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd2f-2730-7f48-83d2-d92e344d3335","at":1772700510000000000,"seq":1004,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbd2f-3ab8-7deb-99cc-f90c8717a358","at":1772700515000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cbd34-7bbc-7bc2-9938-7393890ea2f6","at":1772700859324000000,"seq":1006,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cbd34-8a18-78a5-9b6c-6bb9bc0dd385","at":1772700863000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd34-cb90-7d46-b0e3-be21429d23d1","at":1772700879760000000,"seq":1008,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cbd34-e3f0-7ccc-915d-d523f0cd9369","at":1772700886000000000,"seq":1009,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd35-1e88-7ccf-bd66-eed637dbfcd4","at":1772700901000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd35-5150-7d9e-b631-adeb9aebf19f","at":1772700914000000000,"seq":1011,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cbd35-8800-7afb-91f0-8b6acf458ccc","at":1772700928000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd35-9a96-7d55-8b9b-78eb3a3ee23e","at":1772700932758000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cbd35-c680-7b3b-8b2f-694b2965d929","at":1772700944000000000,"seq":1014,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd35-da08-7c25-a834-fecc13dbf5ec","at":1772700949000000000,"seq":1015,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd4d-77da-714b-ba89-b8955ee8dc54","at":1772702496730000000,"seq":1016,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cbd4e-0d58-764f-a566-3e10709d6182","at":1772702535000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cbd4e-3850-70c8-892d-ef7a2958a06d","at":1772702546000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

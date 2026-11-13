@@ -1,0 +1,20 @@
+{"v":1,"id":"019c60bb-c1e7-73bc-a2b4-72a177ad9652","at":1771149443559000000,"seq":620,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60bb-c1e7-7fe4-92ec-837c19b33331","at":1771149443559000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c60bc-0220-7beb-b5f6-4c744c0a64ad","at":1771149460000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bc-0379-7207-9c07-be442c180cd3","at":1771149460345000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c60bc-2548-76ec-b7e7-ccf8aa7ed321","at":1771149469000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c60bc-7750-724c-84a8-1a6083b06ae0","at":1771149490000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bc-b7cc-7c37-9449-76a3ce3f9b34","at":1771149506508000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c60bc-d8f8-72fe-ae69-c09f5ad623d8","at":1771149515000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bc-f838-7760-b511-a67e72b6a969","at":1771149523000000000,"seq":628,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60bc-f9f5-7db0-a97e-0cd0e9758915","at":1771149523445000000,"seq":629,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c60bd-0008-7c1a-ab8b-e03104f27194","at":1771149525000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bd-1778-7dd8-9bcb-58c5293faf1d","at":1771149531000000000,"seq":631,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c60bd-2b00-7051-8f7a-d8154f40dc40","at":1771149536000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60bd-55f8-710c-8789-0a908f436750","at":1771149547000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c60c3-9a06-7d07-b9e5-75fb021afb1b","at":1771149957638000000,"seq":634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c60c3-9f58-739d-b2eb-422cdaa056b8","at":1771149959000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60c3-a340-790a-aed8-7dda2c93423a","at":1771149960000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60ca-ef8f-73ed-9da7-48b5a329e115","at":1771150438287000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c60cb-05e0-7a5a-8ce7-ac28fb11513c","at":1771150444000000000,"seq":638,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c60cb-4460-7333-bae8-215ba82d4e15","at":1771150460000000000,"seq":639,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

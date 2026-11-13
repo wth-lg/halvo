@@ -1,0 +1,31 @@
+{"v":1,"id":"019c31fc-ebee-7a93-83e6-895359d4286e","at":1770365185006000000,"seq":584,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c31fc-ebee-70d1-8a59-f1191fa246ce","at":1770365185006000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c31fd-49a8-7e46-b9ff-f64136bca04b","at":1770365209000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c31fd-5d30-7f91-b39a-c4824326c42b","at":1770365214000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31fd-8828-7dd6-bdea-ba10cf278807","at":1770365225000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31fd-c703-73d6-8711-438ee5e0e763","at":1770365241091000000,"seq":589,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c31fd-ca90-7933-ba07-10d7c35aaf44","at":1770365242000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31fe-a938-7603-91f8-42cee4830d61","at":1770365299000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c31fe-c740-7161-9b55-fb2ae32a1104","at":1770365306688000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c31fe-d048-76bb-86dc-98b1eb1670d2","at":1770365309000000000,"seq":593,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c31fe-e3d0-77a5-b6ac-04010989fd05","at":1770365314000000000,"seq":594,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c31ff-1539-7334-adb3-7998e4bad135","at":1770365326649000000,"seq":595,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c31ff-2638-732f-9cbc-f29988c2f9f8","at":1770365331000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c31ff-64b8-7fbe-abc2-f335e2dca916","at":1770365347000000000,"seq":597,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c31ff-aef0-792d-9861-76c1aad7100f","at":1770365366000000000,"seq":598,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3214-ee57-71c3-8d3c-ae9c84f142a9","at":1770366758487000000,"seq":599,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3215-1380-70dd-a8e3-18877d40152e","at":1770366768000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c3215-2320-71ae-936c-4afafffbc3b2","at":1770366772000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3215-a408-75c6-9763-9191dfe619f9","at":1770366805000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322b-2da8-7f44-b78d-6083e557423d","at":1770368216488000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c322b-4330-7d5d-ad94-d4b3b569d6f7","at":1770368222000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c322b-9278-767b-9488-6e45251b3b75","at":1770368242296000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c322c-1df0-7100-9a79-70de99ff0446","at":1770368278000000000,"seq":606,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c322c-3560-7e7c-8a61-30a6747787c0","at":1770368284000000000,"seq":607,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c322c-55d6-7dd2-b5f9-9c0d778d0143","at":1770368292310000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c322c-6828-7cd8-aac5-575a63d75b65","at":1770368297000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c322c-ae78-7ae3-b038-5973df70ab9c","at":1770368315000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c322c-ee87-7cb4-aebc-14c220a46730","at":1770368331399000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c322c-fc98-7627-9222-9f285e604fda","at":1770368335000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c322d-1fc0-74f5-bb8a-b15113c3217f","at":1770368344000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c322d-71c8-71ad-8044-63cc379feda1","at":1770368365000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

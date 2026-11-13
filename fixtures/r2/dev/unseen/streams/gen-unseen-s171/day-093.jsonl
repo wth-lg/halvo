@@ -1,0 +1,12 @@
+{"v":1,"id":"019d52d3-119d-76fc-acf0-704daca89640","at":1775211057565000000,"seq":1188,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52d3-119d-7918-8c3d-afb4722f692e","at":1775211057565000000,"seq":1189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d52d3-9c08-74ef-95db-853998eb5036","at":1775211093000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52d3-ebc7-705a-a02a-7c3612860654","at":1775211113415000000,"seq":1191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d52d4-3848-7ef3-89c2-a71b5d186c8b","at":1775211133000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52d7-f216-7cff-b44f-0fcc93a774cf","at":1775211377174000000,"seq":1193,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52d7-f216-7f5c-90d6-df7f50c2e5ec","at":1775211377174000000,"seq":1194,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52d8-1490-7ba0-bcd7-8ba8c251f72d","at":1775211386000000000,"seq":1195,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d52d8-2818-79c2-ba81-a9877439e21b","at":1775211391000000000,"seq":1196,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52f0-8732-74ae-95a6-ca2d3b940396","at":1775212988210000000,"seq":1197,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d52f0-9218-765c-9b8f-d945b50873e1","at":1775212991000000000,"seq":1198,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d52f0-a1b8-75cd-b6df-a33b39cd00eb","at":1775212995000000000,"seq":1199,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

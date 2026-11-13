@@ -1,0 +1,17 @@
+{"v":1,"id":"019c89d0-461f-711e-b12d-b199b320b51f","at":1771838653983000000,"seq":802,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89d0-461f-75eb-ac48-27b91d72a2f0","at":1771838653983000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c89d0-daa0-74af-b5ae-334412cdf701","at":1771838692000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89d0-f9e0-7836-8ff9-e569d57646fe","at":1771838700000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c89d1-2175-7f21-8e9b-98e2a6691c13","at":1771838710133000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c89d1-2ca8-7fdc-b03d-12d1a1b12d0a","at":1771838713000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89d1-3860-77a4-90fe-6d7a0022b4b0","at":1771838716000000000,"seq":808,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89d1-57a0-7aed-9466-4cf0cdcf40dc","at":1771838724000000000,"seq":809,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89d1-6740-76d7-9c32-92e09fccdded","at":1771838728000000000,"seq":810,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89d1-86a8-7028-90d5-1099e665c769","at":1771838736040000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c89d1-b178-764d-bad0-4cde45c26590","at":1771838747000000000,"seq":812,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c89d1-b948-7f7f-9df7-d40d647fe70f","at":1771838749000000000,"seq":813,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89d5-f9cc-7782-b54b-e83f852ee0c1","at":1771839027660000000,"seq":814,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c89d6-0ea8-76c8-8d99-2e1698b01816","at":1771839033000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89d6-83d8-7c22-a89d-f85f1ade5ade","at":1771839063000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89d6-9f30-72aa-b2b2-ea229799c27f","at":1771839070000000000,"seq":817,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c89df-0653-7c43-8379-787d017898f3","at":1771839620691000000,"seq":818,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}

@@ -1,0 +1,34 @@
+{"v":1,"id":"019b8d4b-628d-716d-bda6-a4b543d8ec5c","at":1767602086541000000,"seq":75,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d4b-628d-75b6-8e8e-65590831c78b","at":1767602086541000000,"seq":76,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b8d4b-6c28-7002-93fb-9d4e934e1ec4","at":1767602089000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b8d4b-a6f1-7af2-8e12-49230f276dcc","at":1767602104049000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b8d4c-3463-7030-9222-963dd8929e3a","at":1767602140259000000,"seq":79,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b8d4c-4eb8-78a9-a71f-8c8d18a8f40d","at":1767602147000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8d4c-9120-7c6c-9903-d6c42544ae49","at":1767602164000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d4c-a0c0-7a9a-b4a7-39af54f627ef","at":1767602168000000000,"seq":82,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d4c-b060-7cb1-9ee9-135dc8e1cefa","at":1767602172000000000,"seq":83,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8d4d-0650-75b9-977b-f12c431a473e","at":1767602194000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b8d4d-420d-7287-9bfc-eaf9e312ad55","at":1767602209293000000,"seq":85,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b8d4d-5c40-784e-b1e7-765a22cf5e24","at":1767602216000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d4d-8f08-7655-b826-a097036cecd8","at":1767602229000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b8d4e-1ba8-7c70-adce-6372f07f5e25","at":1767602265000000000,"seq":88,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d50-b91f-7eac-8752-7b9022a95fb6","at":1767602436383000000,"seq":89,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8d50-b91f-71f2-bc83-5002002df18e","at":1767602436383000000,"seq":90,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8d50-d6e0-7538-9510-00af07dcbd74","at":1767602444000000000,"seq":91,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b8d51-2cd0-7f81-9a60-9c7c8ecefde9","at":1767602466000000000,"seq":92,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d51-b56a-76d0-acbc-b507c1fae223","at":1767602500970000000,"seq":93,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8d51-ccf8-7721-8599-27ba1495c61d","at":1767602507000000000,"seq":94,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d51-ffc0-7581-b6bd-0102981e19ad","at":1767602520000000000,"seq":95,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b8d53-f111-7ff6-925f-cd8348a959fc","at":1767602647313000000,"seq":96,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d53-f111-7fa2-b861-c70b5721454a","at":1767602647313000000,"seq":97,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b8d54-2e58-7822-b988-1721c599780e","at":1767602663000000000,"seq":98,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d54-c6b0-7d4d-8031-acbdd7c52d8f","at":1767602702000000000,"seq":99,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d54-ef75-7b21-ba40-bf793fa92a70","at":1767602712437000000,"seq":100,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b8d55-5b20-7542-baaa-bf8266c9e733","at":1767602740000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d55-70e6-709c-8e09-53c7c445ee5f","at":1767602745574000000,"seq":102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b8d55-c0b0-7119-b3ff-b4466dda86ae","at":1767602766000000000,"seq":103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d55-d438-7aa5-99db-5d6d6ba04e62","at":1767602771000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d55-ffb1-7e66-8c4f-57e0e7e8796a","at":1767602782129000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b8d56-fc14-70eb-a7e8-e0c6305e7768","at":1767602846740000000,"seq":106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019b8d57-10a0-71cc-b503-55f54b8dfd63","at":1767602852000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b8d57-3b98-772f-8f8f-4bcf061ec6b8","at":1767602863000000000,"seq":108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

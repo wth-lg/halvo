@@ -1,0 +1,31 @@
+{"v":1,"id":"019c1da0-0089-7c1f-84a9-dfbbbf92d98d","at":1770023551113000000,"seq":507,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1da0-0089-7079-82d2-6446ceded5d2","at":1770023551113000000,"seq":508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c1da4-d4c6-7be7-99e8-ac0b5031ab19","at":1770023867590000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c1da5-3038-7f1a-bb1a-5516fc8cf7fb","at":1770023891000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da5-5b30-739f-884c-9f2ca53ecd38","at":1770023902000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c1da5-e628-75a4-a0a6-b16d848c0fc5","at":1770023937576000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1da5-f770-7dcd-b5cc-33da5a7908b4","at":1770023942000000000,"seq":513,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1da6-0710-75f4-99f4-79bf8e771c02","at":1770023946000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da6-0af8-71f0-9e4c-8a2d29e10cf9","at":1770023947000000000,"seq":515,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1da6-2e43-7238-a094-9b284b9dc5d9","at":1770023956035000000,"seq":516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c1da6-4978-7a70-a159-24137f4d4c15","at":1770023963000000000,"seq":517,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1da6-5918-7daf-a047-85895f82b444","at":1770023967000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da6-93b0-734b-a198-01ed35082f60","at":1770023982000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da6-bc9e-78fd-bf0d-5d8148122c25","at":1770023992478000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c1da6-d618-7eed-9f47-314dd07eb144","at":1770023999000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da7-2ff0-77fe-865f-b164ed2da1d6","at":1770024022000000000,"seq":522,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1da7-a138-7e7e-9cb6-387497cd9d43","at":1770024051000000000,"seq":523,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1da7-a5a6-7765-a0ba-211c2392ab42","at":1770024052134000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c1da7-dbd0-7506-87b7-117ef08a519c","at":1770024066000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da7-ef58-7007-846c-3ef888a39167","at":1770024071000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c1da8-29f0-7821-8a72-6bf07e08a4d8","at":1770024086000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db0-b836-7ae0-9e03-3989ea2e04af","at":1770024646710000000,"seq":528,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1db1-0f48-77fb-a731-85b8c4319d39","at":1770024669000000000,"seq":529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db1-a51c-7802-ac01-23f020c83ddc","at":1770024707356000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1db1-af70-766f-887c-7b6b4a693a34","at":1770024710000000000,"seq":531,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1db1-c2f8-7a72-ada1-149854c42f56","at":1770024715000000000,"seq":532,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db1-ceb0-72da-a5c3-b0986ff31047","at":1770024718000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1db1-de50-7feb-b92a-c1f24906a5fe","at":1770024722000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db1-ef98-79ff-a85a-a2a7a04ccc1d","at":1770024726424000000,"seq":535,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c1db2-6ed8-7e8a-87f5-e9ee51a9c3b5","at":1770024759000000000,"seq":536,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1db2-8648-76e9-91cf-9009989e73ea","at":1770024765000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,11 @@
+{"v":1,"id":"019d1ec2-c66e-7587-bcce-f795136533d4","at":1774337574510000000,"seq":854,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1ec2-c66e-7270-ae3b-6a6e9d3e54b9","at":1774337574510000000,"seq":855,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1ec3-6880-7ec0-b6a5-22f5af96fae4","at":1774337616000000000,"seq":856,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d1ecd-ae37-7a61-82e7-074ba6a8800b","at":1774338289207000000,"seq":857,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d1ecd-c0f0-7c48-8bfa-ca80e793691e","at":1774338294000000000,"seq":858,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ecd-d090-73de-a55d-0d032aa94ef6","at":1774338298000000000,"seq":859,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ecd-e030-7361-a76c-eebfea4cd727","at":1774338302000000000,"seq":860,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d1ecd-e800-7c22-9df3-3f1d1ba49583","at":1774338304000000000,"seq":861,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d1ecd-fd44-7815-863e-902042937607","at":1774338309444000000,"seq":862,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d1ece-68e8-79b6-862c-2ae600170b08","at":1774338337000000000,"seq":863,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ece-7c70-7716-ab77-d799b60a52d1","at":1774338342000000000,"seq":864,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

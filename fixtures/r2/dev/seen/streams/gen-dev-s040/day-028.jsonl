@@ -1,0 +1,18 @@
+{"v":1,"id":"019c03d0-991b-78c8-a57a-53823299b907","at":1769590528283000000,"seq":282,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03d0-991b-7e8b-b12e-3f9ec37c76b0","at":1769590528283000000,"seq":283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c03d0-c6e0-7a5f-8b79-ab99b05ce615","at":1769590540000000000,"seq":284,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c03db-b62d-7f8d-b6fc-9cd7e2a990b3","at":1769591256621000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c03dc-bbef-7b92-b493-3a19e05b9640","at":1769591323631000000,"seq":286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c03dc-bd60-7db0-abf4-b9f867e11b04","at":1769591324000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03dd-78e0-7223-b4e4-a82ab8f94f9f","at":1769591372000000000,"seq":288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c03dd-af90-70e4-81d1-0274a1271fc7","at":1769591386000000000,"seq":289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c03dd-ca28-7ed7-9082-c21d150744a9","at":1769591392808000000,"seq":290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c03de-5788-7b21-847f-876df55e307f","at":1769591429000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03de-66ea-777f-9393-5f48f05e0f43","at":1769591432938000000,"seq":292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c03de-e040-7b36-ad60-23a0147ecfaa","at":1769591464000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03de-efe0-7cf5-bfb8-2a75c5f9449a","at":1769591468000000000,"seq":294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c03df-1ad8-7c6e-8bf0-5401377d7340","at":1769591479000000000,"seq":295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c03ef-2e73-7e35-984b-b7822af528cf","at":1769592532595000000,"seq":296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c03ef-66b8-7a13-831d-a56140aab343","at":1769592547000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c03ef-a920-78d9-9a20-e54bd4c321e5","at":1769592564000000000,"seq":298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03ef-e3b8-7ac1-8dd3-bcf82a2a4d94","at":1769592579000000000,"seq":299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

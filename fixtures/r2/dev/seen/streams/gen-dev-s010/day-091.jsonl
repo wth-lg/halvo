@@ -1,0 +1,29 @@
+{"v":1,"id":"019d4864-ccea-7f95-844e-ce636cc9db39","at":1775036058858000000,"seq":1394,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4864-ccea-730d-9497-9c0b27bfcb42","at":1775036058858000000,"seq":1395,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4865-0fe0-77e8-af30-68c93fe4756d","at":1775036076000000000,"seq":1396,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4865-8128-77d3-ab8e-28752dbd3bda","at":1775036105000000000,"seq":1397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4865-8128-74fe-9400-1fa3f1c54537","at":1775036105000000000,"seq":1398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d4865-90c8-7f4c-aba3-33454eb95c14","at":1775036109000000000,"seq":1399,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4865-bfa8-79db-a67d-51c23ccf7373","at":1775036121000000000,"seq":1400,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4876-c845-7572-9e21-16b9bb3e37ef","at":1775037237317000000,"seq":1401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4876-ced8-7359-b671-a98d8d30d9b7","at":1775037239000000000,"seq":1402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4877-1910-7e9b-8ee0-2a81db1ce37e","at":1775037258000000000,"seq":1403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d4877-9eef-7d07-8f8e-8c94885e70a9","at":1775037292271000000,"seq":1404,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4877-f3d0-76f6-948e-7499e05e0349","at":1775037314000000000,"seq":1405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4878-6130-7671-8d25-4746740d7cae","at":1775037342000000000,"seq":1406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d4878-71d0-79db-b4c6-5b475bc20be5","at":1775037346256000000,"seq":1407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4878-78a0-76a9-af3d-bd0b59d4f4dc","at":1775037348000000000,"seq":1408,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4878-c6c0-75f2-93cc-c69b609fcb4a","at":1775037368000000000,"seq":1409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4878-f988-73c6-aba8-9afc076f2123","at":1775037381000000000,"seq":1410,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4878-fc07-741a-b605-b93e645ec180","at":1775037381639000000,"seq":1411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4879-10f8-70fb-b354-07f036c2c705","at":1775037387000000000,"seq":1412,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4879-e819-7e92-8a2c-9cd996f4ce6c","at":1775037442073000000,"seq":1413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d487a-1a98-7edd-a284-fc99681737e3","at":1775037455000000000,"seq":1414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d487a-4978-746b-a0df-b2c1d19ded51","at":1775037467000000000,"seq":1415,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d487a-7c40-7b68-a80a-178fa85bcabd","at":1775037480000000000,"seq":1416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d487a-9b80-78ac-8597-d01a693584b7","at":1775037488000000000,"seq":1417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d487a-cffb-7676-9acd-50f2d02b6ca0","at":1775037501435000000,"seq":1418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d4890-be6a-7035-9f0c-47e248ddcc1a","at":1775038938730000000,"seq":1419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4893-a34a-7783-b286-0cec86be7cce","at":1775039128394000000,"seq":1420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4893-b930-7e1c-837a-c2378f125b67","at":1775039134000000000,"seq":1421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4893-d0a0-703e-b4c9-3538b6b9b08e","at":1775039140000000000,"seq":1422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

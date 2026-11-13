@@ -1,0 +1,10 @@
+{"v":1,"id":"019c843f-49f7-7ec8-b849-aeb94944781b","at":1771745266167000000,"seq":711,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c843f-49f7-77ad-a156-712d6feb8205","at":1771745266167000000,"seq":712,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c843f-7c18-770f-b2b2-50133e421943","at":1771745279000000000,"seq":713,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c843f-87d0-743c-936e-4a55d9ea8dd2","at":1771745282000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c843f-e781-723a-b057-dd9e39303254","at":1771745306497000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c8440-1c40-7d88-8e28-f51d4574eaec","at":1771745320000000000,"seq":716,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8440-2fc8-7639-9ddb-b83d790169e3","at":1771745325000000000,"seq":717,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8440-4c9e-7f23-b314-0d92aecf5142","at":1771745332382000000,"seq":718,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c8440-7618-7461-9f85-867bfa2c8f23","at":1771745343000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c8440-a110-7b53-ac29-dd2f9ed51204","at":1771745354000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

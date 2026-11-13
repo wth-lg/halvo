@@ -1,0 +1,9 @@
+{"v":1,"id":"019c22d9-74df-70b5-9054-641b5515cb51","at":1770111202527000000,"seq":432,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22d9-74df-7bcd-8b9d-53c0e3eb53cb","at":1770111202527000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c22d9-76b8-7a1c-b0ee-5ec56e2df806","at":1770111203000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c22d9-b920-7fb5-882e-8821218368f0","at":1770111220000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22d9-cbd1-7518-9b9b-4dcba63ba0c2","at":1770111224785000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c22d9-e030-7b71-a562-001b068927a9","at":1770111230000000000,"seq":437,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c22da-0358-7687-b8ca-0f21910ff316","at":1770111239000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c22da-16e0-7d23-af2e-4d68862af0a6","at":1770111244000000000,"seq":439,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c22da-3238-7f62-82e9-77487dbc1626","at":1770111251000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

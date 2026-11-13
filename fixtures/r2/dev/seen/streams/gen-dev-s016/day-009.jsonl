@@ -1,0 +1,21 @@
+{"v":1,"id":"019ba20e-d478-71d1-a929-165659993dd1","at":1767950439544000000,"seq":102,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba20e-d478-7149-bd78-6e2064e3ad97","at":1767950439544000000,"seq":103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ba20f-10d8-739f-942b-82667209827c","at":1767950455000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba20f-2dba-7bad-850e-684a2cd5fd81","at":1767950462394000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ba20f-3400-7efd-b863-b1e165c5b9db","at":1767950464000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba20f-43a0-7d38-aa4c-7cc9e95fbcce","at":1767950468000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba20f-5ef8-747b-a3f4-9883312b49aa","at":1767950475000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ba20f-7280-781e-b228-e4426192060c","at":1767950480000000000,"seq":109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba20f-8798-793f-8fc1-87baa9379008","at":1767950485400000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ba20f-89f0-7971-8112-fbd86648096f","at":1767950486000000000,"seq":111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba20f-b100-79cf-be8e-72a092a342ee","at":1767950496000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba20f-dbf8-7f74-8ca3-6c3f48c59750","at":1767950507000000000,"seq":113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba20f-f627-72e3-a6e1-6c54471c76f8","at":1767950513703000000,"seq":114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ba210-58f8-7f8d-9aed-ca1a9d08b9bf","at":1767950539000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba210-60c8-7cb9-ae65-a0d148d33f2d","at":1767950541000000000,"seq":116,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba216-a3cc-751d-a5f0-cb5e68f1aca1","at":1767950951372000000,"seq":117,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba216-a3cc-70ce-82c4-d0877a8c185b","at":1767950951372000000,"seq":118,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba216-d908-7542-be21-08d73d58c6b2","at":1767950965000000000,"seq":119,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21c-50b4-798e-90cb-c0742b855ea1","at":1767951323316000000,"seq":120,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ba236-9fa1-7d56-acbc-5043593388d8","at":1767953047457000000,"seq":121,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ba236-c8d0-7a91-b14a-5db7dca3f329","at":1767953058000000000,"seq":122,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

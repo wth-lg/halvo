@@ -1,0 +1,34 @@
+{"v":1,"id":"019c22a9-1938-7a4e-a37d-6fadf38296b7","at":1770108033336000000,"seq":483,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22a9-1938-7de6-bd00-ab6b130c3a0f","at":1770108033336000000,"seq":484,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c22a9-1fb8-70a1-b954-e83d9c639fe7","at":1770108035000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c22a9-9cb8-71c1-b2e2-ee42d76742af","at":1770108067000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22a9-a73d-7bc3-904f-cfd2414e79b0","at":1770108069693000000,"seq":487,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c22a9-b040-7752-a081-05049d1d1fa7","at":1770108072000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c22a9-cf80-7c35-8ef6-4295c2781dcf","at":1770108080000000000,"seq":489,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c22a9-df20-7ef9-a8ea-5794a810127c","at":1770108084000000000,"seq":490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c22aa-00dc-7266-bc10-5c08b469e374","at":1770108092636000000,"seq":491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c22aa-3128-7872-abce-d9197dc7f5bb","at":1770108105000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22aa-3510-7a84-aa03-f53cf0e5c42a","at":1770108106000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22aa-3ce0-74e7-9ee2-444878bb7f5a","at":1770108108000000000,"seq":494,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c22aa-5450-75e4-b365-31e5080f9298","at":1770108114000000000,"seq":495,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22aa-6fa8-725d-b7d5-f78ee120ed11","at":1770108121000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c22aa-9aff-7838-ae21-ce4cd4dc9e10","at":1770108132095000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c22c2-28af-72f1-bb9e-19d3426aa52f","at":1770109675695000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c22c2-6c48-7d31-9b00-c64631f29065","at":1770109693000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22c2-83b8-7b67-b37a-6afd67b6ee98","at":1770109699000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c22c3-ddf9-74b7-a1f8-ca2c730d486a","at":1770109787641000000,"seq":501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c22c4-0288-7945-974c-e634ca658946","at":1770109797000000000,"seq":502,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22c4-6c00-76c7-b38d-18cbfbc0ceaa","at":1770109824000000000,"seq":503,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c22d7-de44-78b3-83e9-ea83f6dfe41f","at":1770111098436000000,"seq":504,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c22d7-de44-764f-9031-a619da4a9a38","at":1770111098436000000,"seq":505,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c22d7-ec30-798c-8e54-004c3263428a","at":1770111102000000000,"seq":506,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22d8-1340-7e97-8466-277a3a9c70c1","at":1770111112000000000,"seq":507,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c22d8-6930-7b1c-bef8-cf4504e3ca12","at":1770111134000000000,"seq":508,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22eb-4eaa-7c4e-b92b-589136514e60","at":1770112372394000000,"seq":509,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22eb-4eaa-74b3-b9cd-312e7c0be80f","at":1770112372394000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c22eb-58d8-7b02-9cc6-3616d0251970","at":1770112375000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22eb-9370-7922-9f3e-19dcdde529e4","at":1770112390000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22eb-9bc2-7f33-8260-64c38c2637c0","at":1770112392130000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c22eb-ce08-7c08-b7a1-67de86091457","at":1770112405000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c22ec-2bc8-709c-ab79-4be68817a63f","at":1770112429000000000,"seq":515,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c22ec-52d8-7d94-9f81-9e0f85a6bf9f","at":1770112439000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

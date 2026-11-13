@@ -1,0 +1,11 @@
+{"v":1,"id":"019cc259-97b0-70b9-8e9d-ad891d1302a0","at":1772787177392000000,"seq":755,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc259-97b0-754b-a194-0395dda6121e","at":1772787177392000000,"seq":756,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cc25a-79f6-7bf5-af08-96f2fd665746","at":1772787235318000000,"seq":757,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cc25a-bf08-7f27-ac9f-ee2bc65b9a26","at":1772787253000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc25a-c6d8-71ef-96c3-e0994d9f94c6","at":1772787255000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cc25b-0170-7ce1-826d-cae8571b5ed5","at":1772787270000000000,"seq":760,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc25b-3edd-79fd-8643-b5e21a1e681d","at":1772787285725000000,"seq":761,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cc25b-e7e8-7193-a25d-b05bc7745788","at":1772787329000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc25c-37f9-71da-94ed-86b1b0b256f1","at":1772787349497000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cc25c-45a8-7567-aba3-b09014f9f353","at":1772787353000000000,"seq":764,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc25c-64e8-73ee-9215-b0a079d5757b","at":1772787361000000000,"seq":765,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

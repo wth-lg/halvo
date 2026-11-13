@@ -1,0 +1,12 @@
+{"v":1,"id":"019c6091-f0c7-772b-8363-e4cfa7d64eda","at":1771146703047000000,"seq":617,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6091-f0c7-76d5-9e74-af36d12ba1ce","at":1771146703047000000,"seq":618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c6092-42a0-7c5c-9190-2530a9e2cd70","at":1771146724000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6092-94a8-715b-ae27-c18d5f6b3266","at":1771146745000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c6092-a060-748f-b491-18012e4c38c5","at":1771146748000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6094-0044-7634-a2ac-a4504d815490","at":1771146838084000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6094-0ba8-7fdc-8bcd-d21554610b73","at":1771146841000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c6094-1b48-7907-bde0-9540779ceeda","at":1771146845000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6094-2318-77bc-a58e-96a26851c526","at":1771146847000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6094-3df7-77c9-b623-c49cd2d4af76","at":1771146853879000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6094-9078-7096-9327-ad03f9ca05dc","at":1771146875000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6094-a400-721c-94de-eed7a6071bd0","at":1771146880000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

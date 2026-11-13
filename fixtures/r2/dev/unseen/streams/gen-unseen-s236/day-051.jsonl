@@ -1,0 +1,27 @@
+{"v":1,"id":"019c7a04-3094-750d-b9fc-77392eaa06e5","at":1771573620884000000,"seq":767,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a04-3094-70da-86a7-353dfa91f417","at":1771573620884000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7a04-4878-7fde-aa8a-91ad03e9128b","at":1771573627000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c7a04-5fe8-74e9-b2db-f262af8ee809","at":1771573633000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a04-6f88-70bb-be4c-6c9411352a49","at":1771573637000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a07-b4bf-7728-bfed-8f57844e7a08","at":1771573851327000000,"seq":772,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7a07-bb48-763c-b4f6-67847af5f22e","at":1771573853000000000,"seq":773,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a07-de70-75dd-a603-037053a3c4b6","at":1771573862000000000,"seq":774,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a07-ea28-7b3e-b23a-f12b33be1301","at":1771573865000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c7a0c-fd86-7107-83c6-af004090cf4c","at":1771574197638000000,"seq":776,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7a0d-1660-70b4-81db-63896b297a29","at":1771574204000000000,"seq":777,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a0d-4928-7b08-80c3-fd1216ece05e","at":1771574217000000000,"seq":778,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a0d-91dc-752f-acc4-3aa358c44339","at":1771574235612000000,"seq":779,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7a0d-9360-7f26-ad46-82df014657ae","at":1771574236000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a0d-d5c8-7d22-bcc5-12f4781ff295","at":1771574253000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a0d-e180-7c66-a360-ae5897d833ff","at":1771574256000000000,"seq":782,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a14-b5b6-7782-96f5-5f3d229fae2c","at":1771574703542000000,"seq":783,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7a15-1928-7714-b65a-200a81e631c6","at":1771574729000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a15-3868-7a9c-8236-8435c226559e","at":1771574737000000000,"seq":785,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a29-7124-7318-91ad-15df9f1719af","at":1771576062244000000,"seq":786,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7a29-7418-7f9b-9cea-92674bad92f7","at":1771576063000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a29-8f70-7691-9959-c901d4b32b10","at":1771576070000000000,"seq":788,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7a29-aeb0-72e5-90d0-2ce1e878bbac","at":1771576078000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a29-bc8b-775e-a373-4f05325d6a55","at":1771576081547000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7a29-d9a8-7b22-9f35-19293479d00c","at":1771576089000000000,"seq":791,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a2a-0888-7043-8ef9-e32ed1c267cc","at":1771576101000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a2a-1058-7670-8ac8-4ed37fd30b18","at":1771576103000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

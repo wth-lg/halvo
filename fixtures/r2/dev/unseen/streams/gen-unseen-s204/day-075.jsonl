@@ -1,0 +1,28 @@
+{"v":1,"id":"019cf5cc-e8df-7b58-bc1a-12ef12bb3cc0","at":1773650372831000000,"seq":1086,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5cc-e8df-7d01-a4cf-c567dacc0ecb","at":1773650372831000000,"seq":1087,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cd-7df8-7ed2-945d-4401235366a0","at":1773650411000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cf5cd-acfb-7657-975d-934ce463c340","at":1773650423035000000,"seq":1089,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cd-b4a8-71e6-aef3-e26cb8f7f23d","at":1773650425000000000,"seq":1090,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf5cd-b890-7053-8e68-f7c389ad00db","at":1773650426000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cd-c448-7544-8195-9e8c12c74d4b","at":1773650429000000000,"seq":1092,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cd-d000-7816-ae05-cb7b78ad13a1","at":1773650432000000000,"seq":1093,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf5ce-50e8-7000-8992-b5a17af32ca3","at":1773650465000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cf5ce-77e7-7ada-bb2a-07683ee18e44","at":1773650474983000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ce-9f08-77e4-a528-6ea2ef3295de","at":1773650485000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cf-5739-7e92-8f00-029af1f8f54c","at":1773650532153000000,"seq":1097,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cf-9138-7641-a597-8f45d2cab6d5","at":1773650547000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cf5d0-2d78-750b-8b09-06a8753467c2","at":1773650587000000000,"seq":1099,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf5d0-3089-7633-b009-29a77185043d","at":1773650587785000000,"seq":1100,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cf5d0-3160-7dac-8d37-cd0411401e38","at":1773650588000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5d0-50a0-7706-8a67-6d044fbfc41c","at":1773650596000000000,"seq":1102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cf5d0-7f80-742c-806b-4eb536517127","at":1773650608000000000,"seq":1103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf5d0-8750-7844-b011-e3f5ef082ab6","at":1773650610000000000,"seq":1104,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf5d0-891a-71c5-991c-86700ea43ead","at":1773650610458000000,"seq":1105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5d0-96f0-7b78-b486-ff34220e7895","at":1773650614000000000,"seq":1106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf5d0-c1e8-7650-aac1-f01536a72c97","at":1773650625000000000,"seq":1107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5d0-c5d0-7017-9c83-40cddee21690","at":1773650626000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cf5d0-ee02-78e0-aa9b-eef07ea805da","at":1773650636290000000,"seq":1109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5d1-0c20-7c7e-b00a-469e1dd3727d","at":1773650644000000000,"seq":1110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5d1-2f48-78c4-b0f2-d8aa2199c026","at":1773650653000000000,"seq":1111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf5d1-3b00-7dd9-9968-775420fc00c2","at":1773650656000000000,"seq":1112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf5d1-46b8-7fbb-bed8-284cea25a245","at":1773650659000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,8 @@
+{"v":1,"id":"019ccc50-4127-7d5d-a0b8-3b7b26d8c125","at":1772954337575000000,"seq":1003,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccc50-4127-77c1-8087-3496011a39bc","at":1772954337575000000,"seq":1004,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccc50-7980-7c67-a39a-bd8a777d83e0","at":1772954352000000000,"seq":1005,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ccc50-bfd0-753c-af2e-4c0e2cc43696","at":1772954370000000000,"seq":1006,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc51-46aa-782e-98e2-8d9369d28a92","at":1772954404522000000,"seq":1007,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ccc51-96a8-74cb-9d70-220d32402eeb","at":1772954425000000000,"seq":1008,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ccc5b-d9b7-729e-a435-486da914e5e6","at":1772955097527000000,"seq":1009,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccc5b-d9b7-7f58-9b57-649eb065b46c","at":1772955097527000000,"seq":1010,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}

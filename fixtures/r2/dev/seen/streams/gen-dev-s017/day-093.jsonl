@@ -1,0 +1,8 @@
+{"v":1,"id":"019d52cd-01d1-7f6d-8644-b95a84ac0775","at":1775210660305000000,"seq":1314,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52cd-01d1-7d1d-a672-98aefcd07870","at":1775210660305000000,"seq":1315,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52cd-7da0-7af7-890e-8a36f7d19597","at":1775210692000000000,"seq":1316,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d52cd-9ce0-7f17-8326-786d876631a3","at":1775210700000000000,"seq":1317,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52cd-f3e1-71ec-af5d-ac1143f9b656","at":1775210722273000000,"seq":1318,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d52ce-21b0-7932-9e32-5c8bdbef8f50","at":1775210734000000000,"seq":1319,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d52ce-6be8-7d8f-bd4a-c51cd6d3c6f4","at":1775210753000000000,"seq":1320,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d52ce-c1d8-7f9e-96d2-8628d759f92b","at":1775210775000000000,"seq":1321,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

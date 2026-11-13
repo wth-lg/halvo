@@ -1,0 +1,18 @@
+{"v":1,"id":"019d28f1-768d-7911-86c9-fa716cfb5f60","at":1774508406413000000,"seq":1098,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d28f1-768d-7966-a75f-090abe848d99","at":1774508406413000000,"seq":1099,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d28f1-a3d0-7134-8819-e4659e83f63e","at":1774508418000000000,"seq":1100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d28f1-da80-7d26-8d95-b1489c1b7f61","at":1774508432000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d28f1-de68-7aee-8c5d-2828a81f57b5","at":1774508433000000000,"seq":1102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d28f6-33ce-77a7-933f-f81486e3a5ef","at":1774508717006000000,"seq":1103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d28f6-85d0-74ad-bc55-1586998cd027","at":1774508738000000000,"seq":1104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d28f6-a8f8-7e2e-a203-bb05e214ac97","at":1774508747000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d28f6-ace0-7b4b-b9fc-d002ffcb1841","at":1774508748000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d28f6-c858-7c82-8c69-f01a2f344932","at":1774508755032000000,"seq":1107,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d28f6-c858-70fc-98ef-727ef2a16dda","at":1774508755032000000,"seq":1108,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d28f7-06b8-77f4-b2a4-5618bac21f73","at":1774508771000000000,"seq":1109,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d28f7-4538-7114-b550-ec11a2a8ea90","at":1774508787000000000,"seq":1110,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d28f7-60ee-79f7-b56a-9ffb93ddcbcc","at":1774508794094000000,"seq":1111,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d28f7-60ee-7b42-a7ee-46b88286a159","at":1774508794094000000,"seq":1112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d28f7-6c48-7a3a-bbe9-434d89638ea6","at":1774508797000000000,"seq":1113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d28f7-ba68-72b9-9b2b-0f06f424ec21","at":1774508817000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d28f7-d9a8-786d-880c-1e2ebe84d350","at":1774508825000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

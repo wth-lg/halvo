@@ -1,0 +1,33 @@
+{"v":1,"id":"019ba204-f7f8-7edf-ae4a-d0fdbe466ba4","at":1767949793272000000,"seq":171,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba204-f7f8-774f-ad2d-2785cf2a4f64","at":1767949793272000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019ba205-77d0-734f-870a-d40aaaebd1fb","at":1767949826000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba205-7fa0-7c0d-a355-4a5e39b09684","at":1767949828000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba205-b09e-7a26-964b-3146f12680f4","at":1767949840542000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019ba206-23b0-7ca0-92aa-5d8440791b08","at":1767949870000000000,"seq":176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba206-3350-74aa-89cb-51bfe6fb5c8d","at":1767949874000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba206-42f0-7acc-b422-1fd2b40a3f00","at":1767949878000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21a-4066-7647-bc52-292f19a00493","at":1767951188070000000,"seq":179,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba21a-4066-7444-b4b1-4b00bc926f48","at":1767951188070000000,"seq":180,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba21a-47f0-7002-8939-9b49234b8199","at":1767951190000000000,"seq":181,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ba21a-6f00-7b52-abf0-a70208575d71","at":1767951200000000000,"seq":182,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ba21a-9e34-793b-9403-8e737146eb56","at":1767951212084000000,"seq":183,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ba21a-ad80-7224-bfcf-74096b0476e6","at":1767951216000000000,"seq":184,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba21a-c8d8-7ffe-b81b-51eced64cf59","at":1767951223000000000,"seq":185,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21a-e430-78bf-b5eb-b6fd2f4c1fbd","at":1767951230000000000,"seq":186,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019ba225-e1d0-79e0-97dc-20ba3bdbb37b","at":1767951950288000000,"seq":187,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ba226-1f30-748e-9cf9-33253a29fdd0","at":1767951966000000000,"seq":188,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba226-4a28-7d32-bb4e-82ab71869195","at":1767951977000000000,"seq":189,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba226-59c8-72b3-a9dc-f0eb2b876672","at":1767951981000000000,"seq":190,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ba226-6580-7fae-86d3-797b52150d02","at":1767951984000000000,"seq":191,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ba241-86ff-7856-aae5-4042b581f39f","at":1767953762047000000,"seq":192,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba241-86ff-735f-b5e5-efcf767a4e14","at":1767953762047000000,"seq":193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba242-1b40-70f5-a610-94afb322520e","at":1767953800000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba242-4638-7a5e-9b02-53c66dc7d7e4","at":1767953811000000000,"seq":195,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba242-4e08-77e2-b40d-e85cdd6839fa","at":1767953813000000000,"seq":196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba24b-8f31-713c-af0a-e146f1229973","at":1767954419505000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ba24b-b448-71f5-ae9d-4fb32fe10e59","at":1767954429000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba24c-6410-724b-bea9-31ad37f121fa","at":1767954474000000000,"seq":199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba24c-65b0-7028-9339-9e351870e563","at":1767954474416000000,"seq":200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ba24c-d558-77c4-9ea3-c89392dd5f8c","at":1767954503000000000,"seq":201,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba24c-e8e0-7b37-b30f-3cbb6fedb7c2","at":1767954508000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba24d-17c0-788f-8fd2-ab43ea6d0631","at":1767954520000000000,"seq":203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

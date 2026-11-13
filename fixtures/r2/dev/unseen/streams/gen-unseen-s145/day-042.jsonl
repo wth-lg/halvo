@@ -1,0 +1,35 @@
+{"v":1,"id":"019c4c06-4837-72d9-8878-96873cf09447","at":1770802006071000000,"seq":599,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c06-4837-7d75-9231-f4f2c9e71cd9","at":1770802006071000000,"seq":600,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c06-6b18-74a3-a11a-a393d95b93a5","at":1770802015000000000,"seq":601,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c06-99f8-7215-8c7a-b0bfbdeeb290","at":1770802027000000000,"seq":602,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c16-cbc7-7c2b-b887-c0f2ccd974d0","at":1770803088327000000,"seq":603,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c4c17-0900-7c64-95fa-0029c108e4b4","at":1770803104000000000,"seq":604,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c17-2458-7700-808a-d73180efbfda","at":1770803111000000000,"seq":605,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c4c19-517b-7a20-bcfe-d26bf0c73813","at":1770803253627000000,"seq":606,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c19-517b-76ef-82ce-0c8258bbd17c","at":1770803253627000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c19-89a0-7e36-be5f-ecaef266cf65","at":1770803268000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c4c19-9687-734e-bae0-c1abcbd490bd","at":1770803271303000000,"seq":609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c19-b880-7e14-b901-aef6e8d59d46","at":1770803280000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c19-d3d8-7064-90af-99d76325be05","at":1770803287000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c19-df90-7f70-8e6d-cd70400152b4","at":1770803290000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4c19-e378-7b4e-802b-40a5b8ac33bc","at":1770803291000000000,"seq":613,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c19-f458-7f15-8124-b589973b1f08","at":1770803295320000000,"seq":614,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c1a-58a8-7be0-8a91-eb8e59f72ebc","at":1770803321000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c4c1a-e719-73db-9d6f-916784c38f58","at":1770803357465000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c1b-0c58-75fb-a8e6-a1af3e47fa55","at":1770803367000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c1b-79b8-7d90-a91b-b2cf81a80b31","at":1770803395000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c1b-8188-7004-b1b1-7cbcc6306ef6","at":1770803397000000000,"seq":619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c4c1b-d2b8-7218-ab03-ca05e34e8a28","at":1770803417784000000,"seq":620,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c1b-eee8-76f7-8dab-95bb6622a4c7","at":1770803425000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c1b-f2d0-7050-88b6-7a0363b2579d","at":1770803426000000000,"seq":622,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c1c-1210-7069-b517-7dfcf22c29dd","at":1770803434000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c4c1c-2598-75d7-aef2-54864a8f84d9","at":1770803439000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4c1c-2c81-7f2d-ae59-f250cdb26d10","at":1770803440769000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c1c-6be8-7210-9b6a-5054b4cbc20b","at":1770803457000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c4c1c-77a0-7483-bdee-33246100df73","at":1770803460000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c1c-7b88-7345-b944-d8f9015e55f8","at":1770803461000000000,"seq":628,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4c1d-0ff8-74ce-b04c-c1572cf31cca","at":1770803499000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4c22-e3f7-78da-b89f-9f5974a29b4e","at":1770803880951000000,"seq":630,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c4c23-3e00-7cb1-9e3d-5445f63206e2","at":1770803904000000000,"seq":631,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4c23-3e00-7b67-9855-3200356e3d37","at":1770803904000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c4c23-b330-71dd-bf48-0214c6807e15","at":1770803934000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

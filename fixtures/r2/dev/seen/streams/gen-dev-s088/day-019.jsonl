@@ -1,0 +1,13 @@
+{"v":1,"id":"019bd53d-cd09-7029-9579-081b2102a1cf","at":1768809155849000000,"seq":217,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd53d-cd09-75a4-aad6-01ce3cab06a2","at":1768809155849000000,"seq":218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd54d-fe07-7aeb-9327-13ebe55850e6","at":1768810216967000000,"seq":219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd54e-2920-795c-8b7f-ee6875b2f04c","at":1768810228000000000,"seq":220,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd54e-4478-71e7-b2c2-95d573d2c2aa","at":1768810235000000000,"seq":221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bd563-0c93-7993-9f85-6327d28a5129","at":1768811596947000000,"seq":222,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd563-0c93-7133-8d45-05f607674d20","at":1768811596947000000,"seq":223,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd563-2c08-76a1-891f-0cb6bcf9b057","at":1768811605000000000,"seq":224,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bd563-37c0-724f-8199-cec217e46acc","at":1768811608000000000,"seq":225,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd563-4f30-74f6-9733-09e341a081dd","at":1768811614000000000,"seq":226,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bd563-bc90-7423-b990-84ed476a46e6","at":1768811642000000000,"seq":227,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bd563-cc73-7fb6-9052-07400ebe11f0","at":1768811646067000000,"seq":228,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bd563-fef8-7a43-88b1-e71597f9b59d","at":1768811659000000000,"seq":229,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

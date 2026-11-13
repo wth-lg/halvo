@@ -1,0 +1,22 @@
+{"v":1,"id":"019c89b5-d28c-7fbb-9c28-f410e8d8f07d","at":1771836920460000000,"seq":525,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89b5-d28c-75a0-bd7a-c0ac430aaf09","at":1771836920460000000,"seq":526,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c89b5-e448-7ed5-8724-88961cc948a4","at":1771836925000000000,"seq":527,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c89b5-e830-7101-8bc1-c55cf172a709","at":1771836926000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c89b6-0388-77be-92ef-5fd5b4a300dd","at":1771836933000000000,"seq":529,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c89b6-4dc0-7bae-bfdf-4c68f1b39381","at":1771836952000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89cb-b768-7758-b34c-cecae9d043d8","at":1771838355304000000,"seq":531,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c89d8-c0f8-774f-a035-82898c0ea3db","at":1771839209720000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c89d9-1fd0-783e-a72e-39830769dfca","at":1771839234000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c89d9-359d-734b-a673-45247514d171","at":1771839239581000000,"seq":534,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c89d9-8560-7fe1-a8e9-699fac933a31","at":1771839260000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c89d9-fe78-7448-bf81-0e77e4735720","at":1771839291000000000,"seq":536,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c89da-16a8-7686-8c7b-2a780c9bb4e7","at":1771839297192000000,"seq":537,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c89da-19d0-7c05-ac61-dc15a4ea48a8","at":1771839298000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89da-1db8-78a9-af6f-295483e21feb","at":1771839299000000000,"seq":539,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c89da-2970-752b-9c4f-0341487f6ef0","at":1771839302000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89e9-b57f-7ba5-9af9-2ddf3d887c1a","at":1771840320895000000,"seq":541,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c89e9-e0e0-7f8e-be5d-f139b36d8fa6","at":1771840332000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89e9-f080-7be4-b65f-f5ed4823e293","at":1771840336000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ea-1ba7-7663-bd35-d5794f62bbf3","at":1771840347047000000,"seq":544,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c89ea-2b18-7cec-8a3b-3660b4c6d361","at":1771840351000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ea-2f00-7aa3-8cc5-9dfdb167d1ca","at":1771840352000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

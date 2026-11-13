@@ -1,0 +1,25 @@
+{"v":1,"id":"019bea40-728a-7120-873f-8ebebc10130f","at":1769161650826000000,"seq":374,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea40-728a-7592-a5c2-ef4244c6a64c","at":1769161650826000000,"seq":375,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bea40-7720-7b64-8dce-97b3772eaf15","at":1769161652000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea40-8e90-7ea3-a42a-17a8a1cbe94a","at":1769161658000000000,"seq":377,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bea40-a218-7b13-a0df-64ce6c1a16c9","at":1769161663000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea47-ea04-7d50-8795-0e1fdd46b38d","at":1769162140164000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bea48-4bdd-705d-b541-712d9aff81a2","at":1769162165213000000,"seq":380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bea48-a8c8-7e30-8511-a8271ccc48e2","at":1769162189000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bea49-52e6-73d4-b5f9-8afe88411478","at":1769162232550000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bea49-7bb8-7862-a2c6-ebfff53a2aa8","at":1769162243000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea4a-0c40-7be4-82eb-c451fcc6ed89","at":1769162280000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bea4a-1be0-741e-ae7f-2f45932c0344","at":1769162284000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea4a-4d2a-756d-9680-88d95ee3a596","at":1769162296618000000,"seq":386,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bea4a-71d0-72a8-8407-e62a0624dede","at":1769162306000000000,"seq":387,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bea4a-7d88-771b-abfa-f252cb6ec4fc","at":1769162309000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bea4a-94f8-79bc-bd00-653166f42846","at":1769162315000000000,"seq":389,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bea57-aa79-774e-ac08-12778f898dd8","at":1769163172473000000,"seq":390,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bea57-aa79-7dc5-98cf-3a2e9f382f5d","at":1769163172473000000,"seq":391,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bea57-c010-71f3-9d96-5033bf9350a0","at":1769163178000000000,"seq":392,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea57-c7e0-717e-9757-a00206a9ed29","at":1769163180000000000,"seq":393,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bea57-cbc8-7c81-8f8e-889002c47805","at":1769163181000000000,"seq":394,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bea57-d398-71ab-ae98-d158342402fe","at":1769163183000000000,"seq":395,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bea66-b9a9-7a26-92ad-5e995f03a991","at":1769164159401000000,"seq":396,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bea66-fe68-73c8-8d0e-b97d538a9ffa","at":1769164177000000000,"seq":397,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea67-15d8-73f1-a694-3868a7d72c35","at":1769164183000000000,"seq":398,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

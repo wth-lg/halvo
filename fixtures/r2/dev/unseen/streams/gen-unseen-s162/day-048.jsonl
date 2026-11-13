@@ -1,0 +1,23 @@
+{"v":1,"id":"019c6a84-3672-71cf-be9a-3791ac3eb670","at":1771313575538000000,"seq":548,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6a84-3672-77ad-b271-4e7cbf9b559f","at":1771313575538000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c6a84-b00d-7565-8c93-5c5ea36e6437","at":1771313606669000000,"seq":550,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c6a84-e038-7db8-877b-9f180c95805a","at":1771313619000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a85-2688-70ca-823b-fe459c4cb767","at":1771313637000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c6a85-4d98-70eb-a007-780542490143","at":1771313647000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a85-68b3-7664-9e78-740cc1af666f","at":1771313653939000000,"seq":554,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c6a85-ce80-7175-972c-97860e45791d","at":1771313680000000000,"seq":555,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6a86-1ca0-7556-af11-86db11e23853","at":1771313700000000000,"seq":556,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6a86-3fc8-7ec2-8e1b-62e949575b33","at":1771313709000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a86-4565-7eb2-b04b-f9258bf9c9ac","at":1771313710437000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c6a86-d050-7f3e-a044-42ae3becd211","at":1771313746000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6a86-d820-7ce9-b66a-2873486d6ae0","at":1771313748000000000,"seq":560,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6a86-dc08-7a8a-a335-086169b7f371","at":1771313749000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a86-dff0-786d-94f6-94105ec28881","at":1771313750000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c6a86-ff30-719f-b7af-b98e34980d4f","at":1771313758000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6a87-1c80-711c-8599-cab4475cd5bd","at":1771313765504000000,"seq":564,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c6a87-2258-782e-8c43-ede674306ea7","at":1771313767000000000,"seq":565,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6a87-2e10-715e-b063-b758394843d1","at":1771313770000000000,"seq":566,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6a87-4968-7855-bf7f-2532541479d2","at":1771313777000000000,"seq":567,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c6a95-2b2c-71fa-9848-b59c279a95ee","at":1771314686764000000,"seq":568,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6a95-2b2c-7941-853d-e19fcf680d0c","at":1771314686764000000,"seq":569,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6a95-4388-7a2a-8207-d17af9e95a81","at":1771314693000000000,"seq":570,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

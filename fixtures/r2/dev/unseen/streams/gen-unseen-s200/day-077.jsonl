@@ -1,0 +1,22 @@
+{"v":1,"id":"019cffda-92f6-76ce-85e5-e155ca5ca2d4","at":1773819040502000000,"seq":992,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cffda-92f6-7ce0-83bb-ea1d9a6e6dc6","at":1773819040502000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cffda-a488-7bd7-9abf-8755fdc4758b","at":1773819045000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdb-9a9f-7b6c-a9e3-44269a77ffa4","at":1773819107999000000,"seq":995,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cffdb-dd08-7199-a0ff-2669de833986","at":1773819125000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdc-69a8-7084-b97e-137f94acec7c","at":1773819161000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdc-69a8-7d1e-9d0e-ee24d33f207d","at":1773819161000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cffdc-72db-71b1-b4bd-41404ea4d625","at":1773819163355000000,"seq":999,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cffdc-8cd0-7802-8e98-7c7b3ab21b54","at":1773819170000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cffdc-bf98-7666-84c1-e91a7ce2e85f","at":1773819183000000000,"seq":1001,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cffdc-cb50-7035-bd0e-f4e6acddbe47","at":1773819186000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdc-cf39-7517-a505-488d56f2c620","at":1773819187001000000,"seq":1003,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cffdc-e2c0-7394-9dca-6ff960a72a32","at":1773819192000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdc-ee78-76ce-aa0a-f90ea19f489f","at":1773819195000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdd-2690-7bab-b4c7-2cc3666ac2e9","at":1773819209360000000,"seq":1006,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cffdd-30e0-7d78-a9c8-1c2e1397855e","at":1773819212000000000,"seq":1007,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cffdd-4c38-7c50-84c7-10d4e926e270","at":1773819219000000000,"seq":1008,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdd-6790-739a-a45c-53abffc92c72","at":1773819226000000000,"seq":1009,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cffdd-8ea0-7ac3-b6b6-ec6bc0e01f75","at":1773819236000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdd-a774-70d6-a5fb-a741173c1594","at":1773819242356000000,"seq":1011,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cffdd-a9f8-7eb8-b16d-79fdf0aac43e","at":1773819243000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdd-f048-7a4e-b041-6b5f2d266c01","at":1773819261000000000,"seq":1013,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

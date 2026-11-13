@@ -1,0 +1,12 @@
+{"v":1,"id":"019bdfef-946e-785d-9389-91c510d99b41","at":1768988578926000000,"seq":338,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdfef-946e-70c5-ab6f-1b3f9b98fd8d","at":1768988578926000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bdfef-f660-7e15-9f1e-0901b0e74397","at":1768988604000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bdff3-85df-7d0f-bcae-d1624a1d2252","at":1768988837343000000,"seq":341,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdff3-85df-75eb-9b1f-4b578a8191f2","at":1768988837343000000,"seq":342,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdff3-a3c8-7e24-bde6-be0a83cab13a","at":1768988845000000000,"seq":343,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bdff3-cad8-71ca-b06d-421f7dc94f6e","at":1768988855000000000,"seq":344,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bdff6-7677-7bf6-af1c-cd2af8eb19a3","at":1768989030007000000,"seq":345,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bdff6-8610-772e-83c9-1302afdaa78a","at":1768989034000000000,"seq":346,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff6-89f8-7cdc-9ff3-13315061cdfc","at":1768989035000000000,"seq":347,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff6-95b0-7547-afb1-c74c1a0df88e","at":1768989038000000000,"seq":348,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bdff6-a938-7619-b23b-9961041ce0e4","at":1768989043000000000,"seq":349,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

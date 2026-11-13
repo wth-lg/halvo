@@ -1,0 +1,18 @@
+{"v":1,"id":"019b7e59-8d78-715e-81c6-4ca12d92f09c","at":1767351356792000000,"seq":15,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e59-8d78-7bbd-bc11-d383d5aa5d4e","at":1767351356792000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7e59-b558-77a2-9239-b08b7846ac3d","at":1767351367000000000,"seq":17,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e5e-f191-7392-9f99-6571b5484ca2","at":1767351710097000000,"seq":18,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7e5f-2010-7d38-97ef-d84f8ba24722","at":1767351722000000000,"seq":19,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b7e5f-bc7d-76ed-90ce-7daafc2d5030","at":1767351762045000000,"seq":20,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7e5f-e360-74af-9605-7cd0d1ff434a","at":1767351772000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b7e60-4120-7072-b5d9-f0cda34e3650","at":1767351796000000000,"seq":22,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e60-baa4-74c1-86dc-2eab387a7a1b","at":1767351827108000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7e60-cdc0-742a-b695-8cb2a4b8eaa7","at":1767351832000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e61-2f68-779a-8f61-15b24d947a56","at":1767351857000000000,"seq":25,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e61-42f0-78fd-b5c4-a54f5e1997a7","at":1767351862000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e61-8eae-79d7-8f3e-c4b0592eeba4","at":1767351881390000000,"seq":27,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7e61-ac68-722b-bef2-876803f2cf7c","at":1767351889000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e61-d760-7a0d-964b-10ec2a8f5cdd","at":1767351900000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e61-f6a0-7bac-b7c1-57776e102030","at":1767351908000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e64-a559-7f1f-a570-9c77773693ca","at":1767352083801000000,"seq":31,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7e64-d118-7d4e-a643-0b7ff15dd5a4","at":1767352095000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

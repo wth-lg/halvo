@@ -1,0 +1,18 @@
+{"v":1,"id":"019b7dec-aa48-74a5-ad51-167dc3198093","at":1767344220744000000,"seq":31,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7dec-aa48-78b6-93b9-7f55d1ab5008","at":1767344220744000000,"seq":32,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7dec-edb0-7e55-8d1a-5150ab06d703","at":1767344238000000000,"seq":33,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7dec-f968-7c70-ab8b-c19da5df03b0","at":1767344241000000000,"seq":34,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e07-d4e1-7a73-8ba4-1fedebc1f959","at":1767346001121000000,"seq":35,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e07-ff60-7b72-8ab4-ef00a8ae4075","at":1767346012000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e08-2e40-7a48-95d8-3d7ea60c2639","at":1767346024000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e08-5550-7956-8724-44ea7f731bf2","at":1767346034000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b7e08-5d86-7b35-84cc-05d073679701","at":1767346036102000000,"seq":39,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7e08-5d86-787f-9fc4-4c662b443819","at":1767346036102000000,"seq":40,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7e08-af28-763f-8511-57f5c0957b4a","at":1767346057000000000,"seq":41,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7e08-b6f8-78bd-8fb3-12331fb599dd","at":1767346059000000000,"seq":42,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b7e09-3c5a-7a07-9597-f7c914be0bfe","at":1767346093146000000,"seq":43,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e09-3c5a-7df7-b46b-4dee3dce198c","at":1767346093146000000,"seq":44,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e09-4780-7014-93b4-2a4b40f96ef5","at":1767346096000000000,"seq":45,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e09-6e90-7911-86ed-def9952332ee","at":1767346106000000000,"seq":46,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e09-a540-73a7-a79c-6231540ce761","at":1767346120000000000,"seq":47,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e09-bcb0-7cee-8452-08e7fdd92d9e","at":1767346126000000000,"seq":48,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,0 +1,31 @@
+{"v":1,"id":"019c467d-2f5e-724d-b7e6-352587562425","at":1770709135198000000,"seq":587,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c467d-2f5e-77f6-b366-3df06a8d5100","at":1770709135198000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c467d-878f-73f5-ba9a-8ed3a41f3f17","at":1770709157775000000,"seq":589,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c467d-bb38-774f-9dee-d5378470b34a","at":1770709171000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c467e-0d40-7858-8fb8-4846d738a508","at":1770709192000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c467e-2c80-75c4-b572-de764ed300ff","at":1770709200000000000,"seq":592,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c467e-3df2-77ef-b5bd-3b069f0888c4","at":1770709204466000000,"seq":593,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c467e-9dc8-7679-bfab-584d643681bb","at":1770709229000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c467f-3b54-7709-bba9-dbb23b96c8de","at":1770709269332000000,"seq":595,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c467f-5948-7310-8496-9bbf3e3d3a5c","at":1770709277000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c467f-fdb7-7585-83e7-24200a875363","at":1770709319095000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c4680-0cf8-7ea2-ad12-3f80b976a084","at":1770709323000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c4680-2080-7893-b9a2-5a4d8ef20571","at":1770709328000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4680-3020-7e92-9b38-903386e8c137","at":1770709332000000000,"seq":600,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4680-4b0f-7962-8486-c5973fe7692f","at":1770709338895000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c4680-9d80-7912-9282-eb8ee52c970f","at":1770709360000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c4680-a168-7f73-9437-63445da0b423","at":1770709361000000000,"seq":603,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4693-1e33-70e2-b69c-f09b75cba0a5","at":1770710572595000000,"seq":604,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4693-23b0-799d-ac9d-1d6400943d26","at":1770710574000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4693-85d3-797d-a744-1db948f8e348","at":1770710599123000000,"seq":606,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4693-eae8-7923-99ec-969bcce9f67f","at":1770710625000000000,"seq":607,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4694-48a8-7911-8463-cd46ebe2b143","at":1770710649000000000,"seq":608,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4694-85d2-7f2e-8bc4-03f9d5687d2e","at":1770710664658000000,"seq":609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4694-8b10-74ca-9fe2-84c33ec1b045","at":1770710666000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4694-9e98-711b-a83a-595566ec5e14","at":1770710671000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4694-c990-7774-a337-8ebcb48eecb2","at":1770710682000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c4694-e8d0-76e6-aa62-a392310ac722","at":1770710690000000000,"seq":613,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4695-7570-7ae3-b93b-37f9fb9a32ca","at":1770710726000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4695-7b78-7067-91e0-67b480f8ae1d","at":1770710727544000000,"seq":615,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4695-c390-7ce2-acbe-90a1f29d8ea6","at":1770710746000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4695-dee8-7d4a-a4ad-be16b24f6571","at":1770710753000000000,"seq":617,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

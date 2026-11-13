@@ -1,0 +1,15 @@
+{"v":1,"id":"019ce175-ee94-7ace-869f-98df6877c0e5","at":1773309128340000000,"seq":1208,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce175-ee94-7dfe-9388-55ff2cc12fca","at":1773309128340000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce176-2008-7a59-9dc1-6f7bf63b089e","at":1773309141000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce176-79e0-7053-b5a5-cdaa1d7e48be","at":1773309164000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ce176-9538-7003-8b02-0510794ba2ba","at":1773309171000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce176-b860-7f4e-ae48-1d302ab9d73a","at":1773309180000000000,"seq":1213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce18e-e1ad-7089-bc8b-c6aa6194b0a7","at":1773310763437000000,"seq":1214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce18f-e7da-7de4-bf6a-f686a79ec73a","at":1773310830554000000,"seq":1215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce190-2c00-7b57-b827-6e3e18d60f0f","at":1773310848000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce190-62b0-7324-a75a-1e8da2191655","at":1773310862000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce190-89c0-7643-ac36-2c71acab0411","at":1773310872000000000,"seq":1218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce1a3-34bf-7781-80ee-b4a27635ec86","at":1773312095423000000,"seq":1219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce1a3-98a8-7b31-a9fd-6f067ff6060f","at":1773312121000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1a3-9c90-7da2-b79c-4ffe7a278411","at":1773312122000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ce1a3-def8-7682-93c3-2783f5240b83","at":1773312139000000000,"seq":1222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

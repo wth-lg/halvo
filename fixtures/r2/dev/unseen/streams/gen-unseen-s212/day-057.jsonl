@@ -1,0 +1,22 @@
+{"v":1,"id":"019c9918-b9d5-7bd3-8ce4-d4689ccd6ec0","at":1772095060437000000,"seq":697,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9918-b9d5-7bdc-aa31-22af1959dd71","at":1772095060437000000,"seq":698,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c9919-8ead-784d-b574-b2ea8aaa683a","at":1772095114925000000,"seq":699,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c9919-b9f0-7f8a-b453-fe13140d2363","at":1772095126000000000,"seq":700,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9919-ecb8-78fa-93ca-120b44efad4b","at":1772095139000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c991a-2368-7633-999b-9e427196343a","at":1772095153000000000,"seq":702,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c991a-2f20-7b6e-9e1e-1e203afe51f9","at":1772095156000000000,"seq":703,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c991a-32c0-785a-ba6c-c16fbd260b30","at":1772095156928000000,"seq":704,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c991a-a450-7c8c-92b3-7698cc498e7d","at":1772095186000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c991a-bfa8-7c56-9553-1f76171c7273","at":1772095193000000000,"seq":706,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c991b-11b0-75db-b66c-4ccbaa72e6ca","at":1772095214000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9935-58d0-7243-b6f2-6fbc8e0648cd","at":1772096936144000000,"seq":708,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9935-58d0-75fa-a27b-5c6527316e2b","at":1772096936144000000,"seq":709,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9935-7f50-7732-ae0b-e14448b78a0d","at":1772096946000000000,"seq":710,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9947-8f4e-7337-b541-4cb501dd960c","at":1772098129742000000,"seq":711,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9947-8f4e-77e6-bd2f-0ff9da169cf0","at":1772098129742000000,"seq":712,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c9947-9ff0-7e6e-919c-65acf20631e0","at":1772098134000000000,"seq":713,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9947-e258-7873-bffe-b5f07c1d9a6c","at":1772098151000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9947-ee10-7336-ac2f-723ddeb10935","at":1772098154000000000,"seq":715,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c994f-3ba5-71f2-bc01-39321d232e5a","at":1772098632613000000,"seq":716,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c994f-9700-795b-8474-f812b43d36d0","at":1772098656000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c994f-cdb0-7139-bf7f-418a0ffb6083","at":1772098670000000000,"seq":718,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

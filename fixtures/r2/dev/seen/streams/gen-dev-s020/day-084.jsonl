@@ -1,0 +1,30 @@
+{"v":1,"id":"019d2436-ba2e-7f87-9dee-f3d8a7dae060","at":1774429059630000000,"seq":1268,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2436-ba2e-7a0d-a3a0-f74a0394c50b","at":1774429059630000000,"seq":1269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2437-6f50-7d67-ad05-900d843b9952","at":1774429106000000000,"seq":1270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2437-86c0-7323-a046-36c2ca8a00cc","at":1774429112000000000,"seq":1271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2437-86c0-737f-a982-9d5089acb11b","at":1774429112000000000,"seq":1272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d244a-bfd1-76aa-8842-b33fdc2e8c8e","at":1774430371793000000,"seq":1273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d244a-cc58-7765-b1af-658c9fd49e18","at":1774430375000000000,"seq":1274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d244b-21d8-722a-b3a4-ffb995e127ab","at":1774430396888000000,"seq":1275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d244b-5510-714e-8603-532835955161","at":1774430410000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244b-60c8-7356-b83e-62e62759b8d4","at":1774430413000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244b-6c80-7de8-80a5-cd49d5138c8c","at":1774430416000000000,"seq":1278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d244b-7450-7c8c-869c-b8e1fe7d9b7b","at":1774430418000000000,"seq":1279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d244b-ddc8-7348-8779-dd5ecfd5a852","at":1774430445000000000,"seq":1280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d244c-12a9-7785-b821-030f2f193230","at":1774430458537000000,"seq":1281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d244c-2418-780d-a6b5-a32843c8f559","at":1774430463000000000,"seq":1282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244c-2be8-7b92-8aa6-9adcd7551c60","at":1774430465000000000,"seq":1283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d244c-4b28-7a69-87cc-108f2ac6cc11","at":1774430473000000000,"seq":1284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244c-6680-7821-9182-9623c8b98952","at":1774430480000000000,"seq":1285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d244c-7238-7874-a6b4-87c2d976d425","at":1774430483000000000,"seq":1286,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d244c-7f40-7e52-89e1-bb8dc72d34c0","at":1774430486336000000,"seq":1287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d244c-d7c8-7d07-9561-d959e36f848f","at":1774430509000000000,"seq":1288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d244c-f320-72fb-9e80-992982b837b2","at":1774430516000000000,"seq":1289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d244d-0a90-7e70-96f9-a14e27fcdce5","at":1774430522000000000,"seq":1290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244d-4cf8-739e-8b05-e82a7edb6dc7","at":1774430539000000000,"seq":1291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d244d-7cfe-7c70-ba5a-f65af7b52c43","at":1774430551294000000,"seq":1292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d244d-8790-738e-8d3e-dd63d8dd5b76","at":1774430554000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244d-b288-767b-a97c-d05f8e6a3e94","at":1774430565000000000,"seq":1294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d244d-d998-70dc-991a-db201d5a13cb","at":1774430575000000000,"seq":1295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d244e-1430-781c-a36b-0101c2a1d99e","at":1774430590000000000,"seq":1296,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2458-40ee-7fa2-9aea-26ca955d62b7","at":1774431256814000000,"seq":1297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}

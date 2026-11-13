@@ -1,0 +1,23 @@
+{"v":1,"id":"019b78a8-38e1-7c51-b1db-c2f0d57e9794","at":1767255849185000000,"seq":0,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b78a8-38e1-7ce7-b23e-bc1f3c2ba0ec","at":1767255849185000000,"seq":1,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b78a8-6320-7081-a2cb-89d183088185","at":1767255860000000000,"seq":2,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b78ae-4d03-75a4-aeee-250ee619e1b0","at":1767256247555000000,"seq":3,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b78ae-4d03-7665-a9b3-1f93ea12adc0","at":1767256247555000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b78ae-6630-7d03-a738-19ba0ca1ee16","at":1767256254000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b78ae-e7da-70be-bb2a-709c7a7ed5b4","at":1767256287194000000,"seq":6,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b78af-0a40-7900-92b1-76e0d192dc8c","at":1767256296000000000,"seq":7,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b78af-4e25-75e8-98eb-00afc0724419","at":1767256313381000000,"seq":8,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b78af-7b88-7735-ae81-caf46fc68f78","at":1767256325000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78af-8f10-7751-a0c1-86deaecff692","at":1767256330000000000,"seq":10,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b78af-a680-78b7-99c0-bd79aa64574f","at":1767256336000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78af-aa68-7434-bd4a-b15f1fd58002","at":1767256337000000000,"seq":12,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b78af-f480-7a01-988b-9ffd4da90159","at":1767256355968000000,"seq":13,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b78af-f4a0-7a55-be7f-07b034729490","at":1767256356000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b78c5-f594-73af-b1f9-64b001f5f07a","at":1767257798036000000,"seq":15,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b78c5-f594-724b-a807-cf618d605a12","at":1767257798036000000,"seq":16,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b78c6-4778-74db-b19a-540fde7d6e7c","at":1767257819000000000,"seq":17,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b78c6-6e88-72ba-bc8a-ca703cd6a045","at":1767257829000000000,"seq":18,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78c6-8210-7f5c-9a28-163362907a37","at":1767257834000000000,"seq":19,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b78d1-6a57-7457-98a8-27f08a1dbd63","at":1767258548823000000,"seq":20,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b78d1-9600-74f3-97dd-966f3418d81b","at":1767258560000000000,"seq":21,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78d1-a5a0-7e4c-9cf8-788c99ef860e","at":1767258564000000000,"seq":22,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}

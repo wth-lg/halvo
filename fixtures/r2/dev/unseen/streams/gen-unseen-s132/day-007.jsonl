@@ -1,0 +1,11 @@
+{"v":1,"id":"019b97dd-080d-7286-879e-0b1b37860301","at":1767779403789000000,"seq":101,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97dd-080d-755b-a3f2-4e58d892880a","at":1767779403789000000,"seq":102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b97dd-08e0-7910-99ab-1e249aa23bc0","at":1767779404000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b97dd-1880-7bd7-9478-d6fba4fde38e","at":1767779408000000000,"seq":104,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b97dd-7258-794e-b478-122fc0565707","at":1767779431000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b97ea-7df8-7816-9a35-bd3bbd84f612","at":1767780285944000000,"seq":106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019b97ea-9988-71d7-acf8-bbb38d14eb2e","at":1767780293000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97ea-9988-728b-9841-ae3ba543cb92","at":1767780293000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b97ea-9d70-7ab4-a6db-27b0534c2558","at":1767780294000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97ea-b6ab-7679-87c1-4821237defb2","at":1767780300459000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019b97eb-0ad0-76fc-bf8f-d3047df5bd2c","at":1767780322000000000,"seq":111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

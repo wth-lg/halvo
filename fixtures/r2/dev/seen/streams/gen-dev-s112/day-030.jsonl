@@ -1,0 +1,32 @@
+{"v":1,"id":"019c0e0e-fbad-77bd-a9db-3f159831fd40","at":1769762388909000000,"seq":434,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e0e-fbad-71ef-961a-725eec80e0d5","at":1769762388909000000,"seq":435,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e0f-6968-7af1-b2cb-0b6a6648af8a","at":1769762417000000000,"seq":436,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c0e0f-7cf0-71cb-98da-3ee850f4cf05","at":1769762422000000000,"seq":437,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c0e22-ee1a-7ecc-b276-84d0e009231b","at":1769763696154000000,"seq":438,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e22-ee1a-7386-94e0-090ab85ff791","at":1769763696154000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0e23-08d8-70b6-8b01-e766a88a4d3d","at":1769763703000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e23-1490-7545-aa4a-087a9a3002af","at":1769763706000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e34-d3fe-7da9-b75b-af6af76f2009","at":1769764869118000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0e34-df40-78cf-9db6-d8c168f1acee","at":1769764872000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c0e35-0268-7c34-b9fc-972d5bd35ec4","at":1769764881000000000,"seq":444,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e35-3918-7681-990f-09e6281586e8","at":1769764895000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e3d-485a-7f5e-971b-46d5b03c09c5","at":1769765423194000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0e3d-95b8-7bbc-a83d-2a0b9b2929cb","at":1769765443000000000,"seq":447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e3d-a940-7e5d-a767-9036394883f9","at":1769765448000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e3e-1dd6-7255-b725-4f3f00c4b5a8","at":1769765477846000000,"seq":449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0e3e-2e10-7f3d-94d3-846f9a18ae09","at":1769765482000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e3e-64c0-7d98-be62-4d23a5ec4ef7","at":1769765496000000000,"seq":451,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e3e-7078-7810-b03e-7c191800387d","at":1769765499000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e3e-7e4c-7b8c-a91e-c4c3e3d852ba","at":1769765502540000000,"seq":453,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0e3e-f160-76f9-bf8f-5eae1a5799ce","at":1769765532000000000,"seq":454,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e3f-2fe0-7ff2-aea4-70f9d1cb83c5","at":1769765548000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e3f-56f0-7a3a-a771-72e92450d272","at":1769765558000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c0e3f-8491-78dc-be0d-8e5d5ab27c30","at":1769765569681000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0e3f-ef48-7593-8fa6-2959c5d8ae59","at":1769765597000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c0e40-6c48-7c10-8c2c-32cafad8a9e1","at":1769765629000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e40-736b-73d0-9514-91fa14da55c1","at":1769765630827000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0e40-d9a8-7512-9c0f-33d53128392d","at":1769765657000000000,"seq":461,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e41-3380-7a43-83b5-53bf36557f69","at":1769765680000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e41-457c-7aef-828b-5b7ef6d99299","at":1769765684604000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c0e41-6648-7d7e-90db-f34f1edb2ccf","at":1769765693000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e41-8588-7789-9bbf-1233acaac171","at":1769765701000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

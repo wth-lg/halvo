@@ -1,0 +1,24 @@
+{"v":1,"id":"019d2496-c285-7f6d-8ea4-cb7f38afd593","at":1774435353221000000,"seq":1265,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2496-c285-7c15-87fd-0711c11fc602","at":1774435353221000000,"seq":1266,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2496-c978-749f-bd97-1d48a6d821c6","at":1774435355000000000,"seq":1267,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d2496-e0e8-753c-b7fd-81e0b382c264","at":1774435361000000000,"seq":1268,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2497-9498-7276-bbc5-6142a8ee385a","at":1774435407000000000,"seq":1269,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d2497-bf90-7639-af2e-6f327ad774b3","at":1774435418000000000,"seq":1270,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2497-cf30-71a9-ae1b-cc59ba9bca03","at":1774435422000000000,"seq":1271,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d24a2-243b-7797-a85c-501510b6c900","at":1774436099131000000,"seq":1272,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d24a2-5298-7f49-882c-1f5b3aef18a8","at":1774436111000000000,"seq":1273,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a2-8d30-711b-92ac-4b5eb33b14a3","at":1774436126000000000,"seq":1274,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d24a6-8760-7575-bfff-32f600aca7fc","at":1774436386656000000,"seq":1275,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d24a6-a7f8-74c9-b73b-44c1f745303f","at":1774436395000000000,"seq":1276,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d24a6-afc8-7029-aac5-e1dbc04676b0","at":1774436397000000000,"seq":1277,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a6-b3b0-74e0-93bf-dc42781559d3","at":1774436398000000000,"seq":1278,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a6-b49c-741a-b795-6fb14698189f","at":1774436398236000000,"seq":1279,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d24a6-b49c-7f53-9df1-2ed5bfb067be","at":1774436398236000000,"seq":1280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d24a7-28e0-775d-ba54-2f60640b1fdf","at":1774436428000000000,"seq":1281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d24a7-4050-737d-bf7b-4534038faf0f","at":1774436434000000000,"seq":1282,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d24a7-6ffa-7da9-bfcb-55c58789136a","at":1774436446202000000,"seq":1283,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d24a7-6ffa-7af9-a638-f283d7f15b48","at":1774436446202000000,"seq":1284,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d24a7-7318-7e6c-8ea9-567091c8df36","at":1774436447000000000,"seq":1285,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a7-7ae8-753d-af95-9d6a7a7b11be","at":1774436449000000000,"seq":1286,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a7-b580-7957-9624-a141c1165667","at":1774436464000000000,"seq":1287,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d24a7-c138-71a4-94f3-59771f0d73f7","at":1774436467000000000,"seq":1288,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

@@ -1,0 +1,25 @@
+{"v":1,"id":"019bea32-1967-7e09-986f-38be7b5a480f","at":1769160710503000000,"seq":260,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea32-1967-7daf-9eab-8e56e594afbc","at":1769160710503000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bea32-4e20-7cbd-b6eb-bf36f644de6f","at":1769160724000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea32-723c-770f-8ebb-f978c7a58193","at":1769160733244000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bea32-9c40-7dd8-9674-c647f8057fb3","at":1769160744000000000,"seq":264,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bea32-e678-7c3e-8b3c-931d855f2a18","at":1769160763000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea33-2cc8-78be-a720-d3f4c3663838","at":1769160781000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bea33-646e-7431-b743-8bd5ca629629","at":1769160795246000000,"seq":267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bea33-b968-7f3a-a112-b2c4992f0594","at":1769160817000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bea33-bb20-7fd0-9fef-a0657a5e2a35","at":1769160817440000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bea33-ec30-76ad-aae4-4d311821f95b","at":1769160830000000000,"seq":270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bea33-f018-7c7f-86ba-bd58d89f511c","at":1769160831000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea33-f400-7ad5-a385-22acde13d728","at":1769160832000000000,"seq":272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea34-1637-76e9-a638-11b906d06a50","at":1769160840759000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bea34-6548-7ad1-9f76-7a641308af66","at":1769160861000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea4a-b7fb-7d28-82a6-b221df128c59","at":1769162323963000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bea4b-2d50-7771-9b82-e18124167d2b","at":1769162354000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea4b-aea8-7fb9-8ab1-3211e42e0d80","at":1769162387112000000,"seq":277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bea4b-f488-77a0-ae2b-aa5269b74ed6","at":1769162405000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bea4c-4a78-7799-8424-de381935e66a","at":1769162427000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea4c-4e60-7bbc-9533-08898799c612","at":1769162428000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea4c-7570-74df-b680-3f62c636f3d2","at":1769162438000000000,"seq":281,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bea4c-a161-74bb-b70f-1ef9e49111b7","at":1769162449249000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bea4c-db00-7859-9b6f-80aa138a9a06","at":1769162464000000000,"seq":283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea4d-0210-7384-a81f-465e44bdebe4","at":1769162474000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

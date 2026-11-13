@@ -1,0 +1,12 @@
+{"v":1,"id":"019c6aa5-5f34-76ff-8821-6c8c4c70afcd","at":1771315748660000000,"seq":605,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6aa5-5f34-7548-b2ca-5bfb973f37ef","at":1771315748660000000,"seq":606,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c6aa5-e0ae-7f29-baf5-6eb5b692ae08","at":1771315781806000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c6aa5-f110-7353-a22e-de2bb09b05d1","at":1771315786000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aa6-27c0-79d7-a945-c3c2d104447d","at":1771315800000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aab-896b-7e2f-bf3f-1b5c09dd5ed9","at":1771316152683000000,"seq":610,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6aab-896b-780d-8ec1-3b6aecf5afc8","at":1771316152683000000,"seq":611,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6aab-f808-773e-aa00-4295fc825f4a","at":1771316181000000000,"seq":612,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c6aac-6950-7849-8416-4ec687f1652a","at":1771316210000000000,"seq":613,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6aac-6d38-7734-bdf2-7a723c60cfd4","at":1771316211000000000,"seq":614,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6aac-94d9-7dc8-8205-959991c12e09","at":1771316221145000000,"seq":615,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6aac-bf40-7e17-9ab3-e7ee5880d688","at":1771316232000000000,"seq":616,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

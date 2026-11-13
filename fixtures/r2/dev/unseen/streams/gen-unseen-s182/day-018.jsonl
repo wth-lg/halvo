@@ -1,0 +1,31 @@
+{"v":1,"id":"019bd076-651e-79ab-9c85-aedc74280588","at":1768728978718000000,"seq":235,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd076-651e-71e8-93ab-6288df2eab5b","at":1768728978718000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bd076-ac88-7f70-b23f-94487954a739","at":1768728997000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd077-40f8-7acc-ab52-6ca886ce8ab0","at":1768729035000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bd077-4675-77f9-95c8-7bbd4aec6b62","at":1768729036405000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bd077-d145-717a-a5d0-06b3007117fb","at":1768729071941000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bd077-e120-79bf-9348-3cce3eee35a5","at":1768729076000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd078-1000-7d6c-b3aa-889f32666a46","at":1768729088000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd078-a088-7054-809c-a773cb029ed0","at":1768729125000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bd078-d4c2-7739-961c-7084218be5c8","at":1768729138370000000,"seq":244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bd078-e6d8-79c0-81f1-83a434b1faea","at":1768729143000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd078-e6d8-7ff7-82a9-f685077b2191","at":1768729143000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bd079-0de8-7aa3-ade1-7505dbb35163","at":1768729153000000000,"seq":247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd079-4880-76ae-b39a-1b5373f19700","at":1768729168000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd079-5c08-7713-92ad-19b3193a5fd4","at":1768729173000000000,"seq":249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd079-6ce8-7dd2-a50f-ba00c04c65ef","at":1768729177320000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bd079-6f90-7ca7-a33b-0c1e3f911bf1","at":1768729178000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd079-7378-7697-80cf-771913f2dbaa","at":1768729179000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd079-9a88-7da6-9208-442c510a3271","at":1768729189000000000,"seq":253,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd079-b62a-7dd2-a887-bf7834ee75b2","at":1768729196074000000,"seq":254,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bd07a-0fb8-79dd-a3f0-d10550f8b635","at":1768729219000000000,"seq":255,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd07a-2340-7ab7-be26-3aea0b289381","at":1768729224000000000,"seq":256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd07a-84e8-7bb0-b729-42f0d6e4dc86","at":1768729249000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bd08c-0ca9-7d31-9ff2-5fa10959fb6f","at":1768730397865000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bd08c-1118-75b5-94a0-4db5d1b2146b","at":1768730399000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd08c-76a8-75b3-a91c-72caf829a264","at":1768730425000000000,"seq":260,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd08c-9db8-711a-a8f0-03861a0509f7","at":1768730435000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bd098-77a3-7df1-8ab6-418f26802676","at":1768731211683000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bd098-8498-7a5a-a75d-ad8a3ec1c2a7","at":1768731215000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd098-9820-75a7-acc9-92a384aa644e","at":1768731220000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd09f-6af7-7fbc-9d33-06f007f96b73","at":1768731667191000000,"seq":265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}

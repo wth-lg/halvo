@@ -1,0 +1,9 @@
+{"v":1,"id":"019d340e-5be0-7935-abd4-22d148de8553","at":1774694849504000000,"seq":1249,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d340e-5be0-741c-bb49-22d09e6345c7","at":1774694849504000000,"seq":1250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d340e-65a0-7dfa-9a86-8ed2bf65d455","at":1774694852000000000,"seq":1251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d340e-9644-7375-8b08-518070f8078a","at":1774694864452000000,"seq":1252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d340e-deb8-7c95-bb63-47a32c949cdc","at":1774694883000000000,"seq":1253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d340f-9726-7407-98bd-cc62f5f4251b","at":1774694930214000000,"seq":1254,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d340f-a9d8-7a29-952f-158ff114f9ae","at":1774694935000000000,"seq":1255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d340f-cd00-7e9e-89f2-5d853c40dff5","at":1774694944000000000,"seq":1256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3410-0b80-7291-9082-c288dab8e106","at":1774694960000000000,"seq":1257,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

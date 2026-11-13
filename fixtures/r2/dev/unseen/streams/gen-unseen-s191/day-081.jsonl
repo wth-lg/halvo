@@ -1,0 +1,22 @@
+{"v":1,"id":"019d14cb-ea29-7e91-ab5f-f979c7afe752","at":1774170401321000000,"seq":959,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14cb-ea29-7d39-9fb2-6cd1703d2f03","at":1774170401321000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d14cc-3708-766d-882e-b3c45d8b413f","at":1774170421000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14cc-4039-7d60-9b8c-d3d196380bdc","at":1774170423353000000,"seq":962,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d14cc-4a90-7614-aff8-4e3d49256b3c","at":1774170426000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14cc-6db8-75d2-8a26-daf1184a76a3","at":1774170435000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14cc-7588-72c4-8f2c-feb5d328ae87","at":1774170437000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d14cc-94c8-7c0a-9249-b60818b3b712","at":1774170445000000000,"seq":966,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d14cc-c3a8-7cb2-b0ca-fafa8754a110","at":1774170457000000000,"seq":967,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d14cc-c468-7984-be32-6409c16cef01","at":1774170457192000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d14cc-c790-7c04-bb55-88a99e24a457","at":1774170458000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d14cd-09f8-76d2-94a8-5de4d5da9eda","at":1774170475000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d14cd-11c8-7583-bcc5-914b17dc14b8","at":1774170477000000000,"seq":971,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d14d9-5204-700f-86e7-f7d2fd233ea7","at":1774171279876000000,"seq":972,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d14d9-5204-76a9-9910-15394db0d248","at":1774171279876000000,"seq":973,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d14d9-a488-7914-b18a-595d2680ed33","at":1774171301000000000,"seq":974,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14d9-b810-7dc1-ba2c-211609700ab9","at":1774171306000000000,"seq":975,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d14ed-aedf-79c2-b0e3-b84cb84c25d4","at":1774172614367000000,"seq":976,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14ed-aedf-7c7d-8361-63a53cb54829","at":1774172614367000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d14ed-b928-7e55-b5a6-c1b1baa21035","at":1774172617000000000,"seq":978,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d14ee-5180-7b69-a964-bdd200cc201a","at":1774172656000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d14ee-5d38-7053-b16d-19f05e3062f8","at":1774172659000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

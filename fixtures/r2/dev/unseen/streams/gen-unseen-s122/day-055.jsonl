@@ -1,0 +1,11 @@
+{"v":1,"id":"019c8eaa-7f00-76b4-b95c-9f4b2ae3890b","at":1771920064256000000,"seq":707,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8eaa-7f00-7e41-a2c4-61ff8f5908df","at":1771920064256000000,"seq":708,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c8eab-1e28-78be-be48-d3062346979e","at":1771920105000000000,"seq":709,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c8eab-4d08-7264-a8c1-c107c79a059a","at":1771920117000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eab-596f-761b-9b79-62d4902a5077","at":1771920120175000000,"seq":711,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c8eab-7418-72c2-8264-77f1b978b58f","at":1771920127000000000,"seq":712,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eab-b680-74d3-a96d-bb7d813cf748","at":1771920144000000000,"seq":713,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8eab-e8d5-7a93-971b-b26c371f76f5","at":1771920156885000000,"seq":714,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c8eac-2bb0-7fa2-956b-8340b0066583","at":1771920174000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eac-3768-7271-b32c-964214b7bbe4","at":1771920177000000000,"seq":716,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8eac-81a0-7d84-973e-2864dcb7b283","at":1771920196000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

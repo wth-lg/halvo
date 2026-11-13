@@ -1,0 +1,12 @@
+{"v":1,"id":"019ce6a2-3ed4-72d0-8770-7014ab8ba5c6","at":1773395918548000000,"seq":639,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6a2-3ed4-7f87-bb39-faeca7ac491d","at":1773395918548000000,"seq":640,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a2-4098-785d-807e-a56eef04f59f","at":1773395919000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ce6a3-455d-7c44-a780-db9b67bbfc1d","at":1773395985757000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a3-80e8-76a2-baf2-d0afffa1313c","at":1773396001000000000,"seq":643,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6a4-0841-7a3c-9829-81facdb8c440","at":1773396035649000000,"seq":644,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a4-1170-7d16-a07f-0e1f00deb9a7","at":1773396038000000000,"seq":645,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce6a4-8e70-78ad-b0aa-075fb8ad267f","at":1773396070000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6b0-5243-7cc0-8d0e-37597fd78364","at":1773396841027000000,"seq":647,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b0-a048-72de-a478-6db137c718e0","at":1773396861000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce6b0-a430-7469-9a14-2e2293653b6f","at":1773396862000000000,"seq":649,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce6b0-bf88-7950-b93c-e19b28274f31","at":1773396869000000000,"seq":650,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

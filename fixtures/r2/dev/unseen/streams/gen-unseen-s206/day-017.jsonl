@@ -1,0 +1,24 @@
+{"v":1,"id":"019bcb61-1201-776b-a8f1-0040b81337e0","at":1768643695105000000,"seq":182,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb61-1201-74ac-ba53-03166ecebdef","at":1768643695105000000,"seq":183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bcb61-7ef8-7459-af95-6be5cdf7fd3b","at":1768643723000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb61-b990-7dfd-a71d-c5119e75dc2b","at":1768643738000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb61-cd49-77b7-a953-2f5492395807","at":1768643743049000000,"seq":186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bcb62-6570-710d-ba38-479c969e4082","at":1768643782000000000,"seq":187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb62-aead-7dfe-9c96-05f16e35933d","at":1768643800749000000,"seq":188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bcb62-cee8-7a88-9434-f368f2af87fa","at":1768643809000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bcb62-daa0-7cd4-8223-58b23e452650","at":1768643812000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb63-0980-71bf-b394-0fb8f6f8f04b","at":1768643824000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb63-122c-72a4-af59-845c558d8495","at":1768643826220000000,"seq":192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bcb63-28c0-7459-abaa-8c8bf399437c","at":1768643832000000000,"seq":193,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb63-3090-71f2-8263-e6ac97de0cd3","at":1768643834000000000,"seq":194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb63-3090-75c3-9080-3b129ac43e30","at":1768643834000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bcb63-4a94-7111-9c95-407e3021bcd9","at":1768643840660000000,"seq":196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bcb63-5b88-7985-ba14-5981520df53e","at":1768643845000000000,"seq":197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb63-76e0-7a1c-9104-a96526258d00","at":1768643852000000000,"seq":198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb63-8298-7548-97e8-464f22d93b09","at":1768643855000000000,"seq":199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb63-8680-743f-8d2b-174d4e93e0c1","at":1768643856000000000,"seq":200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bcb63-9df0-7f0c-b7fb-5752cc94100b","at":1768643862000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb63-a49c-70ae-8740-5b2a8d9b8632","at":1768643863708000000,"seq":202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bcb63-ec10-71c1-a8c6-c0d1c87b49e3","at":1768643882000000000,"seq":203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb63-fa2d-7f3c-b493-2f08909d041a","at":1768643885613000000,"seq":204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bcb64-6cf8-7568-b340-378e32ba641b","at":1768643915000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

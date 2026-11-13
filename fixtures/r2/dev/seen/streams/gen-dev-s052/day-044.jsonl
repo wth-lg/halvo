@@ -1,0 +1,36 @@
+{"v":1,"id":"019c56a3-6023-7a58-aaaa-68e017b506ba","at":1770980073507000000,"seq":492,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c56a3-6023-73d2-a822-72786673d417","at":1770980073507000000,"seq":493,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c56a3-6dc8-7dc6-a241-4560650406b3","at":1770980077000000000,"seq":494,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c56ac-83c8-7ce6-9110-95d2a67db389","at":1770980672456000000,"seq":495,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c56ac-85e8-7285-b825-c06e66002db6","at":1770980673000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56ac-85e8-746c-ad0b-a6218d27e921","at":1770980673000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c56c6-5272-70c7-9a4a-d41c2317fb17","at":1770982363762000000,"seq":498,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c56c6-5272-7191-8b11-0429a0c02f49","at":1770982363762000000,"seq":499,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c56c6-72a0-7b61-b9a6-8fd6d4b8460c","at":1770982372000000000,"seq":500,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56c6-7a70-7e83-8293-0c7204cfdb50","at":1770982374000000000,"seq":501,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c56c6-8240-7742-90d6-50d6d55ac203","at":1770982376000000000,"seq":502,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c56c6-8a10-74cd-84ef-994d54e47e22","at":1770982378000000000,"seq":503,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56ce-90f9-7d27-86ed-2cee5c4f4bba","at":1770982904057000000,"seq":504,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c56ce-90f9-7c35-a974-1c385dad540c","at":1770982904057000000,"seq":505,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c56cf-7738-7cc9-bf3b-6bd440e571e6","at":1770982963000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56cf-8867-7b9c-bec0-46f9712a4dc5","at":1770982967399000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c56d0-3a88-7c56-87a8-a1a18522873d","at":1770983013000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c56d0-6d58-7da2-881c-d08465c06fd6","at":1770983026008000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c56d1-4040-754a-a937-dd2357ffee5e","at":1770983080000000000,"seq":510,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c56d1-47e3-7315-8299-a2ace4ecf43f","at":1770983081955000000,"seq":511,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c56d1-6750-7bdf-9a79-e5e9652901b2","at":1770983090000000000,"seq":512,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c56d1-6b38-7ae7-80ff-11c4d49d9211","at":1770983091000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56d1-8a78-7e48-b50d-1adac42a5912","at":1770983099000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c56d1-a1e8-76b3-99a0-9bd380ce1b12","at":1770983105000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56d1-ca1d-7cf5-bcbd-a898d4de68fb","at":1770983115293000000,"seq":516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c56d1-d898-7fbd-ae83-f4380ef94072","at":1770983119000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c56d1-ec20-7c11-b4cc-1bd1df5f71c7","at":1770983124000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56d2-1718-74d4-881d-20625318557a","at":1770983135000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56d2-2aa0-77f2-9fb5-c8f7db51e8d1","at":1770983140000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c56d2-694e-7bb6-bd19-8b15c6f2776c","at":1770983156046000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c56d2-7ca8-7a01-b0c1-5257f2bb749c","at":1770983161000000000,"seq":522,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c56d2-da68-764b-84f2-037171067207","at":1770983185000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56d2-f5c0-7504-8ff0-cb8a79a71456","at":1770983192000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56d3-456a-7afe-93a7-fa899a326fde","at":1770983212394000000,"seq":525,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c56d3-6ed8-7785-b1d6-7ec4e9782754","at":1770983223000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c56d3-99d0-7466-80c8-38f4c174e6dd","at":1770983234000000000,"seq":527,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

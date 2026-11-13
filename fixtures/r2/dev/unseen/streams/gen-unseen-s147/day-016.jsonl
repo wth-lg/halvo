@@ -1,0 +1,22 @@
+{"v":1,"id":"019bc66c-dec6-7752-b21a-9904b7fc7082","at":1768560582342000000,"seq":409,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc66c-dec6-7c96-b92b-fb6ff2131aa1","at":1768560582342000000,"seq":410,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc66d-23c0-7675-8286-8a0f2080ed3d","at":1768560600000000000,"seq":411,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc685-b1b5-7b81-a57d-ae62d9e52047","at":1768562209205000000,"seq":412,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc685-b1b5-7d29-9b8a-8e1e0c80a8d0","at":1768562209205000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc685-dfc8-76b5-bf88-c970ea311456","at":1768562221000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bc686-1290-7b12-a344-b3bf4f7a4d18","at":1768562234000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc686-1e48-79ce-abea-04df8fb9c58d","at":1768562237000000000,"seq":416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc686-4170-7292-8545-2824f4b4ce72","at":1768562246000000000,"seq":417,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc686-4d28-7de4-b0ef-0574c8043e32","at":1768562249000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc695-269e-7ed5-a397-6e81a401e3e7","at":1768563222174000000,"seq":419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc695-b4b1-7327-9f6a-8c736b9d7694","at":1768563258545000000,"seq":420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc695-d9a0-7f79-add8-4b2159d258f4","at":1768563268000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc696-4700-7084-b38b-5adafea07f14","at":1768563296000000000,"seq":422,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc696-6640-7f93-961a-5c694ff1f86e","at":1768563304000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bc696-68c5-7f14-84f0-ea56299cd191","at":1768563304645000000,"seq":424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc696-6a28-7c68-aff0-c51c634bd5ad","at":1768563305000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc696-7db0-7cca-ac3b-1ae28f36867b","at":1768563310000000000,"seq":426,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc696-8d50-7b14-a676-cef8da654ff4","at":1768563314000000000,"seq":427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bc696-9ff9-7b6e-9aba-6cb99fdce370","at":1768563318777000000,"seq":428,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019bc696-ac90-7c75-84e2-61da8827a1e4","at":1768563322000000000,"seq":429,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc696-eb10-7f63-8ab1-63cd0a9676a8","at":1768563338000000000,"seq":430,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

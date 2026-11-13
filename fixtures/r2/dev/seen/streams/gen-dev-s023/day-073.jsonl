@@ -1,0 +1,26 @@
+{"v":1,"id":"019ceba1-d655-7954-af36-a0e35c7f0c01","at":1773479777877000000,"seq":962,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceba1-d655-79df-93ac-6bee4699fa9f","at":1773479777877000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cebaf-5787-7a1d-98bc-d27c3931edf8","at":1773480662919000000,"seq":964,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cebaf-7718-7f8e-8fa5-cd59340e4ad3","at":1773480671000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb0-07a0-73ad-8fe8-e45ebc4bc515","at":1773480708000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb0-0aee-7c38-9745-7cbf79362eab","at":1773480708846000000,"seq":967,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cebb0-1740-749d-8fec-eaf993e3edda","at":1773480712000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cebb0-4a08-7d8c-a54c-a093aeca0e4c","at":1773480725000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb0-6948-7394-b838-14449666855e","at":1773480733000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cebb0-7199-7ae3-88cc-be6b712f35e0","at":1773480735129000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cebb0-abb0-7d88-886b-c4b0b6ecfc76","at":1773480750000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb0-c320-7fea-b8dd-8e2d7e12cb60","at":1773480756000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cebb0-de78-75e9-9605-06d73e77d332","at":1773480763000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebb0-ea30-78cb-802c-ff3c54983cdd","at":1773480766000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cebb0-fdb8-74df-b48c-fe0acb52234a","at":1773480771000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb1-0066-7a5b-9647-2be7196503d3","at":1773480771686000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cebb1-4bd8-7e12-acd2-f67c5179ef83","at":1773480791000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebb1-4fc0-77d1-a3e3-d2d70edfd955","at":1773480792000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbd-92cd-771c-9843-c2239edc0824","at":1773481595597000000,"seq":980,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cebbd-92cd-77d6-b8f7-9b95379fc42f","at":1773481595597000000,"seq":981,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cebbd-e280-7cd2-88d5-627c57726368","at":1773481616000000000,"seq":982,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbe-57b0-798b-bbf7-b89f6d91e67d","at":1773481646000000000,"seq":983,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cebd4-7739-7bad-8c8e-f7b9ee276da4","at":1773483095865000000,"seq":984,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cebd4-8760-7d1d-89ed-78b52b5b5174","at":1773483100000000000,"seq":985,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebd4-8b48-77cd-a318-7992663caf4c","at":1773483101000000000,"seq":986,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cebd4-d198-72ee-be55-a548849cec1e","at":1773483119000000000,"seq":987,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}

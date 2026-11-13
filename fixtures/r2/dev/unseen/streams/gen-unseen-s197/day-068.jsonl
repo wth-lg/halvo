@@ -1,0 +1,29 @@
+{"v":1,"id":"019cd1a5-27c3-7070-a2c5-c4a8d010b231","at":1773043787715000000,"seq":816,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd1a5-27c3-7218-8fdb-94c12e9a05f4","at":1773043787715000000,"seq":817,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd1a5-30b0-743d-81c0-7e9864f175a1","at":1773043790000000000,"seq":818,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cd1a5-6378-764d-a7c5-5b5fdd780bc6","at":1773043803000000000,"seq":819,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cd1a5-6ccf-7204-9aea-f109763a1927","at":1773043805391000000,"seq":820,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cd1a5-8e70-7f03-8f18-160bdfe398dc","at":1773043814000000000,"seq":821,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1a5-9a28-7b6a-8498-b5f50f0c57a5","at":1773043817000000000,"seq":822,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cd1a5-9e10-7389-8c85-ef7a3ee749df","at":1773043818000000000,"seq":823,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1a5-a9c8-7f18-9744-82444bf6bb03","at":1773043821000000000,"seq":824,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cd1ad-8c88-728a-aa5f-1ba14ea79cf4","at":1773044337800000000,"seq":825,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd1ad-8c88-702f-a86b-dfe9f939f099","at":1773044337800000000,"seq":826,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cd1ae-6428-7ea5-8288-c9ba1ad5f989","at":1773044393000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ae-6bf8-7212-873a-0aabf46e23b0","at":1773044395000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cd1ae-767d-74ab-a0d8-e187179d40b8","at":1773044397693000000,"seq":829,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cd1af-0450-7c01-bb40-e9b38d5e3ec4","at":1773044434000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1af-4a4d-7686-aece-2b2057be4d62","at":1773044451917000000,"seq":831,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cd1af-5e28-7812-9c0e-906f06027e44","at":1773044457000000000,"seq":832,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cd1af-71b0-7914-8062-bf6ff4990cc3","at":1773044462000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1af-98c0-78b9-a453-ae17b511e8b8","at":1773044472000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1af-a15a-7fb9-8088-89352c420387","at":1773044474202000000,"seq":835,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cd1af-cf70-712a-a8f6-e805fe4e8203","at":1773044486000000000,"seq":836,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cd1b0-0a08-7aa6-b094-4c2247052232","at":1773044501000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1b0-2178-73b6-9ed6-f9886d95f695","at":1773044507000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1b0-568f-7622-827d-72443035f658","at":1773044520591000000,"seq":839,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cd1b0-67c8-7325-89ea-082b5c4f3dfa","at":1773044525000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1b0-7b50-72c7-af33-fb8f73f29efb","at":1773044530000000000,"seq":841,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd1b0-96a8-7d8a-9e2f-f0cf73978a0e","at":1773044537000000000,"seq":842,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd1b0-c1a0-7815-bab6-6031c07639e8","at":1773044548000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1b0-dcf0-70f1-9618-fc023134ca60","at":1773044554992000000,"seq":844,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}

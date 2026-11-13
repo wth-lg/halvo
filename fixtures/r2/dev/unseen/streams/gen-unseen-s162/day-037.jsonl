@@ -1,0 +1,36 @@
+{"v":1,"id":"019c320c-3f5e-70de-b738-f5294ee656fb","at":1770366189406000000,"seq":337,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c320c-3f5e-7d90-a768-b214addab90c","at":1770366189406000000,"seq":338,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c320c-4d68-70ce-8dac-668b93b6350a","at":1770366193000000000,"seq":339,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c320c-60f0-7100-b4ba-2a9eced78291","at":1770366198000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c320c-8fd0-7cd4-960c-a731fdefbcf8","at":1770366210000000000,"seq":341,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c321a-8dac-73a4-b916-4abcac91e479","at":1770367126956000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c321a-b8d0-77c7-8e36-64e371a499d1","at":1770367138000000000,"seq":343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c321a-d275-7f2d-844a-c6c2fb351d65","at":1770367144565000000,"seq":344,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c321b-be88-753e-8701-d8334c9873b4","at":1770367205000000000,"seq":345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c321b-c270-7d3b-84db-e2dfa50121c4","at":1770367206000000000,"seq":346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c321b-cd18-792f-80e6-b7f18c6524fe","at":1770367208728000000,"seq":347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c321b-e1b0-7b0c-897a-77f886738ad2","at":1770367214000000000,"seq":348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c321c-04d8-7ded-85db-895ad178e2bd","at":1770367223000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c321c-4740-79e7-b245-fcd765177bf5","at":1770367240000000000,"seq":350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c321c-4740-7827-ac2c-01323dc50f76","at":1770367240000000000,"seq":351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c3225-b6b6-7725-aca4-0b37f2bd3f73","at":1770367858358000000,"seq":352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3225-b938-7102-97ae-a67b725e9264","at":1770367859000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3225-bd20-788a-ac1f-b0fe13a75ef3","at":1770367860000000000,"seq":354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3225-d490-7cd9-9ad8-bb565d309bf3","at":1770367866000000000,"seq":355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3236-d478-796b-9aeb-e7795e33bc41","at":1770368980088000000,"seq":356,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c3236-ff18-708b-a9b7-6f2c59fc97b4","at":1770368991000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3237-35c4-7e3c-be86-1dd07dd76d40","at":1770369004996000000,"seq":358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c3237-a328-7b80-b41b-cc937e506e18","at":1770369033000000000,"seq":359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c3238-1b90-7819-94ef-ea94d475907f","at":1770369063824000000,"seq":360,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c3238-3f68-7c7d-bcfa-14e86ae60f7f","at":1770369073000000000,"seq":361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3238-9d28-7db4-bfff-379bf9685f0d","at":1770369097000000000,"seq":362,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3238-a5e0-778a-9d25-5e01ede53fa7","at":1770369099232000000,"seq":363,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c3238-a8e0-7a64-8115-6a5bcd28405d","at":1770369100000000000,"seq":364,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3238-cc08-783a-abca-debc96599718","at":1770369109000000000,"seq":365,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3238-fed0-72e3-a83d-34d5dbe3c73e","at":1770369122000000000,"seq":366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3239-4cf0-7487-b383-5e06fd15d54d","at":1770369142000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3249-8485-74a9-8344-fc44502fc0dc","at":1770370204805000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3249-a0a0-7665-b984-c4c15c4145ac","at":1770370212000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c3249-a488-7c15-98de-ab7e9cd8233d","at":1770370213000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3249-eec0-716e-90b1-e1d8a2afc6f0","at":1770370232000000000,"seq":371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c324a-4898-7952-92dd-fe906a6f28b9","at":1770370255000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

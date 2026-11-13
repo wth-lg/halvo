@@ -1,0 +1,47 @@
+{"v":1,"id":"019c1deb-8206-7e26-851b-7c608079db2e","at":1770028499462000000,"seq":591,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1deb-8206-731b-9c93-5c8db06e66a0","at":1770028499462000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c1deb-9f78-7b4f-b67b-1b610d193466","at":1770028507000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1deb-b6e8-7e96-bfe7-018a637adfdf","at":1770028513000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dec-4c07-7836-885d-b2aa497c3412","at":1770028551175000000,"seq":595,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1dec-4c07-7d13-90f2-a1225b6b75a0","at":1770028551175000000,"seq":596,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1dec-89d8-7da7-8be4-90bfca4537e8","at":1770028567000000000,"seq":597,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c1dec-e1cf-78c8-a86f-8577cc495a7e","at":1770028589519000000,"seq":598,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1dec-e1cf-78de-81f5-66cf604c305d","at":1770028589519000000,"seq":599,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c1ded-4170-7bd7-b3df-206635c64902","at":1770028614000000000,"seq":600,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1ded-5110-7dbf-8327-7b673255a650","at":1770028618000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1ded-9392-717b-a8e6-ece42ba44fcd","at":1770028635026000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c1ded-a700-789f-b43b-2bd3ed56505e","at":1770028640000000000,"seq":603,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1ded-f138-75c4-87ed-40c2ce8ddd3e","at":1770028659000000000,"seq":604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1dee-1c30-7743-9b3d-8f659c822e1f","at":1770028670000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dee-2400-75bb-89af-9a49320a5287","at":1770028672000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c1dee-2bd0-7402-9cd3-2d49e3229a51","at":1770028674000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dee-5ae7-7faa-93e1-fe7952e18f0d","at":1770028686055000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c1dee-9d18-7c3f-a4ed-44e61de876f0","at":1770028703000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dee-e368-7372-a412-27d8a529f963","at":1770028721000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1def-0e60-7a07-b8c5-1db6056b35ed","at":1770028732000000000,"seq":611,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1e07-a65d-7c6b-820c-2a03c94d9396","at":1770030343773000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c1e08-5708-7c81-920f-c5988d8b29e5","at":1770030389000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e08-7e18-7876-bfa7-73e1fddead08","at":1770030399000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c1e08-8db8-7254-aabc-002ce93030a2","at":1770030403000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e08-8eff-7805-9dff-67ca0f7febe8","at":1770030403327000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c1e08-a910-7950-ba76-da208afde482","at":1770030410000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e08-d7f0-76eb-84e5-9d6781de7fdf","at":1770030422000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e08-fb18-796d-8d50-be946c38296e","at":1770030431000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1e09-1a58-72b9-ad7d-aa7007b23c22","at":1770030439000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c1e09-1a88-7011-862c-a512f12d8617","at":1770030439048000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c1e09-5108-7d0d-a561-a48b560b5fd3","at":1770030453000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c1e09-5225-7240-a136-4e45fe15757c","at":1770030453285000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c1e09-7430-727b-af62-9a3cccddeba2","at":1770030462000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1e09-b316-7c6a-9cfd-92c2b059286d","at":1770030478102000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c1e09-e578-7665-b8f3-9d36cdb3b3f1","at":1770030491000000000,"seq":626,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1e0a-1840-7acf-80c6-35b4ce8681e0","at":1770030504000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c1e0a-4ef0-7795-a1f2-7908d9c9b2c3","at":1770030518000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e0a-9540-77dc-9424-fb63eddf34d7","at":1770030536000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e0a-9e63-7184-b6eb-15595fd3b8eb","at":1770030538339000000,"seq":630,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c1e0a-b868-733e-8db2-7c1fdccb112c","at":1770030545000000000,"seq":631,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1e0a-c808-7c4c-8a3c-9a8ae2aa2726","at":1770030549000000000,"seq":632,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1e17-4f18-7935-b7bc-9d19644e262b","at":1770031370008000000,"seq":633,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1e17-4f18-7a65-a479-d53da41026db","at":1770031370008000000,"seq":634,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1e17-6298-7036-829f-8046cccbed80","at":1770031375000000000,"seq":635,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c1e17-6680-7043-a8cc-e59b1821a0cb","at":1770031376000000000,"seq":636,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e17-acd0-7216-ba21-fade4418ad4d","at":1770031394000000000,"seq":637,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

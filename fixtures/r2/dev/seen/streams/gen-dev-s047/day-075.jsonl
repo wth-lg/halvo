@@ -1,0 +1,40 @@
+{"v":1,"id":"019cf575-ad7b-71bd-b909-ba5a2e971ea5","at":1773644655995000000,"seq":942,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf575-ad7b-7339-96b5-a9923cdae752","at":1773644655995000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cf575-d490-7451-806a-0f7fc41b6052","at":1773644666000000000,"seq":944,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf58c-4329-7445-9805-5cbd5c521414","at":1773646136105000000,"seq":945,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cf58c-db18-742a-8997-bab2b3ac2135","at":1773646175000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf58d-390b-7e34-b484-163ebbb30d46","at":1773646199051000000,"seq":947,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cf58d-5fe8-77f4-8bb9-5b343e14caab","at":1773646209000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf58d-92b0-7370-8527-c976fc808920","at":1773646222000000000,"seq":949,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf5a1-ba4e-712a-a9e2-4cede470978d","at":1773647542862000000,"seq":950,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cf5a2-08f8-7577-9ee9-d6cd8b689824","at":1773647563000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cf5a2-3bc0-73d0-9642-758ecd928d77","at":1773647576000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5a2-5ace-74e8-a140-e61e885c64c2","at":1773647583950000000,"seq":953,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cf5a2-6e88-75ca-91c7-7b05fc64181d","at":1773647589000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf5a2-ad08-7b3d-b33a-14a7cad8fd01","at":1773647605000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5a2-c090-7b14-af19-a1b72608bd69","at":1773647610000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5a2-d800-736d-9f1d-f264ce184595","at":1773647616000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cf5a2-dfd0-78cf-bdc2-25083b82c466","at":1773647618000000000,"seq":958,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf5a3-2a23-74c5-91f7-10a2e8fbbf1f","at":1773647637027000000,"seq":959,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cf5a3-3d90-7816-8886-8bfd08256d4c","at":1773647642000000000,"seq":960,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf5a3-60b8-777e-8f7d-756950eae6e7","at":1773647651000000000,"seq":961,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf5a3-8ad6-766c-9d6c-ffce8e295c61","at":1773647661782000000,"seq":962,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cf5a3-9768-7ac4-8c25-241a0453b2d5","at":1773647665000000000,"seq":963,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf5a3-e1a0-767b-9679-af41cb38d547","at":1773647684000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5a3-e970-7b69-8d29-a304ea7b5d81","at":1773647686000000000,"seq":965,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf5a3-ed58-79ae-87cb-98dc8cf871ea","at":1773647687000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5a3-f140-7683-981e-acf9fbf480ac","at":1773647688000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf5af-a8cc-7842-942b-5d458478598d","at":1773648455884000000,"seq":968,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf5af-a8cc-7d77-addf-6e439dd1be04","at":1773648455884000000,"seq":969,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf5af-c498-7112-b87f-38753a94ebb1","at":1773648463000000000,"seq":970,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5af-d438-73cf-ac33-1eb727578a2d","at":1773648467000000000,"seq":971,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5b0-0ae8-7363-8f7a-5b5a2b3d425c","at":1773648481000000000,"seq":972,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cf5b0-550e-7701-ba36-13f68faeffa5","at":1773648499982000000,"seq":973,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cf5b0-5cf0-78a6-93fd-924734716eaa","at":1773648502000000000,"seq":974,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf5b0-a728-730d-92a6-4335a29c59d7","at":1773648521000000000,"seq":975,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cf5b1-10a0-7917-84bb-b22705fe51b3","at":1773648548000000000,"seq":976,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5b1-5308-72ee-8b70-00353d98f508","at":1773648565000000000,"seq":977,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5c1-3e94-72a9-9430-497789333e56","at":1773649608340000000,"seq":978,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5c1-3e94-7008-9b24-5b34a9a89004","at":1773649608340000000,"seq":979,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf5c1-4510-751c-b192-04bbacb9a9de","at":1773649610000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5c1-6c20-78d5-8a9a-ea935ca900f2","at":1773649620000000000,"seq":981,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

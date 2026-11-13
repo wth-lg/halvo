@@ -1,0 +1,45 @@
+{"v":1,"id":"019ba249-f8c8-7c69-a1e3-0ac7135ee26e","at":1767954315464000000,"seq":135,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba249-f8c8-78e4-b689-5417744fbd9a","at":1767954315464000000,"seq":136,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba24a-6840-7f7d-bd42-087f87f75da5","at":1767954344000000000,"seq":137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba24a-7010-79e5-9d41-a104a1133253","at":1767954346000000000,"seq":138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba24a-8061-780f-99a4-8cd8d1e008e2","at":1767954350177000000,"seq":139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba24a-8b68-7dc3-a456-9c2e4c6b9580","at":1767954353000000000,"seq":140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba24a-e540-7ff4-b40a-72484067aa99","at":1767954376000000000,"seq":141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba24a-e540-78aa-9f43-751ff6092c38","at":1767954376000000000,"seq":142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ba24a-f190-7501-adc2-1a872d0c6501","at":1767954379152000000,"seq":143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba24b-71e0-7f3a-986d-f7e2ec5b11ea","at":1767954412000000000,"seq":144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba24b-d388-7de3-bb4e-cd55b1baabb3","at":1767954437000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba24b-dbf6-7908-b923-a60267d6d184","at":1767954439158000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ba256-b9b1-7fbe-8e14-75edbc64ae68","at":1767955151281000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ba256-dfa8-7f24-9755-cf4c54d8009d","at":1767955161000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ba257-227a-72b3-bcaa-9f4325540544","at":1767955178106000000,"seq":149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ba257-25f8-7838-ac58-500287195537","at":1767955179000000000,"seq":150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba257-6cc1-77a7-9b63-ce552a59c2be","at":1767955197121000000,"seq":151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ba257-7fd0-755e-9f2d-10a7ba1d48ce","at":1767955202000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba257-aeb0-7ab4-be24-e5088eee5f90","at":1767955214000000000,"seq":153,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba257-d5c0-73fe-8d0a-7c54fecb9d6e","at":1767955224000000000,"seq":154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba257-da48-790f-b4ec-9e5ceeef0c10","at":1767955225160000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ba257-e178-795b-ae95-3394c6d68ceb","at":1767955227000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba258-3f38-7c38-abc1-928c2402dc1f","at":1767955251000000000,"seq":157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba258-8588-72f6-9ef3-b1f30e25e8ee","at":1767955269000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba26b-2586-7834-b0f3-4a89ae61eb0a","at":1767956489606000000,"seq":159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ba26b-9394-75bf-b626-f7c6068f769d","at":1767956517780000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this month - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ba26b-9858-73dd-ab8e-0a58cff972d7","at":1767956519000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26b-abe0-7282-b9d6-0cbaf0d425af","at":1767956524000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba26b-bb80-7438-9f40-7094957b2348","at":1767956528000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26b-d2f0-7706-ba60-5eaf68a4fa55","at":1767956534000000000,"seq":164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba26b-de1e-71e5-aa6f-1ee199d8433a","at":1767956536862000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ba26c-0d88-7c74-aa47-3a156932ec19","at":1767956549000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba26c-6760-7a71-931b-e399c5aebc71","at":1767956572000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26c-8267-7268-b501-cfdadf5e868a","at":1767956578919000000,"seq":168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ba26c-adb0-726e-b78c-dd03a71e1f39","at":1767956590000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26c-b580-7fe5-b1a9-795ee5139aa2","at":1767956592000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26c-ccf0-76ab-a6bb-5cb6beb0a1e8","at":1767956598000000000,"seq":171,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba283-7d3d-73e7-85bf-e25995a1e39d","at":1767958084925000000,"seq":172,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba283-7d3d-7563-bbd6-80e5fb8af779","at":1767958084925000000,"seq":173,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba283-d378-7078-8dcb-4e79170bef80","at":1767958107000000000,"seq":174,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba283-e318-7196-831a-c63900972059","at":1767958111000000000,"seq":175,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ba284-182c-7b79-9575-00d99acb499e","at":1767958124588000000,"seq":176,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ba284-5078-7272-b244-b005dcf685c6","at":1767958139000000000,"seq":177,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ba284-5460-74a0-9512-578af84d8958","at":1767958140000000000,"seq":178,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba284-5848-7af1-a731-100cd0ef55bf","at":1767958141000000000,"seq":179,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

@@ -1,0 +1,58 @@
+{"v":1,"id":"019cb31e-7e37-7217-a756-ff82677aa321","at":1772531646007000000,"seq":741,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb31e-7e37-70e3-ace7-e77c09c077c9","at":1772531646007000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb31e-c480-7cd0-bfd4-e7b735610776","at":1772531664000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb31e-eb90-784f-b916-35787abb4550","at":1772531674000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb325-c1c4-7eb0-8115-7a3fd52b9927","at":1772532122052000000,"seq":745,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cb325-d518-7abd-8ba1-6ced75ab9f50","at":1772532127000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb325-e8a0-706c-986e-9afb0f253f80","at":1772532132000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb326-975d-7fb2-983a-40a041b24d4b","at":1772532176733000000,"seq":748,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cb326-b7a8-76f0-9e59-6964c777ce91","at":1772532185000000000,"seq":749,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cb327-382b-72f7-8a55-35b691b7f6b5","at":1772532217899000000,"seq":750,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cb327-6f40-7aa3-845b-8d4dcaeeabfa","at":1772532232000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cb327-7ee0-7acf-b509-f6d6e6c8a885","at":1772532236000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb327-a9d8-7a2f-b9dc-ffaf3134fc51","at":1772532247000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb327-da2e-78d8-ac3b-ce86a110336f","at":1772532259374000000,"seq":754,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb327-da2e-71fc-a808-9f9453b1ee14","at":1772532259374000000,"seq":755,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb327-e088-7d3a-b786-9cbb6f85d163","at":1772532261000000000,"seq":756,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb327-f7f8-7c0d-ba89-0dab7493500a","at":1772532267000000000,"seq":757,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb328-0798-770e-b578-f3bec50fb259","at":1772532271000000000,"seq":758,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb328-1350-7e61-8aa6-0686abc41b41","at":1772532274000000000,"seq":759,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cb328-2ac0-7cae-9896-e25c526595c4","at":1772532280000000000,"seq":760,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cb328-2d2a-7b39-a3d9-2b6331078e34","at":1772532280618000000,"seq":761,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb328-2d2a-775d-bf24-fc0f0ce843eb","at":1772532280618000000,"seq":762,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cb328-4230-7fa8-8c8a-3276cc8db11a","at":1772532286000000000,"seq":763,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb328-51d0-7ab8-a373-7b3dae8907be","at":1772532290000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb328-8498-7841-82d6-8dec6e2109b2","at":1772532303000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb328-b760-72d6-b479-2da85b88206a","at":1772532316000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb328-e34d-7dc3-8c76-a5c93a529e35","at":1772532327245000000,"seq":767,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cb328-ee10-703a-9045-967aec8bace9","at":1772532330000000000,"seq":768,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb328-f5e0-7c37-a0b9-7e6cb664cc11","at":1772532332000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb329-1520-7b54-a73f-bd4e404492c4","at":1772532340000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb329-20d8-7db3-9f29-eca3a49b2e71","at":1772532343000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb329-2436-71cf-ac7b-e364335297dc","at":1772532343862000000,"seq":772,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cb329-53a0-7c22-853a-671473fddeaf","at":1772532356000000000,"seq":773,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb329-e040-7e1b-bb1f-883aa2ce0026","at":1772532392000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cb33a-bc69-7973-9d4d-3d83659b3813","at":1772533496937000000,"seq":775,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cb33b-0ad8-7d5e-96ba-fa1f39b1d83a","at":1772533517016000000,"seq":776,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"School messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cb33b-2238-7bbd-800d-ae57f6b84c02","at":1772533523000000000,"seq":777,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb33b-3d90-7cf3-96a1-1a3b1c8b4be9","at":1772533530000000000,"seq":778,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33b-afdf-7ee0-ba52-4d9021337157","at":1772533559263000000,"seq":779,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cb33c-3b78-70e1-8104-514e5331bd63","at":1772533595000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cb33c-5809-7701-a45a-5c4037da3dd2","at":1772533602313000000,"seq":781,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cb33c-dba0-7a78-8313-b9d3e794091c","at":1772533636000000000,"seq":782,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33d-0e68-7a56-892f-f3a1842d382e","at":1772533649000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cb33d-25d8-7ce1-b541-dedb9c4cd2d8","at":1772533655000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33d-4dbe-7dec-a774-bcbcc1954361","at":1772533665214000000,"seq":785,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cb33d-6c28-7b6f-b293-38582f70d70c","at":1772533673000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33d-77e0-7e79-9a36-cd42625a8ac3","at":1772533676000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cb33d-8b68-7587-854a-e1fde29e3a06","at":1772533681000000000,"seq":788,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb33d-8f50-70e3-bfb5-7e2f3a938bfe","at":1772533682000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33d-9b08-7fe4-b8ff-b424fbbc27e6","at":1772533685000000000,"seq":790,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb33d-a6c8-7f54-9dc2-ccb5c5b2ad82","at":1772533688008000000,"seq":791,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cb33d-ba48-775c-b1ef-3fb20d5835c1","at":1772533693000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb33d-d988-7b2c-827b-cf20c2c0ad4d","at":1772533701000000000,"seq":793,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb33e-6410-79c3-96d5-508ca2d8b6fa","at":1772533736464000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cb33e-79b0-75c2-b9d2-22975440958a","at":1772533742000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb33e-9cd8-74ba-a721-ebba6508e3d4","at":1772533751000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33e-df40-79e7-a7fd-c12d61b53821","at":1772533768000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33f-2978-7d45-95f9-605197fd96bb","at":1772533787000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}

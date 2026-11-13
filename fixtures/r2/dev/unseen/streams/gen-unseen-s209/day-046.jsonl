@@ -1,0 +1,21 @@
+{"v":1,"id":"019c608b-9150-7aca-b46c-443166b4c6f6","at":1771146285392000000,"seq":597,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c608b-9150-7c08-800c-d490b74b179c","at":1771146285392000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c608c-1498-76a4-8a74-fbb5f255a5b8","at":1771146319000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c608c-245c-7416-950a-5d135f163f14","at":1771146323036000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c608c-5d66-7504-ba33-69166341b8c7","at":1771146337638000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c608c-dbd0-7e28-990a-9a17f746535c","at":1771146370000000000,"seq":602,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c609e-e440-756e-a72e-e353a2e309a6","at":1771147551808000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c609f-2768-75ec-be87-f10d5fc0c3ee","at":1771147569000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c609f-9b1d-738c-bb8c-848d219586c3","at":1771147598621000000,"seq":605,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c609f-9b1d-7f91-8cec-087e6aa2cc82","at":1771147598621000000,"seq":606,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c609f-b7f0-70e2-9949-183035dcd63a","at":1771147606000000000,"seq":607,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60a0-38d8-76b1-866a-6e70542d7a20","at":1771147639000000000,"seq":608,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c60a0-4878-7179-a134-65a89d072d08","at":1771147643000000000,"seq":609,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60a0-5430-74b5-958e-27c1217e6fe0","at":1771147646000000000,"seq":610,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c60a0-7596-714f-ac00-f3e468301fae","at":1771147654550000000,"seq":611,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c60a0-8ec8-7199-a2e2-074e3b83356f","at":1771147661000000000,"seq":612,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c60a0-d518-7168-ab52-287b8945bf37","at":1771147679000000000,"seq":613,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60a0-f840-7b17-86fa-209271ffbfc0","at":1771147688000000000,"seq":614,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c60a0-f92a-75f6-9456-fa01a34f683d","at":1771147688234000000,"seq":615,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c60a0-f92a-7521-b590-f50b7524622e","at":1771147688234000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c60a1-a420-7b87-a434-1d667be2dc41","at":1771147732000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

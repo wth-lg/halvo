@@ -1,0 +1,10 @@
+{"v":1,"id":"019c658e-0c73-793b-a906-896e6f5c4964","at":1771230334067000000,"seq":801,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c658e-0c73-7d7e-921c-59fba116a6ad","at":1771230334067000000,"seq":802,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c658e-c796-7340-91f4-2f0e4a28480a","at":1771230381974000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c658e-c7b0-7fb7-8368-2e4aabb55dab","at":1771230382000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c658f-44b0-7b75-aaa6-07fff87fb727","at":1771230414000000000,"seq":805,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6596-a2b8-7206-b841-41c257320d48","at":1771230896824000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6596-b6f0-7c85-881e-679f0dcfb468","at":1771230902000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6596-e5d0-7aee-91ce-8b9ebdef5272","at":1771230914000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c6597-2068-783a-a5b8-2765cc4305f4","at":1771230929000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6597-5ee8-7fe2-a498-77749c3bbd67","at":1771230945000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

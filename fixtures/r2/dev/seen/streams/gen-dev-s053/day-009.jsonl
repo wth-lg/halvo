@@ -1,0 +1,108 @@
+{"v":1,"id":"019ba268-ad9c-7613-9ce6-0779cbc2b23d","at":1767956327836000000,"seq":88,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019ba268-c0e2-7ca2-8d3b-e5776122dc72","at":1767956332770000000,"seq":89,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba268-c0e2-70e4-9caf-9d38589934bb","at":1767956332770000000,"seq":90,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba269-0768-7aca-bdf0-3ae0142673f8","at":1767956350824000000,"seq":91,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba269-2758-721f-9b0c-aff453469577","at":1767956359000000000,"seq":92,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba269-4698-7322-bec3-ca4ec0c19f7e","at":1767956367000000000,"seq":93,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba269-7190-7955-ba63-a23b682dbc71","at":1767956378000000000,"seq":94,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba269-8ce8-713f-b116-ca52b61f127e","at":1767956385000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba269-8edb-7ed0-8fe3-5228ac9412b0","at":1767956385499000000,"seq":96,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba269-90d0-787e-95a1-4f203f044c8f","at":1767956386000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ba269-9c88-7937-9f13-dfdb0b2c0ab3","at":1767956389000000000,"seq":98,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba26a-1b84-7747-aaa3-2b8a9f9241a0","at":1767956421508000000,"seq":99,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba26a-2540-7e77-86b5-4c9644b79e3d","at":1767956424000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26a-92a0-78e8-be29-1e5e6beb24f2","at":1767956452000000000,"seq":101,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba26a-b1e0-72d3-a5f2-b06d72886484","at":1767956460000000000,"seq":102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba26a-dd10-7e58-9445-57109e03c678","at":1767956471056000000,"seq":103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba26b-4268-7732-8f12-4e5b47f19f95","at":1767956497000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26b-b798-77ef-8627-63fb5ccc734d","at":1767956527000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26b-f0f9-77a8-83c1-57da786d9898","at":1767956541689000000,"seq":106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba26c-2110-7350-b08a-a497dfbb7141","at":1767956554000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26c-351f-7ca2-94e3-97b812dacb15","at":1767956559135000000,"seq":108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba26c-53d8-7978-9ddc-6a31995c28fc","at":1767956567000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26c-6378-7b1b-8371-76ee7d5b3b72","at":1767956571000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ba26c-d0d8-7af7-98fa-296ec524bc4a","at":1767956599000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26c-d4c0-7e15-90ca-2e60f448e25d","at":1767956600000000000,"seq":112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba26c-dd9e-7fec-931b-f5187b8192fb","at":1767956602270000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba26c-e848-7e69-961d-ecec80552f4b","at":1767956605000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ba26d-5d78-7300-a207-e04f29c9c86b","at":1767956635000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba26d-6aa3-7c06-82c0-bc7a8d2edf93","at":1767956638371000000,"seq":116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba26d-7cb8-768f-8c43-339b218c97b7","at":1767956643000000000,"seq":117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba26d-8c58-7b9f-88a6-65bf34e1995d","at":1767956647000000000,"seq":118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba26d-9040-77e9-879d-963bbfacb480","at":1767956648000000000,"seq":119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26d-f050-71cd-9e29-10a032221a34","at":1767956672592000000,"seq":120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba26d-f5d0-7b94-bcdd-ba1448fc9f00","at":1767956674000000000,"seq":121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba26d-f9b8-7104-9128-c12287a9079a","at":1767956675000000000,"seq":122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba26e-6330-7947-997e-ef769971f67c","at":1767956702000000000,"seq":123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ba26e-b538-7504-a60b-4dea73d1f86b","at":1767956723000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26e-efd3-7237-8361-35215f10e7be","at":1767956738003000000,"seq":125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba26f-3df0-7e0e-83b6-4e77d49b4d44","at":1767956758000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba26f-a380-791c-83be-60e825849770","at":1767956784000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba26f-e86f-7001-a967-8d8060056452","at":1767956801647000000,"seq":128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba270-10e0-7494-9c8d-59c4e15ecd8b","at":1767956812000000000,"seq":129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba270-95b0-7aa4-b4c3-c7a050b885bb","at":1767956846000000000,"seq":130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ba270-9998-7977-999f-0f09b170f188","at":1767956847000000000,"seq":131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba270-e1bc-7b62-a4c3-c2fd5a37a518","at":1767956865468000000,"seq":132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba271-0310-7dfd-bf14-bba7ec7d6ea1","at":1767956874000000000,"seq":133,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba271-0ec8-7566-a190-a3df11f79546","at":1767956877000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ba271-5130-76b0-a70e-452bcbc74f0a","at":1767956894000000000,"seq":135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba271-5518-7c3e-8c98-8f5a60417149","at":1767956895000000000,"seq":136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba271-56e9-7960-98e1-2af2e6c82c47","at":1767956895465000000,"seq":137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba271-5ce8-7084-8c19-6b1ca8945656","at":1767956897000000000,"seq":138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba271-7070-723b-8523-a1174ae8d3e0","at":1767956902000000000,"seq":139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba271-a338-7910-93b1-bbb58351ee21","at":1767956915000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba271-d600-7372-87f8-828fb4f86980","at":1767956928000000000,"seq":141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ba271-d776-7da7-abe0-a8e1a93182ca","at":1767956928374000000,"seq":142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba271-e988-75a2-a249-46530265b304","at":1767956933000000000,"seq":143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba272-5eb8-7868-87c9-63cea19e9c53","at":1767956963000000000,"seq":144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba272-85c8-774f-b43c-84229752d4d7","at":1767956973000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba272-8d98-7277-807d-0e5c917337cb","at":1767956975000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba272-9f40-7271-8cb6-f1cccfa16eb6","at":1767956979520000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba272-d7d0-75e3-8d2a-e8866cde21e6","at":1767956994000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba273-a30e-72bd-a847-6db01747b680","at":1767957046030000000,"seq":149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba273-b290-7f27-bc11-b3d6a8ca25a2","at":1767957050000000000,"seq":150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba273-d1d0-77a0-8c49-1e29609652a6","at":1767957058000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ba273-e170-79ab-bbd6-8c43392641f9","at":1767957062000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba273-e558-79f3-b19c-939783fd7c6e","at":1767957063000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba274-0b8b-750a-8a42-f9c552bd38a3","at":1767957072779000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba274-fec4-7b27-b00b-5242efb109a8","at":1767957135044000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba275-48d0-7c49-9038-644468dbd699","at":1767957154000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ba275-6428-7d9e-aef0-d1a503ea27fa","at":1767957161000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba275-89c7-7f36-9067-c540a9dc1ae0","at":1767957170631000000,"seq":158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba276-13f0-702e-b6e2-5b1f28e49027","at":1767957206000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba276-4e88-7adf-9861-a39d74231ada","at":1767957221000000000,"seq":160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba276-88a5-70f1-a7d1-f3762d1d4610","at":1767957235877000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba277-5b9b-70d6-ba39-7938f4a12d46","at":1767957289883000000,"seq":162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba277-8320-7897-9293-391c0c0ad8d3","at":1767957300000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba277-aa30-7b01-a291-e7b6bbf8a9ee","at":1767957310000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba277-ae18-7247-93cc-c0fa4451a4bc","at":1767957311000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ba278-660a-7b2e-b6c0-a51bca4d3aa5","at":1767957358090000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba278-8cc0-7589-bc2e-8aa2f28b2317","at":1767957368000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba278-9490-7741-8bb1-0366195ed8e0","at":1767957370000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba278-e2b0-76dc-983d-9286a64460ef","at":1767957390000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ba278-ff77-7ff0-913e-a6d352a13516","at":1767957397367000000,"seq":170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba279-3c88-7c18-88dc-9379bbb52fc4","at":1767957413000000000,"seq":171,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba279-bd70-772e-8dec-dc2ffed2013c","at":1767957446000000000,"seq":172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba279-f174-7638-b300-42a8fad63982","at":1767957459316000000,"seq":173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ba27a-0f78-758a-8944-e80b50549a71","at":1767957467000000000,"seq":174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba27a-2eb8-7554-a68a-0624bfdf0566","at":1767957475000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba27a-32a0-797c-9344-40c116effdf9","at":1767957476000000000,"seq":176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba27a-3c10-7f14-a319-bca71a903bd6","at":1767957478416000000,"seq":177,"kind":"run_mark","app":null,"p":{"edge":"end"}}
+{"v":1,"id":"019ba28c-6eea-7dd4-9220-43673ea9bbd1","at":1767958671082000000,"seq":178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba28c-d040-7f35-9394-7d609feb41d9","at":1767958696000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba28d-7990-7831-b265-ef0f19ccbc79","at":1767958739344000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba28d-9390-7f55-b17f-bcf687d236a1","at":1767958746000000000,"seq":181,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba28d-9f48-75fa-b8f5-24846969fd87","at":1767958749000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba28d-ca40-7070-b1ea-4db04e1da164","at":1767958760000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba28d-ece3-75b3-9552-4755263c7240","at":1767958768867000000,"seq":184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba28e-2030-7e32-8e9c-8ee496e3860e","at":1767958782000000000,"seq":185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba28e-4740-7cd5-8af0-f38cadce2739","at":1767958792000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba28e-9560-7868-a87b-12d39483e7c2","at":1767958812000000000,"seq":187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba28e-fc44-7bbf-a0bf-1b4b5e2c03fa","at":1767958838340000000,"seq":188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba28f-06a8-78f6-8957-929b2a1f54f8","at":1767958841000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba28f-0e78-7e5a-b78f-c524aa8afc50","at":1767958843000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba28f-1260-7023-9cb6-26fef1c9623c","at":1767958844000000000,"seq":191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba28f-29d0-70f0-adc5-392144827bc6","at":1767958850000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ba28f-3f23-71b2-a603-b5b224d784d5","at":1767958855459000000,"seq":193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ba28f-4528-7a86-a6ac-1772e2cec48b","at":1767958857000000000,"seq":194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba28f-6468-7be1-ad54-c1c3c8117e2f","at":1767958865000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

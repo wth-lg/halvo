@@ -1,0 +1,21 @@
+{"v":1,"id":"019ce11d-5d77-7b33-8bca-39acb0dae7bc","at":1773303324023000000,"seq":1080,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce11d-5d77-754e-8d38-2e53baf03b78","at":1773303324023000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce11d-7ca0-7cd7-8b9a-527482984c51","at":1773303332000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce11d-8858-795e-9609-5fd7afa64185","at":1773303335000000000,"seq":1083,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce11d-9028-711f-921c-332dcea1b906","at":1773303337000000000,"seq":1084,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce136-78a4-7f01-8f4b-2fe9daf3c117","at":1773304969380000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce136-f040-7850-8570-d899541167f7","at":1773305000000000000,"seq":1086,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce140-eebb-7f00-bc21-d74528f9ce50","at":1773305654971000000,"seq":1087,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce140-f6a8-7879-a88d-b686a1c481de","at":1773305657000000000,"seq":1088,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce141-6020-741b-aef9-495ef52459d2","at":1773305684000000000,"seq":1089,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce15c-166a-718e-b1dd-a8dd1137d9ed","at":1773307434602000000,"seq":1090,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce15c-6a00-724c-807b-f0150ae57905","at":1773307456000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce15c-c7c0-7fee-83b3-42366c637dae","at":1773307480000000000,"seq":1092,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15d-27c3-7b2c-ad40-3351ea9da621","at":1773307504579000000,"seq":1093,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce15d-73a0-7997-b8a1-d93e0d735573","at":1773307524000000000,"seq":1094,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce15d-7f58-7370-aba8-a6603bf1ab9b","at":1773307527000000000,"seq":1095,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15d-d930-7f3a-a1af-092b62342b61","at":1773307550000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15d-ecb8-7262-929d-0a2a053f9159","at":1773307555000000000,"seq":1097,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce15e-0a75-789c-832f-8d4775b6e508","at":1773307562613000000,"seq":1098,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce15e-7958-7701-9ea2-7fe4dfd9598c","at":1773307591000000000,"seq":1099,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15e-a450-71b6-b300-fcb93e9acd32","at":1773307602000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

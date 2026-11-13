@@ -1,0 +1,42 @@
+{"v":1,"id":"019cb83c-d907-7367-9d65-03fe1a05a769","at":1772617521415000000,"seq":805,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb83c-d907-7922-9625-997ce967a906","at":1772617521415000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cb83d-2588-778b-b3b8-c7e98d2cbaba","at":1772617541000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb83d-6020-7102-a2ee-6c2393537173","at":1772617556000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb83d-8f85-71ce-9664-bc7bdf784871","at":1772617568133000000,"seq":809,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cb83d-96d0-7b77-be9d-03517d5e1492","at":1772617570000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cb83d-9ab8-7f9c-84e3-88a60f2b0b3a","at":1772617571000000000,"seq":811,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb83d-a670-79dd-aaac-9ae82f209ad2","at":1772617574000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb83d-c1c8-738b-9cc0-9dc62fd64209","at":1772617581000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb83d-e509-787b-877a-1a0ea718e02a","at":1772617590025000000,"seq":814,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cb83e-c2b6-7e92-bed8-4dc41cad1ddc","at":1772617646774000000,"seq":815,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cb83e-d338-7202-a2eb-08fe5d2f6a3f","at":1772617651000000000,"seq":816,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb83e-f278-7416-86d9-09e85b84ffeb","at":1772617659000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb83f-3cb0-7f00-9ce1-27dd6cd8b046","at":1772617678000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cb83f-92a0-7a8a-9a03-6efae4fbf68b","at":1772617700000000000,"seq":819,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb842-04b4-7a94-81e0-741dadf21bda","at":1772617860276000000,"seq":820,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb842-04b4-7b00-9f7d-7c1ee7f635f2","at":1772617860276000000,"seq":821,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb842-49f0-7905-a974-c8242184cecd","at":1772617878000000000,"seq":822,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cb842-5d78-77f8-b732-aaca45c33b9e","at":1772617883000000000,"seq":823,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cb85b-0ea5-7530-b192-8c14bfa2e163","at":1772619501221000000,"seq":824,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb85b-0ea5-7ca7-85ce-3d230c7c489b","at":1772619501221000000,"seq":825,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb85b-2920-7492-a9cf-a04eb23c1c4c","at":1772619508000000000,"seq":826,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb85b-b1d8-7fc2-b9f7-ed979499e319","at":1772619543000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb85b-c64a-726d-afd2-e164d36590b6","at":1772619548234000000,"seq":828,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb85b-d8e8-79e7-b7d0-9c11f07d6103","at":1772619553000000000,"seq":829,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cb85c-0bb0-7b32-99c9-0c1d263a7046","at":1772619566000000000,"seq":830,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb85c-32c0-7aa6-81a3-f476f6a3cd7f","at":1772619576000000000,"seq":831,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb85c-55e8-7ae3-9938-16bc52828eeb","at":1772619585000000000,"seq":832,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb85c-644d-77a0-a598-670566c357ec","at":1772619588685000000,"seq":833,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb85c-7cf8-7ec0-9ceb-14519b9413d5","at":1772619595000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb85c-80e0-7cdc-9968-09923f3fac28","at":1772619596000000000,"seq":835,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb85c-a020-7d19-a983-de37753907c5","at":1772619604000000000,"seq":836,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb85c-b790-718c-9fb2-81f21db1a1be","at":1772619610000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb85d-2993-70ff-ab6b-e9325eb02bd2","at":1772619639187000000,"seq":838,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cb85d-3c60-7ca2-9beb-0132c7414a91","at":1772619644000000000,"seq":839,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb85d-4430-7792-a60b-d12aca7fb82d","at":1772619646000000000,"seq":840,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb85d-4818-721c-8691-b9dc80484db4","at":1772619647000000000,"seq":841,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb85d-5f88-7f6d-8568-c48e1e79fe37","at":1772619653000000000,"seq":842,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb870-4037-73f6-942b-18837fdf78c9","at":1772620890167000000,"seq":843,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cb870-bc90-7a2a-a1b7-179cc3217eb6","at":1772620922000000000,"seq":844,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb870-dfb8-7a2a-bec8-36c47a9be811","at":1772620931000000000,"seq":845,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb871-0e98-7169-a531-24c30c2d13ca","at":1772620943000000000,"seq":846,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

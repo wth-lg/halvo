@@ -1,0 +1,35 @@
+{"v":1,"id":"019c41db-eb40-7edc-bddd-9c16a2ceadfa","at":1770631457600000000,"seq":788,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41db-eb40-7505-bd0c-62ba2e38ed36","at":1770631457600000000,"seq":789,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c41dc-c790-7543-b5b5-fb31c54838a5","at":1770631514000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41dc-ef1d-7137-b666-a46453b42f7d","at":1770631524125000000,"seq":791,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c41dc-fe40-7b05-8a3b-621e552e541f","at":1770631528000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41dd-2550-76e3-a3f5-4720023380bf","at":1770631538000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41dd-4c60-75ce-bd7f-35b01c0dda40","at":1770631548000000000,"seq":794,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c41dd-687e-7178-bb44-b4cbaacc2a60","at":1770631555198000000,"seq":795,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c41dd-aa20-738c-9198-3d0e4def1243","at":1770631572000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41dd-d518-7b1f-b16b-97cb7bc93988","at":1770631583000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41dd-e0d0-743f-80cd-2db0882c4674","at":1770631586000000000,"seq":798,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c41dd-ec02-750e-bd02-2d7e77774e7d","at":1770631588866000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c41de-0bc8-72c2-8576-53627e07fb4a","at":1770631597000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41de-deb8-7b26-8592-2c2ed0415cc3","at":1770631651000000000,"seq":801,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41f4-890d-7bcb-a388-640c6a3a159e","at":1770633070861000000,"seq":802,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c41f4-9d20-7c8c-94ff-e43ae3018afe","at":1770633076000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41f4-cfe8-72a7-97eb-9e65f7f7ac22","at":1770633089000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c41fd-f39d-71b4-ae01-0401da693296","at":1770633687965000000,"seq":805,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c41fd-f3c0-7747-a780-686f7d8c75ad","at":1770633688000000000,"seq":806,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c41fe-41e0-7f68-afc3-88df9a1523d3","at":1770633708000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4204-1910-7f40-9e7b-5b35e9b02e57","at":1770634090768000000,"seq":808,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c4204-2998-7e6a-a012-92a75ff0bdfc","at":1770634095000000000,"seq":809,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4204-3168-7fd4-b336-660a87a91e1b","at":1770634097000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4204-5ca5-7702-97a6-1a038ff090fd","at":1770634108069000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c4204-9ec8-7dbb-ba49-22d97e94d651","at":1770634125000000000,"seq":812,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4204-a698-7e05-8f00-4cbe35c58765","at":1770634127000000000,"seq":813,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4204-e0d8-70ab-a47b-c72429d4b007","at":1770634141912000000,"seq":814,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c4205-5e30-7b48-94b8-83ecaccef441","at":1770634174000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4205-94e0-7567-a36f-08a5a74206ca","at":1770634188000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c4205-e4d7-7cbd-9c5d-4eac05fbe0ca","at":1770634208471000000,"seq":817,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c4205-ead0-7cb9-9141-bd1baa723814","at":1770634210000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c4206-2180-7eed-8089-d5f5a6a6bb7d","at":1770634224000000000,"seq":819,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4206-3508-7c49-8e45-dac523650bff","at":1770634229000000000,"seq":820,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4206-3cd8-704f-990d-87f640daeaf2","at":1770634231000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4206-5060-79be-877d-15c25f1c6042","at":1770634236000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

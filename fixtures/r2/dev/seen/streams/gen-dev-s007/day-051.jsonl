@@ -1,0 +1,19 @@
+{"v":1,"id":"019c7a0b-4d28-71e5-830b-2f7211053b97","at":1771574086952000000,"seq":721,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a0b-4d28-78fb-a51d-3d71ad4041c1","at":1771574086952000000,"seq":722,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c7a0b-60e0-7892-b7fa-3a4f3f8f5e87","at":1771574092000000000,"seq":723,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a0b-60e0-73ef-85a3-47c47dd9166a","at":1771574092000000000,"seq":724,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c7a0b-8fc0-7c3a-8069-cddd6d19d838","at":1771574104000000000,"seq":725,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a0c-2ef6-7840-8ead-94e7e6366f31","at":1771574144758000000,"seq":726,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c7a0c-56f8-7ac3-b2e6-ff8d955717bc","at":1771574155000000000,"seq":727,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a0c-8da8-7836-b656-55c7a96866b3","at":1771574169000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a0c-9960-7a80-8a72-1dd5a105e2e7","at":1771574172000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c7a0c-ace8-770b-b7b2-1270137ec48e","at":1771574177000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a0c-c070-7627-8a73-a9e887c2ad92","at":1771574182000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a0f-dfd5-79b1-a317-2154de194687","at":1771574386645000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7a0f-e138-7c5b-8c3d-007136da1bae","at":1771574387000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c7a10-1018-770f-ac2b-e0bce1be8d2d","at":1771574399000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a1e-d1da-7054-9161-2204c014fe04","at":1771575366106000000,"seq":735,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7a1e-dd28-722b-87e1-bb731c1cad6d","at":1771575369000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a1e-f880-7dcb-8b30-10b6948528d2","at":1771575376000000000,"seq":737,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a1f-0ff0-750f-aa91-5503e4f73753","at":1771575382000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a1f-7968-73ef-9762-2bd72ca6c74f","at":1771575409000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

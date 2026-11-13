@@ -1,0 +1,31 @@
+{"v":1,"id":"019c65c7-88d5-7835-aec8-d5e7808e5fcb","at":1771234101461000000,"seq":552,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c65c7-88d5-7031-8932-f01198a3bac1","at":1771234101461000000,"seq":553,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c65c7-96a8-7828-beb9-2ed5138484f0","at":1771234105000000000,"seq":554,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c7-ec98-77a7-9545-353b0f8b1526","at":1771234127000000000,"seq":555,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c65c8-07f0-799c-87ab-6bd83e5d1ce1","at":1771234134000000000,"seq":556,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65d9-3eec-7b2a-bfb7-d5c2c84e8c9e","at":1771235262188000000,"seq":557,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65d9-3eec-7022-b1db-a2deae3b5f09","at":1771235262188000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c65d9-6540-72a6-bc24-d5015661a740","at":1771235272000000000,"seq":559,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c65d9-9038-703f-95fd-6627d9b9f618","at":1771235283000000000,"seq":560,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c65ea-dc8d-79d4-ad7d-5759ddcde717","at":1771236416653000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c65ea-fd28-7938-b754-9e5ace2d22be","at":1771236425000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c65eb-42f1-7b65-b1f4-27fb80adefdc","at":1771236442865000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c65eb-5318-74fc-94c2-541885b2e013","at":1771236447000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65eb-7258-75b1-b63d-ec8ba88be69a","at":1771236455000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c65eb-7640-7094-af94-e83ce055ebbc","at":1771236456000000000,"seq":566,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65eb-af29-7bbe-90fb-4ab20f4af9c3","at":1771236470569000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c65eb-b8a8-7db7-8ad3-535ab1ea3765","at":1771236473000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65eb-ef58-73f1-9e17-d4b9307ff04f","at":1771236487000000000,"seq":569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c6606-fe46-7138-9a5e-db860f819edb","at":1771238260294000000,"seq":570,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6607-7e08-7588-9b38-40d7f0d19a4d","at":1771238293000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c661c-e472-7556-8bb9-f737ace25276","at":1771239695474000000,"seq":572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c661d-1178-7af1-93f2-f6b01eb28e4c","at":1771239707000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c661d-f157-7fad-ada8-aba02bb60829","at":1771239764311000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c661e-55b0-7107-8b67-6cc18c9de43b","at":1771239790000000000,"seq":575,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c661e-5998-7d2e-98e3-764459b84f95","at":1771239791000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c661e-6550-7466-9dae-a1a7769b8ec6","at":1771239794000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c661e-8c60-7224-8fd6-cc16c9be4fee","at":1771239804000000000,"seq":578,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c661e-a658-7bbb-86bf-cd8e92f2922b","at":1771239810648000000,"seq":579,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c661e-ee08-75cf-bc7c-28c9574aeec3","at":1771239829000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c661f-396d-7f33-ab01-92b7e6da4f0d","at":1771239848301000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c661f-4010-70e3-a503-958dd99f370b","at":1771239850000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}

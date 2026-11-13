@@ -1,0 +1,18 @@
+{"v":1,"id":"019d1459-4a91-7353-894d-bceb8c162103","at":1774162889361000000,"seq":1001,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1459-4a91-7ba6-bf9d-661190cb7399","at":1774162889361000000,"seq":1002,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d1459-c240-775b-abd1-88691a4d7519","at":1774162920000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d145a-00c0-737a-99cf-cddf03d1b1c4","at":1774162936000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d145a-04a8-7617-87c2-4e1291b60230","at":1774162937000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d145a-1b8c-7c8a-bdc2-d54ff414d631","at":1774162942860000000,"seq":1006,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d145a-7208-7585-b8df-20e291e377e7","at":1774162965000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d145a-8978-7172-ab48-12af27416bdd","at":1774162971000000000,"seq":1008,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d145a-c962-79c5-ad71-c975e9654b16","at":1774162987362000000,"seq":1009,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d145b-0678-7304-bfd4-b07ca8e0c78b","at":1774163003000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d145b-1de8-7c4f-b5d7-268d77e4c839","at":1774163009000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d145b-1fcf-7d13-a5e4-a518302d645b","at":1774163009487000000,"seq":1012,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d145b-3940-7f36-b133-3cd9f9cbefeb","at":1774163016000000000,"seq":1013,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d145b-9ed0-7cc8-abc0-4c20fac6fdc5","at":1774163042000000000,"seq":1014,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d145b-e908-7a8d-b088-dc600a6fe5a7","at":1774163061000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d145c-12f4-70eb-8763-8b5837f77da7","at":1774163071732000000,"seq":1016,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d145c-b810-7281-9d29-c7521d658e7c","at":1774163114000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d145c-f2a8-769c-a967-4c70cd2382e1","at":1774163129000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,23 @@
+{"v":1,"id":"019c5654-c43b-711b-8e6d-8a45d90772f6","at":1770974921787000000,"seq":699,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5654-c43b-7376-beb1-c3775fb1182a","at":1770974921787000000,"seq":700,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5654-e838-7bba-9cfe-02e93ed14327","at":1770974931000000000,"seq":701,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5655-0f48-7d92-9a4f-438ffbc2bf11","at":1770974941000000000,"seq":702,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5655-6d08-7981-ac5e-bb4578814e05","at":1770974965000000000,"seq":703,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c5662-9424-7c3d-a5d5-3e733fad5096","at":1770975826980000000,"seq":704,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5662-9424-70a0-9354-35c42a9c4495","at":1770975826980000000,"seq":705,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5662-de70-72a5-84c9-e2551d612327","at":1770975846000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5662-e640-7b0d-a0ea-33bc36931280","at":1770975848000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c567d-c210-71cc-a3a6-27f00c6f371c","at":1770977608208000000,"seq":708,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c567d-c210-733b-a5aa-90bdade9267f","at":1770977608208000000,"seq":709,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c567d-c528-7f42-ad2c-1ba43cf6a808","at":1770977609000000000,"seq":710,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c567d-d8b0-74d5-8409-d6dd577845cb","at":1770977614000000000,"seq":711,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c567d-fbd8-70e1-b0de-f2097b01bc93","at":1770977623000000000,"seq":712,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c567f-3b4b-72e3-8e5b-193e15f4f556","at":1770977704779000000,"seq":713,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c567f-3b4b-711e-af2c-88c0c36de100","at":1770977704779000000,"seq":714,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c567f-b540-7d89-9b74-943d8a5e7a6b","at":1770977736000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c567f-c4e0-7fe0-aabc-385f7ad2e077","at":1770977740000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5680-02b8-76a5-8453-2fe4569a1cdc","at":1770977755832000000,"seq":717,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c5680-1eb8-7a9d-a763-0d2a123e1439","at":1770977763000000000,"seq":718,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5680-3240-74e2-975a-f5e861179187","at":1770977768000000000,"seq":719,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5680-3628-7278-a260-47f4a485f8be","at":1770977769000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5680-6508-7e97-99d1-9ef47eba252c","at":1770977781000000000,"seq":721,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

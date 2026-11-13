@@ -1,0 +1,23 @@
+{"v":1,"id":"019be9fb-fa6a-7e3f-b10f-0fd28a2a3e30","at":1769157163626000000,"seq":273,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be9fb-fa6a-70d9-9dbd-5bf58d6001b0","at":1769157163626000000,"seq":274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019be9fc-51cb-7fde-bf01-efc94c134717","at":1769157185995000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019be9fc-55b8-722f-ac51-ecac171c34f5","at":1769157187000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9fc-80b0-7b33-a406-48241d96321f","at":1769157198000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019be9fc-8c68-7738-b0b5-b518594c812c","at":1769157201000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9fd-154b-78d6-8aaf-40971f7dab2c","at":1769157236043000000,"seq":279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019be9fd-28a8-7fd1-82cb-911a045be07e","at":1769157241000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9fd-8280-7eb3-a6f6-6f37018b3059","at":1769157264000000000,"seq":281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9fd-a04b-7bba-9cdb-d819d53b12e5","at":1769157271627000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019be9fd-a990-783c-83d3-5b5579debe04","at":1769157274000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019be9fd-ff80-7d18-8c15-da2994d9e1fb","at":1769157296000000000,"seq":284,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be9fe-0f20-7bf7-979a-b278b36e125f","at":1769157300000000000,"seq":285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be9fe-1ec0-7793-adfe-bae42ccc301e","at":1769157304000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9fe-22a8-7d90-a388-ba0a29601cbb","at":1769157305000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9fe-26dc-73fb-9dfa-aee6fb0977b6","at":1769157306076000000,"seq":288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019be9fe-b718-7f55-9c35-43411a892c9c","at":1769157343000000000,"seq":289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be9fe-eb15-763c-9d71-0ef188a75207","at":1769157356309000000,"seq":290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019be9fe-edc8-7721-b2c7-9581ba6eb115","at":1769157357000000000,"seq":291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be9fe-f598-767e-96a0-1f619d1e3ad7","at":1769157359000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9fe-f980-7f38-a0cf-a9c81c8ad81d","at":1769157360000000000,"seq":293,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be9ff-1ca8-7314-be07-4e1a62db277f","at":1769157369000000000,"seq":294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019be9ff-2860-7ccf-a8ca-aca18c99c7e3","at":1769157372000000000,"seq":295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

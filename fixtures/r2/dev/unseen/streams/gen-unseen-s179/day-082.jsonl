@@ -1,0 +1,31 @@
+{"v":1,"id":"019d19c2-3133-7382-b7ca-b9d60c14a385","at":1774253650227000000,"seq":1181,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d19c2-3133-72ae-ae3c-1ade885edaea","at":1774253650227000000,"seq":1182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d19c2-7a88-749c-b2b1-ef63f2bca51b","at":1774253669000000000,"seq":1183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d19da-0eea-7ac9-91c6-d2bfd75a29cb","at":1774255214314000000,"seq":1184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d19da-c9be-705e-b03f-44b6bc7b6a8c","at":1774255262142000000,"seq":1185,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d19db-6570-7912-8ccb-049cd9e9bad3","at":1774255302000000000,"seq":1186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d19db-9838-7dcd-8fdd-81fb935cc147","at":1774255315000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19db-ba0d-7382-ba52-59b5190c6e33","at":1774255323661000000,"seq":1188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d19db-c718-70e2-a045-acd090a82a04","at":1774255327000000000,"seq":1189,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d19dc-4b11-7dd6-b2a2-edf88d27e65f","at":1774255360785000000,"seq":1190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d19dc-ccd0-725a-a8cf-e7b62e99173f","at":1774255394000000000,"seq":1191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d19ed-359b-7e0e-8af9-f63d7ae7dc2c","at":1774256469403000000,"seq":1192,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d19ed-359b-7bcb-8495-7e0fd3c7d423","at":1774256469403000000,"seq":1193,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d19ed-4b78-7668-94fe-dbf095760296","at":1774256475000000000,"seq":1194,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d19ed-7e40-7b6b-97bb-d9260eee041d","at":1774256488000000000,"seq":1195,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d19ed-a550-7aaf-9615-2178b8352bc0","at":1774256498000000000,"seq":1196,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d19ed-b92d-7b27-871b-ad0ce48659d3","at":1774256503085000000,"seq":1197,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d19ed-b92d-7441-a5a6-311794ad940a","at":1774256503085000000,"seq":1198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d19ee-5518-749d-b00d-52c808411b26","at":1774256543000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d19ee-a5b4-7fbe-837e-716102be7941","at":1774256563636000000,"seq":1200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d19ef-56e8-7e69-a438-e93697f1f9fc","at":1774256609000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d19ef-6c87-7b7c-ab8c-0c1e1956ffe9","at":1774256614535000000,"seq":1202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d19ef-7a10-7b7e-b54a-1aa35d3df226","at":1774256618000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d19ef-85c8-7725-b214-ce2500e85ea2","at":1774256621000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d19ef-c7f0-7714-8c2e-762ba18576d9","at":1774256637936000000,"seq":1205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d19ef-d000-776b-b42f-1a9053ac6749","at":1774256640000000000,"seq":1206,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d19f0-0a98-73e1-8953-221d32dad854","at":1774256655000000000,"seq":1207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19f0-2a4a-7e28-b5ad-2d7b06a15cd3","at":1774256663114000000,"seq":1208,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d19f0-2a4a-74ed-84df-4afd57f44c77","at":1774256663114000000,"seq":1209,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d19f0-4530-7ee9-84ea-b6b9a64a55e5","at":1774256670000000000,"seq":1210,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d19f0-7fc8-7812-b59e-b942971215d7","at":1774256685000000000,"seq":1211,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

@@ -1,0 +1,5 @@
+{"v":1,"id":"019bb658-815f-713e-b529-5c65fa6f8b23","at":1768290812255000000,"seq":136,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb658-815f-7dca-b75c-3bf81122c7bc","at":1768290812255000000,"seq":137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bb659-250b-7281-aaec-34b63d30b25e","at":1768290854155000000,"seq":138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bb659-3028-7d7a-bc4a-01de78a594e6","at":1768290857000000000,"seq":139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb65a-1a88-7e4a-9eea-0ab19caf0f87","at":1768290917000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

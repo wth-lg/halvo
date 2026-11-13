@@ -1,0 +1,13 @@
+{"v":1,"id":"019d0ad2-ad81-7f64-963a-9001b1c4a1f7","at":1774003072385000000,"seq":1157,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0ad2-ad81-72fe-b4cb-02dd81177d23","at":1774003072385000000,"seq":1158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0ad3-86c0-785b-b4b4-c0cdd31f3ad5","at":1774003128000000000,"seq":1159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ae7-3911-7ea4-b128-2c93f382be83","at":1774004418833000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0ae7-b6b8-758a-b5b9-fafe954803f4","at":1774004451000000000,"seq":1161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0ae7-e980-7fc5-a0e3-1f1366e04f15","at":1774004464000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0ae7-f538-7361-84b7-c44fed952366","at":1774004467000000000,"seq":1163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0af9-a267-7588-a46b-a0754d49918b","at":1774005625447000000,"seq":1164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0afa-0a20-79b0-a5f8-e227f84aac59","at":1774005652000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d0afa-208a-7f22-9914-f0d7587f5f82","at":1774005657738000000,"seq":1166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0afa-2960-727d-b6a3-daf77705b230","at":1774005660000000000,"seq":1167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0afa-6010-7a0f-a45a-cdef705dc417","at":1774005674000000000,"seq":1168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0afa-67e0-7715-922f-e4e0f9482c59","at":1774005676000000000,"seq":1169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

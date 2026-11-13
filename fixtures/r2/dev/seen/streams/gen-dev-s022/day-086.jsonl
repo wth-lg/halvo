@@ -1,0 +1,23 @@
+{"v":1,"id":"019d2e63-75e8-7e09-acda-9d2451bbed6e","at":1774599763432000000,"seq":1288,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2e63-75e8-73f4-a864-bee0a75fc39f","at":1774599763432000000,"seq":1289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d2e63-c640-7a42-a25a-afa25a7193f9","at":1774599784000000000,"seq":1290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e64-081c-7e6d-a1a6-cc58b4275e31","at":1774599800860000000,"seq":1291,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d2e64-2018-7c39-94f3-04539cf92957","at":1774599807000000000,"seq":1292,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2e64-4b10-79e0-878c-9a9fc657eb64","at":1774599818000000000,"seq":1293,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2e64-4ef8-755a-8e54-4ebfc0ecddaf","at":1774599819000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e6f-59c6-71e7-a234-a095033d358d","at":1774600542662000000,"seq":1295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2e70-0ec8-7604-bff3-f532259fda3f","at":1774600589000000000,"seq":1296,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2e8a-013b-758d-ae0d-0b4554e6623a","at":1774602289467000000,"seq":1297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2e8a-16d8-767b-a7c3-a395870bee7a","at":1774602295000000000,"seq":1298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e8a-1ac0-7d2c-a792-af9d315746f3","at":1774602296000000000,"seq":1299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2e8a-5170-7579-b04e-f277ff9e15d6","at":1774602310000000000,"seq":1300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d2e97-1c20-7dad-a1e8-2a6d0db83e60","at":1774603148320000000,"seq":1301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2e97-22b0-7f24-b7eb-62ddf533ee88","at":1774603150000000000,"seq":1302,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2e97-70d0-7859-91d1-f2f21d278701","at":1774603170000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d2e97-8c28-74e1-847f-f7ea24bac49a","at":1774603177000000000,"seq":1304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e97-a398-7512-9766-0ecae348b4d2","at":1774603183000000000,"seq":1305,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2e97-bb08-71b9-9eff-2df337ddaf4d","at":1774603189000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ea8-55cb-76e2-9654-e1e392aa6153","at":1774604277195000000,"seq":1307,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2ea8-55cb-7bba-9d43-bf91a0678d82","at":1774604277195000000,"seq":1308,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2ea9-2be0-7b78-9f5c-8453a70b10de","at":1774604332000000000,"seq":1309,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ea9-4738-75a5-a08e-11a672488a36","at":1774604339000000000,"seq":1310,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

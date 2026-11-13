@@ -1,0 +1,31 @@
+{"v":1,"id":"019d14e9-a6a7-7ff4-9d1f-3e984c370e83","at":1774172350119000000,"seq":1193,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14e9-a6a7-7336-a8d1-a4265a987729","at":1774172350119000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d14e9-c188-78aa-9393-88212981bf26","at":1774172357000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14ea-4a40-7762-91df-246a20696194","at":1774172392000000000,"seq":1196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1504-5b3e-7c61-ae4f-f53f563d8ff4","at":1774174100286000000,"seq":1197,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1504-5b3e-71ee-ae43-9feac197f0a4","at":1774174100286000000,"seq":1198,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1504-7190-73bd-b451-b3076bbf0d8b","at":1774174106000000000,"seq":1199,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1504-a840-7f27-b59d-80cb7508d5ae","at":1774174120000000000,"seq":1200,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d1504-c398-7ca3-acad-2f122c3e7518","at":1774174127000000000,"seq":1201,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1516-d66b-7d15-982f-0f0e07a8a535","at":1774175311467000000,"seq":1202,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1516-d66b-700c-8c90-a1f591ceccc5","at":1774175311467000000,"seq":1203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d1517-3640-72af-995b-8e6c6c12d90b","at":1774175336000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1517-45e0-7409-97ba-9a9586c3344a","at":1774175340000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d1517-8ed3-75a1-8623-27d3c1114a92","at":1774175358675000000,"seq":1206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d1517-9400-7363-8996-9384311fe007","at":1774175360000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1517-fd78-7b34-95fd-f69e72e93607","at":1774175387000000000,"seq":1208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1518-3040-71ed-9c26-c166fab2d48a","at":1774175400000000000,"seq":1209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1518-6f7d-7fa9-8deb-2d16516ca850","at":1774175416189000000,"seq":1210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d1518-8e00-75bd-a167-8b87f8900e17","at":1774175424000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1518-b8f8-7ed7-83ca-d6b73f8aa57c","at":1774175435000000000,"seq":1212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1518-c945-7332-ac94-1e7955e02179","at":1774175439173000000,"seq":1213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d1519-1e88-74f8-ae97-19042544e637","at":1774175461000000000,"seq":1214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1519-742b-73a8-9672-91be23fa4b9a","at":1774175482923000000,"seq":1215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d1519-7c48-765c-8ad8-66f73c6fc3aa","at":1774175485000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d1519-8418-7c17-ada4-03efc44d6c9b","at":1774175487000000000,"seq":1217,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1519-8800-7395-bf8d-9f62895e0437","at":1774175488000000000,"seq":1218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1519-cc8f-7e23-9a50-2ae3d4e76cad","at":1774175505551000000,"seq":1219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d1519-ed90-73b3-a64d-3d3fd7812fc3","at":1774175514000000000,"seq":1220,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d151a-33e0-7c07-8924-8d4c6a1f5d1d","at":1774175532000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1525-3d5d-7da6-9d8c-824388c1dbe5","at":1774176255325000000,"seq":1222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1525-6af8-7b11-b5c6-3c008117de1b","at":1774176267000000000,"seq":1223,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

@@ -1,0 +1,23 @@
+{"v":1,"id":"019b9265-7310-7a40-b666-d187d467cb8b","at":1767687680784000000,"seq":62,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9265-7310-7559-871a-0eae29e75b66","at":1767687680784000000,"seq":63,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b9265-73e8-75b9-8427-bafdab70fe4b","at":1767687681000000000,"seq":64,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b9266-104a-7f61-9bf0-e9a078806f20","at":1767687721034000000,"seq":65,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b9266-1410-7625-9ffd-84bba5795b4b","at":1767687722000000000,"seq":66,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9266-2f68-74e4-93a4-c062cbe7feb1","at":1767687729000000000,"seq":67,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9266-3738-7208-9b29-63175da182f3","at":1767687731000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9266-b634-79d0-a109-0975daccbfaf","at":1767687763508000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b9267-9e98-79d8-b68e-b7525fa88d20","at":1767687823000000000,"seq":70,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b9267-b99e-7c59-8b8c-5a6e1f408ba1","at":1767687829918000000,"seq":71,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b9267-d548-7f35-aa9a-db53e67ceede","at":1767687837000000000,"seq":72,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9267-dd18-744d-a1fb-dbf328ec8238","at":1767687839000000000,"seq":73,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b927b-1182-7005-b2d4-1119eb2b022b","at":1767689097602000000,"seq":74,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b927b-1ec8-7d03-ad9c-a480c1f9f9d0","at":1767689101000000000,"seq":75,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b927b-2a80-7195-ae4e-059786c2e045","at":1767689104000000000,"seq":76,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b927c-bcbe-7fad-9ca6-32007446293c","at":1767689206974000000,"seq":77,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b927c-d448-7b16-8978-328970878752","at":1767689213000000000,"seq":78,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b927c-f770-7b04-b7fc-81fd46be8ae2","at":1767689222000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b9297-2078-7387-b28f-2dcb397e149d","at":1767690936440000000,"seq":80,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b9297-2690-7e02-a02b-2c1ff5588e38","at":1767690938000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9297-6128-7d74-aee2-320c72db0688","at":1767690953000000000,"seq":82,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9297-93f0-7f47-8301-3a66aceb0e47","at":1767690966000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9297-de28-79c6-8c2d-97576c8d81ec","at":1767690985000000000,"seq":84,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

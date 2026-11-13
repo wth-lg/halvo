@@ -1,0 +1,22 @@
+{"v":1,"id":"019d42f6-3c38-71e5-9487-069b6f5dd04f","at":1774944926776000000,"seq":1430,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42f6-3c38-7767-abdb-461df5545765","at":1774944926776000000,"seq":1431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d42f6-f0c8-7419-92ae-43e2c19c9174","at":1774944973000000000,"seq":1432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f6-fc80-735c-a2d6-51dd8437aab9","at":1774944976000000000,"seq":1433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d430d-7b5a-7e4f-b073-1755c15f03ee","at":1774946450266000000,"seq":1434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d430d-bcb8-79d6-a32e-602e38c6253c","at":1774946467000000000,"seq":1435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d430d-c154-77bd-929d-43fb4b8ff5da","at":1774946468180000000,"seq":1436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d430d-c488-7d76-85a5-b88117495e34","at":1774946469000000000,"seq":1437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d430d-e7b0-75cc-824c-d0f90aa138be","at":1774946478000000000,"seq":1438,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d430e-0ec0-7498-b774-d8bd9559222e","at":1774946488000000000,"seq":1439,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d430e-2630-7b7a-8a09-5da45ef1895d","at":1774946494000000000,"seq":1440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d430e-6898-7e19-9ed6-fe784fdd1d03","at":1774946511000000000,"seq":1441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d430e-77ba-7518-a1bd-11c309e5fbfc","at":1774946514874000000,"seq":1442,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d430e-77ba-7341-88e7-98fe91ec2f7e","at":1774946514874000000,"seq":1443,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d430e-baa0-7443-a79e-93b98c1d08f7","at":1774946532000000000,"seq":1444,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d430e-c3cb-73d6-a531-eecbf637dfd5","at":1774946534347000000,"seq":1445,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d430e-c3cb-7bfd-99d5-663f29974048","at":1774946534347000000,"seq":1446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d430e-d9e0-7d72-ae79-35d546aeb206","at":1774946540000000000,"seq":1447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d430e-e980-73c4-b26d-e25363edb91d","at":1774946544000000000,"seq":1448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d4329-6fe6-71d1-aa74-c7219725146c","at":1774948282342000000,"seq":1449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4329-e3c0-752f-8ac2-7a6b44e0ed6b","at":1774948312000000000,"seq":1450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d432a-64a8-74a9-b262-eaedc209cee5","at":1774948345000000000,"seq":1451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

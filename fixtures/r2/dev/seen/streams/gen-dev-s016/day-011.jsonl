@@ -1,0 +1,11 @@
+{"v":1,"id":"019bac2e-93f1-725f-9744-4bb78b089c0d","at":1768120292337000000,"seq":146,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac2e-93f1-71ff-a3f9-b4522be99914","at":1768120292337000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bac2e-dcd8-7797-8ef1-1fc65bd7f99b","at":1768120311000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac2f-2710-7a1b-997e-b059cc212ff4","at":1768120330000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac2f-3982-718b-b6eb-65fc3b8b14c4","at":1768120334722000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bac2f-7d00-7091-b45f-34763ed8c55c","at":1768120352000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac2f-f230-7a31-b33f-015d6aabfbc6","at":1768120382000000000,"seq":152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bac3d-beb7-7e59-add6-a16607ded3cd","at":1768121286327000000,"seq":153,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bac3d-beb7-78d1-bca1-938bd2bdfef9","at":1768121286327000000,"seq":154,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bac3d-c158-783e-8ae7-63f1ca681212","at":1768121287000000000,"seq":155,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bac3d-ec50-7081-ba96-bb1f089bf48e","at":1768121298000000000,"seq":156,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}

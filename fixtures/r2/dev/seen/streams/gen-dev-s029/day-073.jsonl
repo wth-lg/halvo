@@ -1,0 +1,18 @@
+{"v":1,"id":"019ceb5d-af35-7ba7-abb2-76ee5d84da0e","at":1773475311413000000,"seq":1073,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb5d-af35-7ba0-a6fe-9799c92f13a1","at":1773475311413000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ceb5d-c8f0-7679-8b89-c7bcc752a366","at":1773475318000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ceb5e-0b9c-707c-8663-112cd73a1926","at":1773475335068000000,"seq":1076,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ceb5e-3268-7422-bbe4-7d1056fa3a43","at":1773475345000000000,"seq":1077,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceb5e-4dc0-7f6f-898d-bcf7b86ef8c4","at":1773475352000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb6e-5b35-73ad-9207-c8c1603ddc23","at":1773476404021000000,"seq":1079,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ceb6e-5b35-73f0-b115-05e68294cfc7","at":1773476404021000000,"seq":1080,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ceb6e-62f0-7d87-829b-0a1a29472335","at":1773476406000000000,"seq":1081,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb6e-8de8-7f37-ac6e-51b835437271","at":1773476417000000000,"seq":1082,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ceb6e-c0b0-7da9-9496-7a6d88286a3f","at":1773476430000000000,"seq":1083,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ceb6e-c498-7239-b1b8-a1c4c89b7236","at":1773476431000000000,"seq":1084,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb6e-c6b7-788c-af39-99063d072cb5","at":1773476431543000000,"seq":1085,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ceb6e-dff0-7b19-8c07-1518ff6a03eb","at":1773476438000000000,"seq":1086,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb6e-fb48-77a1-9cbe-c2cb125d8e4b","at":1773476445000000000,"seq":1087,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ceb6f-12b8-7f52-ba50-115b0a5410a8","at":1773476451000000000,"seq":1088,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb6f-9b70-7173-95d4-d8d132e38766","at":1773476486000000000,"seq":1089,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ceb6f-c668-70fe-9620-3dee37a47dab","at":1773476497000000000,"seq":1090,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

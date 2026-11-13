@@ -1,0 +1,22 @@
+{"v":1,"id":"019d2eb7-d43c-7010-904a-ab25f6528ce0","at":1774605292604000000,"seq":1300,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2eb7-d43c-72b1-87ab-1351019fa4d6","at":1774605292604000000,"seq":1301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb7-d9b0-71d6-bf4f-e688a8f504ed","at":1774605294000000000,"seq":1302,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2ebc-5851-7e5c-ad06-4f3391e431e0","at":1774605588561000000,"seq":1303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2ebc-7948-7d53-aa28-48985c86d623","at":1774605597000000000,"seq":1304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ebc-f648-758e-bac6-669c207dd88f","at":1774605629000000000,"seq":1305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d2ebc-ff5e-74fb-acd1-1d6b5caad792","at":1774605631326000000,"seq":1306,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2ebc-ff5e-7c7f-98d6-7b50df6c0efe","at":1774605631326000000,"seq":1307,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2ebd-0200-7319-a1dd-434d95f6ffb4","at":1774605632000000000,"seq":1308,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ebd-2140-76dd-9248-8d3165926db2","at":1774605640000000000,"seq":1309,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2ebd-4468-7722-a845-425204f85455","at":1774605649000000000,"seq":1310,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d2ebd-5d50-7e85-a8e0-caf7232a10d3","at":1774605655376000000,"seq":1311,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2ebd-5d50-75fd-8584-def1e712d975","at":1774605655376000000,"seq":1312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2ebd-9670-725d-afbb-cb92db7b9544","at":1774605670000000000,"seq":1313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d2ebe-30cd-7b44-bb68-e54ab18fef5d","at":1774605709517000000,"seq":1314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2ebe-4250-7edd-afdb-798bc953540f","at":1774605714000000000,"seq":1315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ebe-bb68-759e-9abd-32ab661b22bc","at":1774605745000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d2ebe-f1b4-7012-af5d-ad36e70da678","at":1774605758900000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2ebf-20f8-7ed5-b9ab-1d171073ce6b","at":1774605771000000000,"seq":1318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d2ec7-9e4d-7ef8-9800-749f6fa02440","at":1774606327373000000,"seq":1319,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2ec7-9e4d-7635-80d0-6c2671b9b015","at":1774606327373000000,"seq":1320,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2ec7-db58-7eb5-9051-43d28a5f9f94","at":1774606343000000000,"seq":1321,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

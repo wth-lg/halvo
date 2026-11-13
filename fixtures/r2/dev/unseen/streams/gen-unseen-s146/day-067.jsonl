@@ -1,0 +1,10 @@
+{"v":1,"id":"019cccfa-ed85-73c5-a494-f9610a79ca02","at":1772965522821000000,"seq":918,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cccfa-ed85-7f29-92fb-300470051c00","at":1772965522821000000,"seq":919,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cccfb-ce10-7a3c-8b68-4cfe9cba2175","at":1772965580304000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cccfb-d0c8-7450-95c6-f3bdbc289fee","at":1772965581000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccfb-d898-74a2-8ff0-50b5ddab681e","at":1772965583000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccfb-ec20-7364-ae0e-34fd7e97a4d2","at":1772965588000000000,"seq":923,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cccfc-22d0-7228-9a3a-77be5bb2850d","at":1772965602000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cccfc-45f8-798e-ba8c-f27f9653859f","at":1772965611000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cccfc-7427-797c-a385-ce6752c89620","at":1772965622823000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cccfc-9418-7ed5-8f3c-b43b360f9115","at":1772965631000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

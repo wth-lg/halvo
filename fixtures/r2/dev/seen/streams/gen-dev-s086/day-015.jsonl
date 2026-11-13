@@ -1,0 +1,28 @@
+{"v":1,"id":"019bc13a-ac44-717f-a36b-7f3408a36b72","at":1768473406532000000,"seq":224,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc13a-ac44-759c-a1dd-99e2f08460b7","at":1768473406532000000,"seq":225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bc13a-ec98-7fae-9a3b-33ba97487fb1","at":1768473423000000000,"seq":226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13b-4670-7efa-9637-e8a2eb990e42","at":1768473446000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bc13b-5d4a-7ef8-a633-7f6072c578e1","at":1768473451850000000,"seq":228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bc13b-5de0-7220-ba98-696e088e6bb8","at":1768473452000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13b-8108-7477-9da3-a45c2bc03397","at":1768473461000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13b-afe8-7f2d-8cdd-e48be389fac3","at":1768473473000000000,"seq":231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc13b-d50f-766f-9a51-e4bf7a35b2de","at":1768473482511000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bc13b-ea80-7d63-ab22-e05cbfeaf17d","at":1768473488000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13b-fa20-7138-9c98-442a31a32309","at":1768473492000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bc13c-6780-7410-8602-e531b75408f7","at":1768473520000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc13c-6b68-7340-b896-9a4b18c70062","at":1768473521000000000,"seq":236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc13c-7f76-79ff-b15c-1d4b771d1dcd","at":1768473526134000000,"seq":237,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc13c-7f76-7231-93c4-07c085d3cc67","at":1768473526134000000,"seq":238,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc13c-9a48-7611-822b-911f5e4cd5f2","at":1768473533000000000,"seq":239,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13c-c158-7187-af61-f93514699612","at":1768473543000000000,"seq":240,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bc13c-d8c8-7e4d-bda1-73d9a4ed22b0","at":1768473549000000000,"seq":241,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bc13c-e868-7b55-878c-9e0fb275ae79","at":1768473553000000000,"seq":242,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13c-f420-7e94-8365-7c38ff80f635","at":1768473556000000000,"seq":243,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bc13d-7534-7e25-806f-63aec36eb3b3","at":1768473589044000000,"seq":244,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bc13d-78f0-7211-a4a7-e713844b828f","at":1768473590000000000,"seq":245,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bc13d-b388-7fc6-b934-cef1a66838f3","at":1768473605000000000,"seq":246,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bc13d-b388-723a-a37c-fd4ca1890bde","at":1768473605000000000,"seq":247,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bc13d-cee0-73e1-8bea-3c2b30512afe","at":1768473612000000000,"seq":248,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13d-ee20-702f-b371-e45fca6b48b7","at":1768473620000000000,"seq":249,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13d-f0d3-7f47-8a6f-98ada1222920","at":1768473620691000000,"seq":250,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc13d-f0d3-78c4-b00b-a2b686646517","at":1768473620691000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}

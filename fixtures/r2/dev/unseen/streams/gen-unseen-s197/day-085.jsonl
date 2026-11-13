@@ -1,0 +1,37 @@
+{"v":1,"id":"019d29ab-3a09-7934-932f-8cdd5d447fe9","at":1774520580617000000,"seq":1117,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d29ab-3a09-7073-8adf-550c2d6a53ee","at":1774520580617000000,"seq":1118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d29ab-ef38-726b-8e6c-3337aead8cab","at":1774520627000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d29ac-2ea3-737a-8527-d954c311d244","at":1774520643235000000,"seq":1120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d29ac-4140-7a2e-9194-217fb9c6cd40","at":1774520648000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ac-4910-7e85-aa7d-e0280d608905","at":1774520650000000000,"seq":1122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d29ac-50e0-7428-8303-9f6059bb956c","at":1774520652000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ac-6080-7883-86e8-5d8df6aaad9e","at":1774520656000000000,"seq":1124,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d29b0-7095-734e-a807-5963270babb1","at":1774520922261000000,"seq":1125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d29b1-07e8-7b7f-a5a8-47da129b8a7a","at":1774520961000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29b1-61df-794d-afed-7a4b3d047694","at":1774520984031000000,"seq":1127,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d29b1-7548-7145-9ecc-68c2e0c40d01","at":1774520989000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29b1-bb98-7b15-b53d-dbd0591b5abe","at":1774521007000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d29b1-bd78-73cc-ab54-468dedd01cf9","at":1774521007480000000,"seq":1130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d29b2-6b60-78e9-90b3-22ab11a177ea","at":1774521052000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d29b2-b980-7956-ae31-713e174179af","at":1774521072000000000,"seq":1132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29b2-bc64-7563-bd0e-60539f201dcd","at":1774521072740000000,"seq":1133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d29b2-bd68-7558-99c5-b80cf5528a25","at":1774521073000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29b2-c150-76b4-bcc0-0082a6c53841","at":1774521074000000000,"seq":1135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29b2-c920-7ca5-9d6a-e8ec00df78b0","at":1774521076000000000,"seq":1136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d29b2-d4d8-7700-9c34-d9107693e532","at":1774521079000000000,"seq":1137,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d29cd-d6d4-7802-a0b6-354601fbb943","at":1774522848980000000,"seq":1138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d29ce-09b0-7ca5-ad34-4b123d32899d","at":1774522862000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d29ce-1568-722b-95b1-892ae163bb25","at":1774522865000000000,"seq":1140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ce-1d38-7e0b-939c-dffffdacfa9c","at":1774522867000000000,"seq":1141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ce-568c-75c8-aaf0-738202bade1c","at":1774522881676000000,"seq":1142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d29ce-86b0-7791-a0d2-ea154030f728","at":1774522894000000000,"seq":1143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d29cf-465e-7e24-89f4-a89590184548","at":1774522943070000000,"seq":1144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d29cf-6170-7c07-8462-aeb33e103559","at":1774522950000000000,"seq":1145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d29cf-7110-71d0-ad45-2af4eaae1d3e","at":1774522954000000000,"seq":1146,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d29cf-7f62-73cd-9838-fab9b1ebb4fb","at":1774522957666000000,"seq":1147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d29cf-8498-7c32-b6e5-7f5493092b8e","at":1774522959000000000,"seq":1148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29cf-9820-7556-9c28-96cb2ec73136","at":1774522964000000000,"seq":1149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d29cf-c700-7fd8-a651-795f0b187646","at":1774522976000000000,"seq":1150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d29e2-e581-7e6f-8bcb-042bf93a9c22","at":1774524228993000000,"seq":1151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d29e3-bc60-78a4-8237-e512aef17547","at":1774524284000000000,"seq":1152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29e3-f310-7255-97d4-a0876e96d45e","at":1774524298000000000,"seq":1153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

@@ -1,0 +1,19 @@
+{"v":1,"id":"019be9c9-f8f4-704f-b3bf-8aed9c0ed4b6","at":1769153886452000000,"seq":234,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be9c9-f8f4-7d88-8e70-0f494837793d","at":1769153886452000000,"seq":235,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019be9ca-3998-7184-8129-434f65c4e23d","at":1769153903000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9ca-440f-7699-983a-3005ecc84abc","at":1769153905679000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019be9ca-6490-7ec6-957c-9e3fa08202a3","at":1769153914000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9ca-f518-7d7f-87bd-10e8309848e7","at":1769153951000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019be9cb-00d0-76a6-acfe-7d775bd06d22","at":1769153954000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9e3-df84-7479-b843-a7dd24eae2a1","at":1769155583876000000,"seq":241,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be9e3-e7d0-7d23-93f8-d2069dab84f0","at":1769155586000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be9e3-f770-796a-9e17-d1821cac4d7b","at":1769155590000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9ed-3afa-7d27-a4bd-ffda8ba8c347","at":1769156197114000000,"seq":244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be9ed-51f8-7db1-a109-4a14bdc0c3e9","at":1769156203000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9ed-6580-7c43-87c8-77cd883c96c8","at":1769156208000000000,"seq":246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be9ed-9078-7132-b299-b194e7d6f049","at":1769156219000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9ed-a7e8-77a0-a76b-cb2479c1d939","at":1769156225000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be9ed-b27e-7499-910f-0d3831fe08a7","at":1769156227710000000,"seq":249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be9f5-aa1e-7d16-9094-dac29fe4e06b","at":1769156749854000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be9f5-b668-7658-a8f4-1058b7856219","at":1769156753000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f6-2b98-7cf0-84f0-1ae14037510d","at":1769156783000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

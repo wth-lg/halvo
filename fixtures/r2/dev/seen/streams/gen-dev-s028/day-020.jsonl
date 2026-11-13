@@ -1,0 +1,9 @@
+{"v":1,"id":"019bda54-641e-7e09-9bb2-18562aaf5f37","at":1768894522398000000,"seq":383,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda54-641e-788f-a463-a87111575c6b","at":1768894522398000000,"seq":384,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bda54-7de8-79bb-87c4-e01d34c23f97","at":1768894529000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bda54-b880-7240-800f-b312e61768c6","at":1768894544000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bda54-df90-7631-9acc-3cd4e1b56528","at":1768894554000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bda6d-d19d-71c2-b122-4c6bbdd65071","at":1768896188829000000,"seq":388,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bda6d-d19d-7ef2-98e4-91f7ca7d1e33","at":1768896188829000000,"seq":389,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bda6e-2068-78dc-8c7f-5607b4a841f6","at":1768896209000000000,"seq":390,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda6e-2838-7bdc-a5af-850107a30c23","at":1768896211000000000,"seq":391,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}

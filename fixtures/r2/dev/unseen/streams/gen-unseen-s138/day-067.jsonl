@@ -1,0 +1,24 @@
+{"v":1,"id":"019ccc61-d358-735e-ae7a-3b487a349575","at":1772955489112000000,"seq":851,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccc61-d358-7d18-92b5-6203864953e9","at":1772955489112000000,"seq":852,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccc62-1d20-7a8c-a03c-961a805a9c95","at":1772955508000000000,"seq":853,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ccc62-28d8-7c28-8e71-66d91a25e30a","at":1772955511000000000,"seq":854,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ccc62-8e68-7f2a-97ce-ed5f88fc7746","at":1772955537000000000,"seq":855,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ccc7c-089c-7fb0-85c6-7d3e4cb0d0a2","at":1772957206684000000,"seq":856,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccc7c-089c-7e79-b93b-4723186903dd","at":1772957206684000000,"seq":857,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ccc7c-e335-77d5-ad7e-6bb4c6d18fe2","at":1772957262645000000,"seq":858,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ccc7d-2ed0-7366-a6b7-4b6bb1372d08","at":1772957282000000000,"seq":859,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc7d-6968-7f9c-a29a-66640c0a2abb","at":1772957297000000000,"seq":860,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccc7d-9460-7b66-b6da-b2507c2ba6c1","at":1772957308000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ccc7d-ba22-7f21-a740-408750661845","at":1772957317666000000,"seq":862,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ccc7d-c728-7d91-8dae-5ccc404153b1","at":1772957321000000000,"seq":863,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc7d-f9f0-7fbb-b115-85afa2af1ef7","at":1772957334000000000,"seq":864,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ccc7e-1160-70d6-a7e8-a770758b1ec4","at":1772957340000000000,"seq":865,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccc7e-3488-788d-b767-0fab42955e4a","at":1772957349000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc7e-4a3d-7b06-99fe-f0d7aafc6742","at":1772957354557000000,"seq":867,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ccc7e-6368-748d-af73-fbd221b469ca","at":1772957361000000000,"seq":868,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ccc7e-6f20-71ba-9a96-cad8340df573","at":1772957364000000000,"seq":869,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc7e-ada0-73f5-bbcf-61ed4d40e840","at":1772957380000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc7e-d0c8-70e7-ab50-80d7b206a27a","at":1772957389000000000,"seq":871,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ccc7e-d284-74a0-98f1-a4851d93c946","at":1772957389444000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019ccc7f-0f48-7b90-875c-e960f08ad3eb","at":1772957405000000000,"seq":873,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccc7f-22d0-7c7b-8c76-83d66be1b51f","at":1772957410000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

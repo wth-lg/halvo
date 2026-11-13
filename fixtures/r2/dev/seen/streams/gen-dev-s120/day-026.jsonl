@@ -1,0 +1,17 @@
+{"v":1,"id":"019bf974-730d-7190-9900-0a1cf5d3ded3","at":1769416717069000000,"seq":420,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf974-730d-75e6-b931-a79e03f0aed4","at":1769416717069000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf974-8a38-7310-be49-f61cdd55af3d","at":1769416723000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf974-a590-71a2-83ab-63a543938266","at":1769416730000000000,"seq":423,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf975-0f08-755b-9cac-38332de21910","at":1769416757000000000,"seq":424,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf975-12f0-7e76-b67c-e06b67d1a64c","at":1769416758000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf988-2419-73c3-9c7d-3ed19b081570","at":1769418007577000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf988-6058-72cd-92d0-840de8f31f77","at":1769418023000000000,"seq":427,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf988-6ff8-79ad-9471-e31539928c1f","at":1769418027000000000,"seq":428,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf99f-47cb-771f-ad09-bf50f45a5ce4","at":1769419524043000000,"seq":429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bf99f-7298-727f-a264-9b25a585f07b","at":1769419535000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf99f-cc70-7395-888a-e5d51a1e1efe","at":1769419558000000000,"seq":431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bf9a0-3db8-71d3-9a1a-18c435d2b5ae","at":1769419587000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9a0-5230-718f-8f17-beabd4f06d03","at":1769419592240000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bf9a0-7c38-7916-a02c-24a09dca87f5","at":1769419603000000000,"seq":434,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf9a1-2fe8-7be1-8b71-0e16d1d3e516","at":1769419649000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bf9a1-4758-76c7-97e0-c42b6008e986","at":1769419655000000000,"seq":436,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

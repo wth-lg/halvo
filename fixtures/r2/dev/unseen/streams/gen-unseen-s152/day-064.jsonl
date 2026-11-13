@@ -1,0 +1,11 @@
+{"v":1,"id":"019cbd5b-730a-700f-8d17-af9429d9a47c","at":1772703413002000000,"seq":1009,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd5b-730a-7484-b8d7-54ec20bda63c","at":1772703413002000000,"seq":1010,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cbd5b-7ec0-7be6-9266-e2ec752b870d","at":1772703416000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd5b-b570-7830-a1f8-85bde64a062a","at":1772703430000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cbd5b-cce0-7020-bf8a-ef29479fe9b7","at":1772703436000000000,"seq":1013,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd70-d05e-7432-b0e1-448c3c86d186","at":1772704813150000000,"seq":1014,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cbd71-3d28-7a44-932e-0390130e4f5d","at":1772704841000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd71-66c7-7700-ad2d-2d20afd30e94","at":1772704851655000000,"seq":1016,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cbd72-14e4-7041-89c6-ad750c45ddc5","at":1772704896228000000,"seq":1017,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cbd72-3340-70dc-a2d6-f17d5591b5d3","at":1772704904000000000,"seq":1018,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cbd72-71c0-7f81-b6dc-1db38c5f0d3d","at":1772704920000000000,"seq":1019,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

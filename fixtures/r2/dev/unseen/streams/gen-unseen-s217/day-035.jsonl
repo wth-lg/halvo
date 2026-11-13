@@ -1,0 +1,20 @@
+{"v":1,"id":"019c27d7-25e8-7ea6-a39a-3635878f698d","at":1770194937320000000,"seq":370,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c27d7-25e8-722f-844f-2c4c51111a0d","at":1770194937320000000,"seq":371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c27d7-8650-7af7-ba8d-479d48ef57b1","at":1770194962000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27e4-2b98-7079-b92b-af7a6ef6b859","at":1770195790744000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c27e4-47f0-7a87-ae5f-8de8ec24e20e","at":1770195798000000000,"seq":374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c27e4-8670-7352-b8ed-b44746f6fff6","at":1770195814000000000,"seq":375,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c27ee-c138-745a-9e5f-a826ec0490f1","at":1770196484408000000,"seq":376,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c27ef-613a-7d80-9b53-4e497f5a4eee","at":1770196525370000000,"seq":377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c27ef-7b20-7c5d-b767-7718b2fcb3fe","at":1770196532000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ef-8ea8-7d21-bcfb-83db2d03d667","at":1770196537000000000,"seq":379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c27ef-dcc8-7549-8722-374cf86a1be6","at":1770196557000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c27ef-ec68-7b68-a704-22d7f4479cd6","at":1770196561000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27f0-0ba8-7b55-9e53-9f4a5b13f335","at":1770196569000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c27f0-1e54-78b2-826b-ed777f755858","at":1770196573780000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c27f0-9460-7ac6-8759-33fc2382031c","at":1770196604000000000,"seq":384,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c27f1-2534-7b43-9b06-5948902d7d8b","at":1770196641076000000,"seq":385,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c27f1-4040-784e-9163-7abbd1247dd4","at":1770196648000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c27f1-8a78-787d-8c05-ec1d4c4db121","at":1770196667000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27f1-c510-7d7b-b496-7fe1fd9e9be5","at":1770196682000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c27f1-f008-7007-b46d-97538da4ef24","at":1770196693000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

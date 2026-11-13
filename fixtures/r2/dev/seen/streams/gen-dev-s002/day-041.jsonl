@@ -1,0 +1,21 @@
+{"v":1,"id":"019c46c2-960e-7c87-85b8-4720abefa35f","at":1770713683470000000,"seq":648,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c46c2-960e-7e94-a27c-61e4cd6e8eac","at":1770713683470000000,"seq":649,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c46c2-9c08-788b-b891-9dece7e13167","at":1770713685000000000,"seq":650,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c46c3-22fa-793b-9357-db0f9e0056b0","at":1770713719546000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c46c3-47e8-7e80-b350-7df76176f209","at":1770713729000000000,"seq":652,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c46c3-6340-7aaf-a235-b586b922cabf","at":1770713736000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46c7-6e87-74b6-b22e-361a3edb33fc","at":1770714001031000000,"seq":654,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c46c7-9960-78e4-b14b-83ff3c62fe13","at":1770714012000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c46c7-e780-706d-99d5-ac685c7fbeeb","at":1770714032000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46c8-4d10-751a-ab4b-752679951f79","at":1770714058000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46e3-3dbb-7071-9854-9f172d806864","at":1770715823547000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c46e3-8da0-7bca-8a15-7231ca61d89d","at":1770715844000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c46e4-068c-78ee-bee4-33dfcd5e9acc","at":1770715874956000000,"seq":660,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c46e4-068c-744c-ad0e-0de385110e24","at":1770715874956000000,"seq":661,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c46e4-7030-79ab-a1fd-206fd7aedb6e","at":1770715902000000000,"seq":662,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46e4-e44e-7839-a136-fca2374c8e79","at":1770715931726000000,"seq":663,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c46e4-e44e-7850-b19b-45965537b273","at":1770715931726000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c46e5-7200-734b-a00f-c8f80848f5e5","at":1770715968000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c46f9-ac28-724e-b606-8ef27772d8bc","at":1770717293608000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c46f9-b580-71a5-b9dd-5071b68fa843","at":1770717296000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f9-e460-7a33-a706-c455a98c68a3","at":1770717308000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

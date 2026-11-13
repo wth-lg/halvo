@@ -1,0 +1,14 @@
+{"v":1,"id":"019c569c-36ae-7e63-b4df-5782746c2300","at":1770979604142000000,"seq":454,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c569c-36ae-7224-b62f-a2e6b10403cb","at":1770979604142000000,"seq":455,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c569c-74a0-71e0-a164-ddc139b7b07f","at":1770979620000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c569c-8c10-70f0-9a82-2bb8e8f0e6ac","at":1770979626000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c569d-1661-78f4-8585-c70b283749d6","at":1770979661409000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c569d-db0c-77e2-92d6-5df0344a98cf","at":1770979711756000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c569e-0ec8-7c71-83a2-97d8f67578b7","at":1770979725000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c569e-bf58-7c82-8a78-60712fd2b7bc","at":1770979770200000000,"seq":461,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c569e-ed70-7483-9c2c-2f1bac951a6a","at":1770979782000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56b1-7c60-7b8d-9746-c255a69f58de","at":1770980998240000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c56b1-8ef8-79d4-bcab-91f7d937336e","at":1770981003000000000,"seq":464,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c56b1-ae38-70fe-a404-37151ff14b77","at":1770981011000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56b1-e4e8-7d9d-b479-b2f30ec72c65","at":1770981025000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c56b2-0810-799a-b7b7-698586f99e3f","at":1770981034000000000,"seq":467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

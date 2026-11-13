@@ -1,0 +1,30 @@
+{"v":1,"id":"019c7a63-ffdd-79a2-b94c-5494c7b0a484","at":1771579899869000000,"seq":835,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a63-ffdd-7742-9762-40ad0fe4f9a1","at":1771579899869000000,"seq":836,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c7a64-71a8-79f7-b77f-92d51449fabe","at":1771579929000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a64-90e8-7f30-9e75-f10bd81ca4a4","at":1771579937000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c7a64-ab83-7305-9028-ba50c0ccdd52","at":1771579943811000000,"seq":839,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c7a64-b410-7e07-baca-37e78e337bae","at":1771579946000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c7a64-cb80-7400-b545-957c1d8a60e3","at":1771579952000000000,"seq":841,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a64-d350-7114-8f93-410c35faf03c","at":1771579954000000000,"seq":842,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a65-1d88-748b-9f8e-ab5851a499f1","at":1771579973000000000,"seq":843,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a65-2558-7c81-9172-43290e0e60eb","at":1771579975000000000,"seq":844,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a65-9c63-7d97-ad59-20f685906122","at":1771580005475000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c7a65-d908-7f98-a798-6b8833c0f4c5","at":1771580021000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c7a66-07e8-78b5-8ebc-177fa736ae75","at":1771580033000000000,"seq":847,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7a6c-2d5e-745e-a3bf-051bde0cf06f","at":1771580435806000000,"seq":848,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c7a6c-2e20-76c8-8506-a63af9779da0","at":1771580436000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6c-e5b8-78d2-8c52-39438624f505","at":1771580483000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6d-3827-7219-8cf9-b7a14a1a1fe3","at":1771580504103000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a6d-62b8-78e1-b6a1-32c1710a68db","at":1771580515000000000,"seq":852,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6d-fcdc-7691-9bbd-d7695eb69f62","at":1771580554460000000,"seq":853,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c7a6e-4930-709f-b8a5-00b8510c9984","at":1771580574000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7a6e-8b98-725b-bc73-34cb81ffb7d3","at":1771580591000000000,"seq":855,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6f-eb1d-79f1-b506-4c897d8c39f2","at":1771580680989000000,"seq":856,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a6f-eb1d-7256-8ce0-285de4bae54b","at":1771580680989000000,"seq":857,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a70-1620-7e74-b0e6-4bfafcfa246f","at":1771580692000000000,"seq":858,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a70-a6a8-7932-aa5f-941a224e5ced","at":1771580729000000000,"seq":859,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c7a72-11df-7675-ace2-d531d5e7f2a2","at":1771580821983000000,"seq":860,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a72-11df-7519-a75d-5bdb5942da61","at":1771580821983000000,"seq":861,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a72-5458-757d-9fe7-4c9e7b35e79e","at":1771580839000000000,"seq":862,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7a72-7398-7e01-b07a-92d3e3c86622","at":1771580847000000000,"seq":863,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a72-8ef0-7d92-81ab-f16863a4bae3","at":1771580854000000000,"seq":864,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

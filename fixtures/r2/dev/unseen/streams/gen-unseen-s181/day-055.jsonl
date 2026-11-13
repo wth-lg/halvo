@@ -1,0 +1,14 @@
+{"v":1,"id":"019c8eeb-33a4-7948-be27-29fdd0044c1b","at":1771924304804000000,"seq":561,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8eeb-33a4-713e-8bef-c37b9d786c43","at":1771924304804000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8eeb-5790-7ed6-8d8b-552c2ee14c25","at":1771924314000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eeb-5f60-7d4c-90ea-46efe3276f8c","at":1771924316000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eeb-754f-732f-860f-24aec01e637d","at":1771924321615000000,"seq":565,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8eeb-b168-70aa-9819-3f5c57292626","at":1771924337000000000,"seq":566,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8eec-5dd0-7750-9563-53e4b46a2a7e","at":1771924381136000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8ef2-e67b-73cd-a90b-04e419daff92","at":1771924809339000000,"seq":568,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8ef2-e67b-7985-9dee-9c71b3baf7b0","at":1771924809339000000,"seq":569,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8ef3-6228-722b-aed7-e154bb8ebe66","at":1771924841000000000,"seq":570,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c8ef3-71c8-74b1-9a09-46448a405438","at":1771924845000000000,"seq":571,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c8eff-cf5d-76ed-915e-f46229e0b558","at":1771925655389000000,"seq":572,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8eff-cf5d-7bb4-9a36-914a5026ed09","at":1771925655389000000,"seq":573,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8f00-9ce0-7ddc-b583-daf36480c653","at":1771925708000000000,"seq":574,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019d3354-de12-7130-8f36-2abe5cc89099","at":1774682693138000000,"seq":1156,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3354-de12-73d6-af18-d527bbdcd18e","at":1774682693138000000,"seq":1157,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3354-f8e0-792f-bf8b-f7a42765d860","at":1774682700000000000,"seq":1158,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d3355-00b0-7f47-8d88-fe364ec4d321","at":1774682702000000000,"seq":1159,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3355-3378-7d60-ba73-d5eb6e882d34","at":1774682715000000000,"seq":1160,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d3358-13c8-733f-b1d6-7f4050ea62c3","at":1774682903496000000,"seq":1161,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3358-2560-7bab-bb4f-e52a6aec9e45","at":1774682908000000000,"seq":1162,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3358-2948-7246-8e37-d691cd9161f0","at":1774682909000000000,"seq":1163,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3358-3500-7eaf-b33e-1245a4ffeaca","at":1774682912000000000,"seq":1164,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d3358-4888-7847-9ecf-e6974e170c94","at":1774682917000000000,"seq":1165,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3372-d505-7647-ad62-a5c8b315cab5","at":1774684656901000000,"seq":1166,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3372-d505-75ae-906a-f2e0f533e935","at":1774684656901000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d3373-0448-731b-82c0-529fbb203e9b","at":1774684669000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3373-7978-7c4f-aa7d-9f04201e892d","at":1774684699000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3373-ccdb-7437-a70e-dc322f1bf8a9","at":1774684720347000000,"seq":1170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d3374-0de8-75b3-a89f-fa96914b328e","at":1774684737000000000,"seq":1171,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3374-19a0-7e7a-8c5e-24ce85d6a776","at":1774684740000000000,"seq":1172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3374-1dec-79e1-98a9-17473224e428","at":1774684741100000000,"seq":1173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d3374-5050-79eb-a388-3d7c7f7a658d","at":1774684754000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3374-5c08-7e59-84ab-7d7825f83e5d","at":1774684757000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3374-9dce-74dd-bd69-10d5ce9789ec","at":1774684773838000000,"seq":1176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d3374-a258-748e-b744-859673f94bc4","at":1774684775000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

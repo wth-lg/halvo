@@ -1,0 +1,30 @@
+{"v":1,"id":"019c8e8e-f8c9-7444-8c6b-ac097b314e45","at":1771918260425000000,"seq":766,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8e8e-f8c9-7270-91c0-7fdc3e61d203","at":1771918260425000000,"seq":767,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c8e8f-35a0-7ea9-a066-95efc97517e1","at":1771918276000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c8e8f-5cb0-7cba-bc75-bc93e734c366","at":1771918286000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8e8f-6cd8-7f85-b4f3-72501b635d12","at":1771918290136000000,"seq":770,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8e8f-6cd8-761a-8cda-e10997d643a2","at":1771918290136000000,"seq":771,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8e8f-7bf0-7d8b-9a82-b8ea6bd55d0b","at":1771918294000000000,"seq":772,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c8e8f-aad0-7ca5-9e60-6f19a47512df","at":1771918306000000000,"seq":773,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8e90-032b-797d-9f7b-9ff17be0c7b0","at":1771918328619000000,"seq":774,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8e90-032b-7b40-81ac-4c108981f48d","at":1771918328619000000,"seq":775,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c8e90-ef08-75bd-a22c-8782c268ad16","at":1771918389000000000,"seq":776,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8e91-0e39-7b96-82c7-991b5c5d7881","at":1771918396985000000,"seq":777,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c8e91-3940-7513-b3f2-973a6d27f5a7","at":1771918408000000000,"seq":778,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8e91-5498-7b69-a47b-3fffc5376ddc","at":1771918415000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8e91-e249-77f6-ab7b-7e01151e847d","at":1771918451273000000,"seq":780,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c8e91-e520-78cc-896a-25248f73e2a8","at":1771918452000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8e92-5e38-79a2-80aa-9aea2ee61f06","at":1771918483000000000,"seq":782,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c8e92-71c0-72e9-85cb-785957230320","at":1771918488000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8e95-75e7-7a7b-9f00-959598d61a27","at":1771918685671000000,"seq":784,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8e95-75e7-77f3-bc89-943142421850","at":1771918685671000000,"seq":785,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8e95-ec60-7269-8b45-f36ef9c4db36","at":1771918716000000000,"seq":786,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8e95-f818-7e2b-a7cd-01b296ea38e6","at":1771918719000000000,"seq":787,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c8e96-6960-70b6-ad8c-e1593c03dc38","at":1771918748000000000,"seq":788,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8e9a-4c36-7b20-9bf4-26921869878e","at":1771919002678000000,"seq":789,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8e9a-4c36-7b3f-a461-6f63ea178e79","at":1771919002678000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8e9a-7870-70b6-a845-ea2c6abe6cc1","at":1771919014000000000,"seq":791,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8e9a-c690-7017-a9fb-88aacbbf16c9","at":1771919034000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8e9a-e11a-7029-9d28-efb76b4d10f3","at":1771919040794000000,"seq":793,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8e9a-e5d0-73fd-9d88-ff2b31a6e941","at":1771919042000000000,"seq":794,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8e9b-2838-7994-9687-327af25ae5be","at":1771919059000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

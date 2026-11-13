@@ -1,0 +1,37 @@
+{"v":1,"id":"019c4c12-dd7c-7210-a94c-1f2a78ccc27b","at":1770802830716000000,"seq":701,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c12-dd7c-7ea6-a19c-ee64893db68f","at":1770802830716000000,"seq":702,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4c12-e668-7d47-8621-70f22335bd78","at":1770802833000000000,"seq":703,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c12-ea50-7e25-8040-da86be18778c","at":1770802834000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c13-53c8-766e-9f60-aeaf2615bfb0","at":1770802861000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c4c13-a68c-7af5-9dc0-202cf07d691b","at":1770802882188000000,"seq":706,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4c13-d898-7f47-820f-3a25006e4a61","at":1770802895000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c14-22d0-718d-9cc5-143fdf3569e1","at":1770802914000000000,"seq":708,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4c14-3a40-7481-b33b-4fd87bdfa335","at":1770802920000000000,"seq":709,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c14-5980-744f-a813-641983778828","at":1770802928000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c14-817b-75e8-a7f4-d6e45979e196","at":1770802938235000000,"seq":711,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4c14-bf10-763d-a915-36fd65dfc7ba","at":1770802954000000000,"seq":712,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c4c15-3c10-7ad7-a0f8-e7b4803e48d0","at":1770802986000000000,"seq":713,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c15-4f98-7c6b-97a6-deef562357a3","at":1770802991000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c15-6ea4-7536-8181-75dee6b6fe5e","at":1770802998948000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4c15-8a30-76b7-971d-de9641f7621e","at":1770803006000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c4c15-a588-7c3f-bae9-5afddbf4ea3a","at":1770803013000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c15-cc98-7262-9493-24b9fc241b49","at":1770803023000000000,"seq":718,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c16-0348-74b6-b68a-812b0277ed12","at":1770803037000000000,"seq":719,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4c16-3b3b-7483-988b-67ee7c459aeb","at":1770803051323000000,"seq":720,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4c16-8048-7354-872e-34e0207efea8","at":1770803069000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c16-8c00-7b46-b6ae-b8d7891605b7","at":1770803072000000000,"seq":722,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c4c16-e9c0-7a84-b0db-e9c4fe4b5450","at":1770803096000000000,"seq":723,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c16-eda8-7c07-8b33-68804d4c4ee8","at":1770803097000000000,"seq":724,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c17-2b49-7628-8c69-6e26db28ae63","at":1770803112777000000,"seq":725,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4c17-7278-728d-9eac-d3d898656c74","at":1770803131000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c17-7561-7c72-b7dc-cf777ad05f2b","at":1770803131745000000,"seq":727,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4c17-c868-7c6c-88ad-e14bc6e67fb7","at":1770803153000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c4c18-12a0-76f6-8396-83e8254a2571","at":1770803172000000000,"seq":729,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c18-5cd8-7b43-a7b8-859bbee8ef1f","at":1770803191000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4c29-9f57-72e3-a410-8a502cdd9c37","at":1770804322135000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4c29-a6a0-75d7-88f7-bf87cd1136a6","at":1770804324000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c29-c9c8-7075-b5a9-e2cbf0490c0a","at":1770804333000000000,"seq":733,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c31-2777-7d50-a337-d65e342df9d6","at":1770804815735000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4c31-3c08-7aa8-b4cd-44b7bfc3ca73","at":1770804821000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c31-a198-76e8-9618-5925ae0f39d9","at":1770804847000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c31-a580-7e4e-9aa7-a5dfd54a8122","at":1770804848000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

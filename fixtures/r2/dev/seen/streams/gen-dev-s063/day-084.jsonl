@@ -1,0 +1,22 @@
+{"v":1,"id":"019d246b-c2ee-7a41-a55b-1b771a288d7f","at":1774432535278000000,"seq":1233,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d246b-c2ee-78d2-af51-1269e3558197","at":1774432535278000000,"seq":1234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d246c-5260-74f4-91ea-9d65092b1ba2","at":1774432572000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d246c-7366-7f65-aa43-543d411a22d9","at":1774432580454000000,"seq":1236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d246d-63fc-73c3-907d-435be3d80ed5","at":1774432642044000000,"seq":1237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d246d-7f28-710c-9cff-c74fe545c2bf","at":1774432649000000000,"seq":1238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d246d-8310-787c-b0b5-819b579bef4f","at":1774432650000000000,"seq":1239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d246d-b9c0-742b-9c29-d4f9c4b4a1a0","at":1774432664000000000,"seq":1240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d246d-c578-7def-ba33-81a3199ab004","at":1774432667000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d246d-fae8-79f8-bb6d-26af6f702a97","at":1774432680680000000,"seq":1242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d246e-0fb0-7fcc-9fb3-3ca07c9cbe1c","at":1774432686000000000,"seq":1243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2483-bbd9-7209-8d1d-2055a17d4e1b","at":1774434106329000000,"seq":1244,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2483-bbd9-777d-b0d7-545132f84218","at":1774434106329000000,"seq":1245,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2484-b0a8-7259-80be-eb0fda1e3ca1","at":1774434169000000000,"seq":1246,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d248f-ea34-710c-a22a-db1b8fbfaa1e","at":1774434904628000000,"seq":1247,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d248f-ea34-7b9b-a8d5-30d3a1bd72dd","at":1774434904628000000,"seq":1248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d248f-f760-76ab-b708-b1c58cf25565","at":1774434908000000000,"seq":1249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2490-60d8-7350-9241-f45cdcf29833","at":1774434935000000000,"seq":1250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2490-9788-7cd7-8aa1-f69cf4d6edd5","at":1774434949000000000,"seq":1251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d2490-9aed-7098-a2b9-f32271056041","at":1774434949869000000,"seq":1252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d2490-c668-712a-b663-4c1fb1973b17","at":1774434961000000000,"seq":1253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2491-2428-7b08-98f2-19436d09a9b6","at":1774434985000000000,"seq":1254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

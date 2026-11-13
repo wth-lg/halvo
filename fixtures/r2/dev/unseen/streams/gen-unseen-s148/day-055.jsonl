@@ -1,0 +1,42 @@
+{"v":1,"id":"019c8ed5-2dab-7c49-beb5-0e021bd116b9","at":1771922861483000000,"seq":597,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8ed5-2dab-7e8e-8d51-539e2b0eaa1a","at":1771922861483000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8ed5-aaf7-72fe-8c5a-92b574091bef","at":1771922893559000000,"seq":599,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8ed5-df78-7ba1-9558-226d6253d2f5","at":1771922907000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ed5-f300-7bb7-8829-fb9458c275b0","at":1771922912000000000,"seq":601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8ed6-1406-72f9-85f4-5aef6533a0cd","at":1771922920454000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8ed6-54a8-7926-86b4-53a43a86a005","at":1771922937000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ed6-8388-72e8-bcf2-6bf48152685d","at":1771922949000000000,"seq":604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8ed6-8b58-71f3-9037-f7a6314aac25","at":1771922951000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c8ed6-8f40-765c-aab6-a72646d4d8ee","at":1771922952000000000,"seq":606,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8ed6-921e-7afe-a57b-c6cfaccfe2eb","at":1771922952734000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c8ed6-d1a8-78c2-93cf-4c4000ca43b6","at":1771922969000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c8ed6-dd60-7559-94de-687892df468f","at":1771922972000000000,"seq":609,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8ed6-fca0-7d37-b5ee-901826124c24","at":1771922980000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8eea-3df9-77db-b3ad-49db430d39b8","at":1771924241913000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c8eea-3e50-73a3-824a-df1a135eaa67","at":1771924242000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eea-8d04-73d9-84c2-b5c1cad82c0a","at":1771924262148000000,"seq":613,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c8eeb-3468-7dba-ab43-31eaf85ac9be","at":1771924305000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8eeb-4408-7bb0-8ea1-116f6644bab4","at":1771924309000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eeb-7ab8-7201-9348-b64aa5cccfd1","at":1771924323000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f00-7c3a-7f22-b5aa-504eb6502863","at":1771925699642000000,"seq":617,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8f00-7c3a-7a42-9acc-a554748753c7","at":1771925699642000000,"seq":618,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8f0d-b9c0-7829-958d-80c50a720b39","at":1771926567360000000,"seq":619,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8f0d-b9c0-7046-9820-d046f0109c16","at":1771926567360000000,"seq":620,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c8f0d-c7f8-7772-92c8-3ff68bf1a0b6","at":1771926571000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f0d-d798-7085-a706-e55a58fa287f","at":1771926575000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c8f0e-14e8-79dc-a183-be61d220182e","at":1771926590696000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c8f0e-3170-790b-9e0c-9427a29df030","at":1771926598000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f0e-6c08-7ed3-b2a7-dcef8039a4ab","at":1771926613000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f0e-6ff0-783e-bbdb-ab9760230248","at":1771926614000000000,"seq":626,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8f0e-c9c8-7c0d-847f-e9bb2223a0bd","at":1771926637000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8f0e-f673-7a0f-a31f-3b4a056d2b06","at":1771926648435000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c8f0f-0848-7a09-963c-62ea59c0ffb2","at":1771926653000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c8f0f-17e8-75fc-b7b9-02665c7c05ea","at":1771926657000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f0f-1fb8-7794-8765-8ae7c48d495d","at":1771926659000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c8f0f-3a2b-7933-947c-9a7da254ae2a","at":1771926665771000000,"seq":632,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c8f0f-8930-725a-9ed2-e6de97ac3b3d","at":1771926686000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8f0f-cb7e-7e1c-bb26-9c038eeb6818","at":1771926702974000000,"seq":634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c8f10-0e00-7d46-ad78-b006ed74e5d7","at":1771926720000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f10-2958-7912-9118-3a52b2e2a34b","at":1771926727000000000,"seq":636,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8f10-a4f7-7326-a92e-970999fed824","at":1771926758647000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c8f10-c1b0-7985-abc3-a21f7fa46cf0","at":1771926766000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

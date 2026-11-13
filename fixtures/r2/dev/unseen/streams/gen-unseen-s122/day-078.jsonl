@@ -1,0 +1,27 @@
+{"v":1,"id":"019d0583-ad26-79ef-acbd-8d292b0b0ccf","at":1773914008870000000,"seq":1132,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0583-ad26-77c9-b2f0-bc389e52efda","at":1773914008870000000,"seq":1133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0583-f3f8-7b1b-ac07-00bc42da397b","at":1773914027000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0584-1720-7f75-bad9-83d0c43ea4c5","at":1773914036000000000,"seq":1135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d0584-1b08-7058-9833-e4b326cbbd37","at":1773914037000000000,"seq":1136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0584-7f85-7171-a8e0-8aabf87f5da7","at":1773914062725000000,"seq":1137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0584-9038-7144-bb87-55cb39655588","at":1773914067000000000,"seq":1138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0584-9bf0-7d43-a7db-9dc06b9333ea","at":1773914070000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0584-b360-7143-803a-b17d9ef9afd8","at":1773914076000000000,"seq":1140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0584-c58e-7008-9baf-0a3624c3b483","at":1773914080654000000,"seq":1141,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0584-c58e-78cc-bf80-413d18c7b155","at":1773914080654000000,"seq":1142,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0584-c6e8-7df3-b2d2-93ed7c175060","at":1773914081000000000,"seq":1143,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d0584-f1e0-79ab-ac6d-68b3eefa0620","at":1773914092000000000,"seq":1144,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d0584-fd98-7bc1-aba1-6c6c36b337b6","at":1773914095000000000,"seq":1145,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0585-0180-7246-b750-4bf0a9208a68","at":1773914096000000000,"seq":1146,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d0585-0950-79c3-a30f-0e36fa800bba","at":1773914098000000000,"seq":1147,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0585-0e9e-7333-8d16-584d5e450ae2","at":1773914099358000000,"seq":1148,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0585-0e9e-711e-be26-2ad417da47d9","at":1773914099358000000,"seq":1149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0585-7e80-7443-b539-cbda1413c563","at":1773914128000000000,"seq":1150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0585-a590-734f-92ac-76d4b5ed35bd","at":1773914138000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0594-33c4-7309-aac6-bbb6c2a9b64b","at":1773915091908000000,"seq":1152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d0594-b508-7bde-a43e-075e58781d47","at":1773915125000000000,"seq":1153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0594-c4a8-78e1-82e7-bfee22feafe6","at":1773915129000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0594-c890-76e8-9545-eca30cadc270","at":1773915130000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0594-d20a-7671-9c88-c09059c0fa25","at":1773915132426000000,"seq":1156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d0594-dc18-741e-9796-cc221aa4e27a","at":1773915135000000000,"seq":1157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0595-5530-7634-b30b-d4addc2f8503","at":1773915166000000000,"seq":1158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019ba1ee-fbfa-7e05-82a6-b09415bd70fb","at":1767948352506000000,"seq":109,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba1ee-fbfa-7ff6-bdb6-56f7b4e2c2b9","at":1767948352506000000,"seq":110,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba1ef-3880-7068-a218-43c0bfb5eeba","at":1767948368000000000,"seq":111,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ba1ef-4050-7bcf-ac35-73a7c04ee915","at":1767948370000000000,"seq":112,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f4-d64e-7d79-99e4-d8e52c34557a","at":1767948736078000000,"seq":113,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1f4-d64e-764a-befd-7db31ff9beb3","at":1767948736078000000,"seq":114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba1f5-08c8-721e-bc8a-2d930d4d0027","at":1767948749000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f5-5eb8-7e9a-aca6-63761c9c6569","at":1767948771000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f5-6688-7c61-a154-ab2ab4e19c7e","at":1767948773000000000,"seq":117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba1f5-7240-7b46-ba3d-64d2c2d4185a","at":1767948776000000000,"seq":118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba1fe-0316-7386-a9b4-5d0d1954f81c","at":1767949337366000000,"seq":119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fe-ad88-7c81-a7eb-aa8ae4c79bce","at":1767949381000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fe-c551-706b-a1a1-0038ef4c020e","at":1767949387089000000,"seq":121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ba1fe-ccc8-7453-997d-940d720be104","at":1767949389000000000,"seq":122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba1fe-d498-79bb-8b01-8b4959ab746d","at":1767949391000000000,"seq":123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1fe-e050-70ef-9355-f6c956465ad9","at":1767949394000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ff-1ed0-73a7-987e-bf1d14a23399","at":1767949410000000000,"seq":125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba1ff-40fe-7c33-8d3f-b38b9bc4a57c","at":1767949418750000000,"seq":126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ff-9bd0-70f8-8831-266e75f953b8","at":1767949442000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ba200-14e8-7f7b-932a-91902eb0f25c","at":1767949473000000000,"seq":128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba200-3318-705c-b07e-af33210ad562","at":1767949480728000000,"seq":129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}

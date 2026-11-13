@@ -1,0 +1,22 @@
+{"v":1,"id":"019b97c6-4705-7ccc-a530-ce1bbe8d77db","at":1767777912581000000,"seq":27,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b97c6-4705-7991-ac5c-a5440e8b6fcd","at":1767777912581000000,"seq":28,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b97c6-48a8-7330-833e-44d14cb16d20","at":1767777913000000000,"seq":29,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b97c6-7b70-7c73-bc2a-bc6efc2a45e7","at":1767777926000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c6-8728-716d-a115-4cf90e52a362","at":1767777929000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b97ce-1552-7a7d-962a-415abc3dccd8","at":1767778424146000000,"seq":32,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b97ce-4788-7913-8523-a0f925e6c80b","at":1767778437000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b97ce-5949-7400-af4a-4654a4fe3b95","at":1767778441545000000,"seq":34,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b97ce-5ef8-7e9d-bb69-1ece47d231dd","at":1767778443000000000,"seq":35,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b97ce-8dd8-7904-a196-9d61201c6008","at":1767778455000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b97cf-6a33-7d90-89e0-8610b5e2d7fb","at":1767778511411000000,"seq":37,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b97cf-d5f8-7c31-92f1-4fa8b01c262c","at":1767778539000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97cf-e980-7089-bc91-6f94e0d095a8","at":1767778544000000000,"seq":39,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b97cf-f538-725c-b17e-5870414d334c","at":1767778547000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97d7-912a-77f0-8b51-898c1baff22e","at":1767779045674000000,"seq":41,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b97d7-912a-78dd-91c3-dd6dec037303","at":1767779045674000000,"seq":42,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b97d7-a9e0-7d42-a0dd-43834f3ced1a","at":1767779052000000000,"seq":43,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b97d8-22f8-76d7-80b7-50d010afecb4","at":1767779083000000000,"seq":44,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b97d8-3680-77e6-bc99-7b7f67f7d89c","at":1767779088000000000,"seq":45,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97d8-39cc-7777-acc5-7a6efd46f36f","at":1767779088844000000,"seq":46,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b97d8-4df0-75be-affc-8dec51745a1f","at":1767779094000000000,"seq":47,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97d9-0d58-7ec8-8651-2126755304c8","at":1767779143000000000,"seq":48,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,11 @@
+{"v":1,"id":"019d19dc-2efb-7279-a83e-9b986a122db1","at":1774255353595000000,"seq":1159,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d19dc-2efb-7ff3-971f-c177cc7cff26","at":1774255353595000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d19dc-5b88-7c2c-8ed5-824008be07ca","at":1774255365000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d19dc-dd47-7920-92a6-918530ebdcad","at":1774255398215000000,"seq":1162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d19dc-ec10-7012-a8fc-3fda9aa49e33","at":1774255402000000000,"seq":1163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d19f0-5678-7fc7-b1e7-4717a1e7b44b","at":1774256674424000000,"seq":1164,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d19f0-5678-70f1-a42d-f39728add691","at":1774256674424000000,"seq":1165,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d19f0-6088-701c-9569-deb281b8f0e5","at":1774256677000000000,"seq":1166,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d19f0-d9a0-7f76-a2ed-83e5f0bbfc8c","at":1774256708000000000,"seq":1167,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d19f1-1820-790f-b96d-cbbb33659150","at":1774256724000000000,"seq":1168,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d19f1-2ba8-7f38-b5bc-1bc0a2c3a392","at":1774256729000000000,"seq":1169,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

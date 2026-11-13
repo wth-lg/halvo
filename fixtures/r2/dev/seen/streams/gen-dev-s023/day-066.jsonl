@@ -1,0 +1,35 @@
+{"v":1,"id":"019cc7a4-b71b-7a14-ae30-d452027c5807","at":1772875986715000000,"seq":877,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc7a4-b71b-7dd7-99ac-9c5b13f50330","at":1772875986715000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc7a4-d390-7767-8908-909b68016d03","at":1772875994000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cc7a4-eb00-7e13-97c9-415377133a26","at":1772876000000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc7a5-6418-7dac-afba-a1af5604caf0","at":1772876031000000000,"seq":881,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc7c0-303e-7493-8485-9cf82d1d9663","at":1772877787198000000,"seq":882,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc7c0-b060-70e5-bd87-f2d449a5654a","at":1772877820000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c1-0e20-7c99-9b5b-84d124b7c686","at":1772877844000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cc7c1-1e20-7f2a-8312-088ea92b6298","at":1772877848096000000,"seq":885,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc7c1-21a8-7cdc-be0a-8e10f9773508","at":1772877849000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cc7c1-2d60-706e-90db-377669cb5c72","at":1772877852000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c1-5470-73f6-8016-4b1d8e6cf446","at":1772877862000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c1-6028-7ea8-a115-abdcb24e6106","at":1772877865000000000,"seq":889,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc7c1-b618-7705-b2aa-33cab2e35c3f","at":1772877887000000000,"seq":890,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc7c1-bda3-72d0-bdca-74b76231f208","at":1772877888931000000,"seq":891,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cc7c1-f0b0-77c7-8166-9a24a5b28964","at":1772877902000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cc7c2-0ad2-7363-991e-a33ca6a626ba","at":1772877908690000000,"seq":893,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cc7c2-4a88-79a3-903a-c3a4a2ea9774","at":1772877925000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c2-8cf0-7306-aa3b-b8d3461aa830","at":1772877942000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c2-a848-796d-a9ee-28fe358f9b9e","at":1772877949000000000,"seq":896,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc7c2-b400-7450-8ef9-7989fb4f4b98","at":1772877952000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cc7c2-d7a4-7bde-9211-a8c2c3622db1","at":1772877961124000000,"seq":898,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cc7c2-fe38-7c6a-b50e-506307728e88","at":1772877971000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cc7c3-1d78-7f96-a06d-717a9ca84658","at":1772877979000000000,"seq":900,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc7c3-34e8-796b-b3b2-8e96320cc132","at":1772877985000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c3-4870-747e-86d2-43b7ac63dc76","at":1772877990000000000,"seq":902,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c3-67b0-701f-bcb0-9cbb31721afc","at":1772877998000000000,"seq":903,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc7c3-6f29-76ce-8515-7bd83ed2e4d9","at":1772877999913000000,"seq":904,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc7c3-9690-7e78-a93b-3186e57de4a5","at":1772878010000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c3-c958-7dfd-967c-8d695910fec8","at":1772878023000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cc7c3-f068-7451-8df4-58d5e6e65871","at":1772878033000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7c3-f4b5-70f8-a220-956f3494e4c3","at":1772878034101000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cc7c4-4658-7cad-8817-23c8bd2ce76b","at":1772878055000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cc7c4-b3b8-7bde-b0b8-a9a4035b1c41","at":1772878083000000000,"seq":910,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc7c4-cb28-79aa-a0b6-20206309c422","at":1772878089000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,12 @@
+{"v":1,"id":"019c08e7-f9ab-7664-92d4-d35216148f81","at":1769675946411000000,"seq":426,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c08e7-f9ab-706f-8448-3da211739b4f","at":1769675946411000000,"seq":427,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c08e8-9838-7c68-aad3-62a8ebc4aba8","at":1769675987000000000,"seq":428,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c08fc-3810-7c3c-893e-553e6d951011","at":1769677273104000000,"seq":429,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c08fc-7a10-792e-8a11-9fe095ecf6f3","at":1769677290000000000,"seq":430,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c08fc-81e0-7515-9f5e-304e7bbfcb6e","at":1769677292000000000,"seq":431,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c08fc-9568-7660-a252-a1d3444954c7","at":1769677297000000000,"seq":432,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08fc-9950-7c22-8656-7a3a3f81cd97","at":1769677298000000000,"seq":433,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0905-5e62-7553-a1f0-fc469bc5d997","at":1769677872738000000,"seq":434,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c0905-72f0-7ead-a3fd-77b64ac51d2f","at":1769677878000000000,"seq":435,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0905-9beb-7d64-beda-3979b04bf77a","at":1769677888491000000,"seq":436,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c0905-bd28-7405-9d89-c54f9339870d","at":1769677897000000000,"seq":437,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

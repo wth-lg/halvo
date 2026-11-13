@@ -1,0 +1,11 @@
+{"v":1,"id":"019c7558-3a93-758a-aa77-3fd192383e09","at":1771495242387000000,"seq":815,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7558-3a93-7efa-8c1d-b2a886d882b9","at":1771495242387000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7558-b610-70e4-91d5-cd5b9034f766","at":1771495274000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c7559-08c1-700b-8250-3b60bbff418b","at":1771495295169000000,"seq":818,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this month - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7559-8ce8-7d26-abca-0be34b58cc82","at":1771495329000000000,"seq":819,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c755a-11a8-738a-93af-c4b4a8ebbef5","at":1771495362984000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c755a-11b8-765b-a353-023cf205a1bb","at":1771495363000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c755a-2158-7f19-9d7d-06e0d43ab986","at":1771495367000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c755a-cc42-74fc-9055-3d271720d391","at":1771495410754000000,"seq":823,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c755a-ec78-7495-8c62-d8f7dcc47201","at":1771495419000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c755a-f060-75c8-b811-363b4db902b8","at":1771495420000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,58 @@
+{"v":1,"id":"019d336f-aa4d-75de-9ff7-361ab9526ac2","at":1774684449357000000,"seq":1202,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d336f-aa4d-7df4-92f5-f332af83e55b","at":1774684449357000000,"seq":1203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d336f-f708-7b82-a963-b9d9dbe56809","at":1774684469000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d336f-fcd4-7abf-9507-36d778b00021","at":1774684470484000000,"seq":1205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d3370-02c0-7d33-9cee-df6c024be3fa","at":1774684472000000000,"seq":1206,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3370-54c8-7a0c-84b9-5816d24bcc71","at":1774684493000000000,"seq":1207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d3370-9b18-773e-9ce4-55a2a9b209c3","at":1774684511000000000,"seq":1208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3381-c65f-70de-9ad7-6a227cca68b5","at":1774685636191000000,"seq":1209,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3381-c65f-7676-8653-8c1ded5e12af","at":1774685636191000000,"seq":1210,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3381-dd10-79c4-90a9-676ceaf0c7c2","at":1774685642000000000,"seq":1211,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d3381-e8c8-7401-b9e1-56a4aa61b28a","at":1774685645000000000,"seq":1212,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3381-fc50-7f6d-810a-a4aeba06d75f","at":1774685650000000000,"seq":1213,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3382-2ea8-71c9-b1d5-0c38f6023382","at":1774685662888000000,"seq":1214,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3382-3300-74fb-8193-abcf3b2e840a","at":1774685664000000000,"seq":1215,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3382-c388-7e12-9ee9-df672dc2b15e","at":1774685701000000000,"seq":1216,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3382-cb58-704f-a718-58631cf7f3ba","at":1774685703000000000,"seq":1217,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d339b-3ca2-7bd0-b545-0dff3dab49d5","at":1774687304866000000,"seq":1218,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d339b-3ca2-7a38-a3c4-bd663c728d68","at":1774687304866000000,"seq":1219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d339b-be10-72e8-9ec3-82b65baf1df5","at":1774687338000000000,"seq":1220,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d33b1-da9d-7b4b-bbd7-c10f61ea46b1","at":1774688787101000000,"seq":1221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d33b1-e9d8-714e-9175-2cb77b27fa77","at":1774688791000000000,"seq":1222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d33b2-c1de-73fb-9bd5-2b16dfdca055","at":1774688846302000000,"seq":1223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d33b2-cc68-7085-b2ce-c6da447306e0","at":1774688849000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33b2-dff0-7a8c-bc2e-e3c428592324","at":1774688854000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33b3-056f-711e-91ac-fb5e1f8cc811","at":1774688863599000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d33b3-4968-7604-8d16-5fae092ce479","at":1774688881000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33b3-64c0-79e8-9417-8d0d6034ee64","at":1774688888000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d33b3-be98-7301-bd1f-cf17eced7386","at":1774688911000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33b3-dbe8-77da-a74f-fea6b1aa99c0","at":1774688918504000000,"seq":1230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d33b3-fd18-7a97-844f-c57bc1165948","at":1774688927000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33b4-4f20-72e8-a864-8885e2989bae","at":1774688948000000000,"seq":1232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33cd-42a2-7fcd-aebc-a421c32f8d9e","at":1774690583202000000,"seq":1233,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d33cd-6cd0-795f-8a35-6bdf1ca4ec24","at":1774690594000000000,"seq":1234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d33cd-8058-7a6d-83e6-faf661d3a212","at":1774690599000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33cd-e200-7027-99f3-a41a0b1e59e5","at":1774690624000000000,"seq":1236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d33d3-763c-7f11-a595-982346282e19","at":1774690989628000000,"seq":1237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d33d3-96f0-757f-9a87-668052284788","at":1774690998000000000,"seq":1238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33d3-e8f8-7641-a899-e25c233fbc54","at":1774691019000000000,"seq":1239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33d4-2f48-787f-8b7b-c82353883a8c","at":1774691037000000000,"seq":1240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d33d4-763f-7c3b-b938-10caa2aeff57","at":1774691055167000000,"seq":1241,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d33d4-8920-77e8-8fc8-1fa71cef0836","at":1774691060000000000,"seq":1242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d33d4-8d08-70a4-91a8-665ae36c9b62","at":1774691061000000000,"seq":1243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33d4-9ca8-7967-9056-a3913cc749e7","at":1774691065000000000,"seq":1244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d33d4-a860-7893-9caf-389434f33f03","at":1774691068000000000,"seq":1245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33d4-ceaf-780a-8a76-164ccf72b825","at":1774691077807000000,"seq":1246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d33d5-0df0-7b80-b41e-c0bfb391114f","at":1774691094000000000,"seq":1247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d33d5-7f38-78e3-b6dd-877c3aec09ae","at":1774691123000000000,"seq":1248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d33d5-ae18-7447-bd2b-660b1ca13b5e","at":1774691135000000000,"seq":1249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d33d5-d307-73f7-b1cf-b33b6833b7be","at":1774691144455000000,"seq":1250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d33d6-1e70-760f-ab86-0958a6443574","at":1774691163760000000,"seq":1251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d33d6-1f60-7770-a05f-8a84d27a653f","at":1774691164000000000,"seq":1252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d33d6-3ea0-7c3c-bed6-7c8651735524","at":1774691172000000000,"seq":1253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33d6-d30f-7e07-b656-518cce36ec26","at":1774691209999000000,"seq":1254,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d33d7-34b8-79d9-9cc7-08d60af8e9aa","at":1774691235000000000,"seq":1255,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d33d7-8e90-7d0b-b7ea-bb63193ae7a0","at":1774691258000000000,"seq":1256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d33df-d200-7423-b081-c98c7308bf9d","at":1774691799552000000,"seq":1257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d33df-feb8-7352-84ae-0a1733948585","at":1774691811000000000,"seq":1258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33e0-1a10-721f-a0ec-fd034ae09c2c","at":1774691818000000000,"seq":1259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

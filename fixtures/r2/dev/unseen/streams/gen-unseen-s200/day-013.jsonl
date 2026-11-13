@@ -1,0 +1,32 @@
+{"v":1,"id":"019bb64e-6d4e-78bc-a6d3-78825c33568a","at":1768290151758000000,"seq":180,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb64e-6d4e-76e2-8ddb-7df60886dec4","at":1768290151758000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bb64e-9938-7b45-b684-ef06e27bca48","at":1768290163000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb64e-acc0-78e3-b6a3-1c85d7774cf5","at":1768290168000000000,"seq":183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bb64e-b878-739d-ae4e-7cbb3be70bb1","at":1768290171000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bb64e-c048-7964-8cf1-88553fba2302","at":1768290173000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb64e-cc00-775e-9627-5cc3548c8a6d","at":1768290176000000000,"seq":186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb64e-eb40-76b9-a1a9-4228a16b6dea","at":1768290184000000000,"seq":187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb64e-fd53-75ba-90b9-1ef0858e8420","at":1768290188627000000,"seq":188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bb64f-0698-757d-9824-bc6f6ea8f506","at":1768290191000000000,"seq":189,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb64f-0a80-758f-8840-f8dec9179b1d","at":1768290192000000000,"seq":190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb64f-3190-7234-8524-20b9649adcdb","at":1768290202000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb64f-4490-78c9-8120-c5589bc9470e","at":1768290206864000000,"seq":192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bb64f-8b68-730c-9163-cea63e87df4d","at":1768290225000000000,"seq":193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb64f-a2d8-75d3-b3a4-0b2616a655c9","at":1768290231000000000,"seq":194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb64f-c600-72d3-a77a-0ec3eb8f81ea","at":1768290240000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bb64f-d988-7935-91c5-d378070dffe9","at":1768290245000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb656-d331-7f64-b123-f97369e081b3","at":1768290702129000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb656-f9c0-7693-a33e-c3b862d6b555","at":1768290712000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bb656-fda8-7423-955c-8633a924fc74","at":1768290713000000000,"seq":199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb657-25ba-7ad5-a4c9-ecf70f271596","at":1768290723258000000,"seq":200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this month - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb657-2c88-70cb-956d-4e18c526e134","at":1768290725000000000,"seq":201,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb657-4fb0-7e9b-80c4-b748534a6c05","at":1768290734000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb657-5398-7636-81be-2a5b54035060","at":1768290735000000000,"seq":203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bb657-5f50-7145-a348-97959100cb2d","at":1768290738000000000,"seq":204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb657-64a5-7471-86cf-a0d3667a1a13","at":1768290739365000000,"seq":205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb657-7e90-7334-bee0-f0907b07d241","at":1768290746000000000,"seq":206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb657-8278-7170-8790-d97ccc0616a2","at":1768290747000000000,"seq":207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bb657-99e8-7ce1-83c4-bee54c968e24","at":1768290753000000000,"seq":208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb657-a1b8-796f-acee-9f284eaf64ea","at":1768290755000000000,"seq":209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb657-cd36-7580-9ba6-80a2da8700e2","at":1768290766134000000,"seq":210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bb658-3df8-7aef-a247-144fa1841e97","at":1768290795000000000,"seq":211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

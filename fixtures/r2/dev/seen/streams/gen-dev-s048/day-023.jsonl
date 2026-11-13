@@ -1,0 +1,23 @@
+{"v":1,"id":"019bea21-f022-7abf-aedf-99da6aaa1145","at":1769159651362000000,"seq":220,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea21-f022-7a7e-82c2-ed13f9c63808","at":1769159651362000000,"seq":221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bea21-f2a0-7a98-a153-fed007a97f80","at":1769159652000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bea3d-b4fa-714a-9445-22b4be876f60","at":1769161471226000000,"seq":223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bea3e-19a8-796c-a167-a0a184a46d13","at":1769161497000000000,"seq":224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea3e-3cd0-735d-9f6f-daf8e4713041","at":1769161506000000000,"seq":225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bea3e-508a-71d8-b553-d68081cc94ea","at":1769161511050000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bea3e-9b5d-74ac-adc1-9e326986a86e","at":1769161530205000000,"seq":227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bea3e-b200-7d40-ae86-f32329f22f7c","at":1769161536000000000,"seq":228,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bea3e-c588-7990-84b7-dc532701e5a4","at":1769161541000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea3e-dcf8-7422-83b0-49c8b373fceb","at":1769161547000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bea3f-0057-7ea2-a03a-34f4b531a090","at":1769161556055000000,"seq":231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bea3f-1b78-7ee4-baa2-decc3f284048","at":1769161563000000000,"seq":232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bea3f-9c60-7a09-8831-74f7a3e9c495","at":1769161596000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea3f-d6f8-724d-9123-70ec6d3761d0","at":1769161611000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea40-0d49-70bc-9de4-04da51a46bb6","at":1769161624905000000,"seq":235,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bea40-6398-7d1b-9106-6915ca9446fb","at":1769161647000000000,"seq":236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bea40-7720-736c-b302-2fe1e992b584","at":1769161652000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bea40-86c0-749b-8083-921adf34d263","at":1769161656000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea40-d41e-72eb-9ad0-9216851d48dc","at":1769161675806000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bea41-3a70-78a7-a957-8f9061352693","at":1769161702000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea41-55c8-74d2-a9b2-0dc20ff5482c","at":1769161709000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea41-55c8-70b1-997d-4ddd4c26111a","at":1769161709000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

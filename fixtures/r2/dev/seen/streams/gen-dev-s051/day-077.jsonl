@@ -1,0 +1,31 @@
+{"v":1,"id":"019cfff1-bfc0-7688-b6c6-df3a57646a9c","at":1773820559296000000,"seq":958,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfff1-bfc0-7058-890a-237ddfec3c6d","at":1773820559296000000,"seq":959,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cfff1-ed78-743a-bd99-a7c78bea2e5e","at":1773820571000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff1-f548-735b-bc19-56709664ef6f","at":1773820573000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cfff2-2fe0-7df2-92bf-930fa328068c","at":1773820588000000000,"seq":962,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0000-0958-7208-8422-98352709da09","at":1773821495640000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d0000-58e0-73a1-9f29-abffdb82697d","at":1773821516000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0000-7438-78f2-9a15-c7bdd9f11de9","at":1773821523000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d0000-7820-765c-a2e4-bf4f0004ed3c","at":1773821524000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0000-952a-7d0e-b119-eff730c16dbf","at":1773821531434000000,"seq":967,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d0001-685c-7a4d-9612-d5e09709c5b7","at":1773821585500000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d0001-7608-7068-bfd6-0b2825e45805","at":1773821589000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0001-cbf8-780c-8088-458b7f452ce3","at":1773821611000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0001-cfe0-753b-8eec-58b2006c4014","at":1773821612000000000,"seq":971,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0001-df80-7d22-8239-e318ad31f12c","at":1773821616000000000,"seq":972,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0002-294b-7ca8-b35f-53a384124fbc","at":1773821634891000000,"seq":973,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d0002-4510-73e5-8e9a-2e1e3f578793","at":1773821642000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0002-a2d0-73ea-85f3-b668a8f684b1","at":1773821666000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d0002-c7b3-79ff-986c-68dace7b3ae2","at":1773821675443000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d0003-1746-7f96-836e-d164fe9aa0f4","at":1773821695814000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d0003-2b88-74cd-82c8-6751b76409fe","at":1773821701000000000,"seq":978,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0003-5298-7250-add6-744eb88e8d70","at":1773821711000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0003-6238-7f7b-b364-089aacbdf6c2","at":1773821715000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d0003-6a08-7987-8d57-0e5b1729fc92","at":1773821717000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d000f-b016-7881-8719-d1454f461233","at":1773822521366000000,"seq":982,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d000f-ed28-7878-b42f-6256dc561ff6","at":1773822537000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d000f-f110-7e8b-a06e-a2c6a4057ff8","at":1773822538000000000,"seq":984,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0010-0498-7d3c-8ad2-f8586806c2cc","at":1773822543000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0026-741d-7263-96f2-6d39a919704a","at":1773824013341000000,"seq":986,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0026-99d8-782a-be58-cb0624638c87","at":1773824023000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d0026-b148-78d6-a250-a2e87c5a463b","at":1773824029000000000,"seq":988,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

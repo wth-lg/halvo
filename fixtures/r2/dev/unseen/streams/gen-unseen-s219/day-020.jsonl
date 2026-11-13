@@ -1,0 +1,23 @@
+{"v":1,"id":"019bda5e-e296-75c0-9d03-3e59ce0969be","at":1768895210134000000,"seq":325,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda5e-e296-76a1-8592-38eec5db1432","at":1768895210134000000,"seq":326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bda5e-edc8-769c-bd87-974d0a841c22","at":1768895213000000000,"seq":327,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bda5f-2c48-76a3-a2eb-a8a658d82fc8","at":1768895229000000000,"seq":328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda5f-62f8-7d37-9ae3-86192b5e0540","at":1768895243000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda5f-6ac8-7d7b-995e-f681a9eda407","at":1768895245000000000,"seq":330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bda5f-8238-77dc-a476-34613e07a20d","at":1768895251000000000,"seq":331,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bda63-4647-7d34-a3c7-5e10a6ae0659","at":1768895497799000000,"seq":332,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bda63-4647-7273-a094-9a6a5541ad1b","at":1768895497799000000,"seq":333,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bda63-4ee0-7e8c-8b5c-a882fde830bc","at":1768895500000000000,"seq":334,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bda63-5a98-75f4-bfe8-b55f6941ebd1","at":1768895503000000000,"seq":335,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bda63-5e80-7cc9-bb43-7dc5e645b78b","at":1768895504000000000,"seq":336,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bda63-7dc0-75f8-8012-54db0ff6061b","at":1768895512000000000,"seq":337,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda78-9a9b-770e-b40b-ec6e846feea7","at":1768896895643000000,"seq":338,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda78-9a9b-7e3e-b545-5d2994a06088","at":1768896895643000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bda78-aba0-7c36-b1af-8815b093ba8b","at":1768896900000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda78-cec8-7369-9379-0efe51c9f414","at":1768896909000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bda78-d7c7-73a6-8f1b-2b1b7d23fa78","at":1768896911303000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bda78-ee08-7757-bdbe-a8fa8e9cea32","at":1768896917000000000,"seq":343,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bda79-8660-729b-89a4-4e1342682e30","at":1768896956000000000,"seq":344,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bda79-cf21-7994-9347-a5cf1ea61dd6","at":1768896974625000000,"seq":345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bda79-e420-7ba1-a186-98d31361d091","at":1768896980000000000,"seq":346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bda79-f3c0-7197-9787-f7ebdc4bdd93","at":1768896984000000000,"seq":347,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

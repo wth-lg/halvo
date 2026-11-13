@@ -1,0 +1,31 @@
+{"v":1,"id":"019d2e79-e830-73fe-b630-4b4264593d3e","at":1774601234480000000,"seq":1264,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2e79-e830-7fd9-bc62-02ecfa4cf7ba","at":1774601234480000000,"seq":1265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2e7a-1530-70b0-948f-a07cb656ecc7","at":1774601246000000000,"seq":1266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2e91-21dc-7318-b8ab-9cd44f604478","at":1774602756572000000,"seq":1267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2e91-69d8-7e4d-a726-6b17cbf13382","at":1774602775000000000,"seq":1268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d2e91-df08-798c-bd99-cf709275a9ee","at":1774602805000000000,"seq":1269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2e92-0618-742b-a8f7-d6cf4d015e85","at":1774602815000000000,"seq":1270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2e9c-355a-77af-9b96-ac51f897054e","at":1774603482458000000,"seq":1271,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2e9c-355a-75bb-ba34-29b744a7a1f1","at":1774603482458000000,"seq":1272,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2e9c-5e88-73ca-975e-49053a0f274a","at":1774603493000000000,"seq":1273,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d2eb2-7d37-779f-bd15-7083dbb29658","at":1774604942647000000,"seq":1274,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2eb2-7d37-7f20-a661-57d2e1cae5f9","at":1774604942647000000,"seq":1275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb3-8544-7fc6-8156-725d39820e88","at":1774605010244000000,"seq":1276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb3-ab60-75bb-89d1-4d87e1632e53","at":1774605020000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d2eb4-2f8a-7223-895a-945429f5fe7d","at":1774605053834000000,"seq":1278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb4-4b88-7fc2-80ba-212103933e3a","at":1774605061000000000,"seq":1279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eb4-a1ec-73f1-9499-b926f320b588","at":1774605083116000000,"seq":1280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb4-b500-78a3-94dc-6730ced47cfd","at":1774605088000000000,"seq":1281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eb4-c888-7ca5-80f1-8cfabd1029d4","at":1774605093000000000,"seq":1282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d2ec5-bb10-7973-be92-8a7f5ba2803b","at":1774606203664000000,"seq":1283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d2ec6-29c0-78f6-a015-6a424cc392a2","at":1774606232000000000,"seq":1284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d2ec6-5b10-7702-904e-c7dc001a7b28","at":1774606244624000000,"seq":1285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d2ec7-0c50-7439-b9f8-f1ed8bf504e2","at":1774606290000000000,"seq":1286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ec7-4036-774d-897f-49b937bfc00d","at":1774606303286000000,"seq":1287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d2ec7-6a10-7315-bb92-cf757d08070c","at":1774606314000000000,"seq":1288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2ec7-8180-7948-9701-f313ae606341","at":1774606320000000000,"seq":1289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ec7-ac78-79a0-be93-141d5f7a2247","at":1774606331000000000,"seq":1290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d2ec7-b448-718e-a016-9d360d93a0d7","at":1774606333000000000,"seq":1291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2ec7-ce45-76f3-8cc6-c093b8c0c868","at":1774606339653000000,"seq":1292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d2ec8-1dc0-7e15-8d5c-f6fd7eac7ae1","at":1774606360000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ec8-40e8-736d-9296-d3383ec86eca","at":1774606369000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

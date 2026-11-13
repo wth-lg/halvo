@@ -1,0 +1,22 @@
+{"v":1,"id":"019bda44-499d-72b9-aeb9-ebb1ea60eaca","at":1768893467037000000,"seq":189,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda44-499d-7d4e-8eab-e0ed47a53f77","at":1768893467037000000,"seq":190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bda44-7088-79fd-b7f0-a0c99540618f","at":1768893477000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda44-7c40-7e14-8376-55867a880a90","at":1768893480000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda4e-62ec-7d7c-bcee-2810fbdf2532","at":1768894128876000000,"seq":193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bda4e-82a8-74cd-86c3-8994c6bf3adb","at":1768894137000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda4f-01f1-7f82-98ab-ea0046905e07","at":1768894169585000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bda4f-2e88-7dce-a562-89afb5754ee8","at":1768894181000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bda4f-de49-758a-9bda-24da0c1e6fa0","at":1768894225993000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bda4f-e238-704f-96d2-6dc83f37d63f","at":1768894227000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bda4f-edf0-7b3a-8dfa-4a0d800ccb0c","at":1768894230000000000,"seq":199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda50-1ebd-74d5-af38-c7ab76d25082","at":1768894242493000000,"seq":200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bda50-3828-7c3f-a374-b284306077c2","at":1768894249000000000,"seq":201,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bda50-ad58-7176-8b13-203027b39cb9","at":1768894279000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda50-dc38-7958-bfc9-24273e5e0506","at":1768894291000000000,"seq":203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bda50-efc0-76bf-86fb-a0ef4d00a9bb","at":1768894296000000000,"seq":204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bda58-2fbf-7a4a-990b-5163e9b1f07d","at":1768894771135000000,"seq":205,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bda58-2fbf-78c4-b0d7-fbb06fc36c90","at":1768894771135000000,"seq":206,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bda58-3af0-7ded-8609-f5794cbde06a","at":1768894774000000000,"seq":207,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bda58-65e8-7f06-926b-946c061678fb","at":1768894785000000000,"seq":208,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bda58-7588-785d-b78c-e19a0d2b4c2f","at":1768894789000000000,"seq":209,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda58-8528-7d85-bbbf-e3600636a319","at":1768894793000000000,"seq":210,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}

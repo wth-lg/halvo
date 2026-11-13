@@ -1,0 +1,36 @@
+{"v":1,"id":"019c6038-6bca-76b6-83cf-340047f942da","at":1771140836298000000,"seq":748,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6038-6bca-788d-a118-ded5eab1f8f9","at":1771140836298000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6038-85f8-7ab2-bb88-5f89fbc9e9b5","at":1771140843000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6038-89e0-733f-bbdb-55fd78f682ba","at":1771140844000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6038-8dc8-7340-b3d9-3ecad2cd1c72","at":1771140845000000000,"seq":752,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c603c-0f5a-71a8-a02a-7156acd73a47","at":1771141074778000000,"seq":753,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c603c-8568-7f47-b926-e258fd9af958","at":1771141105000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6040-166f-74cb-b757-28505d6f708c","at":1771141338735000000,"seq":755,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6040-166f-7928-b87b-7061e0d7f19c","at":1771141338735000000,"seq":756,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6040-4e28-777a-b81f-d0b64522897f","at":1771141353000000000,"seq":757,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6040-55f8-7451-b766-ed190081c940","at":1771141355000000000,"seq":758,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6040-afd0-7362-aa5e-bf68d218b0bf","at":1771141378000000000,"seq":759,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c6040-c740-734c-bff2-dcad71ee5e17","at":1771141384000000000,"seq":760,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c6059-2310-762e-8250-bc170d6cc505","at":1771142980368000000,"seq":761,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6059-2310-7630-96ea-accd247bcca1","at":1771142980368000000,"seq":762,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6059-7790-743d-b68f-5343fe57044a","at":1771143002000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6059-9db8-7d5a-b8df-bd0f98309688","at":1771143011768000000,"seq":764,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c6059-ae40-78b0-a9ba-38b251e51a51","at":1771143016000000000,"seq":765,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c605a-0818-7b93-80c3-3ce58c39a53a","at":1771143039000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c605a-2b40-719f-8363-6cfeb318e9a2","at":1771143048000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c605a-49f5-7b17-9ae8-8946851b0129","at":1771143055861000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c605a-7960-79f3-adab-0f20006ae04d","at":1771143068000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c605a-c323-7827-b532-850286369b2f","at":1771143086883000000,"seq":770,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c605b-09e8-77f1-882a-c05d8ffb8357","at":1771143105000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c605b-7e45-7fea-803a-47f6b060435c","at":1771143134789000000,"seq":772,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c605b-b1e0-7d5e-b814-832791074ab8","at":1771143148000000000,"seq":773,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c605b-f079-7b24-975a-d1d98f114a0a","at":1771143164025000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c605c-2328-72c9-8c0f-c00fb2afc5c7","at":1771143177000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c605c-32c8-7941-85cd-67a118a7b6a9","at":1771143181000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c605c-3a98-7006-8498-89ecaacfef31","at":1771143183000000000,"seq":777,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c605c-681c-7a54-a2a8-d99eb0e95bbe","at":1771143194652000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c605c-9c40-7ea8-b1d9-ab032b39d2f0","at":1771143208000000000,"seq":779,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c605d-0d88-7a9f-82b1-3614416aff7f","at":1771143237000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c605d-4050-7dc3-b98a-c1a0734bc981","at":1771143250000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c605d-5a9a-74b3-b468-c9c36c9a6286","at":1771143256730000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c605e-1340-7b04-b7f9-01510a728df4","at":1771143304000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

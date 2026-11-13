@@ -1,0 +1,22 @@
+{"v":1,"id":"019bcff2-867c-7268-b101-047b9f014da9","at":1768720336508000000,"seq":177,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcff2-867c-7694-969c-916f69f6c4bb","at":1768720336508000000,"seq":178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bcff2-9fd8-7eb2-940e-11eb4704163d","at":1768720343000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcff2-cad0-70b5-96b7-7a392e9cbf60","at":1768720354000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd000-f7a5-77a2-9ea0-a5b817860ad2","at":1768721282981000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bd001-0758-7b75-beda-24c5fd1dd2e7","at":1768721287000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd001-8c28-785b-a695-f864cef8eec6","at":1768721321000000000,"seq":183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd001-9bc8-7089-a2df-45e7de250095","at":1768721325000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd001-b720-729f-8080-9f46620456fe","at":1768721332000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bd001-da48-7859-970b-b00b54c399ed","at":1768721341000000000,"seq":186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd012-2f8f-7f9a-bb06-38ff0df45988","at":1768722411407000000,"seq":187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bd012-31e0-7c53-be33-f8e9092d8749","at":1768722412000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bd012-abd1-728d-b332-6c2c8f5c1775","at":1768722443217000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bd013-04d0-7e44-b47d-1fd82ab74261","at":1768722466000000000,"seq":190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd013-7a00-7e13-88ae-d42351144d9d","at":1768722496000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bd013-7de8-77b0-a6cf-7f2d55a7e360","at":1768722497000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd013-b10d-7352-9e52-86507c9ffa06","at":1768722510093000000,"seq":193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bd013-f700-78ab-a032-9c35b56c5bef","at":1768722528000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd014-26fe-7296-ac7e-02855155189a","at":1768722540286000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bd014-3968-738a-96e2-83fc60a50070","at":1768722545000000000,"seq":196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd014-58a8-7c76-99c3-5fd5a690662d","at":1768722553000000000,"seq":197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bd014-7018-7db2-8377-f9030ec16ace","at":1768722559000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

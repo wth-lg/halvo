@@ -1,0 +1,28 @@
+{"v":1,"id":"019b7def-3a94-76c1-973d-91b2175835dd","at":1767344388756000000,"seq":29,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7def-3a94-7a33-9879-0999777e346b","at":1767344388756000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019b7def-4740-7c11-bda7-fb9a25a1c73b","at":1767344392000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7def-5ac8-79da-a3fb-c42c9263b781","at":1767344397000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b7df0-122d-781d-ace6-867e6cb56416","at":1767344443949000000,"seq":33,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for July - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019b7df0-1a30-70ca-bb02-bbef82229d04","at":1767344446000000000,"seq":34,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7df0-6468-771a-b863-d6f0ccd82fe2","at":1767344465000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b7df0-b670-7cbf-bd12-041edec95856","at":1767344486000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df0-c329-763e-a935-4a4865154aec","at":1767344489257000000,"seq":37,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019b7df0-d1c8-7e00-84ab-c37c8c77cd0d","at":1767344493000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df1-3370-7c04-b19a-7c77575b6fc3","at":1767344518000000000,"seq":39,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7df1-3b40-7faf-91b0-c51dde2bc64f","at":1767344520000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df1-869d-7aed-9558-ffa554787e97","at":1767344539293000000,"seq":41,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019b7df1-9518-7223-bb14-cc47896dc2a9","at":1767344543000000000,"seq":42,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7df2-5480-784f-86c8-57e7c0df5611","at":1767344592000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7e08-c37b-715a-a053-67cce6a6187b","at":1767346062203000000,"seq":44,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7e08-f578-7317-b049-2bf8529e829d","at":1767346075000000000,"seq":45,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e09-0130-729f-9cc3-fe237cce5f85","at":1767346078000000000,"seq":46,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7e0f-3036-7b13-a872-2bfe55fa460e","at":1767346483254000000,"seq":47,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7e0f-c3a8-72c2-b4cb-2c94e77cf1ac","at":1767346521000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e0f-fe40-7ab3-bc43-c036497a6248","at":1767346536000000000,"seq":49,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b7e10-11c8-7d36-8caf-299936fb8459","at":1767346541000000000,"seq":50,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7e10-15b0-764b-9be1-582d3142638a","at":1767346542000000000,"seq":51,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e10-1d80-7f1c-8151-a3aeb9a70a56","at":1767346544000000000,"seq":52,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e22-8f56-7b1d-b0bf-1a556ac6911b","at":1767347752790000000,"seq":53,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7e22-af68-775e-a37c-5fb13f31da72","at":1767347761000000000,"seq":54,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e23-2880-7671-b393-1ca3fa04e8cb","at":1767347792000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e23-4ba8-7de3-8021-da36f2875f10","at":1767347801000000000,"seq":56,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

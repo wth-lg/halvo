@@ -1,0 +1,100 @@
+{"v":1,"id":"019d3ddc-f21d-7d2a-a6ad-c2527c387d4f","at":1774859383325000000,"seq":1257,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3ddc-f21d-79f8-a25b-32e521aacea6","at":1774859383325000000,"seq":1258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3ddc-fc90-7c1c-844c-963f256917b9","at":1774859386000000000,"seq":1259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3ddd-0460-743b-bdac-bda7b66cf3e9","at":1774859388000000000,"seq":1260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3ddd-1018-778d-a0dd-97687f1a11f2","at":1774859391000000000,"seq":1261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d3ddd-3340-7260-8187-027ffd889f5e","at":1774859400000000000,"seq":1262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3de0-ee5f-77fb-b21a-e0d9e2ab1a64","at":1774859644511000000,"seq":1263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3de0-ffe8-7c97-a563-ce0d3fd2785f","at":1774859649000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de1-4a20-758c-8aec-bbc1ad319171","at":1774859668000000000,"seq":1265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de1-77d6-740b-be83-ddea18849efe","at":1774859679702000000,"seq":1266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3de1-9458-7eed-8d75-4d37f007906d","at":1774859687000000000,"seq":1267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de1-e278-7757-8e46-d370064b1247","at":1774859707000000000,"seq":1268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de1-e660-7cb0-a9c0-c7a7b51c856c","at":1774859708000000000,"seq":1269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3de1-ee30-7f4b-bc68-98d7d2aed73b","at":1774859710000000000,"seq":1270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3de2-0c12-7869-b458-53e77bf2d10a","at":1774859717650000000,"seq":1271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3de2-0d70-72e8-892a-e714fefbc799","at":1774859718000000000,"seq":1272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de2-5b90-725e-84ab-e71c1a5cc2af","at":1774859738000000000,"seq":1273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de2-6f18-7fd1-961c-382727d7aad3","at":1774859743000000000,"seq":1274,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3de2-7300-7a09-a7de-ac0f234bf1cf","at":1774859744000000000,"seq":1275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d3de2-a737-7bb9-aed5-cc398c8f9ceb","at":1774859757367000000,"seq":1276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3de2-d4a8-7f45-9b66-c7b4074c568c","at":1774859769000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de2-f4ef-727d-b81b-1a9e9b0b9e50","at":1774859777263000000,"seq":1278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3de3-1710-7999-a821-9beba7e879ab","at":1774859786000000000,"seq":1279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3de3-26b0-7b97-a743-64b761edfa2b","at":1774859790000000000,"seq":1280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de3-5590-7aae-88c9-e9f63b3c90a8","at":1774859802000000000,"seq":1281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de3-78b8-73d6-acaf-e83fe809c7ab","at":1774859811000000000,"seq":1282,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3de3-a7f4-7b10-afc8-97b77708f15b","at":1774859823092000000,"seq":1283,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3de3-a7f4-791e-8778-6aee3f135bc9","at":1774859823092000000,"seq":1284,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3de3-d678-7d9d-8391-3b84260fe002","at":1774859835000000000,"seq":1285,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3de3-f9a0-7422-87d3-ab94fec1b55f","at":1774859844000000000,"seq":1286,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de4-0558-726f-b659-b102d5f14b50","at":1774859847000000000,"seq":1287,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de4-14f8-73a7-a545-4e8513d23591","at":1774859851000000000,"seq":1288,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d3de4-1de6-717b-b736-0cbb1197a170","at":1774859853286000000,"seq":1289,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3de4-2498-7cc3-b16e-d8a96ce4b6b7","at":1774859855000000000,"seq":1290,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de4-5b48-7acd-bc2f-f2a1669c2d6a","at":1774859869000000000,"seq":1291,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3de4-5f30-793f-836d-7987b79335f7","at":1774859870000000000,"seq":1292,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de4-72b8-7788-97e1-8a6b89605d8a","at":1774859875000000000,"seq":1293,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d3de4-a5c6-7046-8636-0faeeade8b4b","at":1774859888070000000,"seq":1294,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3de4-a5c6-7be5-815f-8eba2be6d42c","at":1774859888070000000,"seq":1295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3de4-a968-7d73-a48b-51b820f95b39","at":1774859889000000000,"seq":1296,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3de4-b520-7ead-bd17-80b6722c9357","at":1774859892000000000,"seq":1297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3de4-b908-7b11-a084-f033c38f5366","at":1774859893000000000,"seq":1298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3de4-c0d8-784a-b0d2-8a2f5f4b324a","at":1774859895000000000,"seq":1299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3df5-5291-773d-b0d3-9a9c023fee54","at":1774860980881000000,"seq":1300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d3df5-81e8-7ea1-ae6c-e48c656cb3af","at":1774860993000000000,"seq":1301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3df5-a510-7e6c-b2a8-973a6fda0d34","at":1774861002000000000,"seq":1302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3df5-c838-75f1-885e-dc5e05ef181c","at":1774861011000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3df5-dc10-751a-b496-012956a333e4","at":1774861016080000000,"seq":1304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d3df6-bd5b-7923-bcd7-c67a16fe941c","at":1774861073755000000,"seq":1305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d3df6-fcd0-70c8-8858-6e3e8d8b76e5","at":1774861090000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d3df7-4ed8-76d2-bdfd-ec06bd0ae670","at":1774861111000000000,"seq":1307,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3df7-7166-7d31-acdd-b5bb041d641f","at":1774861119846000000,"seq":1308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d3df7-9140-7493-b87f-c0c20e3daa2b","at":1774861128000000000,"seq":1309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d3df7-df60-7630-9043-14fe837358e1","at":1774861148000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3df8-50a8-726b-a341-ab1a72e393c5","at":1774861177000000000,"seq":1311,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3e0e-c06a-7ad4-b125-5da96341136c","at":1774862647402000000,"seq":1312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3e0f-14c8-73f0-b056-11dba427a3df","at":1774862669000000000,"seq":1313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e0f-2468-737f-b589-3ed1cc96408d","at":1774862673000000000,"seq":1314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e0f-3990-74a7-aa7f-9efb4a67d834","at":1774862678416000000,"seq":1315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3e0f-ad20-75a6-b9d1-98e4349ca302","at":1774862708000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e0f-c878-7dae-9214-52b2ff45818b","at":1774862715000000000,"seq":1317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3e10-2d5c-7712-beb9-c81911b0fb61","at":1774862740828000000,"seq":1318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3e10-7458-7dbf-a424-125e78bc4b06","at":1774862759000000000,"seq":1319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e10-9398-7e28-9376-db75219f2297","at":1774862767000000000,"seq":1320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d3e10-9cc5-7ebe-9fc0-7f8554916ee8","at":1774862769349000000,"seq":1321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3e10-ab08-7439-ac4f-dedcddf94a35","at":1774862773000000000,"seq":1322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d3e11-00f8-71a0-aac3-435c84b70f60","at":1774862795000000000,"seq":1323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e11-1e53-7633-83ed-ce7fae72702a","at":1774862802515000000,"seq":1324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3e11-9d38-72f3-abbf-7c225573c247","at":1774862835000000000,"seq":1325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e11-b7f9-7429-8b8c-679764582c54","at":1774862841849000000,"seq":1326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3e11-dbb8-7e23-be04-d5fcf020dd21","at":1774862851000000000,"seq":1327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d3e12-1650-7c17-9987-d75a2e2c4db2","at":1774862866000000000,"seq":1328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e12-7028-70d5-b528-4500562c4251","at":1774862889000000000,"seq":1329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e12-af6c-7bd2-9657-a0a425e8eed4","at":1774862905196000000,"seq":1330,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3e12-fcc8-72b4-883c-41203a9b49c2","at":1774862925000000000,"seq":1331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e13-2980-7d39-a81d-44cf9d698ecb","at":1774862936448000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3e13-3760-76a3-a93e-8bd04323a725","at":1774862940000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d3e13-56a0-7817-9b3a-74c089adc800","at":1774862948000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e13-5e70-73a1-907c-4f63aa83c7ca","at":1774862950000000000,"seq":1335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e23-b598-721e-bd20-570ea8af4991","at":1774864020888000000,"seq":1336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d3e24-52af-7466-8058-356965d87fe8","at":1774864061103000000,"seq":1337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d3e24-5a18-710b-9c79-31fd67a54a3e","at":1774864063000000000,"seq":1338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e24-65d0-771f-820b-02157a99791a","at":1774864066000000000,"seq":1339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d3e24-69b8-74f4-8d40-b5cd176186e8","at":1774864067000000000,"seq":1340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e24-8fc3-72c3-a25d-f148f325124e","at":1774864076739000000,"seq":1341,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3e24-8fc3-79be-a5c3-3f6b6ebaa22f","at":1774864076739000000,"seq":1342,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3e24-f270-7e91-8957-876f7f249a32","at":1774864102000000000,"seq":1343,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e25-05f8-75d6-a514-51421d8fc22b","at":1774864107000000000,"seq":1344,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d3e25-2538-79de-ac86-27fc39f58ad6","at":1774864115000000000,"seq":1345,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e25-2538-7f90-8f17-8f764597eb02","at":1774864115000000000,"seq":1346,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d3e25-4f06-7cb8-8443-f0991714d6e2","at":1774864125702000000,"seq":1347,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3e25-4f06-7cb9-a032-c287b714fd6c","at":1774864125702000000,"seq":1348,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d3e26-0f98-7485-9d81-7020927c664c","at":1774864175000000000,"seq":1349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3e26-0f98-7420-b255-c28f732da825","at":1774864175000000000,"seq":1350,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d3e26-1b50-7796-b996-faec0659ecee","at":1774864178000000000,"seq":1351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3e26-2e7c-7583-8bf1-9380ab5ffefc","at":1774864182908000000,"seq":1352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d3e26-36a8-7e91-a505-c31c98d47fb1","at":1774864185000000000,"seq":1353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e26-3e78-71a8-979b-3a24de0ef3cf","at":1774864187000000000,"seq":1354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3e26-4648-786d-9892-81af12a3d12c","at":1774864189000000000,"seq":1355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d3e26-5db8-7954-86ce-80015b959039","at":1774864195000000000,"seq":1356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,15 @@
+{"v":1,"id":"019ba1e4-0d10-7233-8e80-490d8f333d20","at":1767947635984000000,"seq":132,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1e4-0d10-78a9-bb70-6c604cb5dea5","at":1767947635984000000,"seq":133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ba1e4-8250-74c1-9a6c-4b1572bb4ec1","at":1767947666000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1e4-e7e0-798e-8fdd-11167667a043","at":1767947692000000000,"seq":135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ba1e5-09e6-7a2d-91cb-415a64244917","at":1767947700710000000,"seq":136,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba1e5-09e6-7c39-a2be-d78c5e271c4b","at":1767947700710000000,"seq":137,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba1e5-ed47-7d0d-aaa4-a17d861560ed","at":1767947758919000000,"seq":138,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1e5-ed47-7b10-a74d-c37edfb19f4a","at":1767947758919000000,"seq":139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ba1e5-f950-7303-85f0-6f663c5b1459","at":1767947762000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1e6-2830-7cbb-b5ac-2a5d3f1dc208","at":1767947774000000000,"seq":141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ee-9375-7635-8914-f3dd2b904404","at":1767948325749000000,"seq":142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba1ee-9c40-758f-8fe2-4ab8e2728d2f","at":1767948328000000000,"seq":143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba1ef-0d88-7e06-9a7d-1de709356296","at":1767948357000000000,"seq":144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba1ef-1170-7b8a-a4ea-1afdb2de4227","at":1767948358000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1ef-1d28-7a53-a9d3-605959837302","at":1767948361000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

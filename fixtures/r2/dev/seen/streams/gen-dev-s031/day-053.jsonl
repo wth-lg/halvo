@@ -1,0 +1,24 @@
+{"v":1,"id":"019c849d-a2bf-7946-8a30-9acf1a680834","at":1771751449279000000,"seq":551,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c849d-a2bf-7e16-8bf8-b51ccd51cbc8","at":1771751449279000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c849d-b918-7f27-99c4-8c3f66a55381","at":1771751455000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c849e-35ed-72a1-8da9-9c4fa5e65966","at":1771751486957000000,"seq":554,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c849e-a760-7c1b-8fe0-486d6516b4f0","at":1771751516000000000,"seq":555,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c849e-e9c8-7182-a41f-60e17e7096d3","at":1771751533000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c849f-212a-7f34-8b21-937023f10bf8","at":1771751547178000000,"seq":557,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c849f-3bd0-7756-adbc-96b0f6028f43","at":1771751554000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c849f-4b70-7cf8-9baf-bdd29f77a998","at":1771751558000000000,"seq":559,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c849f-4f58-75d9-9e7c-f58c8f7185e0","at":1771751559000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c849f-5ef8-7bfe-abeb-886e880e3a71","at":1771751563000000000,"seq":561,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c84a9-9557-76ed-aa3f-4fa311130e5c","at":1771752232279000000,"seq":562,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c84a9-9557-7a3f-baa1-2ece47788861","at":1771752232279000000,"seq":563,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c84a9-9ff8-7e35-a220-3e2576cf0ffc","at":1771752235000000000,"seq":564,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c84bd-3379-7791-b73b-09a21c84cecc","at":1771753517945000000,"seq":565,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84bd-3379-7a6b-803b-1d92988a9faa","at":1771753517945000000,"seq":566,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c84bd-4350-7384-b37f-f8586ab037ff","at":1771753522000000000,"seq":567,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84bd-4b20-78d7-aea0-7aa5217255b7","at":1771753524000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84bd-52f0-7f64-bda9-54664ceac10c","at":1771753526000000000,"seq":569,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c84d7-fda8-7b6e-89a7-1f64aed9888f","at":1771755273640000000,"seq":570,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c84d7-fda8-7d20-a91d-87b1d614e9a1","at":1771755273640000000,"seq":571,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c84d8-4178-7236-b848-489198496072","at":1771755291000000000,"seq":572,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c84d8-58e8-701f-9c5e-ed649c3488fd","at":1771755297000000000,"seq":573,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c84d8-5cd0-76d1-9aa3-1d7725fdd582","at":1771755298000000000,"seq":574,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

@@ -1,0 +1,41 @@
+{"v":1,"id":"019ba21a-1317-7dae-baad-28f687de4e3a","at":1767951176471000000,"seq":173,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba21a-1317-75ce-8df0-ecec63c0b4ac","at":1767951176471000000,"seq":174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba21a-b550-7c55-b829-fe0660bf114c","at":1767951218000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ba21a-d878-757a-b262-940106eeac22","at":1767951227000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21b-1eaa-7a32-bdff-14222279e189","at":1767951244970000000,"seq":177,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba21b-1eaa-761a-9ee5-8993bb32330c","at":1767951244970000000,"seq":178,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba21b-2e68-7548-8e45-6a8ef398763f","at":1767951249000000000,"seq":179,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21b-ce90-79bf-84d5-5dc5b1de73b8","at":1767951290000000000,"seq":180,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ba21c-2273-7898-9d43-e182cf40dd27","at":1767951311475000000,"seq":181,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba21c-2273-7fa1-87d8-94e98f0e3b09","at":1767951311475000000,"seq":182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba21c-3808-7c4b-88d6-ce70f7bde444","at":1767951317000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21c-5b30-7dea-adab-79f8118c68fe","at":1767951326000000000,"seq":184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba21c-5f18-76f7-a39c-08cde3dedf66","at":1767951327000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21c-82d6-7b53-9526-4eb70d725e1b","at":1767951336150000000,"seq":186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba21c-d448-7eec-bba4-76d60600ddef","at":1767951357000000000,"seq":187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21c-e000-731b-b31d-3918b0501064","at":1767951360000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21d-5918-7ec1-bca4-189c247da080","at":1767951391000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ba21d-60e8-708e-a595-aec4c057b1d3","at":1767951393000000000,"seq":190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba21d-6abc-739f-af39-4048a37e57b8","at":1767951395516000000,"seq":191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ba21d-7858-7ebd-89a4-f6a3bb5580e1","at":1767951399000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21d-9798-7a17-9199-9c6fa25246bf","at":1767951407000000000,"seq":193,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba21d-af08-7f42-a14c-5532fc9e8d35","at":1767951413000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba21d-b2f0-7f9a-9d0b-4f55a7f0d07d","at":1767951414000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ba21d-bac0-7e66-b261-06dafd48eadf","at":1767951416000000000,"seq":196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba238-6f49-75f5-9373-cda83ab4d0f7","at":1767953166153000000,"seq":197,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba238-6f49-70fc-8e8a-c1823a66d68e","at":1767953166153000000,"seq":198,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba238-ef98-7794-901f-f7c2f302a921","at":1767953199000000000,"seq":199,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba239-5528-7df9-b36a-9afc88b5c74e","at":1767953225000000000,"seq":200,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba250-908e-7b1c-8cd6-e850f4653751","at":1767954747534000000,"seq":201,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba250-908e-7606-827e-3650f334ee75","at":1767954747534000000,"seq":202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ba250-d4c8-7017-bdea-80ecabcc23b8","at":1767954765000000000,"seq":203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ba250-d7d6-777e-97af-696cfcdea2b6","at":1767954765782000000,"seq":204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ba250-ffc0-7017-bc54-b7a734619de3","at":1767954776000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ba251-2ab2-7d39-a140-776944eb33b4","at":1767954786994000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ba251-2ab8-74b2-b0eb-c6830f343eac","at":1767954787000000000,"seq":207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba251-6168-7838-a685-873f0c8516b8","at":1767954801000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba251-6550-7452-9a98-e0b191102fd0","at":1767954802000000000,"seq":209,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba251-8954-77f3-ab34-e50beea8d303","at":1767954811220000000,"seq":210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019ba251-9c00-788c-8379-5671ee8db52c","at":1767954816000000000,"seq":211,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba251-c310-7f00-ab9f-9b96c12bcea8","at":1767954826000000000,"seq":212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba251-cae0-7889-adbf-54dc658eebc6","at":1767954828000000000,"seq":213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

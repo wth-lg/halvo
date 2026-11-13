@@ -1,0 +1,27 @@
+{"v":1,"id":"019c9953-c8b7-7aa9-8dee-14eda18753e6","at":1772098930871000000,"seq":712,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9953-c8b7-7580-8bfa-75556e25d381","at":1772098930871000000,"seq":713,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c9953-c938-713e-93e1-9285e58e4190","at":1772098931000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9953-e0a8-7e87-ba61-b3c4a8bba32d","at":1772098937000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9954-3430-774f-896b-7d722d0b31f0","at":1772098958384000000,"seq":716,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c9954-4a20-72fa-873f-75dcbb8fb41a","at":1772098964000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9954-6960-7dd0-bd7e-7feb9dc06bc3","at":1772098972000000000,"seq":718,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9954-8c88-711c-b4d4-5a1f62b5c3d8","at":1772098981000000000,"seq":719,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9955-0b1d-71d8-8e9c-6eec0a1d54e5","at":1772099013405000000,"seq":720,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c9955-2cb0-72a7-ae1f-b9b58466b99a","at":1772099022000000000,"seq":721,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9955-3480-78d7-9989-5055205c4a98","at":1772099024000000000,"seq":722,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9955-57a8-76be-9717-7adaaca9f66d","at":1772099033000000000,"seq":723,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c9955-b905-7e41-af8d-2786c17ec515","at":1772099057925000000,"seq":724,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c9956-3650-70e0-9413-9c35b92a1f17","at":1772099090000000000,"seq":725,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9956-45f0-768e-8f87-f403cfa1f6a6","at":1772099094000000000,"seq":726,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9956-5590-7c41-a42a-fc520743f0ce","at":1772099098000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c9956-5d60-78d4-a5a8-6fdf068a3805","at":1772099100000000000,"seq":728,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9956-8088-7470-bf88-6db5a4472d22","at":1772099109000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9956-b195-73c0-9796-253011b3b84a","at":1772099121557000000,"seq":730,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c9956-e618-7451-b48e-697e2828c847","at":1772099135000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9965-2f6b-73fb-9f03-f544d27d22fa","at":1772100071275000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9965-3628-7216-80f5-26ede70bc1f4","at":1772100073000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9965-4d98-7225-8d61-3f208dcec6df","at":1772100079000000000,"seq":734,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9965-8448-7868-9a87-d0e9f18ebbbf","at":1772100093000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c9966-0530-7e1e-baa4-28ad4b27f535","at":1772100126000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9976-ff0a-7108-9c6f-953adf97a68c","at":1772101238538000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9977-33a0-7069-8855-b4d0d0d3ef32","at":1772101252000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

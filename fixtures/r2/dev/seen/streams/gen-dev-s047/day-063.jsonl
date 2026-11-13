@@ -1,0 +1,25 @@
+{"v":1,"id":"019cb862-55cb-7298-8fcf-92a9d3f35c1d","at":1772619978187000000,"seq":668,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb862-55cb-7f4e-9849-443cdc4d7944","at":1772619978187000000,"seq":669,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cb863-1860-71d0-8a29-76c6f753b0a4","at":1772620028000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cb863-4358-7024-b94f-5c7975492e34","at":1772620039000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb863-607e-7a8c-a165-783e4ccf2a18","at":1772620046462000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cb863-b888-7631-b28f-7e55eb933a4c","at":1772620069000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb864-1a34-7a03-8e07-adb1161e2570","at":1772620094004000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cb864-6080-742c-aaad-1ccf34892796","at":1772620112000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb864-aab8-78f9-9a73-84e25972811b","at":1772620131000000000,"seq":676,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb864-df6f-77bf-86ca-3dd95988eb81","at":1772620144495000000,"seq":677,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cb865-46f8-7865-ad23-964cbd5b32e2","at":1772620171000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cb865-6638-781b-892a-91e4c89ce323","at":1772620179000000000,"seq":679,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb865-79c0-740b-99f3-3021e5d1eaf7","at":1772620184000000000,"seq":680,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb865-90ff-7fd2-bf65-1722db2a0f25","at":1772620189951000000,"seq":681,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cb865-9ce8-7284-8d31-21ffb25e3743","at":1772620193000000000,"seq":682,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb865-bc28-7351-8a59-4b928494caac","at":1772620201000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb866-25a0-7c64-b946-d17e7d493e50","at":1772620228000000000,"seq":684,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb866-3158-715d-9311-6f9070ad60cc","at":1772620231000000000,"seq":685,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb866-3d10-7db0-9a48-3c115b35d301","at":1772620234000000000,"seq":686,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cb866-5579-7ab8-a6c5-f943eeefb47f","at":1772620240249000000,"seq":687,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cb866-8b30-7544-91de-aa4330663664","at":1772620254000000000,"seq":688,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb866-8f18-7f97-8919-2fc5f5baede5","at":1772620255000000000,"seq":689,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb866-c1e0-7eb1-9e04-865fb0af3eab","at":1772620268000000000,"seq":690,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb866-d180-7bdb-9189-72e4a851e820","at":1772620272000000000,"seq":691,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb867-17d0-7316-a7b6-bb7f06ee16ea","at":1772620290000000000,"seq":692,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}

@@ -1,0 +1,17 @@
+{"v":1,"id":"019ce620-12d1-7a2a-9724-e4fe9275c5e1","at":1773387387601000000,"seq":1021,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce620-12d1-79d3-ae2c-c23fbfc77359","at":1773387387601000000,"seq":1022,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce620-8990-717d-99a9-10f90dda2b87","at":1773387418000000000,"seq":1023,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce634-132e-7da3-824e-85142be3c64d","at":1773388698414000000,"seq":1024,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ce634-7ef0-70d2-b072-a2921f352b1d","at":1773388726000000000,"seq":1025,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce634-a81f-787b-af1f-a21de82030cc","at":1773388736543000000,"seq":1026,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ce634-e098-7230-bdd0-956315338a04","at":1773388751000000000,"seq":1027,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce635-0b90-7276-86d9-2c6cbe3d2ccc","at":1773388762000000000,"seq":1028,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce635-0ddd-742a-9762-782f6312c91e","at":1773388762589000000,"seq":1029,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce635-3e58-70b4-bf7b-10835e927dfe","at":1773388775000000000,"seq":1030,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce635-a3e8-780f-9a12-98424541a134","at":1773388801000000000,"seq":1031,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce635-cf4b-787d-8f97-be59c5cb821e","at":1773388812107000000,"seq":1032,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ce636-3088-7c11-9627-a8106f9c3dd8","at":1773388837000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce636-6738-7f8c-b341-39f5b0df7bb9","at":1773388851000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce636-6b20-733c-92dc-1dc20a5d8a00","at":1773388852000000000,"seq":1035,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce636-7ac0-71a1-beb6-0db47a6388f7","at":1773388856000000000,"seq":1036,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce636-7ea8-7252-88ae-f794478b632e","at":1773388857000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

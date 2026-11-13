@@ -1,0 +1,39 @@
+{"v":1,"id":"019b785e-104a-7e92-a416-619efd5b2636","at":1767250989130000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b785e-104a-710a-97d6-bbfb0628f37e","at":1767250989130000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b785e-b7c0-73f0-b2b7-8179a12def35","at":1767251032000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b785e-c378-77c9-b2a1-71fc2cb5f91f","at":1767251035000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b785e-f61f-72fc-bbf1-3d896905735b","at":1767251047967000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b785f-8336-75be-b961-5838ea86bd3c","at":1767251084086000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b785f-86c8-72e5-94a8-5b6cdad217ef","at":1767251085000000000,"seq":6,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b785f-b1c0-7252-a742-e4403901f18b","at":1767251096000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b785f-b990-785e-ab34-25318846bc71","at":1767251098000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b785f-c160-765d-b553-267744873e12","at":1767251100000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b785f-e0f8-71dd-934a-e81d7d504cc2","at":1767251108088000000,"seq":10,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b785f-f428-7312-a981-a8698fe9b54b","at":1767251113000000000,"seq":11,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7860-0b98-7eb1-ad85-9cd3627354d5","at":1767251119000000000,"seq":12,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7860-181d-7049-930b-35ea07936338","at":1767251122205000000,"seq":13,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b7860-4630-7d80-89a4-19f2a9106816","at":1767251134000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7860-6188-7c0c-9fcb-7a87d659868c","at":1767251141000000000,"seq":15,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7860-b0bf-7622-98f7-455de4ba3dee","at":1767251161279000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b7860-b778-71a2-b97a-92ca449f49a8","at":1767251163000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7860-ea40-7912-ac25-4449f7bfe66e","at":1767251176000000000,"seq":18,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7861-01b0-7bb6-b272-1d0d0b75e6ea","at":1767251182000000000,"seq":19,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7861-b178-7de0-8142-fa9aa284c9dd","at":1767251227000000000,"seq":20,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7861-b324-7c5a-b981-8f98af95d90d","at":1767251227428000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b7861-dc70-726f-8f4b-96cee86e0acb","at":1767251238000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7862-26a8-7e92-81f9-19bf52cf2b13","at":1767251257000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b787a-54e9-73ee-9a44-87e01962cf68","at":1767252841705000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b787b-2900-7d8f-8c5d-94dea068deab","at":1767252896000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b787b-351c-70ff-ac06-02f92e46d185","at":1767252899100000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b787b-38a0-7eb7-a76d-e2786b4c635e","at":1767252900000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b787b-95fc-7564-a113-f4fc085be39b","at":1767252923900000000,"seq":28,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b787b-9a48-7b61-9879-4b77a2fb6874","at":1767252925000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b787b-e098-70e0-a237-81b9727f7d07","at":1767252943000000000,"seq":30,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b787c-2300-7faf-b692-00ee0c97c94a","at":1767252960000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b787c-3688-7763-aa10-e74f62419e59","at":1767252965000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b787c-4240-7bee-b07e-08a33e112678","at":1767252968000000000,"seq":33,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b787c-7054-7f76-82e3-ff82cb083f67","at":1767252979796000000,"seq":34,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b787c-80c0-765a-9c63-6f2f21faf0ce","at":1767252984000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b787c-da98-720a-a4ea-4d349196e61f","at":1767253007000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b787d-0978-7ab5-8999-f811c251b059","at":1767253019000000000,"seq":37,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b787d-1d00-7f80-89ad-5a1cdb035a1d","at":1767253024000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

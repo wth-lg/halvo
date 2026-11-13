@@ -1,0 +1,54 @@
+{"v":1,"id":"019c50d1-b758-7c1c-9353-f2d33321c0a5","at":1770882447192000000,"seq":477,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c50d1-b758-71ba-ba5f-abb5c8ab04e6","at":1770882447192000000,"seq":478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c50d1-fce8-72a4-b089-75bbbfa120c1","at":1770882465000000000,"seq":479,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c50d2-8d70-719c-b1b1-149b527736f9","at":1770882502000000000,"seq":480,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c50e3-0196-77e8-b813-8713ba729da9","at":1770883580310000000,"seq":481,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c50e3-1000-7eb4-8097-382d9d99d11b","at":1770883584000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c50e3-1fa0-757e-b50f-b53f78a0c698","at":1770883588000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c50e3-2b58-72c1-b4f5-aec938bd3f06","at":1770883591000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50fb-2f6f-739b-91b8-4eebfd27181a","at":1770885164911000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c50fb-4738-79b0-913e-5a1221f75540","at":1770885171000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c50fb-5ac0-7624-94a6-68f5aa550b51","at":1770885176000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50fb-5ea8-7fed-8a5d-f5d6792bfb73","at":1770885177000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c510b-84e8-7fbe-b0ca-a7809e3711c3","at":1770886235368000000,"seq":489,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c510b-9318-7285-a2bb-63eb7e010386","at":1770886239000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c510b-dd50-7c6d-9c76-2ae5702a7b91","at":1770886258000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c510b-f817-7119-8566-0ac44e4ca3a8","at":1770886264855000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c510c-1018-7dbb-98e6-cb989ed829e1","at":1770886271000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c510c-75a8-7605-ae4b-a3dcbfd733d9","at":1770886297000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c510c-a5ff-7f57-a51a-546784f3a660","at":1770886309375000000,"seq":495,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c510c-eec0-7573-8447-14233845fe24","at":1770886328000000000,"seq":496,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c510c-fa78-760c-9295-3397849a95f1","at":1770886331000000000,"seq":497,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c510d-2596-7a3d-9f56-79f70678d667","at":1770886342038000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c510d-ae28-7726-bd33-0fc8c6a46907","at":1770886377000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c510d-b9e0-741c-8042-78893c78e900","at":1770886380000000000,"seq":500,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c511d-36dc-7b83-8fd3-6755a1682b20","at":1770887395036000000,"seq":501,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c511d-36dc-705f-85f3-30e9a750b4b3","at":1770887395036000000,"seq":502,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c511d-4658-7423-afe5-a28e7ec593b5","at":1770887399000000000,"seq":503,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c511d-4a40-736c-bb01-587be450b715","at":1770887400000000000,"seq":504,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c511d-55f8-74f4-a83a-001bed5d323d","at":1770887403000000000,"seq":505,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c511d-7d08-75a5-b782-e65a3edfffeb","at":1770887413000000000,"seq":506,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c511d-9e2f-7c83-abad-f3b1fb66b977","at":1770887421487000000,"seq":507,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c511f-3e77-7c8b-806d-1db4611a5d8b","at":1770887528055000000,"seq":508,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c511f-3e77-7a45-9f6b-b4071049f9a2","at":1770887528055000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5120-3076-7ca0-a23d-c439fc6b08cf","at":1770887590006000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5120-4010-7479-9be2-154b9c274cd3","at":1770887594000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5120-4fb0-7158-a8ca-5bc4773d84e4","at":1770887598000000000,"seq":512,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5120-6338-78d0-94a5-6133de38c5de","at":1770887603000000000,"seq":513,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5120-6b08-7257-ace1-7db449eacce9","at":1770887605000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5120-72d8-7c07-90d5-f3c2a852e16c","at":1770887607000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c5120-74df-79a4-96fb-326dfd5c9f36","at":1770887607519000000,"seq":516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5120-8a48-7b76-8167-0cbaf494bc4a","at":1770887613000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5120-bd10-7a67-9a54-c885ce40900e","at":1770887626000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5121-3628-78db-8c91-90d82050edbd","at":1770887657000000000,"seq":519,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5121-362d-789c-a417-4c54f455fc84","at":1770887657005000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5121-6120-7f67-8670-13438801ee87","at":1770887668000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5121-d268-79ee-88fd-eac2d2489c5c","at":1770887697000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5121-e3bd-7baa-aad6-188f1280e245","at":1770887701437000000,"seq":523,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5121-fd60-77be-b53e-3deb28f3d063","at":1770887708000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c5122-0148-73b9-bb59-d3e7225aa1b1","at":1770887709000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5122-0918-7dd6-9b21-38d400e02184","at":1770887711000000000,"seq":526,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5122-1ca0-7317-a185-25976b4677c7","at":1770887716000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5122-4ff8-78cc-a956-09e49c658aa5","at":1770887729144000000,"seq":528,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5122-5b20-7dd6-bd40-75bd456b373e","at":1770887732000000000,"seq":529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c5123-0ed0-7725-944d-2f3b917b48f1","at":1770887778000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

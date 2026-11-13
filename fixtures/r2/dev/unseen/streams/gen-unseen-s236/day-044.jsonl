@@ -1,0 +1,49 @@
+{"v":1,"id":"019c562e-c4cd-77d3-96a2-73f53cf77aba","at":1770972431565000000,"seq":638,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c562e-c4cd-756c-b892-c3a45f3d80a7","at":1770972431565000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c562e-d620-7e67-81c2-809630fb42e7","at":1770972436000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562f-4380-78b4-9b53-4b623bf0a990","at":1770972464000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562f-57cd-7068-9786-84e9676c57bc","at":1770972469197000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c562f-62c0-72e8-a137-bc9a7a6f3f7c","at":1770972472000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562f-7a30-75b9-b74d-c529a30527c1","at":1770972478000000000,"seq":644,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c562f-89d0-7600-98c8-78f79cbfc964","at":1770972482000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c562f-8db8-72d1-8a6d-736d0f54919f","at":1770972483000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562f-9588-7eb2-9b71-6cf84c413bc0","at":1770972485000000000,"seq":647,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c562f-9b24-7a10-860a-ab64126bd824","at":1770972486436000000,"seq":648,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c562f-e3a8-79d1-88d0-c4e16255a39b","at":1770972505000000000,"seq":649,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562f-f620-77cc-a114-3c2c1d76b3d4","at":1770972509728000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c562f-fb18-7049-8cad-ca7f7caee05d","at":1770972511000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5630-35b0-7076-adb0-22c65f540af2","at":1770972526000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5630-5108-7b4e-86d0-4ea2d7794db5","at":1770972533000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c5630-6490-70fa-980f-e083f63d7038","at":1770972538000000000,"seq":654,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5630-c3d6-746a-a8fb-91abd3a45b4d","at":1770972562390000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5631-27e0-72d3-ab33-fc236be10dcf","at":1770972588000000000,"seq":656,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5631-4338-7bad-bbdc-3f624bc44718","at":1770972595000000000,"seq":657,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5631-a2c0-7916-a3c2-51fefdafff33","at":1770972619456000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5631-b098-76fb-be6a-60a6d1540726","at":1770972623000000000,"seq":659,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5631-b098-7a1c-973c-5cf31d2f16a0","at":1770972623000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c5638-0bce-7487-9724-3412acbd7d29","at":1770973039566000000,"seq":661,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c5638-6758-74fd-80a5-5bb054977684","at":1770973063000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5638-c518-707a-b690-affbc2c1fdff","at":1770973087000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5638-f291-7250-b4a0-4dc7be82125f","at":1770973098641000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for July - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c5639-49e8-7df9-8ccb-c92378eea7a6","at":1770973121000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5639-d7f9-7ca7-88d1-4ccb6bdb693e","at":1770973157369000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c563a-0568-7600-99cd-ca8cb96b04e5","at":1770973169000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c563a-1120-7f51-84b9-aab7ec61fe71","at":1770973172000000000,"seq":668,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c563a-1cd8-73ca-936d-7e12bc98c35c","at":1770973175000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c563a-2b00-7908-94c5-346b090679ae","at":1770973178624000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c563a-3448-70ab-b40b-404b8791a58e","at":1770973181000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c563a-5388-7882-98d6-c1383f59363a","at":1770973189000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5655-2c2b-7035-96b8-85b182768e61","at":1770974948395000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5655-6538-70d8-939e-8308978b8cfa","at":1770974963000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5655-8478-7491-a529-feabc13a81ed","at":1770974971000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5655-8478-7c71-ada2-e5acfb8813ba","at":1770974971000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5655-96b4-7325-a432-0f7814c08931","at":1770974975668000000,"seq":677,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5655-a3b8-768a-8ee5-7c2587747393","at":1770974979000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c5655-c2f8-73b3-a5df-85f150a38854","at":1770974987000000000,"seq":679,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5655-fb79-73cc-8e3a-aec37d2b9edc","at":1770975001465000000,"seq":680,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5656-0178-74fe-88b3-e24a68351de5","at":1770975003000000000,"seq":681,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c5656-2888-7a22-9045-55da46a3bd5b","at":1770975013000000000,"seq":682,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5656-8a30-7be2-9ac6-2f23f371b7ab","at":1770975038000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5656-a588-791f-a5bb-19eefbefe62e","at":1770975045000000000,"seq":684,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5656-acce-7de8-b2a4-13af6b911208","at":1770975046862000000,"seq":685,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5657-7878-7751-bb5e-def74c7d93df","at":1770975099000000000,"seq":686,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

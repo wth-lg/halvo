@@ -1,0 +1,30 @@
+{"v":1,"id":"019b8d22-de00-7dd1-b4a6-2027b00c7201","at":1767599431168000000,"seq":89,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d22-de00-7b7f-851a-7ed152f8cc39","at":1767599431168000000,"seq":90,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b8d23-17f0-7eeb-80d2-1e42245d4bb5","at":1767599446000000000,"seq":91,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d23-23a8-7117-ae54-b1f61a99c240","at":1767599449000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d23-2b78-7084-b3f7-1225a4fb937f","at":1767599451000000000,"seq":93,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8d23-5288-7c57-98ab-494199ad5039","at":1767599461000000000,"seq":94,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8d33-45d1-703f-a2de-a1c1a359b6a1","at":1767600506321000000,"seq":95,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8d33-45d1-7138-8123-80ffb65f300d","at":1767600506321000000,"seq":96,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8d34-0fb0-7e5b-bac5-b90aaded4c3c","at":1767600558000000000,"seq":97,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b8d34-1ef6-78d2-8c60-f312dcbebddc","at":1767600561910000000,"seq":98,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8d34-2720-72f6-aa9e-e412f9e257b7","at":1767600564000000000,"seq":99,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b8d34-4e30-7c5d-8571-ddba1281e4f6","at":1767600574000000000,"seq":100,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b8d4e-4351-7d91-a367-ab1f5d646bff","at":1767602275153000000,"seq":101,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8d4f-15a8-71d4-9e4c-3f860f040ced","at":1767602329000000000,"seq":102,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d4f-2930-794d-b716-76a7f6b63063","at":1767602334000000000,"seq":103,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b8d52-7161-750d-83fb-e88a40d5a94e","at":1767602549089000000,"seq":104,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d52-7161-75d4-9690-c293d06d2322","at":1767602549089000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b8d52-fda8-7c02-884a-8dde2a964e75","at":1767602585000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d53-3b5e-7560-86a1-a0ed0f90046f","at":1767602600798000000,"seq":107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b8d53-b928-7485-a9ec-c5645f1d487f","at":1767602633000000000,"seq":108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b8d54-1b84-7fc4-9db5-f2e52ced41b6","at":1767602658180000000,"seq":109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b8d54-70c0-7083-99cc-7bbfdb6c591c","at":1767602680000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b8d54-8830-7293-bc3c-b4301d0af139","at":1767602686000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d54-a47c-743b-a353-c90ca191abc4","at":1767602693244000000,"seq":112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b8d54-de20-7954-b49f-56ad5adb2d02","at":1767602708000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d55-1ca0-7d42-804c-92497b78c5be","at":1767602724000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d55-2858-77b7-a257-c060c502cbbe","at":1767602727000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8d55-43b0-74de-bc0b-3e6246122de0","at":1767602734000000000,"seq":116,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8d6e-c342-76d5-b904-69b609e30df1","at":1767604405058000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8d6e-fda0-711c-bd21-7287053f1b13","at":1767604420000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

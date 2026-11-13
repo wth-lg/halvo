@@ -1,0 +1,31 @@
+{"v":1,"id":"019bdabe-fabe-786f-9199-a4360bfa491b","at":1768901507774000000,"seq":214,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdabe-fabe-7672-93b0-d2fc5e209b9b","at":1768901507774000000,"seq":215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bdabf-78a0-7915-883a-d7dcb4ba01f5","at":1768901540000000000,"seq":216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bdabf-ffbc-7ecc-8462-da804c6e141c","at":1768901574588000000,"seq":217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bdac0-5360-716e-a5c5-cdb6f603ec16","at":1768901596000000000,"seq":218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdac0-b508-7e1a-a9f0-9acdf06290a7","at":1768901621000000000,"seq":219,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdac0-e7d0-7cbe-bba7-08aaa1170083","at":1768901634000000000,"seq":220,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdacd-1583-7ae6-864a-9dc2c54812ca","at":1768902432131000000,"seq":221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bdacd-3ff8-71d7-a568-3c04453ae138","at":1768902443000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdacd-6af0-79a4-b5b5-e96b129e8346","at":1768902454000000000,"seq":223,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdacd-6ed8-7353-b004-0bf821f50844","at":1768902455000000000,"seq":224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bdae8-e059-7038-a4d8-bd5daad2f4ca","at":1768904253529000000,"seq":225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bdae8-ea00-7f80-97f2-8140ffb52826","at":1768904256000000000,"seq":226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaee-0f70-734d-b197-43c5106f8dbd","at":1768904593264000000,"seq":227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bdaef-05ef-71dd-a5d3-d291ec39ac8a","at":1768904656367000000,"seq":228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bdaef-1038-7b2e-9639-7fbb0b95f040","at":1768904659000000000,"seq":229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bdaef-3f18-7362-b2ed-73292ffb0e7a","at":1768904671000000000,"seq":230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdaef-7e2d-756e-ab0b-1917cf86af19","at":1768904687149000000,"seq":231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bdaef-98f0-7d03-aac3-b919cec63f80","at":1768904694000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bdaef-a0c0-76eb-8154-64c787846ad8","at":1768904696000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bdaef-cfa0-7043-b875-5e4364014f3d","at":1768904708000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaef-fe80-785e-9495-85b6c7cd6ee5","at":1768904720000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdaf0-27d2-7c1b-b77e-c3feb37b18d8","at":1768904730578000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bdaf0-aa60-726d-88d0-adcee2008dc0","at":1768904764000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaf0-c5b8-7405-af81-efa1b4526a67","at":1768904771000000000,"seq":238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdaf0-c9a0-7095-a73a-d599f1972f32","at":1768904772000000000,"seq":239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdaf0-d170-7bb2-ab9d-95fc7d9c4afd","at":1768904774000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaf0-ecc8-7bce-84dc-fe20a86f4e6b","at":1768904781000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bdaf1-1226-716c-b177-a393aed3a9e3","at":1768904790566000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bdaf1-46a0-7cd8-9f23-8631c5d4ce9f","at":1768904804000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaf1-5640-750f-b558-99d425d47ec8","at":1768904808000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}

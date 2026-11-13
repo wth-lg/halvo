@@ -1,0 +1,20 @@
+{"v":1,"id":"019b9d1e-79e2-74a3-8e19-cbd19762ee00","at":1767867578850000000,"seq":175,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9d1e-79e2-7ec8-8ad5-b167017855c9","at":1767867578850000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9d1e-b128-7998-a3f3-29e8353b5ace","at":1767867593000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d1e-b128-7c5a-a634-0ba976e07544","at":1767867593000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b9d33-eaad-7bb2-8a61-560bf712c8ae","at":1767868983981000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b9d33-f290-7ec1-aa7c-64335c1fb4b7","at":1767868986000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b9d40-a4d7-7ff9-bbbe-efebda4f37b3","at":1767869818071000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9d41-6010-73a1-936d-adfc9fc1792b","at":1767869866000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d41-6fb0-70f5-a8fe-aa7846f271b8","at":1767869870000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b9d41-8720-729c-9f4b-86adc900b297","at":1767869876000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d41-9e18-7fa2-9caf-b037858bf38a","at":1767869881880000000,"seq":185,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement May - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9d41-bdd0-70fc-9964-69c750098a74","at":1767869890000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d41-c5a0-759e-8776-acd7175c5c09","at":1767869892000000000,"seq":187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d41-e8c8-75e6-b409-d28eb6caa962","at":1767869901000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b9d42-25c4-7d03-9896-1536e7f07b5d","at":1767869916612000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9d42-3eb8-7256-ab95-de3f38d26659","at":1767869923000000000,"seq":190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9d42-65c8-72ea-8819-84740a469025","at":1767869933000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d42-7180-77fc-9b0c-e6cb1cafff56","at":1767869936000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b9d42-88f0-7705-a2c5-f9772db3063c","at":1767869942000000000,"seq":193,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9d42-b45a-7e96-849a-e67c66f44f44","at":1767869953114000000,"seq":194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}

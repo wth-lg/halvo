@@ -1,0 +1,14 @@
+{"v":1,"id":"019cade5-b7f3-7542-9fa6-2f481bee68ac","at":1772444039155000000,"seq":793,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cade5-b7f3-75be-a0a4-c932be3ec6af","at":1772444039155000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cade6-0960-7512-b3c4-e8a176a94c78","at":1772444060000000000,"seq":795,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cade6-c75d-743a-b735-08819ca909c9","at":1772444108637000000,"seq":796,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cade6-ccb0-7ce9-bc36-79d48f802f25","at":1772444110000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cade7-2688-79ab-9446-4c0c4f7d7069","at":1772444133000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cade7-3240-7d8c-b11c-6dae36dd1478","at":1772444136000000000,"seq":799,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cade7-3a10-7de5-a2b9-62b888584b24","at":1772444138000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cade7-483e-7b09-afc1-386727d5d5a0","at":1772444141630000000,"seq":801,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cade7-49b0-7fcd-b251-3c98c2a66377","at":1772444142000000000,"seq":802,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cade7-6cd8-7edc-b090-44fec3c088a1","at":1772444151000000000,"seq":803,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cadf7-b971-7723-bb88-1679870fa9cc","at":1772445219185000000,"seq":804,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cadf7-c088-7b3d-aa7d-47a2c899098d","at":1772445221000000000,"seq":805,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cadf7-c470-701f-98d3-5fe5af96dec3","at":1772445222000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

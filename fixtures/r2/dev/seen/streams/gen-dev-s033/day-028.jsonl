@@ -1,0 +1,12 @@
+{"v":1,"id":"019c03c2-3340-7510-8e5b-728759427563","at":1769589584704000000,"seq":314,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c03c2-3340-722b-8db4-b3149ef448ee","at":1769589584704000000,"seq":315,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c03c2-a998-7d42-824f-eb9a89aa560a","at":1769589615000000000,"seq":316,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03ce-5e51-7fad-a6ed-ba30126d4c6c","at":1769590382161000000,"seq":317,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03ce-5e51-7e88-8a2d-523f6ab45d0f","at":1769590382161000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c03ce-d2e0-709c-9f2b-76c352b6bc88","at":1769590412000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03cf-1d18-7d35-a911-b0b6988dd68d","at":1769590431000000000,"seq":320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c03e7-da18-7a2f-9579-89947a768b07","at":1769592052248000000,"seq":321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c03e8-4277-734c-9289-78470e31dac9","at":1769592078967000000,"seq":322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c03e8-aff8-71be-b389-14b0359ed73e","at":1769592107000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03e8-eff9-78cb-a71b-9c58ea3bd2a9","at":1769592123385000000,"seq":324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c03e9-d4f0-735c-b031-4c7bfcb25539","at":1769592182000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

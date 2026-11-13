@@ -1,0 +1,22 @@
+{"v":1,"id":"019beeed-a9d2-718a-8119-f8fc4d59ba3e","at":1769240111570000000,"seq":265,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019beeed-a9d2-7e4f-a39e-36bac6d2988a","at":1769240111570000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019beeed-ab80-75aa-a904-5c86cd9cab2c","at":1769240112000000000,"seq":267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019beeee-0d28-7947-bb24-c10793fb04c5","at":1769240137000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beeee-1cc8-779d-9fab-1054c921e16d","at":1769240141000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beefd-5b97-731e-b5d1-51d63d0a264c","at":1769241140119000000,"seq":270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019beefd-7a60-78e7-b2b5-642723d138d3","at":1769241148000000000,"seq":271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019beefe-2640-7458-88c0-005d4d0915b4","at":1769241192000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bef02-f47f-7c72-9f71-edfe2573391d","at":1769241506943000000,"seq":273,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef02-f47f-73a2-af0a-910948acac39","at":1769241506943000000,"seq":274,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef03-4aa8-77b1-bcaf-eb5b2e68f120","at":1769241529000000000,"seq":275,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bef03-8d10-74e4-a0d1-9e160fb543c0","at":1769241546000000000,"seq":276,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bef03-ed84-71db-9249-925150de6b55","at":1769241570692000000,"seq":277,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bef04-15c8-7dfb-8312-94221fb29c2a","at":1769241581000000000,"seq":278,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bef04-3cd8-725b-b350-0704a1fe888d","at":1769241591000000000,"seq":279,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef04-6000-7e7d-a381-4db42f88939e","at":1769241600000000000,"seq":280,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bef04-a268-777e-9ad1-71554c6be8a2","at":1769241617000000000,"seq":281,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef18-cb64-7848-9d94-d7684ae059e8","at":1769242938212000000,"seq":282,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef18-cb64-7882-adc6-dcce3970404d","at":1769242938212000000,"seq":283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bef18-d648-7eb9-980a-a0329bd66850","at":1769242941000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef18-fd58-7b98-88fc-1f67039a43e9","at":1769242951000000000,"seq":285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bef19-43a8-7feb-a2b1-8175b9cb8849","at":1769242969000000000,"seq":286,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

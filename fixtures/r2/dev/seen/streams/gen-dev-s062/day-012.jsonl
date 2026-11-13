@@ -1,0 +1,47 @@
+{"v":1,"id":"019bb17c-3270-7369-a669-d57125adb5c3","at":1768209265264000000,"seq":197,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019bb17c-3c63-7487-9994-301be9126aad","at":1768209267811000000,"seq":198,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb17c-3c63-7ab5-b173-91535169977d","at":1768209267811000000,"seq":199,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb17d-294e-7c13-a492-83dccea4055d","at":1768209328462000000,"seq":200,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb17d-5a48-7fc9-ad2d-da1798213648","at":1768209341000000000,"seq":201,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17d-7d70-7032-bdc3-2f26c2781abc","at":1768209350000000000,"seq":202,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bb17d-bbf0-7df4-b76e-db0d81a593e2","at":1768209366000000000,"seq":203,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17d-c4b9-77be-83f3-9418543182c7","at":1768209368249000000,"seq":204,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb17d-cb90-7e3f-9c38-edb69bba4050","at":1768209370000000000,"seq":205,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17e-0628-7388-9d15-4df14ddb3ce8","at":1768209385000000000,"seq":206,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17e-0df8-74b4-ba62-666a1231f51b","at":1768209387000000000,"seq":207,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bb17e-1f24-75d2-89da-3a3f763a12ab","at":1768209391396000000,"seq":208,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb17e-8ee0-709d-bf1e-d21994bc527e","at":1768209420000000000,"seq":209,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bb17e-ae76-74bf-b03e-be6e6d7fbdef","at":1768209428086000000,"seq":210,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb17e-b208-7579-b665-3b62f55907fb","at":1768209429000000000,"seq":211,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bb17e-cd60-7c24-b3b9-d7792d5765f2","at":1768209436000000000,"seq":212,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17e-d148-76c9-8003-b014f0766179","at":1768209437000000000,"seq":213,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17f-0e74-7842-a647-9f22a3b07a19","at":1768209452660000000,"seq":214,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb17f-3ac0-77f3-8486-c37e22058762","at":1768209464000000000,"seq":215,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bb17f-5618-7fb3-a4b1-9a6773853182","at":1768209471000000000,"seq":216,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17f-61d0-7345-868d-ef513efd62b0","at":1768209474000000000,"seq":217,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bb17f-8267-7e16-801a-abc4ba2b9cc2","at":1768209482343000000,"seq":218,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb17f-aff0-7d3b-8e7d-54f2e2782112","at":1768209494000000000,"seq":219,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb17f-ee70-7886-92f1-da29341f0231","at":1768209510000000000,"seq":220,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bb180-2bf7-7517-9e76-c3149587e1b4","at":1768209525751000000,"seq":221,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb180-63a0-76a1-bf41-515550b428ef","at":1768209540000000000,"seq":222,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb180-7ef8-7456-a0e5-18c03bf73c07","at":1768209547000000000,"seq":223,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb180-f8c3-7e6f-8191-0d71c4c63613","at":1768209578179000000,"seq":224,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb180-ffe0-7b47-b9d3-aea5f43cf942","at":1768209580000000000,"seq":225,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb181-03c8-7af8-9eb9-8096322bc34e","at":1768209581000000000,"seq":226,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bb181-5a73-7369-9935-5f1f11d83eb2","at":1768209603187000000,"seq":227,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb181-abc0-7e4d-aa36-362f27b9f294","at":1768209624000000000,"seq":228,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bb182-6a54-7c8f-bd84-20d1248399ed","at":1768209672788000000,"seq":229,"kind":"run_mark","app":null,"p":{"edge":"end"}}
+{"v":1,"id":"019bb18d-55b3-779c-973f-116a3d1cc858","at":1768210388403000000,"seq":230,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb18d-5808-7644-8ff4-058bcc7032bb","at":1768210389000000000,"seq":231,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb18d-aa10-7ae2-9a52-d14e6554f837","at":1768210410000000000,"seq":232,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a0-885d-71ef-8964-5a8175df7fe9","at":1768211646557000000,"seq":233,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1a0-885d-7c1b-9ca3-dfdfc14c24ef","at":1768211646557000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a0-99b8-72b0-8204-f684b4b4e5c8","at":1768211651000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb1a0-d450-70c7-a8e2-84ebcd80bca3","at":1768211666000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a1-1aa0-75fb-803e-2f8b10a7a813","at":1768211684000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bb1a9-32a6-7989-9363-137ca7cd16a2","at":1768212214438000000,"seq":238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a9-5030-7672-81d6-ade58c1f4ded","at":1768212222000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a9-8eb0-7bb6-9aaf-4dc61ac5507b","at":1768212238000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb1a9-aa08-768a-bf57-cf07037f9f75","at":1768212245000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a9-adf0-72cc-98fa-06f4a50fd620","at":1768212246000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb1a9-adf0-74a2-8ff3-cea1b77c2380","at":1768212246000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

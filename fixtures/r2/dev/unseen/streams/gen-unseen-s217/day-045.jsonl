@@ -1,0 +1,42 @@
+{"v":1,"id":"019c5b4f-bab0-709e-b55d-4cae6b30207c","at":1771058477744000000,"seq":478,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b4f-bab0-7f4c-9fa3-7119a1eaf801","at":1771058477744000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c5b4f-e2c0-74d3-9940-eec858dd8b72","at":1771058488000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b53-2189-7109-85f0-a5df1819a342","at":1771058700681000000,"seq":481,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b53-2189-7fcf-bbed-a51dc6b58704","at":1771058700681000000,"seq":482,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b53-2e80-7285-ab90-24de418ee838","at":1771058704000000000,"seq":483,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c5b53-3a38-71a8-85b4-8fbb5d385d4a","at":1771058707000000000,"seq":484,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b53-3e20-7d4b-8f87-d5c53df3fc33","at":1771058708000000000,"seq":485,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c5b53-51a8-7fb1-ad16-e6d26637eea0","at":1771058713000000000,"seq":486,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c5b6e-dcbf-74f3-8037-7d669f346f99","at":1771060518079000000,"seq":487,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5b6f-1af0-7257-8dec-eb674204af31","at":1771060534000000000,"seq":488,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b6f-3260-7fda-a688-4640e4df6430","at":1771060540000000000,"seq":489,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b6f-97f0-79d2-9944-da9174f072d1","at":1771060566000000000,"seq":490,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b6f-9fc0-70cb-989f-81e1e2359218","at":1771060568000000000,"seq":491,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b77-f379-7511-bb06-a6c8ae184a6c","at":1771061113721000000,"seq":492,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b77-f379-7303-9ce2-eee31e6a97b1","at":1771061113721000000,"seq":493,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c5b78-5638-76f5-8404-da736c92e05e","at":1771061139000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b78-8900-7d91-89f0-032ba6fe79d5","at":1771061152000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5b78-dbc6-7bad-a348-71850ae35408","at":1771061173190000000,"seq":496,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for July - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c5b79-0600-7a1d-9ec3-6a9a5aa4981c","at":1771061184000000000,"seq":497,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c5b79-11b8-781b-8b43-bc35bd693dc5","at":1771061187000000000,"seq":498,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5b79-7f18-7590-a4a3-53ed5d90bbd5","at":1771061215000000000,"seq":499,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5b79-80ca-7f90-af40-9c4c156cd91d","at":1771061215434000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7a-07d0-70d1-bfd5-25be85207f17","at":1771061250000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c5b7a-1f40-7cf9-8658-a331b5b99fc1","at":1771061256000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7a-6483-73c1-8c50-9dd41c76f255","at":1771061273731000000,"seq":503,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7a-b798-7f40-997c-5cbf7c3f6bf6","at":1771061295000000000,"seq":504,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7a-cf08-7fc7-92c1-dc1d7f33bffa","at":1771061301000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7a-dac0-70c6-ab2d-50bd69958bc4","at":1771061304000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c5b7a-f593-77e5-877f-af6c25449a4c","at":1771061310867000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7a-fa00-74d5-b6b9-bd8c1b23a97c","at":1771061312000000000,"seq":508,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5b7b-7ae8-77b7-9f68-22d5ddf662a6","at":1771061345000000000,"seq":509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5b7b-8231-70ea-975f-73ae3efae131","at":1771061346865000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7c-4608-7ccf-b055-515ad7d99edb","at":1771061397000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c5b7c-499d-7712-87aa-d54c0e2e015e","at":1771061397917000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7c-5d78-718a-8fe2-356d4ee3738b","at":1771061403000000000,"seq":513,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5b7c-6160-76f1-996a-d0a39f1f038f","at":1771061404000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5b7c-78d0-7be3-9666-e812307d2c2e","at":1771061410000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7c-9040-72f1-a161-6adcf7b66201","at":1771061416000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7c-a5cd-7ca6-af79-5d123bd7bc4e","at":1771061421517000000,"seq":517,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c5b7c-b750-700c-87b6-116a77e0c1a8","at":1771061426000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b7c-d690-7185-a68e-04a2b48b602d","at":1771061434000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

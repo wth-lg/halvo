@@ -1,0 +1,27 @@
+{"v":1,"id":"019d14d3-c899-77a6-a46b-0824cde98c72","at":1774170917017000000,"seq":1302,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14d3-c899-70b7-bfd3-1b96eb24c0f5","at":1774170917017000000,"seq":1303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d14d3-e7c8-7ce3-9a5f-9ebef13b568f","at":1774170925000000000,"seq":1304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14d3-ebb0-7135-8bde-43e54752a928","at":1774170926000000000,"seq":1305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14d4-2260-7610-8ab1-af0d12efb9af","at":1774170940000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d14de-d5d8-7edf-a6f4-a5124c83ddf2","at":1774171641304000000,"seq":1307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d14de-e060-713d-83a4-2541a9753a8d","at":1774171644000000000,"seq":1308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d14de-f3e8-7597-9b0d-2e933c58bc2e","at":1774171649000000000,"seq":1309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14df-2e80-7603-83b0-fd1bd5c461d5","at":1774171664000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14df-3e20-7b09-934b-c67409548fa4","at":1774171668000000000,"seq":1311,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d14f4-1aee-702d-a550-ecbfae63ddf7","at":1774173035246000000,"seq":1312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d14f4-c9c0-76c4-85e2-5d03f145615b","at":1774173080000000000,"seq":1313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d14f4-e697-7c4a-a4e0-a43b2aaa854b","at":1774173087383000000,"seq":1314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d14f5-0070-7908-9bbd-a2089b12a139","at":1774173094000000000,"seq":1315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d14f5-1bc8-7b8e-80c4-900d28f4e9f3","at":1774173101000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f5-2ca7-7cae-aaa0-2912676f903f","at":1774173105319000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d14f5-71b8-76f8-b1bc-a2454f0a613a","at":1774173123000000000,"seq":1318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d14f5-8540-742a-813a-2cb9d9834ea9","at":1774173128000000000,"seq":1319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d14f5-cf78-787d-bcb5-56a09245d25f","at":1774173147000000000,"seq":1320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f5-df18-7e7d-bdb8-b7d689cab1f6","at":1774173151000000000,"seq":1321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d14f5-fafd-7016-9c7d-290613e6503c","at":1774173158141000000,"seq":1322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d14f6-6bb8-7020-8338-0fdc550818fb","at":1774173187000000000,"seq":1323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d14f6-7770-7a81-ae7e-1bac8f971e87","at":1774173190000000000,"seq":1324,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d14f6-8328-7f2b-a04e-15b47120e567","at":1774173193000000000,"seq":1325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d150e-d324-7929-bcd2-ccf0dd5b7c9f","at":1774174786340000000,"seq":1326,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d150e-d324-705f-8085-12ca1353bdd6","at":1774174786340000000,"seq":1327,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d150e-e558-738c-84aa-b6bdd238355e","at":1774174791000000000,"seq":1328,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

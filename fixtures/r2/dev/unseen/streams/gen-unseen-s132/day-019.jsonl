@@ -1,0 +1,21 @@
+{"v":1,"id":"019bd554-7d33-741e-8fb8-ce9af2911a4d","at":1768810642739000000,"seq":238,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd554-7d33-78b0-9321-26db22119786","at":1768810642739000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bd554-f368-7127-85a1-e6ab9411ad35","at":1768810673000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd554-ff20-75ce-95e8-b8684412867e","at":1768810676000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bd55d-7a0b-774b-9b4d-95b448380e60","at":1768811231755000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bd55d-f800-7efb-a14c-3fc791c8ff40","at":1768811264000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd55e-3a68-78cc-9117-4fda0f267c24","at":1768811281000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bd55e-3e50-7c73-960b-ad619f1e676c","at":1768811282000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd55e-5196-7755-9876-c6f8160f0f9d","at":1768811286934000000,"seq":246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bd55e-8c70-7388-87a5-ca6fe2bdb5fe","at":1768811302000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd55e-a3e0-73c1-8298-7f3c4afe4860","at":1768811308000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd55e-b768-7c73-bf9e-886f155fe2db","at":1768811313000000000,"seq":249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd55e-d2c0-7ce1-b091-c6f8953e6862","at":1768811320000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd55e-e0dc-7320-b4d1-e4a0394a0ced","at":1768811323612000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bd55f-1528-7f57-a898-08ae98d0adb1","at":1768811337000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd55f-20e0-7309-9a1e-c520ce0cf9a6","at":1768811340000000000,"seq":253,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd55f-28b0-79b2-9ae5-523553ac046e","at":1768811342000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd55f-2dcd-7132-878d-20925f793513","at":1768811343309000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bd55f-8a58-7a45-88b2-353ad4dc203d","at":1768811367000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd55f-8e40-7805-9776-2e40c3e8b41a","at":1768811368000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bd560-16f8-7338-85ed-360634c72663","at":1768811403000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

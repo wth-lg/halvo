@@ -1,0 +1,41 @@
+{"v":1,"id":"019c9e8f-9105-773a-90ca-4b3a9e766711","at":1772186734853000000,"seq":749,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e8f-9105-72d2-a92b-3f94ea756c83","at":1772186734853000000,"seq":750,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9e8f-b4c0-7949-8034-e65d371307ea","at":1772186744000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c9e8f-b8a8-7bd0-9ef6-9e26ef0d4d57","at":1772186745000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e8f-bc90-7921-bf38-00e92c5abee9","at":1772186746000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e8f-d979-7719-8944-ab5cd9afdac9","at":1772186753401000000,"seq":754,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9e8f-f728-724c-bf6b-eec64d8c15eb","at":1772186761000000000,"seq":755,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9e90-4548-7dc6-a78b-5a82b847f19a","at":1772186781000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c9e90-550c-7210-8895-6d1b90ced297","at":1772186785036000000,"seq":757,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9e91-1450-7282-9d65-caf24c7d05ef","at":1772186834000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e91-3507-7b69-a7aa-e4fc337aa4e1","at":1772186842375000000,"seq":759,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9e91-8980-7411-8ce6-0ad5908727bb","at":1772186864000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c9e91-a8c0-7aad-a3e1-8c9ae6cc7c4f","at":1772186872000000000,"seq":761,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9e91-fba6-7500-9dc1-fa046d0e0d79","at":1772186893222000000,"seq":762,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9e92-8f38-7d3f-bfc0-65c3508bdc2a","at":1772186931000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c9e92-983c-706a-b6e6-9bab06edba6e","at":1772186933308000000,"seq":764,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c9e92-9ed8-7b80-9a77-6cb79884063c","at":1772186935000000000,"seq":765,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9e92-c200-7304-a018-bfb1735b6f9e","at":1772186944000000000,"seq":766,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e92-d970-7218-814b-da4a1371d090","at":1772186950000000000,"seq":767,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9e9d-b4aa-7121-8b5c-8504379c04da","at":1772187661482000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9e9d-c650-7c49-8ef9-a9ad4f1c2559","at":1772187666000000000,"seq":769,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9e9d-ce20-71d5-9fcb-a386e9ce8063","at":1772187668000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9e9e-56d8-71bb-98cf-a4c2fa046963","at":1772187703000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ea4-c609-7495-95e1-e7c5bd76edf8","at":1772188124681000000,"seq":772,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9ea5-a208-7ff6-aa4c-ebe1632905ba","at":1772188181000000000,"seq":773,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9eac-35bc-7dcf-b6e6-5d1f8bebbb8c","at":1772188612028000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9eac-8b90-79cf-b283-8f22e6497c31","at":1772188634000000000,"seq":775,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9eac-8f78-7727-8dcd-a7cdedc03da2","at":1772188635000000000,"seq":776,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9eac-b2a0-7eb2-b36e-d0c3a0b3e0be","at":1772188644000000000,"seq":777,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c9ec5-972a-7ac9-a205-7d3014065a07","at":1772190275370000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9ec5-dc08-745d-9ff4-7c83c930882a","at":1772190293000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ec5-efe1-73c5-aac4-6bf8c1e4cb48","at":1772190298081000000,"seq":780,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9ec6-0ae8-74ff-b9f8-d80aaf21eb9f","at":1772190305000000000,"seq":781,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9ec6-0ed0-7988-b1c1-5a13fc8db645","at":1772190306000000000,"seq":782,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ec6-7848-7e45-9755-29febfe831cf","at":1772190333000000000,"seq":783,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9ec6-9c69-7fd8-8104-ee8dbb43b273","at":1772190342249000000,"seq":784,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9ec6-d608-73a1-95c7-5ce37d4a0deb","at":1772190357000000000,"seq":785,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9ec7-1870-7ec6-bb36-940f60532b94","at":1772190374000000000,"seq":786,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9ec7-548b-71a5-8f08-11ba0108d231","at":1772190389387000000,"seq":787,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9ec7-b4b0-7c80-aa11-b784e8948372","at":1772190414000000000,"seq":788,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ec7-dbc0-79ea-83ba-37e0471426a5","at":1772190424000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}

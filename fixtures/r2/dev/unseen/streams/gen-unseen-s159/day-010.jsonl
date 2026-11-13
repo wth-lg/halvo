@@ -1,0 +1,29 @@
+{"v":1,"id":"019ba719-8ea8-7609-93de-cc5710f0eb50","at":1768035028648000000,"seq":233,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba719-8ea8-75e4-9e1d-7e9e8ac3092e","at":1768035028648000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba71a-3800-7863-abea-de57ed30c9d0","at":1768035072000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ba71a-5f10-7593-9d8f-a701e56df4d2","at":1768035082000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71a-71e9-78ab-8e35-d94a122804d4","at":1768035086825000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba71a-91d8-70e5-a4ab-5b75b9681d31","at":1768035095000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71a-ad30-7259-88e2-ebf035b1ad00","at":1768035102000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba71a-f414-7614-98aa-8745069965a3","at":1768035120148000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba71b-0320-7f4b-9137-c7f3837b0d76","at":1768035124000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71b-2260-7b58-b5cf-df719665c971","at":1768035132000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba71b-59f5-7dd2-a2fc-0166c7b34d09","at":1768035146229000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba71b-e1c8-7abb-9db3-c251efbbfa9b","at":1768035181000000000,"seq":244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba71c-5ec8-730a-b226-497ea3cc2665","at":1768035213000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71e-1d37-7379-be4d-44880b635fc5","at":1768035327287000000,"seq":246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ba71e-7208-7f7a-93e2-4db4e702de4f","at":1768035349000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71e-d3b0-7309-9261-a915f82b196c","at":1768035374000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba71e-df68-74f0-8111-1f6ce242e69a","at":1768035377000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71f-2c81-7e6d-af37-e751c4474ce4","at":1768035396737000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ba71f-8b48-7fcb-bcf8-f3913baf4816","at":1768035421000000000,"seq":251,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba71f-b640-777b-8738-b87fde935847","at":1768035432000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71f-ba28-7f5d-ac93-c81a03bbffa2","at":1768035433000000000,"seq":253,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba71f-d198-7d2d-b30e-377b881d9301","at":1768035439000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba71f-eacb-722d-92d6-60d9095378a4","at":1768035445451000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ba720-0078-77ab-8326-543123863402","at":1768035451000000000,"seq":256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba720-3b10-7c9d-9920-1a266f36ee75","at":1768035466000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba720-efbf-75c8-b271-a5a247931ea3","at":1768035512255000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ba720-fe60-7775-8f7d-74fdb462b416","at":1768035516000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ba721-15d0-7bbd-a1e7-60316cc7d6f2","at":1768035522000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba721-5068-73a1-ab4e-cdebd31202da","at":1768035537000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

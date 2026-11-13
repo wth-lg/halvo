@@ -1,0 +1,6 @@
+{"v":1,"id":"019c6fa1-84a9-7e34-8461-66ef46dd693d","at":1771399382185000000,"seq":818,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fa1-84a9-7941-a74b-6165f9511688","at":1771399382185000000,"seq":819,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c6fa2-2800-7c8e-9a24-b9878802a75c","at":1771399424000000000,"seq":820,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fa2-4358-7c06-a565-a8d7d8b446e2","at":1771399431000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c6fa2-559c-792e-8f64-1e54d74cb477","at":1771399435676000000,"seq":822,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c6fa2-6298-7ee0-a409-5de4ad08ccf9","at":1771399439000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,46 @@
+{"v":1,"id":"019b7927-4580-7193-8b38-3370b4eee97e","at":1767264175488000000,"seq":0,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7927-4580-7a5e-85bd-9c267172aa95","at":1767264175488000000,"seq":1,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7927-5ef0-71e3-9856-81c9b14f199a","at":1767264182000000000,"seq":2,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7927-7278-7833-b433-dfa41ac42bbb","at":1767264187000000000,"seq":3,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b7927-91b8-7b5a-9e07-736506383869","at":1767264195000000000,"seq":4,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b7927-9fbe-77f4-b8ca-cc44227a163b","at":1767264198590000000,"seq":5,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b7927-f748-70a3-9260-b75153b38ca9","at":1767264221000000000,"seq":6,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b7928-2628-768c-8667-4a25cbcfb95a","at":1767264233000000000,"seq":7,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b7928-4568-787e-a87e-5191a04a3986","at":1767264241000000000,"seq":8,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b7931-3b12-7573-b0a7-549eefa50a42","at":1767264828178000000,"seq":9,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7931-3b12-7aa2-8b61-dfa8ccca8bf5","at":1767264828178000000,"seq":10,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7931-e11c-726b-aa8f-b1668a14f6ff","at":1767264870684000000,"seq":11,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7932-0968-7de4-9754-4891102d62e8","at":1767264881000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7932-1138-757d-9462-28f907c9236a","at":1767264883000000000,"seq":13,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7932-47e8-7bda-8d2d-4d1d771ab84b","at":1767264897000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7932-4fb8-7005-bdb7-4db51aeb6660","at":1767264899000000000,"seq":15,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7932-a675-7323-9599-75079744b901","at":1767264921205000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7932-efe0-7204-8ad0-2fcfbd93ff7f","at":1767264940000000000,"seq":17,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7933-0368-704a-a67e-ea3522987064","at":1767264945000000000,"seq":18,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7933-4641-7efa-8f53-d9b477dffcf1","at":1767264962113000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7933-4da0-7720-9d3a-c766eec666c0","at":1767264964000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7933-6510-7816-a78e-62e87fee6c5d","at":1767264970000000000,"seq":21,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7933-74b0-7fc6-95c2-d00416a4a58e","at":1767264974000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b7933-8838-7826-897d-9b2c0edb2079","at":1767264979000000000,"seq":23,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7937-992f-7609-96fa-9319d3800407","at":1767265245487000000,"seq":24,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7937-992f-756c-9331-46a1697af8f9","at":1767265245487000000,"seq":25,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7937-b688-7923-8b6d-46f50f4acc1f","at":1767265253000000000,"seq":26,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b7937-b688-7dd8-a4dc-7eee11203fa7","at":1767265253000000000,"seq":27,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b7937-ca10-7e8f-acbd-9d5ef38a3c5c","at":1767265258000000000,"seq":28,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7943-5a1b-7c23-9f44-ebec5b534d15","at":1767266015771000000,"seq":29,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b7943-5b00-7e04-a1e1-6f811f441972","at":1767266016000000000,"seq":30,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7943-7a40-79f2-afb4-7df3efa1ae92","at":1767266024000000000,"seq":31,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7944-1680-769e-8937-d07d009e7bc2","at":1767266064000000000,"seq":32,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b7946-7bbc-7fc3-87e3-fb09c630d831","at":1767266220988000000,"seq":33,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7946-7bbc-7599-8dd4-31b3dfc058e2","at":1767266220988000000,"seq":34,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7946-be30-7919-8d06-f70514bdaea9","at":1767266238000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7946-c218-7618-9849-bc376ae4768e","at":1767266239000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7947-5688-7e66-a229-cea04472a33c","at":1767266277000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7959-d685-7024-b2a2-d76023acf146","at":1767267489413000000,"seq":38,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b795a-2308-7553-a342-b7b7dbb870ee","at":1767267509000000000,"seq":39,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b795a-32a8-7e5a-a3e1-ecae13754ed3","at":1767267513000000000,"seq":40,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b795a-b390-7b79-861e-c466d245c850","at":1767267546000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b795a-c49d-7407-94ad-b4a8dc8d5dff","at":1767267550365000000,"seq":42,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b795a-cb00-7832-a617-9f9b0b34d784","at":1767267552000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b795b-5b88-789e-9dfe-a58b58b48f9c","at":1767267589000000000,"seq":44,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b795b-5f70-7275-a487-e538e2f92f5c","at":1767267590000000000,"seq":45,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

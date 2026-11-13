@@ -1,0 +1,22 @@
+{"v":1,"id":"019bac1a-b96d-7424-89ad-89b46917ea36","at":1768118991213000000,"seq":137,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac1a-b96d-78b6-82d9-36d0a11832bb","at":1768118991213000000,"seq":138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bac1a-dbc0-745c-a844-fa1a365f7988","at":1768119000000000000,"seq":139,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bac30-d4ca-7255-a6f6-6a10592bf190","at":1768120440010000000,"seq":140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bac31-0b70-75f7-a152-e97f683a4ea7","at":1768120454000000000,"seq":141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bac31-55b9-7173-8880-a6ff04dd1dfc","at":1768120473017000000,"seq":142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bac31-5990-779e-a2bf-e3f1aa13ba22","at":1768120474000000000,"seq":143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac31-7100-72ae-9338-536a34f821b1","at":1768120480000000000,"seq":144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac31-74e8-787d-967f-e8fce74e5046","at":1768120481000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bac31-8c58-744f-ad9c-37273786716f","at":1768120487000000000,"seq":146,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac31-9457-7bb3-b817-50c59e2cbf35","at":1768120489047000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bac31-9bf8-74a0-adff-1b48a7071b38","at":1768120491000000000,"seq":148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bac32-3c20-7c66-a3ae-cbbbbc836ba0","at":1768120532000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac32-47d8-792c-8f85-e347a0bb6029","at":1768120535000000000,"seq":150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bac32-80d0-70cc-96d0-8834e3e45376","at":1768120549584000000,"seq":151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bac32-99e0-7f73-955e-922d7e34fb0f","at":1768120556000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bac32-ffdc-77ca-ade1-593ca70cce2f","at":1768120582108000000,"seq":153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bac33-5560-74b9-9b52-780030e354cb","at":1768120604000000000,"seq":154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac34-0ffb-74aa-b241-835c7f671be0","at":1768120651771000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bac34-d818-7805-bd82-0afe72a40036","at":1768120703000000000,"seq":156,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bac34-fb40-7f71-9454-c03b9a8d7678","at":1768120712000000000,"seq":157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bac35-0ae0-74e4-97bd-9657ca01619c","at":1768120716000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

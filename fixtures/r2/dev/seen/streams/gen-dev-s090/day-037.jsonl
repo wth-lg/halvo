@@ -1,0 +1,31 @@
+{"v":1,"id":"019c3294-aa8e-797d-a7e3-7717f9c134ca","at":1770375129742000000,"seq":476,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3294-aa8e-77d3-9480-f1b73977263b","at":1770375129742000000,"seq":477,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3294-d688-71d3-b661-8469e0a128cd","at":1770375141000000000,"seq":478,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c3295-1508-73e6-85ff-651002aafb50","at":1770375157000000000,"seq":479,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3295-2890-7f66-b039-0584969aba11","at":1770375162000000000,"seq":480,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3295-6710-743b-ad32-96f1cf8ea985","at":1770375178000000000,"seq":481,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c329f-a040-72da-aff9-b511e3dec8ab","at":1770375848000000000,"seq":482,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c32a0-1188-7e8a-9f42-5127f2081383","at":1770375877000000000,"seq":483,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32a0-4313-78e8-b23d-731e788c16b2","at":1770375889683000000,"seq":484,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c32a0-5fa8-79da-9605-8e91ac40b9b6","at":1770375897000000000,"seq":485,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32a0-7b00-7127-ba7b-9d7e61d8aa15","at":1770375904000000000,"seq":486,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c32a0-b1b0-7d10-bb9b-2ab19d566b91","at":1770375918000000000,"seq":487,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32a0-c538-7df1-a95f-73939fa055ff","at":1770375923000000000,"seq":488,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c32b3-cca3-7300-a642-d61cf1525566","at":1770377170083000000,"seq":489,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c32b3-cca3-7ee7-ab94-de6e91f22059","at":1770377170083000000,"seq":490,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c32b4-1a70-72c2-a9b7-aed92ccf2a08","at":1770377190000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c32b4-aee0-709f-a2d8-ae728bf30b8a","at":1770377228000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b4-d006-755d-803c-a33a33224056","at":1770377236486000000,"seq":493,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c32b4-d9d8-724a-9332-427735f14dbe","at":1770377239000000000,"seq":494,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c32b4-f148-727b-a080-7f988f189217","at":1770377245000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32b5-3798-7dfd-ab5b-10eb3ed7c1cc","at":1770377263000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c32b5-52f0-740d-b119-ee7f3680b653","at":1770377270000000000,"seq":497,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c32b5-6145-7133-ba80-4eb599f20542","at":1770377273669000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c32b6-06a0-7673-83c0-8d55510adfb9","at":1770377316000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32c9-c23c-79f1-801f-ba4b3ad17917","at":1770378609212000000,"seq":500,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c32c9-c23c-73e8-8687-c2a680fbefaa","at":1770378609212000000,"seq":501,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c32c9-f430-7b03-bc80-0e54c96ca53c","at":1770378622000000000,"seq":502,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ca-26f8-70bb-8e65-19c0725dc243","at":1770378635000000000,"seq":503,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32ca-32b0-73ee-a605-e98a8845ea14","at":1770378638000000000,"seq":504,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c32ca-6190-764f-8a55-a988260ca34f","at":1770378650000000000,"seq":505,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c32ca-7518-769e-8e86-d4c41a96fc95","at":1770378655000000000,"seq":506,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

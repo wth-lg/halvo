@@ -1,0 +1,29 @@
+{"v":1,"id":"019ca375-7779-77d8-9680-dda1e54669d4","at":1772268910457000000,"seq":773,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca375-7779-7d92-ab64-c15acb1c3c2e","at":1772268910457000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ca375-d370-779a-9c09-c5860780c503","at":1772268934000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca375-f7ba-7690-9281-8bf56571ff8d","at":1772268943290000000,"seq":776,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ca376-19c0-74dd-a7c8-ba3a8922ba13","at":1772268952000000000,"seq":777,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca376-1da8-7f35-bfc2-e43edba690b4","at":1772268953000000000,"seq":778,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca376-5840-7c4f-8702-ca48f04220b8","at":1772268968000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca376-8b08-76d7-b49d-dd79e1533c52","at":1772268981000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca376-c988-764e-8ca4-b26318879d74","at":1772268997000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ca376-f18d-7b1b-9c6a-d2d26a099b1f","at":1772269007245000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ca377-3b0d-75be-8f5c-f18a7c15d359","at":1772269026061000000,"seq":783,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ca377-5df8-7ffe-951c-4dac6201518e","at":1772269035000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca377-a830-7ac7-8340-6827c2a0aeca","at":1772269054000000000,"seq":785,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca377-b000-70e6-a260-82d6aed6a21a","at":1772269056000000000,"seq":786,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca377-bdee-7fe2-a47e-9ea2f046fb7c","at":1772269059566000000,"seq":787,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ca377-f268-7dec-8ad4-1e544dd6aad3","at":1772269073000000000,"seq":788,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca378-1590-7a2f-ab6b-695a82efd6dd","at":1772269082000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca391-ed2f-72b4-8bf3-7520c509980f","at":1772270775599000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ca392-2960-7266-83b5-e7cfb5d46166","at":1772270791008000000,"seq":791,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ca392-2d40-7fbf-8c76-419bf31192f5","at":1772270792000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca392-b210-75f1-b906-32aa9498d5bf","at":1772270826000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca392-dd08-781d-aef6-1108a8eb8f90","at":1772270837000000000,"seq":794,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca392-f9cb-7e5a-956d-4eb23e2c304a","at":1772270844363000000,"seq":795,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ca393-2358-779e-b8c6-c6977f438af0","at":1772270855000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca393-2740-78f2-beba-fa09076232a6","at":1772270856000000000,"seq":797,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca393-2b28-7b46-ab89-7e4e440651fa","at":1772270857000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca393-566d-7d1f-982b-d0eeedd2869b","at":1772270868077000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ca393-7d30-792c-a73f-3cc806d17623","at":1772270878000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca393-94a0-7c5e-bec5-34ba44ef61fb","at":1772270884000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,9 @@
+{"v":1,"id":"019c3c8e-47e2-7abb-ba60-7b1e2cb79a97","at":1770542483426000000,"seq":522,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c8e-47e2-7cc8-a0df-130402bfda22","at":1770542483426000000,"seq":523,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c3c8e-4a20-7808-a480-f3b9779759e6","at":1770542484000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c3c8e-a010-72e3-8814-995876dfce33","at":1770542506000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c8e-d827-7fd9-86af-13fcc2177c8f","at":1770542520359000000,"seq":526,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c3ca5-b473-781a-8afd-ac8c13cd9900","at":1770544018547000000,"seq":527,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3ca5-b473-7246-b09c-c5f851faa607","at":1770544018547000000,"seq":528,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3ca5-e900-7018-aaae-36773d0948df","at":1770544032000000000,"seq":529,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ca6-0070-7896-aabf-62ba7ee19c40","at":1770544038000000000,"seq":530,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}

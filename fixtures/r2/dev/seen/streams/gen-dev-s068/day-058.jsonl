@@ -1,0 +1,16 @@
+{"v":1,"id":"019c9ebb-3e99-7ca6-8773-338619a35127","at":1772189597337000000,"seq":857,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9ebb-3e99-7d38-80bc-95cfa981f2e7","at":1772189597337000000,"seq":858,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9eca-579e-7964-b6bd-242e246d996d","at":1772190586782000000,"seq":859,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9eca-579e-77c4-8ec7-70f24a52d1f9","at":1772190586782000000,"seq":860,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9eca-73d0-7f48-a2c6-c217f18b4e8e","at":1772190594000000000,"seq":861,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9eca-8b40-7898-8732-3a91a5d40c51","at":1772190600000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c9eca-be08-7af7-b5af-18fd304b0a81","at":1772190613000000000,"seq":863,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ee5-1594-7e12-8516-e9120dc99074","at":1772192339348000000,"seq":864,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9ee5-1594-7e9d-8312-18f7c86d43eb","at":1772192339348000000,"seq":865,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9ee5-7db0-7e9a-a37b-81694cc4d6f5","at":1772192366000000000,"seq":866,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c9ee5-9138-7764-8a57-ac7a28837f10","at":1772192371000000000,"seq":867,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c9efc-2487-7700-8087-4084f647f55c","at":1772193850503000000,"seq":868,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c9efc-a760-7fdc-aaf1-823fe833edee","at":1772193884000000000,"seq":869,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c9efc-b318-7aa2-af6e-ff52f6a9b1e3","at":1772193887000000000,"seq":870,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c9efc-b700-77fc-9b20-93d19790a4bc","at":1772193888000000000,"seq":871,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c9efc-e5e0-733e-87ac-65e1fd68cc2b","at":1772193900000000000,"seq":872,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

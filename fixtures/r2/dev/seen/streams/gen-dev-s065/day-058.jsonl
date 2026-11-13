@@ -1,0 +1,12 @@
+{"v":1,"id":"019c9ea3-a5d5-7ea8-81a1-c0661ada77cb","at":1772188050901000000,"seq":868,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9ea3-a5d5-761a-9be2-a491828fcfb6","at":1772188050901000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9ea3-d518-741c-9fbc-4979fce796de","at":1772188063000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c9ea4-1356-7434-8643-ac2511dd73bc","at":1772188078934000000,"seq":871,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9ea4-36c0-75bc-acd3-45eb5717fca4","at":1772188088000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c9ea4-6988-751c-a153-02dcdb039118","at":1772188101000000000,"seq":873,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9eb3-5e3e-7aec-8967-e700b64d64b1","at":1772189081150000000,"seq":874,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c9eb3-cb08-78d0-aee1-cd3b024c4633","at":1772189109000000000,"seq":875,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9ec0-ff81-732f-aa97-f7f717da2ed7","at":1772189974401000000,"seq":876,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9ec0-ff81-737f-84ae-4e8f430ae1aa","at":1772189974401000000,"seq":877,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9ec1-1178-7752-9865-4e0abafca46a","at":1772189979000000000,"seq":878,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ec1-1560-7028-aac0-92e9d8f3903d","at":1772189980000000000,"seq":879,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

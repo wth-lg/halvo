@@ -1,0 +1,21 @@
+{"v":1,"id":"019cf579-31ca-77da-bb1f-de7d274d7bd8","at":1773644886474000000,"seq":906,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf579-31ca-7cad-8754-f021eb6e9a18","at":1773644886474000000,"seq":907,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf579-3ba8-75a4-a746-f73474f4a8d8","at":1773644889000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf579-9c76-7a42-8030-7991186c9717","at":1773644913782000000,"seq":909,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf57a-3d78-79d5-a9ac-3ccf739d7fe9","at":1773644955000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf57a-5254-79f4-a381-92d88e800aac","at":1773644960340000000,"seq":911,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf57a-a308-7180-9e21-1b454ff3cc8d","at":1773644981000000000,"seq":912,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf57a-b690-702c-9d57-ba93330b54d1","at":1773644986000000000,"seq":913,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf57a-c630-7f6e-b822-b4b747a7e439","at":1773644990000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf57b-2f00-795d-9b89-047812b6ac9b","at":1773645016832000000,"seq":915,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf57b-4ee8-7e9f-97be-8e657fc6a33e","at":1773645025000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf57b-6270-7ee3-8c3f-bfe94bda2516","at":1773645030000000000,"seq":917,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf584-95dd-7290-8034-9a4d953c9a28","at":1773645632989000000,"seq":918,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf584-95dd-7c29-91c3-0a3eb5e4072a","at":1773645632989000000,"seq":919,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf584-c4c8-7bc5-be21-634ba2b531b4","at":1773645645000000000,"seq":920,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cf584-d468-7caa-8be4-f893d5a31dff","at":1773645649000000000,"seq":921,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cf596-e805-73ec-9cba-cc5fac728c69","at":1773646833669000000,"seq":922,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf596-e805-7d85-9d5c-68753d250a8e","at":1773646833669000000,"seq":923,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf597-1c18-76ad-8e96-41bfc1a7b1ac","at":1773646847000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf597-56b0-7582-9a9f-e3b60628cefb","at":1773646862000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf597-5a98-7e42-a0da-0b37502c6625","at":1773646863000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

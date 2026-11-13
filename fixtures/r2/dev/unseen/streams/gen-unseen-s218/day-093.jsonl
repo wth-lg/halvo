@@ -1,0 +1,26 @@
+{"v":1,"id":"019d525b-1688-7104-9e15-f99d33b228d3","at":1775203194504000000,"seq":1292,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d525b-1688-7248-ade8-80f1da31c502","at":1775203194504000000,"seq":1293,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d525b-6e68-7ced-9d26-52b40ba464b0","at":1775203217000000000,"seq":1294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d525b-7a20-7919-9c38-627eae356530","at":1775203220000000000,"seq":1295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d525b-c840-7990-9f55-6a8794b7ec5b","at":1775203240000000000,"seq":1296,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d5276-5b67-717c-8ae1-8ec1ee28b351","at":1775204981607000000,"seq":1297,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d5276-5b67-7f2d-bc2f-4235a74ec6a8","at":1775204981607000000,"seq":1298,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d5276-5cf0-7bb1-9f93-77a34ff4c053","at":1775204982000000000,"seq":1299,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d5276-d608-7c6f-acf0-cd602e8271f7","at":1775205013000000000,"seq":1300,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d527a-f088-79b1-bbe2-bacc33ee90d9","at":1775205281928000000,"seq":1301,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d527a-f088-7bd7-bd8c-25e76426b2a1","at":1775205281928000000,"seq":1302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d527b-1fb0-7e65-a4b1-fc68a11e5a88","at":1775205294000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d527b-2398-7670-80ee-9574fe7c024d","at":1775205295000000000,"seq":1304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d527b-2a3b-7241-b586-e762e383e346","at":1775205296699000000,"seq":1305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d527b-2f50-730f-a5dc-1179568e96de","at":1775205298000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d527b-8928-77db-b9bd-4376ab24e763","at":1775205321000000000,"seq":1307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d527b-e858-78b1-9ece-6c2e219dd32a","at":1775205345368000000,"seq":1308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d527b-eeb8-7a17-8c77-2afa33df50b5","at":1775205347000000000,"seq":1309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d527c-3508-7da8-b0a4-eaa8b4834f32","at":1775205365000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d527c-44a8-70b0-9572-e5423420b768","at":1775205369000000000,"seq":1311,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d527c-5448-77ab-aed5-70aa7e142caa","at":1775205373000000000,"seq":1312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d527c-6631-7f0b-8af5-517bdf32d017","at":1775205377585000000,"seq":1313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d527c-8ee0-709a-a235-d2c493e510c6","at":1775205388000000000,"seq":1314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d527c-b9d8-720a-9636-d322e723ec34","at":1775205399000000000,"seq":1315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d527c-e0e8-7fa5-8d9b-36494c14fad0","at":1775205409000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d527c-ff82-7e85-82c1-83724465d5c8","at":1775205416834000000,"seq":1317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}

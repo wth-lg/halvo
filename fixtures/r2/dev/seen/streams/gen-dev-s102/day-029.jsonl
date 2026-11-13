@@ -1,0 +1,48 @@
+{"v":1,"id":"019c08c5-b5a5-7d51-9ae6-617d79472a6d","at":1769673700773000000,"seq":311,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08c5-b5a5-7acc-8d0b-81bb4477922e","at":1769673700773000000,"seq":312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c08c6-27d0-7100-85c2-4cc03d9bb23b","at":1769673730000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c6-6650-70e0-8161-4386d26f321d","at":1769673746000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c08c6-a7f4-7c21-8df7-da6dd73f244d","at":1769673762804000000,"seq":315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c08c6-db80-75e9-9fd8-32ae5de900ff","at":1769673776000000000,"seq":316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08c7-3170-7a08-89dc-f1ea6f0fd5e8","at":1769673798000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c08c7-3558-746a-89aa-6363b723bb19","at":1769673799000000000,"seq":318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08c7-b236-7ba4-840e-08197660f063","at":1769673830966000000,"seq":319,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c08c7-dd50-785b-87f7-01a622c1f297","at":1769673842000000000,"seq":320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c7-f4c0-7ec9-97bd-5058976339d6","at":1769673848000000000,"seq":321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c08c8-026b-7ba6-a116-0ea4867f3426","at":1769673851499000000,"seq":322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c08c8-2f58-7004-b977-8f719dc4b76f","at":1769673863000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c08c8-5668-7dac-8d15-8c822e41d8cc","at":1769673873000000000,"seq":324,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c08c8-98d0-7189-b437-6e1cecc5a141","at":1769673890000000000,"seq":325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08e2-c91f-72c7-b89f-3d25e6e8a9d8","at":1769675606303000000,"seq":326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c08e3-0a58-7a98-b0f0-62038209d769","at":1769675623000000000,"seq":327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e3-1228-7ed2-a5db-195b3c618f36","at":1769675625000000000,"seq":328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e3-246f-7d21-bed8-681f7ecf5e78","at":1769675629679000000,"seq":329,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c08e3-5c60-7ffc-9ea3-98b3b920aff2","at":1769675644000000000,"seq":330,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c08e3-d578-7d82-83b1-e879fe99fd81","at":1769675675000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e4-06d8-72a2-844f-519eddaf8b5a","at":1769675687640000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c08e4-2398-7f09-bad2-be5eb4253a0d","at":1769675695000000000,"seq":333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08e4-3ef0-7979-bb4b-aa71076dd798","at":1769675702000000000,"seq":334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c08e4-8540-71ba-b487-0f94944148de","at":1769675720000000000,"seq":335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c08e4-d10c-79c0-86c9-93dbe0e41d6d","at":1769675739404000000,"seq":336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c08e5-2180-7d2c-bc89-2c70c5bf641c","at":1769675760000000000,"seq":337,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08e5-3cd8-77d6-bdf7-29c98c73c4a4","at":1769675767000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c08e5-5448-7573-a057-dcfd94414002","at":1769675773000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f7-cee1-7bf0-a70e-cd5515cd8034","at":1769676984033000000,"seq":340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c08f8-5778-7fd0-b4bd-db646ab2746e","at":1769677019000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f8-bd05-7012-9e8f-72c77906a3fa","at":1769677044997000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c08f8-dc48-769e-ba02-471e18647539","at":1769677053000000000,"seq":343,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08f9-5560-7068-9806-df582bef37f0","at":1769677084000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f9-8ff8-7b56-ab18-cc6c6b53be6a","at":1769677099000000000,"seq":345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08f9-a479-77a6-acb3-6a2fdc1852cd","at":1769677104249000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c08fa-98cd-729b-b565-616de2fb8461","at":1769677166797000000,"seq":347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c08fa-b4f0-7b0d-b6db-35c24f76d8e0","at":1769677174000000000,"seq":348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08fb-83f8-710a-b705-1fabd8c83d0f","at":1769677227000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0911-3a97-7042-b956-444ea1722089","at":1769678650007000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0911-5200-759c-b880-af8c6ea75b86","at":1769678656000000000,"seq":351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0911-bb78-7b28-bc3b-f0477ca5cf35","at":1769678683000000000,"seq":352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0918-d34c-7118-80f8-a259410d23a7","at":1769679147852000000,"seq":353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0918-ef38-7d45-a42a-35206b9cedbd","at":1769679155000000000,"seq":354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0918-f320-7763-a6a9-d8a1f316757d","at":1769679156000000000,"seq":355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0918-f708-7e26-96dd-174d5e633f0e","at":1769679157000000000,"seq":356,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0918-fed8-7513-81fc-8b689da712e3","at":1769679159000000000,"seq":357,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0919-02c0-7e7b-80cb-98929337fc2e","at":1769679160000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

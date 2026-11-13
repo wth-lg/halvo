@@ -1,0 +1,16 @@
+{"v":1,"id":"019c89a7-1daf-7a1b-90f8-8170ee3ef537","at":1771835956655000000,"seq":691,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89a7-1daf-7953-b6f5-b60b6f16c209","at":1771835956655000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c89a7-9820-7e10-ae37-2066097bc436","at":1771835988000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c89a7-e640-7c1d-9487-4c9d82823826","at":1771836008000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a7-ee10-7c67-a048-e9f6a6f04e44","at":1771836010000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a8-285b-788a-8dc5-47d3b931d2e7","at":1771836024923000000,"seq":696,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c89a8-6ef8-7c8c-88b5-51285e0af5d5","at":1771836043000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a9-0b38-7838-a4e2-ac515d7eb6b3","at":1771836083000000000,"seq":698,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a9-2961-797a-b321-3b4cfa1af8b6","at":1771836090721000000,"seq":699,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c89a9-8068-7460-a832-bbb42e5c5c57","at":1771836113000000000,"seq":700,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c89a9-93f0-79cf-9a9c-fa45865d5dcf","at":1771836118000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a9-bb00-70c1-a782-0c250a9792c4","at":1771836128000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a9-e5d8-7d81-b07b-0b8d43118b3a","at":1771836138968000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c89aa-3be8-7541-8589-4ac63ab26b2b","at":1771836161000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89aa-43b8-7641-8d9e-7a2551e51fda","at":1771836163000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89aa-5358-7e4f-918e-f63afe2f41c8","at":1771836167000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

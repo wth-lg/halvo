@@ -1,0 +1,21 @@
+{"v":1,"id":"019c1daa-fdc7-791b-a82c-91a14d3deb15","at":1770024271303000000,"seq":435,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1daa-fdc7-72fc-81b1-16e445013c0e","at":1770024271303000000,"seq":436,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c1dab-2b78-78d9-9bd7-c77c857ffe5f","at":1770024283000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dab-4ab8-7208-994e-83d51121c396","at":1770024291000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dab-8550-79bb-90aa-8aa05c1b3eb6","at":1770024306000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c1dab-8661-7fd7-adc6-f64f2576c446","at":1770024306273000000,"seq":440,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c1dab-98d8-7007-9726-eebf5c974df7","at":1770024311000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dab-ac60-76ff-823a-55df345548d7","at":1770024316000000000,"seq":442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1dab-f698-78ed-bdb3-89dd90f3f728","at":1770024335000000000,"seq":443,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1dac-3130-752a-9d72-e1d0891af203","at":1770024350000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dc1-b8ba-7b1f-8e1b-3b53017829f2","at":1770025760954000000,"seq":445,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1dc2-2dad-724a-8284-473aeb7e6aa8","at":1770025790893000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1dc2-5910-78e0-9547-92892e6fa421","at":1770025802000000000,"seq":447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c1dc2-8020-73b6-a4e0-2323748a6e48","at":1770025812000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dc2-9790-7899-9d88-fef40a758c24","at":1770025818000000000,"seq":449,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1dc3-1cb2-73e3-b425-a18e649aaae4","at":1770025852082000000,"seq":450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 3 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1dc3-3ba0-72e7-a3b8-0fe255aad240","at":1770025860000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c1dc3-a900-7f8a-b0b9-8ec5d83efcda","at":1770025888000000000,"seq":452,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1dc3-d013-7cbb-a801-75c901f8f2e6","at":1770025898003000000,"seq":453,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c1dc4-1660-7e62-aff0-a913646e5e39","at":1770025916000000000,"seq":454,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1dc4-8b90-7443-978f-a1ad7870ca4e","at":1770025946000000000,"seq":455,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

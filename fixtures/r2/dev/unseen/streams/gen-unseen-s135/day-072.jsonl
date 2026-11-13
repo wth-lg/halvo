@@ -1,0 +1,18 @@
+{"v":1,"id":"019ce6a4-7968-7203-9cd0-f28487086091","at":1773396064616000000,"seq":1000,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6a4-7968-7885-802a-8df951b43376","at":1773396064616000000,"seq":1001,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a5-4dd8-77f7-a086-c738c5e6232b","at":1773396119000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ce6a5-4fde-7e83-8110-eee373516bd8","at":1773396119518000000,"seq":1003,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a5-a7b0-7ddb-9acf-10347f26f0ab","at":1773396142000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ce6a5-da63-7a91-a5f9-331497785c05","at":1773396154979000000,"seq":1005,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a5-f1e8-7c05-8c83-5e4e14b2a00c","at":1773396161000000000,"seq":1006,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6a5-f9b8-70ec-b74c-1eebbc45f09f","at":1773396163000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6a6-0188-7dd8-9c18-0434834d41e3","at":1773396165000000000,"seq":1008,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce6a6-113f-706a-8538-b2f534ece6f9","at":1773396169023000000,"seq":1009,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a6-20c8-7bcb-9b8c-ce7a20b6d822","at":1773396173000000000,"seq":1010,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6a6-24b0-723f-a9da-3ff258aaa547","at":1773396174000000000,"seq":1011,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce6a6-2898-7e2e-8842-029ea343b6ea","at":1773396175000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce6b0-19f8-7bb7-a809-1d6879a2c938","at":1773396826616000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b0-1f60-758d-ab69-e26c8d067305","at":1773396828000000000,"seq":1014,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce6b0-32e8-7bb6-aa60-74b44da0a6e1","at":1773396833000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6b0-5610-7a08-9c92-318d855be23f","at":1773396842000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6b0-5de0-769f-897f-0ecde7a419ae","at":1773396844000000000,"seq":1017,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

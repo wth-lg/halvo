@@ -1,0 +1,74 @@
+{"v":1,"id":"019c5bb3-7256-74dd-a7b0-946f12a1df87","at":1771065012822000000,"seq":604,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5bb3-7256-7f3e-8170-f83e71f42237","at":1771065012822000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb3-8a78-77e2-af7d-aef3b542e495","at":1771065019000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5bb4-25dc-72f7-addf-41f091861ef8","at":1771065058780000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb4-8c48-708d-b45e-d56d48d536a8","at":1771065085000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c5bb4-ab88-7457-9586-3620a5156e79","at":1771065093000000000,"seq":609,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bb4-b358-7b02-b468-b03d31ae393c","at":1771065095000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb4-bf10-74bd-96ff-ba871b997e2b","at":1771065098000000000,"seq":611,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5bb4-c2f8-750f-b97b-fbf622097b62","at":1771065099000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb4-c967-71cb-8be6-8e08c250faf2","at":1771065100647000000,"seq":613,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb5-20b8-7ca9-9f14-23cd23fde757","at":1771065123000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c5bb5-5f38-7cb8-9170-c0edc7f1a305","at":1771065139000000000,"seq":615,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5bb5-6ed8-7053-980e-1d80d2f6cee3","at":1771065143000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5bb5-85ca-779a-9304-08242a6dd206","at":1771065148874000000,"seq":617,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb5-95e8-701d-9524-56027cbc7f80","at":1771065153000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb5-99d0-7407-9f8d-6d4b5ed66cca","at":1771065154000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5bb5-d8ec-7bfa-83f2-ff6d35083a6e","at":1771065170156000000,"seq":620,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb5-dc38-7fd2-8a09-553914602d1a","at":1771065171000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5bb6-0730-74d8-923b-68c40e1f298e","at":1771065182000000000,"seq":622,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bb6-4821-7380-9345-fa137416f89d","at":1771065198625000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb6-e9c0-757c-b219-c7b66abba8af","at":1771065240000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5bc6-971e-7451-9bde-e8f044eb5b75","at":1771066267422000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc7-9643-7991-8612-fc698fc193e1","at":1771066332739000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc7-be58-7a11-b868-0634385559a3","at":1771066343000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc7-c240-7f90-97a8-f70b2a650b3d","at":1771066344000000000,"seq":628,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c5bc7-c628-70cd-9341-d983626d1716","at":1771066345000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc7-fcd8-7758-abe3-7b598e4c5405","at":1771066359000000000,"seq":630,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bc8-1e09-7608-9e5d-52acedfdd8c4","at":1771066367497000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc8-5a98-7d3d-9e65-6257f57e6649","at":1771066383000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc8-aca0-71fc-9e9c-97f76129c122","at":1771066404000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc8-bc40-739c-9b77-6910f5ffd4f4","at":1771066408000000000,"seq":634,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5bc8-de19-7fde-b9e1-4cddd2d76fcf","at":1771066416665000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc9-3d28-7164-9350-97cd7b780826","at":1771066441000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5bc9-658f-7142-9658-4feacb74ce57","at":1771066451343000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc9-6ff0-7dbf-8bdc-65e8d960e040","at":1771066454000000000,"seq":638,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bc9-8378-76e2-aae0-7a2a3c574f00","at":1771066459000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc9-8760-755a-bd8f-3114b3e0b077","at":1771066460000000000,"seq":640,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bc9-b51c-7e29-989c-fc85a576efeb","at":1771066471708000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc9-c5e0-7ef1-82ff-7704ba1115a6","at":1771066476000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc9-e520-73df-adcd-a882bea65738","at":1771066484000000000,"seq":643,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5bc9-f0d8-70f2-8a95-2968f16d5e41","at":1771066487000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c5bde-9a24-7a46-bae9-b5fdae2c6ea3","at":1771067841060000000,"seq":645,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5bde-c8c8-7e42-96f5-40a07f496f56","at":1771067853000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bdf-2e58-738e-97d9-39b2a9ef3ea8","at":1771067879000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c5bdf-4758-7249-9982-961a91ba24f7","at":1771067885400000000,"seq":648,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5bdf-5180-7c2a-8de5-75af19f802ac","at":1771067888000000000,"seq":649,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bdf-e208-7326-8838-1b2a3b4e418e","at":1771067925000000000,"seq":650,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5be0-38bc-716d-a9a5-c971b9fb3279","at":1771067947196000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5be0-4b80-78d4-8f8e-90f7cec2d94f","at":1771067952000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5be0-5b20-7692-bec6-1fb09f109937","at":1771067956000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5be0-a170-7870-886d-be0f0bb2529f","at":1771067974000000000,"seq":654,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5be1-05c4-771e-a926-ad7c65af824f","at":1771067999684000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c5be1-2258-702a-9b70-85cd490570dd","at":1771068007000000000,"seq":656,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5be1-8bd0-7f91-9cbe-f9e91dbcfac2","at":1771068034000000000,"seq":657,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bf8-99c2-7002-9e3c-4a0c112b0c7a","at":1771069544898000000,"seq":658,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5bf8-99c2-74af-9d9d-3c7b64f2d244","at":1771069544898000000,"seq":659,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5bf8-b968-7947-8d52-3a6a396d2ecd","at":1771069553000000000,"seq":660,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bf9-1340-7da3-8424-25174c202853","at":1771069576000000000,"seq":661,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5c05-4405-7b5f-ba5c-ed5a6cdb2adc","at":1771070374917000000,"seq":662,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5c05-4405-7f01-8c6b-0c5f4c5658e6","at":1771070374917000000,"seq":663,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c5c05-fbf0-7981-b0fc-d5d2706ad906","at":1771070422000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5c06-0b90-75f4-ba5d-8957b3528325","at":1771070426000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5c06-2701-7c88-8a04-a4e738840863","at":1771070433025000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c5c07-34d5-7c54-b8ad-8a05f9bcbc5a","at":1771070502101000000,"seq":667,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c5c07-5798-7da1-a1e1-c70ce7dcaedd","at":1771070511000000000,"seq":668,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5c07-72f0-7589-a19e-7bf16fb5b98c","at":1771070518000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5c07-7ea8-79cd-85e7-d3caaf730a0c","at":1771070521000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5c07-9618-791d-b5b4-a9f20c0581c3","at":1771070527000000000,"seq":671,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5c07-a1d0-792e-8edb-a8ffa7b491fb","at":1771070530000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c5c07-a349-7487-8959-7578484618b7","at":1771070530377000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c5c07-f3d8-72d7-8e38-f412747ddb52","at":1771070551000000000,"seq":674,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5c08-3e10-7181-9d77-6b04123a7220","at":1771070570000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5c08-5198-7467-8876-4a4114ebf735","at":1771070575000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c5c08-9fb8-7195-bdbf-48fc9e37b8d8","at":1771070595000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

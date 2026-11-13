@@ -1,0 +1,24 @@
+{"v":1,"id":"019d3dd3-cc65-7614-8c79-38ffb55ccd92","at":1774858783845000000,"seq":1126,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3dd3-cc65-7ec0-9778-e07031dbe59e","at":1774858783845000000,"seq":1127,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d3dd4-3e48-71da-bfb9-a1035663699c","at":1774858813000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dd4-a3d8-784b-a5b1-6b2fa86c0da1","at":1774858839000000000,"seq":1129,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3dd6-7ad0-7119-851e-8c5b1d33049c","at":1774858959568000000,"seq":1130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d3dd7-18c0-7430-abcc-6b8ac7bfb79c","at":1774859000000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dd7-1ca8-7c3f-8f21-a5674f964af8","at":1774859001000000000,"seq":1132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d3dd7-5c3b-7e69-9ba8-b9ce94d74977","at":1774859017275000000,"seq":1133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d3dd7-8a08-7deb-b802-62bf00791055","at":1774859029000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dd7-c0b8-725a-b692-31dc902709c3","at":1774859043000000000,"seq":1135,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3dd7-e222-7d54-a7ac-c5cdbd22d8d5","at":1774859051554000000,"seq":1136,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d3dd7-e7c8-7500-a6f9-07fa05289b9c","at":1774859053000000000,"seq":1137,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3dd8-16a8-7131-b49e-fa7819e0e048","at":1774859065000000000,"seq":1138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3dd8-32c9-7d60-9cd7-cd12709d2e00","at":1774859072201000000,"seq":1139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d3dd8-6c98-7770-bb61-f38276299905","at":1774859087000000000,"seq":1140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dd8-a348-7059-b19d-0ef15fef87a9","at":1774859101000000000,"seq":1141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d3dde-50e4-7dca-9d35-0735a248a825","at":1774859473124000000,"seq":1142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d3dde-d920-7d98-8736-55f1738083b9","at":1774859508000000000,"seq":1143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3ddf-2f10-7458-af31-b8a0cadfce49","at":1774859530000000000,"seq":1144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d3ddf-5238-71a8-aa82-70fe6bad5e1d","at":1774859539000000000,"seq":1145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3df7-9fc3-73b0-bb4f-4dc4324df067","at":1774861131715000000,"seq":1146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d3df7-c408-72ba-8686-f2758a7670f4","at":1774861141000000000,"seq":1147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3df7-e730-727b-ae07-c4165e968818","at":1774861150000000000,"seq":1148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d3df7-f2e8-72fd-8d44-755c59aebc80","at":1774861153000000000,"seq":1149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

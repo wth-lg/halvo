@@ -1,0 +1,28 @@
+{"v":1,"id":"019c37b6-daf5-77e3-90bc-4c0374ec122a","at":1770461256437000000,"seq":492,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c37b6-daf5-7930-8a28-72f631a212aa","at":1770461256437000000,"seq":493,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c37b7-0ff0-7bef-8b9c-7e6e366e904c","at":1770461270000000000,"seq":494,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37b7-2760-7be6-8486-452eaccffecb","at":1770461276000000000,"seq":495,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c37b7-8138-7ae3-8ab5-d919df0eb2cf","at":1770461299000000000,"seq":496,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c37d1-6912-76d7-91dd-6686ff89dbce","at":1770462996754000000,"seq":497,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c37d1-6912-711b-9f0b-12ddab0636be","at":1770462996754000000,"seq":498,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c37d1-7d90-7621-91f5-b5d1c119aa55","at":1770463002000000000,"seq":499,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37d1-a888-7a48-99b0-a7a62448cc11","at":1770463013000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c37d1-dbbc-79cf-9029-c14cc60a1d31","at":1770463026108000000,"seq":501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c37d2-3910-797f-868a-733842d0cff6","at":1770463050000000000,"seq":502,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c37d2-5468-7692-b1e0-b1b7affb0aea","at":1770463057000000000,"seq":503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c37e3-0ba2-76a7-9cc3-ee3ef091e5d8","at":1770464152482000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c37e3-30d0-7db3-a497-863cec9ebe14","at":1770464162000000000,"seq":505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c37e3-6398-710f-8536-be6da346ae7b","at":1770464175000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c37ed-bfea-7558-a145-95b1c4da92ad","at":1770464853994000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c37ed-cba8-7f22-886c-b91cf7d63c73","at":1770464857000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ed-df30-7ae0-b57f-26056d87b33e","at":1770464862000000000,"seq":509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ed-f79b-7889-9042-e3e557624a8e","at":1770464868251000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c37ee-0258-7381-bbd1-059a793d0aab","at":1770464871000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ee-8340-7bfc-807e-9111de1aed79","at":1770464904000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c37ee-f50b-7886-abe0-d7db56ec76e6","at":1770464933131000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c37ef-0040-7634-9ada-89e64fd1d005","at":1770464936000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ef-2f20-7e7a-a379-36c304371779","at":1770464948000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ff-6fbb-74ac-b8e0-6f66c25b3552","at":1770466013115000000,"seq":516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c37ff-82d0-7d45-be30-c74f1e0561aa","at":1770466018000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ff-8e88-7c11-a30c-a2115aabb77c","at":1770466021000000000,"seq":518,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c37ff-d8c0-73fa-a12f-ddd2d90fb15a","at":1770466040000000000,"seq":519,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

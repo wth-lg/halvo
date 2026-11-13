@@ -1,0 +1,10 @@
+{"v":1,"id":"019c1dfc-61be-7118-9e70-3633561bd2b4","at":1770029605310000000,"seq":530,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1dfc-61be-7b53-a3e9-3a36b99e53a6","at":1770029605310000000,"seq":531,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c1dfc-ca00-7832-9c14-af52b80977ca","at":1770029632000000000,"seq":532,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dfc-f110-7298-bee1-114c45b46f44","at":1770029642000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dfc-fac9-77a9-b810-e601a03d2f83","at":1770029644489000000,"seq":534,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c1dfd-5e70-72fb-b521-8956f387b45b","at":1770029670000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dfd-9aee-72e3-9079-a4a3597455c3","at":1770029685486000000,"seq":536,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c1dfd-b078-7f32-9fda-0c2b51ecced1","at":1770029691000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dfd-eef8-7c74-8766-19e84d377fbb","at":1770029707000000000,"seq":538,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1dfe-0dee-7e33-bae0-af8e664dd293","at":1770029714926000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}

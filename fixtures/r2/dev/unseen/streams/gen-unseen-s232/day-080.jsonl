@@ -1,0 +1,21 @@
+{"v":1,"id":"019d0fbe-76e0-704d-9999-67cdaa53cbac","at":1774085633760000000,"seq":1181,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0fbe-76e0-7c7f-ac72-9ed6aa83d7e7","at":1774085633760000000,"seq":1182,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0fbe-a2c8-7fb8-9588-8604066b2a1f","at":1774085645000000000,"seq":1183,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fbe-ae80-79b3-a255-734ef36d6f61","at":1774085648000000000,"seq":1184,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0fbe-dd60-77d8-a2fd-9db804282c14","at":1774085660000000000,"seq":1185,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fc9-1555-76db-b45a-ec44d3e840bf","at":1774086329685000000,"seq":1186,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fc9-1555-79e7-9b12-a66b491dd71c","at":1774086329685000000,"seq":1187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0fc9-4188-7386-b661-02c00045aa3d","at":1774086341000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fc9-7838-7e77-86bf-48e456ec8e23","at":1774086355000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fdb-4fd8-7b46-9933-4f80d6a8299a","at":1774087524312000000,"seq":1190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0fdb-6610-77ab-9128-8647379eb63f","at":1774087530000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d0fdb-a0a8-7ad0-8deb-73fe43ada200","at":1774087545000000000,"seq":1192,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0ff2-3db0-7c5a-b4de-e6b1ce0d6b8c","at":1774089026992000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff2-5140-7b82-aeed-84a065c0e247","at":1774089032000000000,"seq":1194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d0ff2-c7d1-7e42-9540-330de3014286","at":1774089062353000000,"seq":1195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff2-f938-7b58-b3a6-86662ebedc3b","at":1774089075000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d0ff3-08d8-7f2f-b0ef-148caa61efb3","at":1774089079000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0ff3-33d0-70da-918c-6e718e09c7b2","at":1774089090000000000,"seq":1198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0ff3-a191-7e65-8fa7-9f5fa4414f1b","at":1774089118097000000,"seq":1199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019d0ff3-a518-73f8-86df-978af0491073","at":1774089119000000000,"seq":1200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0ff3-f56b-7ad7-9e80-8eef9468d738","at":1774089139563000000,"seq":1201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}

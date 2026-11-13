@@ -1,0 +1,31 @@
+{"v":1,"id":"019cfac7-24c1-72a5-8896-3ba806f228bb","at":1773733881025000000,"seq":1161,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfac7-24c1-7f56-b47b-f64386455d70","at":1773733881025000000,"seq":1162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cfac7-6ee0-7ef6-8e2f-935851ebf01d","at":1773733900000000000,"seq":1163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cfac7-dc40-7cdb-997e-0de31b1c6a58","at":1773733928000000000,"seq":1164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfad7-b1fe-75b7-9fa1-74568c0f3f5a","at":1773734965758000000,"seq":1165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cfad8-08e0-7c40-98ba-60d59cbc4491","at":1773734988000000000,"seq":1166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad8-2c08-7ff4-b95a-db47bc3b64f4","at":1773734997000000000,"seq":1167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad8-4378-7ae3-93ad-c13ab9005833","at":1773735003000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cfad8-5005-7d1d-ab0a-c958cde9d4cf","at":1773735006213000000,"seq":1169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cfad8-5ed0-730a-980f-1d7c0e42b76f","at":1773735010000000000,"seq":1170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfad8-6a88-7faa-99a1-d2c2404a2a16","at":1773735013000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfad8-81f8-7740-89ce-82cf74fa27c6","at":1773735019000000000,"seq":1172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfad8-89c8-7748-8698-57df025d345e","at":1773735021000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cfae3-93af-7123-b913-1f35c12f509c","at":1773735744431000000,"seq":1174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfae3-a588-7854-bac4-63855836b537","at":1773735749000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cfae3-c0e0-79ac-bb4d-21d716838d2e","at":1773735756000000000,"seq":1176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfae3-cfbc-7fb3-a83d-ef04bd2f110e","at":1773735759804000000,"seq":1177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfae3-fb78-7162-97b4-f50aacc4ac75","at":1773735771000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cfae4-12e8-7952-aa38-fc270e4d264e","at":1773735777000000000,"seq":1179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfae4-2e40-764a-b91c-fa2fc1b1fee9","at":1773735784000000000,"seq":1180,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfae4-417a-71f1-b1ab-dd6670f7ca92","at":1773735788922000000,"seq":1181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfae4-5168-75e2-868e-17de66f92650","at":1773735793000000000,"seq":1182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cfae4-6cc0-7c40-9b2d-376e7b9d4e76","at":1773735800000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfae4-aa66-78f6-acec-670b7d0eec1c","at":1773735815782000000,"seq":1184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfae4-af28-7333-ab56-cb1c7601e007","at":1773735817000000000,"seq":1185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfae4-bec8-7811-9fc1-5219b8aa0e01","at":1773735821000000000,"seq":1186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfae4-fd48-7144-9d28-f8811a041a42","at":1773735837000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfae6-e92e-703c-b971-a00258808566","at":1773735962926000000,"seq":1188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cfae7-1c40-73aa-b04f-075f033078ac","at":1773735976000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaf9-9c85-732b-a552-9825d91735d2","at":1773737188485000000,"seq":1190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cfaf9-f090-7440-a473-abe1288204ff","at":1773737210000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

@@ -1,0 +1,20 @@
+{"v":1,"id":"019d391d-9596-77cb-9748-eb76a21311be","at":1774779733398000000,"seq":1229,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d391d-9596-7f62-af12-2c4c32c7c2ec","at":1774779733398000000,"seq":1230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d391d-f61f-7276-9bd8-0d21031ab377","at":1774779758111000000,"seq":1231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d391d-fd80-700f-95d4-26627c53bc13","at":1774779760000000000,"seq":1232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d391e-5b18-7a5b-9b99-c5e0e7acdb46","at":1774779783960000000,"seq":1233,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Oak Square - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d391e-7698-7e88-9c93-0cbcb81fc85e","at":1774779791000000000,"seq":1234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d391e-9da8-724c-b1e1-f0114e6a1872","at":1774779801000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d391e-e3f8-7290-a471-ebc2f7704eac","at":1774779819000000000,"seq":1236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d391e-e9a5-72d0-b826-ca4e4f917592","at":1774779820453000000,"seq":1237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d391f-12d8-7605-9700-ddfee56f6461","at":1774779831000000000,"seq":1238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d391f-1e90-72c5-9985-6d3c204bd682","at":1774779834000000000,"seq":1239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d391f-2a48-7de8-a895-cb5b05c10df3","at":1774779837000000000,"seq":1240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3932-b3d6-7552-b8cf-1d33a55530e6","at":1774781117398000000,"seq":1241,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d3932-e8f8-72a3-a523-44d99244b70c","at":1774781131000000000,"seq":1242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d3932-fc80-768b-a124-c48b4f34dbde","at":1774781136000000000,"seq":1243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3933-7598-7564-a8d3-2addae5c5f0e","at":1774781167000000000,"seq":1244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3933-7d62-749e-808f-c4e6ef0fb821","at":1774781168994000000,"seq":1245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d3933-8920-7b24-8879-2e8a818f80db","at":1774781172000000000,"seq":1246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3933-b030-7636-8755-0948a011d86f","at":1774781182000000000,"seq":1247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d3933-e2f8-712c-9d2c-72d86539c8df","at":1774781195000000000,"seq":1248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

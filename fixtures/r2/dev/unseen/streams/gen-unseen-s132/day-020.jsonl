@@ -1,0 +1,43 @@
+{"v":1,"id":"019bdaf7-1bb0-7744-b703-93f8d5bbcd93","at":1768905186224000000,"seq":259,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdaf7-1bb0-7946-8460-a09bfd6f421b","at":1768905186224000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bdaf7-d0cb-7e16-b0d2-545969e72f18","at":1768905232587000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bdaf7-da38-75cd-af77-9919430d0c24","at":1768905235000000000,"seq":262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdaf8-4b80-7828-89e0-a3a38cfc13dc","at":1768905264000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bdaf8-c498-798d-94ac-263ff7f7a210","at":1768905295000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaf8-c899-73cb-8824-11f77163c7a3","at":1768905296025000000,"seq":265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bdaf9-12b8-77fd-873f-5bae52252a08","at":1768905315000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaf9-4d50-79d8-bc9b-539c06686c28","at":1768905330000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bdaf9-b9ab-78a2-9c5f-363dd0d97256","at":1768905357739000000,"seq":268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bdafa-10a0-7039-9b92-549659975807","at":1768905380000000000,"seq":269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdafa-1870-7f43-b9eb-b06d6271fbee","at":1768905382000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdafa-2428-75ae-9ff9-3519071a61d5","at":1768905385000000000,"seq":271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdafa-2fe0-7a7a-b9ca-0463f2a90838","at":1768905388000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdafa-2fe0-7db1-bb88-bfbc7c74d3b0","at":1768905388000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bdb0e-23df-76a5-a35c-29f056c1ef37","at":1768906695647000000,"seq":274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bdb0f-026b-711a-b233-d40579ac11fc","at":1768906752619000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bdb0f-741b-7795-8915-4fb276bf3268","at":1768906781723000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bdb0f-afc8-7f30-b77a-2243364829a3","at":1768906797000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb0f-c350-7d88-acec-99b9d84022ba","at":1768906802000000000,"seq":278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdb0f-cb20-7a2e-b11a-7b74eed144d6","at":1768906804000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bdb10-05b8-741f-be79-b87c63a352d3","at":1768906819000000000,"seq":280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdb10-2110-7665-b157-00966633ba9f","at":1768906826000000000,"seq":281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb10-382a-7520-ae30-15cddf301dc2","at":1768906831914000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bdb10-6760-7861-83f8-3c2ea061ed0b","at":1768906844000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bdb10-a9c8-7db0-b04a-29cd1f5a4c80","at":1768906861000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb11-1340-7ad8-952c-00e5878d0132","at":1768906888000000000,"seq":285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb11-37c1-73df-a30c-8c9bcd194547","at":1768906897345000000,"seq":286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bdb11-7b77-7c7c-ab51-f2e171df0219","at":1768906914679000000,"seq":287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bdb11-8870-7147-af98-1d1da7bbab94","at":1768906918000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb11-c308-7fca-9d99-4475aecebc52","at":1768906933000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bdb11-d690-742b-8ad4-8b80e6800d0a","at":1768906938000000000,"seq":290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb11-d845-7f90-850a-c6b776a70d37","at":1768906938437000000,"seq":291,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bdb12-2504-7fee-8f0f-a0f2382e0171","at":1768906958084000000,"seq":292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bdb12-5390-7105-8457-c0b84e025a2d","at":1768906970000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bdb12-8a40-79f7-add2-5b4b0c4f2180","at":1768906984000000000,"seq":294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdb12-9210-7600-ba88-8a0fa6db2a0c","at":1768906986000000000,"seq":295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb12-99e0-72d5-9b44-1456517972cd","at":1768906988000000000,"seq":296,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdb14-c245-7872-b230-e989ccf540f9","at":1768907129413000000,"seq":297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bdb14-ef88-7cef-89d9-1c52ca2444ac","at":1768907141000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdb15-1a80-718f-a9a4-431f9e8f63bf","at":1768907152000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bdb15-2e08-74b6-abea-31141d06e771","at":1768907157000000000,"seq":300,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdb15-3da8-77df-b83f-c7952937e04f","at":1768907161000000000,"seq":301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

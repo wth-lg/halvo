@@ -1,0 +1,31 @@
+{"v":1,"id":"019ca3ad-cbe9-7108-8856-25663b05f38b","at":1772272602089000000,"seq":879,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca3ad-cbe9-71a7-8270-d70d005060b1","at":1772272602089000000,"seq":880,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca3ae-1e4b-73ad-95de-af0ce9e29a48","at":1772272623179000000,"seq":881,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca3ae-1e4b-7b66-99ff-47c9754c33e0","at":1772272623179000000,"seq":882,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca3ae-44a8-707f-b391-92eb8d1b4773","at":1772272633000000000,"seq":883,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ca3ae-5830-79bb-9976-459f34b91a84","at":1772272638000000000,"seq":884,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3ae-5c18-76fb-8158-58a325ce0697","at":1772272639000000000,"seq":885,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ca3ae-6503-70a7-854d-030bb29212da","at":1772272641283000000,"seq":886,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca3ae-6503-720b-9eb9-ffb7c6fe4325","at":1772272641283000000,"seq":887,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca3ae-f6ee-70ba-8586-7cd00d9600e0","at":1772272678638000000,"seq":888,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca3af-5de8-773d-9a06-072baf7d64f1","at":1772272705000000000,"seq":889,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ca3af-7558-7355-af40-0bcafd62290e","at":1772272711000000000,"seq":890,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3af-9880-7f67-88cf-73c70e88fc09","at":1772272720000000000,"seq":891,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3af-d19f-70e2-92f6-d5f5b5976c70","at":1772272734623000000,"seq":892,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca3af-fe10-7abc-bdfb-ba1efc897d17","at":1772272746000000000,"seq":893,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3b0-05e0-7074-9e7a-62817b50db66","at":1772272748000000000,"seq":894,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca3b0-4848-752d-be38-3e638e723e8f","at":1772272765000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3b0-5c3c-793b-88c3-a61c10d9aca5","at":1772272770108000000,"seq":896,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca3b0-7728-778b-8947-438db2613e7c","at":1772272777000000000,"seq":897,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca3b0-8e98-7305-8f0b-012b9c4aa76f","at":1772272783000000000,"seq":898,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3b0-d100-7d88-b14e-d244ff9cca5b","at":1772272800000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3b0-d5d4-72d5-82a8-a4b63497e978","at":1772272801236000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca3b0-e0a0-729e-a612-7f212936bcba","at":1772272804000000000,"seq":901,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca3b1-1368-7483-8a6e-8a9502894586","at":1772272817000000000,"seq":902,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3bb-cb78-74b1-91a3-3f4b6083ab33","at":1772273519480000000,"seq":903,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca3bb-cb78-7eaa-94c8-60e48f0d1e70","at":1772273519480000000,"seq":904,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca3bc-0430-7208-8792-3f7caa471406","at":1772273534000000000,"seq":905,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ca3d1-d42b-7db7-904f-a80e6f75e3b9","at":1772274963499000000,"seq":906,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca3d1-d42b-732d-bbfb-c76fc9955cee","at":1772274963499000000,"seq":907,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca3d1-fd30-7111-834e-25f2b22e57fe","at":1772274974000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3d2-1c70-7ebb-883a-49642d533ad0","at":1772274982000000000,"seq":909,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

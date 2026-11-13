@@ -1,0 +1,34 @@
+{"v":1,"id":"019c27e0-fb5a-7ea2-8ac9-09117e402e52","at":1770195581786000000,"seq":517,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c27e0-fb5a-7d5d-9add-8d1a26541bf0","at":1770195581786000000,"seq":518,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c27e1-2ef8-7aa8-aa16-0e78223ae403","at":1770195595000000000,"seq":519,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27e1-32e0-736f-afcb-5fbd0dc850f7","at":1770195596000000000,"seq":520,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c27e1-5dd8-7eaa-b2aa-f78747ce2373","at":1770195607000000000,"seq":521,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c27e1-a428-748c-9933-4722997c6143","at":1770195625000000000,"seq":522,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27fb-61c0-702b-84bd-74d1b3d5b30d","at":1770197311936000000,"seq":523,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c27fb-61c0-7d03-9aae-fba61faf5857","at":1770197311936000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c27fb-c790-71b0-a144-f7f56e4efbd4","at":1770197338000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27fc-1d80-7051-b2fb-4ac8a1155504","at":1770197360000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27fc-59dc-7040-9e23-98f13c328034","at":1770197375452000000,"seq":527,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c27fc-7758-725c-9411-67230507664a","at":1770197383000000000,"seq":528,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c27fd-07e0-7291-9de8-d1836c1b197f","at":1770197420000000000,"seq":529,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c27fd-2342-709b-94aa-117793ea6864","at":1770197427010000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c27fd-4278-7fd1-ad4d-d9434281e099","at":1770197435000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c27fd-59e8-72f0-9458-c4dda7338ec6","at":1770197441000000000,"seq":532,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c27fd-5dd0-78e9-af90-10b976fadbcb","at":1770197442000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c27fd-7928-75a6-a96d-a0f97a0bc753","at":1770197449000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27fd-abf0-7201-9328-d505c764e208","at":1770197462000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27fd-b9da-7945-9eb9-0329b2386e67","at":1770197465562000000,"seq":536,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c27fe-4830-7192-a07a-a3a99f3d2145","at":1770197502000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c27fe-53e8-7bfd-b260-bcbfb2ab6ab8","at":1770197505000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27fe-6770-7ba4-a7fc-c27482c666a8","at":1770197510000000000,"seq":539,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c280f-08cd-7d02-9fdc-51578a20f449","at":1770198599885000000,"seq":540,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c280f-08cd-7f56-826e-17d4ec09c6a2","at":1770198599885000000,"seq":541,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c280f-cc90-7102-bbbd-b2138f3e5314","at":1770198650000000000,"seq":542,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c280f-efb8-7a84-9a70-937d6d5aca74","at":1770198659000000000,"seq":543,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c281c-592a-710b-bcea-ad604fecb13d","at":1770199472426000000,"seq":544,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c281c-592a-760d-9815-939b4d55a307","at":1770199472426000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c281c-6338-7e8a-ae1d-3dfddd0677e4","at":1770199475000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c281c-7aa8-7c6c-904b-b1dae2046910","at":1770199481000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c281c-8278-77b0-b23d-2f38af847d1e","at":1770199483000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c281c-a1b8-7133-8048-8897cafeb548","at":1770199491000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c281c-ccb0-7680-968c-aba63174e2e5","at":1770199502000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

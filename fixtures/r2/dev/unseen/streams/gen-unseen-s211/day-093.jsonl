@@ -1,0 +1,20 @@
+{"v":1,"id":"019d5279-4e11-7f6f-99b0-b2898fe1c4c3","at":1775205174801000000,"seq":1333,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d5279-4e11-7e3c-83ca-7decbfc0d4ab","at":1775205174801000000,"seq":1334,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d527a-25b0-705d-a417-16d1eb6e2deb","at":1775205230000000000,"seq":1335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5291-ff6d-723d-8cd4-d9d10b0d9fb4","at":1775206793069000000,"seq":1336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d5292-5130-796a-b6ff-d601c2b244a6","at":1775206814000000000,"seq":1337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5292-5ce8-7810-9cf3-94f84c5ff9c4","at":1775206817000000000,"seq":1338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5292-a0a6-7f12-ba5b-8440c0d43ec1","at":1775206834342000000,"seq":1339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d5292-a720-765f-b4cf-be738f69948b","at":1775206836000000000,"seq":1340,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d5292-b6c0-79dd-87f1-ac0bdae6afb7","at":1775206840000000000,"seq":1341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5292-d600-7bce-9899-bf47b36dfa44","at":1775206848000000000,"seq":1342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d5292-ed70-7d85-ac04-e7b74e376d9a","at":1775206854000000000,"seq":1343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5293-3478-7030-9831-5d5c5be6f7a3","at":1775206872184000000,"seq":1344,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d5293-5eb8-7dd3-a531-922f61775f34","at":1775206883000000000,"seq":1345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d5293-7240-7a2c-a168-422ed2cfe6cb","at":1775206888000000000,"seq":1346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5293-d3e8-722a-b2b0-2feb531c7329","at":1775206913000000000,"seq":1347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5294-07f2-7b21-98f7-a55a28e8df73","at":1775206926322000000,"seq":1348,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d52a5-a744-7cf6-99d5-2c94e193b1e4","at":1775208081220000000,"seq":1349,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d52a5-c5a8-7f58-8e0d-781195e6b3d1","at":1775208089000000000,"seq":1350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52a5-fc58-767e-a5ad-1d0b4c27acc3","at":1775208103000000000,"seq":1351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52a6-0810-7bd1-a767-6577ec924275","at":1775208106000000000,"seq":1352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

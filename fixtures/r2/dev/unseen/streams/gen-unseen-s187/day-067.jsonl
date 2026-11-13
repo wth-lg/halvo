@@ -1,0 +1,42 @@
+{"v":1,"id":"019cccf6-144f-79a3-930f-e1853feb68ce","at":1772965205071000000,"seq":1217,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cccf6-144f-761e-ac41-aafac1cc02fb","at":1772965205071000000,"seq":1218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cccf6-46d0-749f-886e-ab96b039012f","at":1772965218000000000,"seq":1219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccf6-4ab8-7b42-9fd6-f4e39f7e4528","at":1772965219000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cccf6-8168-7bcb-958f-e604cd1b9021","at":1772965233000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccf6-98df-73bd-9e38-7514207ef223","at":1772965239007000000,"seq":1222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cccf6-db40-769e-976f-0b935949e3c5","at":1772965256000000000,"seq":1223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccf7-6010-7713-b4e8-dff1238dfc49","at":1772965290000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccf7-76cd-7b62-88ae-5720d546d29f","at":1772965295821000000,"seq":1225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cccf7-a278-7d3e-a8d6-9c0ef42878f0","at":1772965307000000000,"seq":1226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cccf7-d20d-75eb-a619-9d4db420da4f","at":1772965319181000000,"seq":1227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cccf7-e4e0-7696-97de-db0aca231dce","at":1772965324000000000,"seq":1228,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cccf7-e8c8-7c2c-b1c6-2d857d59df40","at":1772965325000000000,"seq":1229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cccf8-0038-7258-92eb-c4c054d314ae","at":1772965331000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccf8-0bf0-7ca1-a755-2f9555f21ff1","at":1772965334000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd0f-7c80-71a9-bf29-14d2a226f04b","at":1772966870144000000,"seq":1232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ccd0f-87a8-7224-bd8c-e4292b07c78a","at":1772966873000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd0f-8b90-71aa-a431-eb0595b174ad","at":1772966874000000000,"seq":1234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd0f-ba70-7286-bbcb-a0f035915c7b","at":1772966886000000000,"seq":1235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccd0f-ba70-7283-bc15-b2f96594a582","at":1772966886000000000,"seq":1236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ccd23-493c-7243-9322-4e7cee50096e","at":1772968167740000000,"seq":1237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ccd23-5210-7402-8144-7f120262ccb8","at":1772968170000000000,"seq":1238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ccd23-80f0-7708-bb11-53c30a9527b6","at":1772968182000000000,"seq":1239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ccd31-35c8-7ed3-9846-17eb3ce4ee55","at":1772969080264000000,"seq":1240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ccd31-d100-7ae2-89ff-35acf853124e","at":1772969120000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ccd32-0c2c-7eab-959e-a58c0fd05edb","at":1772969135148000000,"seq":1242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ccd32-1750-7696-8c5d-ba8bfc25d675","at":1772969138000000000,"seq":1243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd32-2308-7501-b7ee-fb14eb32f0dd","at":1772969141000000000,"seq":1244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd32-6381-7c57-aebf-f2222a23f2c6","at":1772969157505000000,"seq":1245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ccd32-d6b8-7803-b68f-c74dbbae86d7","at":1772969187000000000,"seq":1246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd32-d872-7613-bc95-b0e3521d35e8","at":1772969187442000000,"seq":1247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ccd32-e658-7dcb-a1dd-b5a48f9be248","at":1772969191000000000,"seq":1248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd33-0d68-72e0-8370-f709f66a9012","at":1772969201000000000,"seq":1249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ccd33-20f0-7898-b456-87ea134b2038","at":1772969206000000000,"seq":1250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd33-2ca8-7584-ad73-3c7d6278fcca","at":1772969209000000000,"seq":1251,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ccd49-a69b-746c-884c-ac05d0c2f927","at":1772970682011000000,"seq":1252,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccd49-a69b-74f7-93eb-632a88e861fd","at":1772970682011000000,"seq":1253,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccd4a-7598-7cdb-ae30-fb20474be29d","at":1772970735000000000,"seq":1254,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd4a-90f0-7623-8f8f-04615b13a624","at":1772970742000000000,"seq":1255,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd4a-a8f6-7c90-b106-5c46dd35eca1","at":1772970748150000000,"seq":1256,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ccd4a-b800-72e6-bfde-79b470e54ef1","at":1772970752000000000,"seq":1257,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ccd4a-f680-74a6-8328-d9ebea51d81d","at":1772970768000000000,"seq":1258,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

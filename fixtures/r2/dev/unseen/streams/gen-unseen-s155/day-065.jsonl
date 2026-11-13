@@ -1,0 +1,28 @@
+{"v":1,"id":"019cc218-e9a8-77bb-aa31-c3a39b5713eb","at":1772782938536000000,"seq":956,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc218-e9a8-7264-9a72-bbd227950f52","at":1772782938536000000,"seq":957,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc218-f348-7b6a-b1e2-c3470cad707c","at":1772782941000000000,"seq":958,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cc219-0ea0-7349-9a95-d69bb27c2ab4","at":1772782948000000000,"seq":959,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cc219-2610-7c1e-9ae9-4cd6504ed43c","at":1772782954000000000,"seq":960,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc22d-8bc5-7388-88bb-a35a7b66a9f4","at":1772784290757000000,"seq":961,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc22d-8bc5-7671-a793-3465d1f7884a","at":1772784290757000000,"seq":962,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cc22d-8cb8-735d-8c17-eaa28051b527","at":1772784291000000000,"seq":963,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc22d-9488-78c3-b93b-334d1f719f63","at":1772784293000000000,"seq":964,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc22d-d308-7f25-a3c8-25af40efeedb","at":1772784309000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc23b-97b7-7dd3-8ee8-f220efd7fadd","at":1772785211319000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cc23c-4258-737e-9493-bf2018405e82","at":1772785255000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cc23c-7a95-7ed9-afc1-d20fcfcde84b","at":1772785269397000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cc23c-e668-76b0-9def-0f4c8451c56e","at":1772785297000000000,"seq":969,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc23d-0d78-7731-a2ea-13fb4642ba9b","at":1772785307000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc23d-49bc-7720-9f9a-32345601b301","at":1772785322428000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cc23d-76f0-7564-9c6d-18a192ff5610","at":1772785334000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc23d-9e00-7a75-bdc7-cb4daae1b002","at":1772785344000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc23d-d83f-7c1d-862d-652ff1a24ac0","at":1772785358911000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cc23e-0f48-7314-ab9b-783c7d954426","at":1772785373000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc23e-26b8-7520-b012-7ec5ffb0ba8a","at":1772785379000000000,"seq":976,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc23e-70f0-78b0-ba98-53de53d6b5a5","at":1772785398000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cc23e-e2c2-7c83-ac16-4fd0ff4c7e03","at":1772785427138000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019cc23f-1118-7f50-b9be-1ef502685cf9","at":1772785439000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc23f-1500-7b99-b915-accc5d464a3b","at":1772785440000000000,"seq":980,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc23f-18e8-7e53-9ff8-2776b0d3117f","at":1772785441000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cc23f-20b8-780d-8924-9489e00e5ddf","at":1772785443000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc23f-3828-7288-9669-2f42a51233d3","at":1772785449000000000,"seq":983,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

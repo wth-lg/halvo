@@ -1,0 +1,29 @@
+{"v":1,"id":"019cfb2e-79e8-7901-acfe-3d3dd252b2b3","at":1773740653032000000,"seq":963,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfb2e-79e8-7f92-bfb3-0a3fb0178c4b","at":1773740653032000000,"seq":964,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cfb2e-c018-7721-98cd-741486ed5e93","at":1773740671000000000,"seq":965,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfb2e-c7e8-74b0-984e-ce0134e89827","at":1773740673000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb2f-0a50-7d93-872c-96692ea4baa5","at":1773740690000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cfb32-dafd-7818-bb41-c4a5cc3d8258","at":1773740940029000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cfb32-e2b0-775b-a585-089fea286852","at":1773740942000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cfb33-4c28-7348-8147-ad096d33a3c0","at":1773740969000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb33-4d52-7e8a-ae7f-9593f8df0f25","at":1773740969298000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cfb33-ec50-7ada-9e0c-9a0b9a80b4de","at":1773741010000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cfb33-f420-7a2e-a527-252a64ad63b7","at":1773741012000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfb34-1d35-755f-9d93-7ed02b21c89e","at":1773741022517000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cfb34-7120-7bfa-b427-4266ed5fd345","at":1773741044000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cfb34-7646-704b-a156-982036f065bb","at":1773741045318000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfb34-c428-7d13-b614-fcd735ccd124","at":1773741065256000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfb35-47f8-7285-8b11-3b75b908c5a1","at":1773741099000000000,"seq":978,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfb35-6350-7c6d-8e30-b32b353eba25","at":1773741106000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb35-76d8-7aab-ba23-38193444d9bb","at":1773741111000000000,"seq":980,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfb35-7ea8-76cb-b10e-39656a1912dc","at":1773741113000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cfb35-8a60-729e-8890-06393c571f07","at":1773741116000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb35-9d20-73bb-bc77-c4ab3add049f","at":1773741120800000000,"seq":983,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cfb36-45e0-75a3-bddf-b4c89546a08e","at":1773741164000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb36-5580-7ebd-a11a-d2e37ac804f2","at":1773741168000000000,"seq":985,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cfb36-78a8-7955-83cf-f913bb7156a2","at":1773741177000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb36-8718-77c0-9312-0c5290b43453","at":1773741180696000000,"seq":987,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cfb3c-a0ff-741a-8281-be1b4e0e6dcc","at":1773741580543000000,"seq":988,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cfb3c-aa98-7a97-b4f7-66d82c029c02","at":1773741583000000000,"seq":989,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfb3c-d978-7282-8fc8-72c39e7705a3","at":1773741595000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cfb3d-5290-7979-8f79-537a738584a7","at":1773741626000000000,"seq":991,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

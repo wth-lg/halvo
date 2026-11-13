@@ -1,0 +1,29 @@
+{"v":1,"id":"019bef54-3baf-761b-951b-9470c57b164d","at":1769246833583000000,"seq":290,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef54-3baf-7bd3-9d8f-a71b7ac0a968","at":1769246833583000000,"seq":291,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef54-4cf0-75eb-9da8-7688541a198f","at":1769246838000000000,"seq":292,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bef54-be38-7834-aa4e-73ae7ff80c38","at":1769246867000000000,"seq":293,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bef54-d1c0-76e6-9caa-b1b61ace1af2","at":1769246872000000000,"seq":294,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef54-e548-73a4-a203-06f57a6a3b23","at":1769246877000000000,"seq":295,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef6f-8edb-7038-bd6e-42144c767a3f","at":1769248624347000000,"seq":296,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef6f-8edb-7cd5-8722-4809479c14bd","at":1769248624347000000,"seq":297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bef6f-dba0-7804-99f1-1d6bdd4b41db","at":1769248644000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef6f-f310-7bf7-b52e-9f0939766651","at":1769248650000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef7b-78e3-7f24-b588-b6cb5b67b209","at":1769249405155000000,"seq":300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bef7b-8018-7f8a-a153-ea30adfd77dd","at":1769249407000000000,"seq":301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef7b-87e8-71de-98b0-28c84c6954c0","at":1769249409000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bef7b-c668-7340-8189-f78b61b0b628","at":1769249425000000000,"seq":303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef7b-cfde-73f1-baa1-7ac609870c11","at":1769249427422000000,"seq":304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bef7b-fd18-7edb-a52e-2fd539ca7dc0","at":1769249439000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bef7c-9c8b-7a75-8016-1d67587a9cc0","at":1769249479819000000,"seq":306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bef7c-b4b0-7385-a29e-2c328cfa6a51","at":1769249486000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bef7c-c450-73c0-9b0c-8695d7ddb997","at":1769249490000000000,"seq":308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bef7c-c838-7477-bcc4-dc0981a599e2","at":1769249491000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef7c-d7d8-7fe4-91c1-7e44848dcbff","at":1769249495000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef7c-e46b-737a-8c1e-340b5685f28e","at":1769249498219000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bef7d-2dc8-7e21-aaa1-a9c33ca86f80","at":1769249517000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef7d-58c0-7a5e-9af6-0daefad68cb1","at":1769249528000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef97-7e68-7ef4-afe1-5e05cb9ae91a","at":1769251241576000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bef97-b6c0-76ba-8d7e-61bf42e4fd35","at":1769251256000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bef97-f540-796d-8ac0-07cc75d73ef3","at":1769251272000000000,"seq":316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bef98-1480-70f8-b298-4e32be8196f7","at":1769251280000000000,"seq":317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef98-2038-7554-a0c4-3f03a6c0a35a","at":1769251283000000000,"seq":318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

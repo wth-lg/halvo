@@ -1,0 +1,43 @@
+{"v":1,"id":"019d05ac-5c82-7ead-bea2-30e5047a60bc","at":1773916675202000000,"seq":1163,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d05ac-5c82-7320-9e61-e5ead314d7f2","at":1773916675202000000,"seq":1164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d05ac-c530-797c-ba76-c8841bdf2287","at":1773916702000000000,"seq":1165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d05ad-59a0-78fd-b7c6-71bb3ac5c7f6","at":1773916740000000000,"seq":1166,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d05c0-57b0-77c2-8713-d7e58684b46a","at":1773917984688000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d05c0-d9d0-7c2f-aabf-b19fd29565c7","at":1773918018000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05d4-0e1b-743f-81a0-3cba87b519bb","at":1773919276571000000,"seq":1169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05d4-65b8-7c1f-b9f8-5b10c4d1f11a","at":1773919299000000000,"seq":1170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d05d4-6616-789c-93eb-ff98adaa2cd5","at":1773919299094000000,"seq":1171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05d4-8110-7240-b0cf-173682c8ab15","at":1773919306000000000,"seq":1172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d05d4-88e0-766a-afb2-0b616a902f26","at":1773919308000000000,"seq":1173,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d05d4-c688-79b2-9cf4-63811286a1c2","at":1773919323784000000,"seq":1174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05d4-ee70-7f77-b679-2e375e0dbd5c","at":1773919334000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05d5-34c0-7a80-abd5-46dbe8721859","at":1773919352000000000,"seq":1176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d05d5-6b70-7a7a-ba57-c2cba861e566","at":1773919366000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d05d5-76b9-7fbb-b319-117e408a4639","at":1773919368889000000,"seq":1178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05d5-7b10-7469-9b9a-2c71061c26e0","at":1773919370000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05d5-9668-7219-abe5-b8f3727058a4","at":1773919377000000000,"seq":1180,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d05d5-b1c0-7b84-91c5-abb59f8d9871","at":1773919384000000000,"seq":1181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d05d6-5da0-718b-a0e7-b0553623cb34","at":1773919428000000000,"seq":1182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d05d6-68ef-74b5-a6bb-7d6b6af7fb3a","at":1773919430895000000,"seq":1183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05d6-a3f0-7647-bfe0-68bf63ffbf14","at":1773919446000000000,"seq":1184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d05d7-4418-74b8-927e-e8760b6357db","at":1773919487000000000,"seq":1185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05d7-742d-7b04-832f-469644f1909b","at":1773919499309000000,"seq":1186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05d7-7ac8-7f65-a243-a4b4201de867","at":1773919501000000000,"seq":1187,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d05d7-9620-7f90-8554-f09df36ea200","at":1773919508000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05d7-9a08-712b-85cf-0796c169c00a","at":1773919509000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05d7-c500-73da-a979-677c8237cbc1","at":1773919520000000000,"seq":1190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d05d8-22c0-7dcb-8537-d7a992a41b88","at":1773919544000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d05dc-ccb3-7c8b-b3f3-bc8ef49c4bf6","at":1773919849651000000,"seq":1192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d05dd-4ef8-7194-a8ff-ea8ed4ee0377","at":1773919883000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d05dd-5b75-7510-a3ae-7516ad799f21","at":1773919886197000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d05dd-79f0-7312-b47a-50b6ecb24f66","at":1773919894000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05dd-c040-768b-9a89-55c1ba6c201e","at":1773919912000000000,"seq":1196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d05dd-c810-7031-a6f0-4de6ed2520ca","at":1773919914000000000,"seq":1197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05de-29b8-7dff-ade9-9651f4f58c09","at":1773919939000000000,"seq":1198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d05ee-4d01-7d80-86c3-c3884fc5e1be","at":1773920996609000000,"seq":1199,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d05ee-4d01-7550-b1ed-e54efdc83241","at":1773920996609000000,"seq":1200,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d05ee-4e88-74f6-909c-bae9db4428db","at":1773920997000000000,"seq":1201,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05ee-71b0-7613-81e8-2625aadc9e9d","at":1773921006000000000,"seq":1202,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d05ee-8150-7cc7-8bd6-a9607deca7ba","at":1773921010000000000,"seq":1203,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05ee-a090-722b-818d-7ae201074835","at":1773921018000000000,"seq":1204,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d05ee-a478-7963-800b-7445d0541cf0","at":1773921019000000000,"seq":1205,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}

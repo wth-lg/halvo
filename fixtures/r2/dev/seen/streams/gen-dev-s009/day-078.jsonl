@@ -1,0 +1,22 @@
+{"v":1,"id":"019d0599-03dd-7906-b85d-7a0ccee9c8a0","at":1773915407325000000,"seq":1521,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0599-03dd-72e9-b3ed-07e6ff92298a","at":1773915407325000000,"seq":1522,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0599-0e50-7e86-9e25-c1ceb49279c0","at":1773915410000000000,"seq":1523,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d0599-29a8-7f25-bbae-781cddbc893c","at":1773915417000000000,"seq":1524,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0599-3d30-76b9-9b72-4d252eefe418","at":1773915422000000000,"seq":1525,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d0599-4118-7dfa-b15b-4d6ece9a9d0b","at":1773915423000000000,"seq":1526,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d059e-eab1-7fc3-a916-9f34634a6021","at":1773915794097000000,"seq":1527,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d059e-eab1-700f-9355-bd79513cf335","at":1773915794097000000,"seq":1528,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d059f-2100-710c-a3c3-e468268dd4ed","at":1773915808000000000,"seq":1529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d059f-57b0-7936-ac7c-997120da4735","at":1773915822000000000,"seq":1530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d059f-64ce-7aab-8f4b-a2a5017d4d29","at":1773915825358000000,"seq":1531,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d059f-9a18-79b5-9aba-44bb2756a638","at":1773915839000000000,"seq":1532,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d059f-a015-7327-be8e-1d492d9d8718","at":1773915840533000000,"seq":1533,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d059f-a5d0-76a0-873b-b4e698d77cb4","at":1773915842000000000,"seq":1534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d059f-c8f8-7805-902e-5fb105351a9c","at":1773915851000000000,"seq":1535,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d059f-d4b0-73eb-9086-fe06b5650504","at":1773915854000000000,"seq":1536,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d05a0-70f0-77dc-9020-851e331b7a88","at":1773915894000000000,"seq":1537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a0-73d2-77d2-98bd-226b39240c92","at":1773915894738000000,"seq":1538,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d05a0-8c48-799b-880c-7a4140d5f5f0","at":1773915901000000000,"seq":1539,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a0-cac8-72b3-b0f4-15b99a9cf73f","at":1773915917000000000,"seq":1540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05a0-ccf4-7d6f-bf3d-5bcf7ea62f0c","at":1773915917556000000,"seq":1541,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d05a0-da68-72c7-b650-3191bc9f35d1","at":1773915921000000000,"seq":1542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

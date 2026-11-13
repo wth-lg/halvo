@@ -1,0 +1,38 @@
+{"v":1,"id":"019bc0b2-b68e-7c2b-90c1-1ab74ca5f56b","at":1768464496270000000,"seq":146,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc0b2-b68e-7642-83d4-19ce7768850b","at":1768464496270000000,"seq":147,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc0b2-ec30-7626-8862-b8eb1ece66ba","at":1768464510000000000,"seq":148,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bc0b3-7cb8-7632-bae8-34f87af4a87c","at":1768464547000000000,"seq":149,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bc0bc-0471-7768-b99c-eea4cffd75c2","at":1768465106033000000,"seq":150,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc0bc-0471-7487-bf61-9a273f0f4203","at":1768465106033000000,"seq":151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bc0bc-6dc8-7a89-b197-993691bb81c0","at":1768465133000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0bc-df10-7ce2-bf01-f5ddb88acbe0","at":1768465162000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bc0bc-fa68-7f0d-9cbd-215e637b1d2d","at":1768465169000000000,"seq":154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0bd-15b9-7c92-91e0-62fbbfc3b813","at":1768465175993000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc0bd-4c70-7921-8a6b-c3b443bb6bf1","at":1768465190000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0bd-a099-7d80-be8a-66db76ed41e2","at":1768465211545000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc0bd-fc38-7b65-8299-fec0010a84db","at":1768465235000000000,"seq":158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc0be-599d-730f-b8f2-af6e5c883bb9","at":1768465258909000000,"seq":159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc0be-65b0-7664-8a60-78c37a71c78d","at":1768465262000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0be-c758-7666-8f58-eb18681c82fc","at":1768465287000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0be-fa20-7b24-8fad-6033abd73af4","at":1768465300000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bc0be-fedf-7ade-9e7a-915d4b6ac3d1","at":1768465301215000000,"seq":163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc0bf-5bc8-7e4a-a6c2-ecd23bddddc6","at":1768465325000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0bf-7720-7f6c-bc21-2946375513e9","at":1768465332000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0bf-abea-7471-b86f-42d566c1837d","at":1768465345514000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc0bf-c158-7f61-a882-f680d8e11c96","at":1768465351000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0bf-c928-7294-a31f-a26880707da2","at":1768465353000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bc0bf-e480-7a40-ad70-d35e4b267fc0","at":1768465360000000000,"seq":169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc0bf-f420-7e7e-9136-1567e8da033d","at":1768465364000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0bf-f71d-7c42-8d00-31f6ef66d405","at":1768465364765000000,"seq":171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bc0c0-4df8-7634-a2cc-058b203f9209","at":1768465387000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0c0-6d38-720f-8e1d-703a7c3ea627","at":1768465395000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bc0c0-7508-7ca7-b99d-8f2a1963f5e6","at":1768465397000000000,"seq":174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc0c0-c240-7f15-93d1-4d93800d1fa1","at":1768465416768000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bc0c0-d2c8-79b2-bdfb-f381d7e724d9","at":1768465421000000000,"seq":176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc0c0-f208-77bf-867d-5f2e56dd0ef2","at":1768465429000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0c0-fdc0-778f-b728-fca9eb45cdce","at":1768465432000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0c1-0106-7ae8-8f57-435e94b7b075","at":1768465432838000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bc0c1-5b80-7658-806f-1a8262c1f79a","at":1768465456000000000,"seq":180,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc0c1-f69e-7544-9e8a-69b37bc40ead","at":1768465495710000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bc0c2-1700-7080-8f5a-e30c6ea193f0","at":1768465504000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bc0c2-41f8-7348-abdc-1921f96b570c","at":1768465515000000000,"seq":183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

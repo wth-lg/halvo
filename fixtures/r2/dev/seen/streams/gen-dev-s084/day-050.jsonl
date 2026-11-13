@@ -1,0 +1,22 @@
+{"v":1,"id":"019c7551-0894-752a-9790-e8404bf1c515","at":1771494770836000000,"seq":802,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7551-0894-71cc-9456-885cb55fdb26","at":1771494770836000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7551-14f0-7ef6-a949-a7146b93fda5","at":1771494774000000000,"seq":804,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7551-3c00-754a-a69c-62a2cfe72232","at":1771494784000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7551-43d0-7ed4-8f8b-eb81c65b3d10","at":1771494786000000000,"seq":806,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c755c-2e92-7de6-8339-26daac584a2f","at":1771495501458000000,"seq":807,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c755c-d7a8-76f6-8b34-4f6be8468fcb","at":1771495544744000000,"seq":808,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c755c-e848-7d7f-8f70-f0230ab43a23","at":1771495549000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c755c-f7e8-74a2-99f9-2a8c43ac9d66","at":1771495553000000000,"seq":810,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c755d-527c-773c-a253-0cbdaef867ea","at":1771495576188000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c755d-b368-7e91-814d-2f6d355ebe1d","at":1771495601000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c755d-bb38-7407-979f-8beacb6159b4","at":1771495603000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c755d-ea18-75d9-a0f2-ce39ad0dfe1e","at":1771495615000000000,"seq":814,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c755e-0f04-750d-9853-cc4ed4a87147","at":1771495624452000000,"seq":815,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c755e-1128-7a05-8f98-7adb6d122b8c","at":1771495625000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c755e-4bc0-7046-89fe-03d4f3a0c2e8","at":1771495640000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c755e-5390-79eb-995f-1ec1632466a9","at":1771495642000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c755e-6f5b-7e5b-b83f-19f6c14849cf","at":1771495649115000000,"seq":819,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c755e-8270-7c62-aba5-327e4326b963","at":1771495654000000000,"seq":820,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c755e-a598-786e-827e-dd8824f0479f","at":1771495663000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c755e-f7a0-7d07-9908-4f32a573eb9d","at":1771495684000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c755f-2a68-76e2-9f5f-62ba071ffad8","at":1771495697000000000,"seq":823,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

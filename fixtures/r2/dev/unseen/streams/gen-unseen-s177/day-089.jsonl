@@ -1,0 +1,28 @@
+{"v":1,"id":"019d3da3-10cf-76a1-a728-f5f6cb8d504a","at":1774855590095000000,"seq":1358,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3da3-10cf-7dc6-8825-76b01d9cf570","at":1774855590095000000,"seq":1359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d3da3-6278-7a6c-9be3-4a6916fc8392","at":1774855611000000000,"seq":1360,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d3da3-8ebf-7357-90f6-fbbe111ce528","at":1774855622335000000,"seq":1361,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d3da3-9158-757a-ab7c-03f7dba04715","at":1774855623000000000,"seq":1362,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3da3-acb0-7d2d-9332-babadd2cc9af","at":1774855630000000000,"seq":1363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3da3-b480-7f8b-bfc5-58fa7aba5a66","at":1774855632000000000,"seq":1364,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3da3-ef18-72fc-b9db-cb76973ac0f0","at":1774855647000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d3dbf-56a2-705a-9675-2fa82b9cf379","at":1774857442978000000,"seq":1366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3dbf-7210-769d-b0aa-9f5236bf0cf2","at":1774857450000000000,"seq":1367,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3dbf-aca8-79af-9298-d7f844c51de4","at":1774857465000000000,"seq":1368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dbf-e358-72b2-99f3-e62f779a7e63","at":1774857479000000000,"seq":1369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dc6-2832-71dd-9d30-f6d6ac44c5d8","at":1774857889842000000,"seq":1370,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3dc6-2832-7154-8c76-6e8dd2d50e56","at":1774857889842000000,"seq":1371,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3dc6-3c58-7ef7-bebd-a8fdcc9c8b38","at":1774857895000000000,"seq":1372,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d3dc6-6f20-7a4b-9f3a-f6610ed35cbe","at":1774857908000000000,"seq":1373,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dc6-d4b0-706e-90a8-22681746daf2","at":1774857934000000000,"seq":1374,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d3dc7-0390-7a13-8e28-a3a3eff1c391","at":1774857946000000000,"seq":1375,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dcf-a3cc-741c-ae61-4f02c0c9b278","at":1774858511308000000,"seq":1376,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3dcf-d178-7978-ade1-9d0223bbc051","at":1774858523000000000,"seq":1377,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dcf-dd30-7fe7-b3ea-b2a7576e5c45","at":1774858526000000000,"seq":1378,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dea-0ee6-7ff6-99b6-c035905d6ec5","at":1774860242662000000,"seq":1379,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3dea-0ee6-7003-801e-6960b0df028f","at":1774860242662000000,"seq":1380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d3dea-79b0-7eb3-872f-a3a4b2cf95d7","at":1774860270000000000,"seq":1381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dea-c7d0-70c9-b0d7-35b4f6cd2da0","at":1774860290000000000,"seq":1382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dea-ee3c-78b1-bef6-db9da2e9bf98","at":1774860299836000000,"seq":1383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d3deb-67f8-76f5-aab8-b8445c21f709","at":1774860331000000000,"seq":1384,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3deb-7b80-714e-8c0c-1712aaecf9b3","at":1774860336000000000,"seq":1385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,30 @@
+{"v":1,"id":"019c18d5-83f5-79c3-a242-ad3066b9a3af","at":1769943172085000000,"seq":495,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c18d5-83f5-7768-9a7e-4f85ff267a3e","at":1769943172085000000,"seq":496,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c18d5-9ef8-7bf9-9183-4acc19459d9b","at":1769943179000000000,"seq":497,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c18e0-5b4d-70b2-be8f-f66c79d2f8cc","at":1769943882573000000,"seq":498,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c18e0-5b4d-7c3e-893f-826829af5d5b","at":1769943882573000000,"seq":499,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c18e0-5cf8-7a6b-92a8-b9ac07f85a3c","at":1769943883000000000,"seq":500,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c18e0-7468-77e1-87b6-b71a3b47acee","at":1769943889000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18e0-b455-76c1-979e-94912bee4a5a","at":1769943905365000000,"seq":502,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c18e1-08d8-73de-b6f7-501fd009f286","at":1769943927000000000,"seq":503,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c18e1-8253-73c4-9893-988d9740cd7c","at":1769943958099000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c18e1-9190-7f8c-977b-a8b8b71ad318","at":1769943962000000000,"seq":505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c18e1-9578-72de-bef3-4de2600bc3ef","at":1769943963000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18e1-a130-75e5-8f86-c1c7358162f0","at":1769943966000000000,"seq":507,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c18e1-c070-70dc-80d3-7af16cd1ca54","at":1769943974000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c18f5-e3d3-71d6-8215-88842b3b3423","at":1769945293779000000,"seq":509,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c18f5-e3d3-7a93-80df-ce6402ad892e","at":1769945293779000000,"seq":510,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c18f5-e898-7da9-97f5-e555bf2720fd","at":1769945295000000000,"seq":511,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c18f5-f068-7196-8bfc-97f7ec3708e5","at":1769945297000000000,"seq":512,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c18f6-3aa0-7b9e-8e31-bbae2439018f","at":1769945316000000000,"seq":513,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18f6-3e88-738f-bf5b-9021916971af","at":1769945317000000000,"seq":514,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c18f6-5dc8-77e9-9bc3-a4128d12f8a7","at":1769945325000000000,"seq":515,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c1910-fe9f-7b49-846e-d11bb1113989","at":1769947070111000000,"seq":516,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1910-fe9f-74da-9a07-a312d17c0872","at":1769947070111000000,"seq":517,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1911-cd38-7b00-b937-6e94f96f4ece","at":1769947123000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c1911-ed28-7787-b551-478704657ed1","at":1769947131176000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1912-1b58-7d9a-9380-cd049951f8ac","at":1769947143000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c1912-1f40-7cea-b716-8193fe2549e5","at":1769947144000000000,"seq":521,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1922-9e18-7d93-bf33-8d9181dc0800","at":1769948225048000000,"seq":522,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c1922-a1d0-712d-a051-86805e1ee19f","at":1769948226000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c1922-b940-70b4-841f-3ff09ecb3028","at":1769948232000000000,"seq":524,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

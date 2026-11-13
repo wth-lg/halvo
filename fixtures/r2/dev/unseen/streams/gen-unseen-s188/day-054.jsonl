@@ -1,0 +1,13 @@
+{"v":1,"id":"019c8968-aa1e-71af-be0e-b449735093a5","at":1771831863838000000,"seq":781,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8968-aa1e-7883-a70d-dfecf83c9e71","at":1771831863838000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c8968-d1d0-7742-bfe5-37129e56b862","at":1771831874000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8968-d9a0-737a-9fcc-ac07a4720854","at":1771831876000000000,"seq":784,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8969-5a88-7fa1-ac82-8f7980f81c21","at":1771831909000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8969-9cf0-7b7c-94f1-90e78d1861b2","at":1771831926000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c8969-a4d3-7b22-8654-8113086cfa53","at":1771831928019000000,"seq":787,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c8969-c400-71d6-af37-ed17059bce32","at":1771831936000000000,"seq":788,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8969-cfb8-7c6a-b7ec-eaa4658d5aca","at":1771831939000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8969-d788-705c-96bf-54fe8d769660","at":1771831941000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c8969-e340-7234-b317-78f6bd11ea8b","at":1771831944000000000,"seq":791,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c896e-8c60-7ee7-9e83-933dd8ff3d4a","at":1771832249440000000,"seq":792,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c896e-c540-709e-af99-c9083286aeec","at":1771832264000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

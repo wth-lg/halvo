@@ -1,0 +1,36 @@
+{"v":1,"id":"019ce62a-8229-7d94-9de7-b0d222590abf","at":1773388071465000000,"seq":1008,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce62a-8229-7c5e-89bc-bf4df865c6ac","at":1773388071465000000,"seq":1009,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce62b-4790-7d93-84a4-b732a832abb9","at":1773388122000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce62b-6d97-7f83-bfb8-aeed3d8c1379","at":1773388131735000000,"seq":1011,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce62b-91c8-7fc2-abc4-50bed6be0eb6","at":1773388141000000000,"seq":1012,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce62b-95b0-770c-bd94-fb0182a8c2cf","at":1773388142000000000,"seq":1013,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce62c-2a20-739c-b192-5c3b80ffa7fd","at":1773388180000000000,"seq":1014,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce62c-352e-7858-9000-c14ea646403e","at":1773388182830000000,"seq":1015,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce62c-5900-7cfb-88ea-c8bfe75c5252","at":1773388192000000000,"seq":1016,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce62c-5ce8-7771-903a-5d6e670ac5ee","at":1773388193000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce62c-788c-72a1-ba6b-9605e8a7751d","at":1773388200076000000,"seq":1018,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce62c-83f8-70e6-b6d3-1269a2dd4f11","at":1773388203000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ce62c-8fb0-7e81-b233-a9d303be299b","at":1773388206000000000,"seq":1020,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce62c-ce30-7070-a53b-71c1c004f35e","at":1773388222000000000,"seq":1021,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce62c-f928-7cf8-a47d-7dbccf879cbd","at":1773388233000000000,"seq":1022,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce62d-047b-705d-a283-f0d1e3706fd0","at":1773388235899000000,"seq":1023,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce62d-5eb8-7920-9e14-ab5497b75585","at":1773388259000000000,"seq":1024,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce62d-6182-7131-830e-de752e71392e","at":1773388259714000000,"seq":1025,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce62d-eb58-74ee-afa0-d069daced57d","at":1773388295000000000,"seq":1026,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce644-6ed4-780b-8b5f-ece0d75a106a","at":1773389770452000000,"seq":1027,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ce644-8098-7263-beb8-be28ecf336e7","at":1773389775000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce644-9bf0-7c22-b9ff-5a59cbbd6098","at":1773389782000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce644-f949-7c12-9e6a-671cddb7482d","at":1773389805897000000,"seq":1030,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ce644-fd98-7295-9ac6-ca7c0967dcb3","at":1773389807000000000,"seq":1031,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce645-3060-7ad4-a63e-136780ef1ee4","at":1773389820000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce645-3830-71df-b9a6-d0447f3877e0","at":1773389822000000000,"seq":1033,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce655-a84d-7b08-9e96-816af9fc6a3e","at":1773390899277000000,"seq":1034,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce655-a84d-7586-b2cc-93a112b17ac9","at":1773390899277000000,"seq":1035,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce656-2050-77d6-b3e3-bf3e2dfcdb3c","at":1773390930000000000,"seq":1036,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce657-d120-75e5-95b0-1ce5302f46db","at":1773391040800000000,"seq":1037,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce657-d120-7588-9489-a0a1047f8e2a","at":1773391040800000000,"seq":1038,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce657-d9b8-75f7-bfa8-a61fe4e4e614","at":1773391043000000000,"seq":1039,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce657-e188-7460-8d3d-e9583bf83c74","at":1773391045000000000,"seq":1040,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce657-e570-7f5e-92cf-5b2dc0cdaa64","at":1773391046000000000,"seq":1041,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ce657-fce0-7044-9b11-70efb492ae5e","at":1773391052000000000,"seq":1042,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce658-04b0-779d-a6aa-eb7589d855e0","at":1773391054000000000,"seq":1043,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

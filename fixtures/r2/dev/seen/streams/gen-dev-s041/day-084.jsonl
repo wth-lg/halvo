@@ -1,0 +1,30 @@
+{"v":1,"id":"019d246d-8fac-7ebf-8f2a-63b2ec7c8952","at":1774432653228000000,"seq":1323,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d246d-8fac-7a72-bfa4-0d5cb0b29efb","at":1774432653228000000,"seq":1324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d246d-c190-7d54-8378-1b5a01ccb4b4","at":1774432666000000000,"seq":1325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d246d-c960-79a6-bfbf-ee6e07ad9c04","at":1774432668000000000,"seq":1326,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d246d-d518-76b6-8c7d-8bbf7f07bba8","at":1774432671000000000,"seq":1327,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2477-956d-7407-832d-72fbc3cc8f3f","at":1774433310061000000,"seq":1328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2477-c410-7b1e-b455-d09a284c59ca","at":1774433322000000000,"seq":1329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2477-cbe0-7228-9cb1-17110520f373","at":1774433324000000000,"seq":1330,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2485-821f-77ee-abac-00171caac583","at":1774434222623000000,"seq":1331,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2486-2764-768e-8651-5f01007b9fc7","at":1774434264932000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2486-2b90-7b0e-be5d-08e9daaf7075","at":1774434266000000000,"seq":1333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2486-52a0-769d-b2b8-9a932e0e6838","at":1774434276000000000,"seq":1334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2486-6628-7a84-ba50-829458576050","at":1774434281000000000,"seq":1335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2486-71e0-789e-a88f-e9003ba54867","at":1774434284000000000,"seq":1336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d248b-6239-7030-9d8b-b3cba5549f3d","at":1774434607673000000,"seq":1337,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d248b-ec38-7e3d-acc2-b59f48902ea5","at":1774434643000000000,"seq":1338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d248c-0f60-718f-b4cc-d9f130fbf945","at":1774434652000000000,"seq":1339,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d24a1-8ba4-72c4-947e-f654ca86779a","at":1774436060068000000,"seq":1340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d24a1-f0f0-7ae1-b09c-564619681c3d","at":1774436086000000000,"seq":1341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d24a2-1d26-7caf-9ec2-4ac93c678a37","at":1774436097318000000,"seq":1342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d24a2-2f70-76fe-9e81-a2b4ae4bf922","at":1774436102000000000,"seq":1343,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d24a2-3358-7683-bf8b-580275ec7283","at":1774436103000000000,"seq":1344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a2-ac70-7397-9dee-0b31b266e59d","at":1774436134000000000,"seq":1345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a2-b058-77a7-af7b-a4303256083a","at":1774436135000000000,"seq":1346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d24a2-b259-79a6-99fb-39218c50eb3f","at":1774436135513000000,"seq":1347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d24a2-f6a8-7194-b166-63ccd311fb7c","at":1774436153000000000,"seq":1348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d24a3-5850-73f8-8270-88cad9d16aea","at":1774436178000000000,"seq":1349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d24a3-a236-7911-80c7-c6d98046fe62","at":1774436196918000000,"seq":1350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d24a3-a670-739e-9339-77d986c60e06","at":1774436198000000000,"seq":1351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d24a4-0048-7591-8083-0a0b7bd81b46","at":1774436221000000000,"seq":1352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

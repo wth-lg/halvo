@@ -1,0 +1,20 @@
+{"v":1,"id":"019bd59b-655d-79da-a95e-f71bee2aa48f","at":1768815289693000000,"seq":274,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd59b-655d-710b-b8af-40e339a717df","at":1768815289693000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bd59b-ef48-7d88-a906-634d9b240c7d","at":1768815325000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bd59b-f330-7f3a-8635-611173508a7e","at":1768815326000000000,"seq":277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd5b6-654b-79c1-8f46-1494683b0a66","at":1768817059147000000,"seq":278,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd5b6-654b-7267-95e4-ccb88678c78a","at":1768817059147000000,"seq":279,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd5b6-8fb0-7e39-a5eb-972569ce0063","at":1768817070000000000,"seq":280,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bd5b6-9780-782d-a70a-74afb5a41658","at":1768817072000000000,"seq":281,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bd5b6-ab08-75fa-aa87-b6aa735ce8a0","at":1768817077000000000,"seq":282,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5b6-be90-75f1-a1c6-514ff0ec9a9b","at":1768817082000000000,"seq":283,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bd5bd-004d-769f-b087-0cebdeaaa5d9","at":1768817492045000000,"seq":284,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd5bd-004d-71d6-87de-447af8f1ca63","at":1768817492045000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd5bd-13a8-7a47-8297-7142beb6a7c3","at":1768817497000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5bd-5de0-78b1-b676-9608e5798148","at":1768817516000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5bd-9490-7fe9-b1dc-162717d4aa95","at":1768817530000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bd5bd-e189-7f26-bcd2-15ad28ea4605","at":1768817549705000000,"seq":289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd5bd-f250-7f85-b058-0186d0ca270c","at":1768817554000000000,"seq":290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bd5bd-fa20-7e17-840f-b591f28e8237","at":1768817556000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5be-09c0-7d46-8f83-824ed7cf7f40","at":1768817560000000000,"seq":292,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd5be-4c28-7bc3-8e95-6407f6dfe29e","at":1768817577000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

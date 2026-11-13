@@ -1,0 +1,15 @@
+{"v":1,"id":"019d489a-e2cf-74ec-a104-e62e35d02b68","at":1775039603407000000,"seq":1426,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d489a-e2cf-7643-b656-9f32b87d0c5b","at":1775039603407000000,"seq":1427,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d489b-0460-77a5-a987-6972e05e329f","at":1775039612000000000,"seq":1428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d489b-d257-74c3-874a-087e2cf4a198","at":1775039664727000000,"seq":1429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d489b-e6f0-7866-bb46-5d16dac23c57","at":1775039670000000000,"seq":1430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d489c-2570-7918-ac40-94491b7cc075","at":1775039686000000000,"seq":1431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d489c-3811-786c-a818-fbe44d601696","at":1775039690769000000,"seq":1432,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d489c-63f0-7213-993b-036237089e2c","at":1775039702000000000,"seq":1433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d489c-8355-73ec-92a2-7538f6dc65f0","at":1775039710037000000,"seq":1434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d489d-2b28-720b-b884-f4dd84c3f478","at":1775039753000000000,"seq":1435,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d48a6-e8ed-79f7-bda0-7217e417451c","at":1775040391405000000,"seq":1436,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d48a6-e8ed-7572-b0ef-fa1274407a9a","at":1775040391405000000,"seq":1437,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d48a6-f6f8-7798-bac0-4825653a04c7","at":1775040395000000000,"seq":1438,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d48a7-7bc8-7263-8609-177820502473","at":1775040429000000000,"seq":1439,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d48a7-ae90-7d7e-8b4f-81fb6c1660b2","at":1775040442000000000,"seq":1440,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

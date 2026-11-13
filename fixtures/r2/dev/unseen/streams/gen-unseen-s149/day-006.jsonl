@@ -1,0 +1,11 @@
+{"v":1,"id":"019b9284-5265-7676-8c90-79c10800ae3d","at":1767689704037000000,"seq":90,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9284-5265-712f-9a2e-1bc6b681e663","at":1767689704037000000,"seq":91,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9284-9c78-7c94-8553-700d3a716b83","at":1767689723000000000,"seq":92,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b9284-d710-7630-9d81-68703ddc3842","at":1767689738000000000,"seq":93,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b929e-5450-715d-b696-73d9d064c803","at":1767691408464000000,"seq":94,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b929e-5450-786a-a6fa-1d84e44e76a8","at":1767691408464000000,"seq":95,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b929e-6220-73fb-bc53-beb12132576c","at":1767691412000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b929e-eec0-771d-b3dd-65e5c53301d4","at":1767691448000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b929f-19b8-7173-a3a4-aa47d5cb4f75","at":1767691459000000000,"seq":98,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b929f-2d93-7d62-81c6-41c7f4af866d","at":1767691464083000000,"seq":99,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b929f-40c8-7c17-82d2-e579c3c5c4be","at":1767691469000000000,"seq":100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

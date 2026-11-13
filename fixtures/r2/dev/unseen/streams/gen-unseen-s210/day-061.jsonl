@@ -1,0 +1,32 @@
+{"v":1,"id":"019caddb-662c-7869-8e47-004964f9df58","at":1772443362860000000,"seq":785,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019caddb-662c-7a27-891d-5fbd2cd73223","at":1772443362860000000,"seq":786,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019caddc-4178-7687-8708-c4e6dd7c530a","at":1772443419000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cade6-18f2-73cf-a3af-d8129b28259f","at":1772444063986000000,"seq":788,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cade6-3070-70e8-987d-f42d70e796bd","at":1772444070000000000,"seq":789,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cade6-5780-7789-ac52-18b561f9eaea","at":1772444080000000000,"seq":790,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cade6-5b68-73f2-af61-011cea75b9b8","at":1772444081000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cade6-5f50-7d7b-b0a2-5ef8cb484114","at":1772444082000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cadf9-04a4-7e87-81cb-a8578ae988e5","at":1772445303972000000,"seq":793,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cadf9-04c0-7715-8e88-6927abf2591c","at":1772445304000000000,"seq":794,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cadf9-2bd0-7ad7-a872-a18ad492eea7","at":1772445314000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cadf9-7608-7649-96af-f619f4fcc7c6","at":1772445333000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadf9-79f0-766e-8051-a29736acd5fe","at":1772445334000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cadf9-c810-7e03-a655-1b1a6fb367d1","at":1772445354000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae03-bef5-7f08-9f50-c318565d35dc","at":1772446007029000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cae04-318b-7135-ab03-7fac30769523","at":1772446036363000000,"seq":800,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cae04-4790-706e-8554-07493950491b","at":1772446042000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cae04-8228-7d96-a479-cdbaa6887ae6","at":1772446057000000000,"seq":802,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae04-dc00-7b8e-a685-01c09f16a87c","at":1772446080000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae04-fa14-7de2-b135-c360bf58a0d0","at":1772446087700000000,"seq":804,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cae05-7840-76ad-ba4c-64b48971fce6","at":1772446120000000000,"seq":805,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cae05-7eb1-7aee-a263-3bd68ac50c06","at":1772446121649000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cae05-baa8-7db4-8709-e282c3a0891d","at":1772446137000000000,"seq":807,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cae05-baa8-7db4-a5e7-f01d5784846b","at":1772446137000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cae06-00f8-7e02-96eb-60f167b76d16","at":1772446155000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cae0f-fc7c-701b-95df-3a301bd201b6","at":1772446809212000000,"seq":810,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cae10-1700-7bc0-b49a-a7a1546233f1","at":1772446816000000000,"seq":811,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cae10-97e8-78a3-8b14-99f558ba0a16","at":1772446849000000000,"seq":812,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae10-9fc4-71ae-bb30-68cdc17712d2","at":1772446851012000000,"seq":813,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cae10-bef8-7eeb-9172-75de1f0dba49","at":1772446859000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cae10-c6c8-7d5a-9f37-4dd5f1c16b71","at":1772446861000000000,"seq":815,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cae10-de38-77ac-9a62-155dcc6422c9","at":1772446867000000000,"seq":816,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

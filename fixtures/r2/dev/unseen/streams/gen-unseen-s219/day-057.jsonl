@@ -1,0 +1,35 @@
+{"v":1,"id":"019c9932-076c-732f-9156-54c8aaa3a340","at":1772096718700000000,"seq":804,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9932-076c-734b-946c-f470c7853484","at":1772096718700000000,"seq":805,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c9932-3b60-7b5a-92ee-1d046b2be45a","at":1772096732000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9932-49d2-7ec1-a405-3197c288fa03","at":1772096735698000000,"seq":807,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c9932-56b8-7b6b-9eaa-741212abcffb","at":1772096739000000000,"seq":808,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9932-7210-78e1-a959-ee70385e8d33","at":1772096746000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9932-75f8-7017-a833-bc27bd5357bb","at":1772096747000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c9932-e0bc-7673-aa91-003a2295ef16","at":1772096774332000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c9932-f2f8-7891-8f4e-a76dbabfe760","at":1772096779000000000,"seq":812,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9933-6ff8-757c-a54b-fa5e95781786","at":1772096811000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9933-9708-7f48-8c1c-9a07b632261b","at":1772096821000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9933-d588-7ea3-8c08-26d5993cbae6","at":1772096837000000000,"seq":815,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c993d-d8d9-79f4-8982-ceaf553753cc","at":1772097493209000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c993d-ff18-72c7-aff6-461af8d98f3b","at":1772097503000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c993e-1688-731d-b428-8d3ad78afe34","at":1772097509000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c993e-4d38-7eca-9be1-9e9bbb9b2b23","at":1772097523000000000,"seq":819,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c993e-5237-7a93-b5c5-a856ca5dc87f","at":1772097524279000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c993e-5508-748d-a343-02217d3dc4ce","at":1772097525000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c993e-8fa0-7685-a168-121aaf2a893f","at":1772097540000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c993e-9770-79b7-a649-36fc146d7f42","at":1772097542000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c993e-e571-7371-96c9-0e96946bd2e1","at":1772097561969000000,"seq":824,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c993f-2fc8-7ff0-83eb-458435390d1e","at":1772097581000000000,"seq":825,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c993f-d7c0-7565-a31e-75d818a7f36a","at":1772097624000000000,"seq":826,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c993f-d994-7ba7-ad55-9cf3220d5012","at":1772097624468000000,"seq":827,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c993f-e378-7143-a70d-2a7d18d9f1ae","at":1772097627000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c993f-fed0-765b-b866-fdfa7d41d0c5","at":1772097634000000000,"seq":829,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c9940-5084-76b1-b2f1-2c749d0c8d2b","at":1772097654916000000,"seq":830,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c9940-6848-715b-bcdc-f4324e594808","at":1772097661000000000,"seq":831,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9940-7fb8-794f-90e6-94a42147f3a7","at":1772097667000000000,"seq":832,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9940-c608-7c35-91f5-bc318e4bc47e","at":1772097685000000000,"seq":833,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9941-1583-791c-8699-12f3e5ad39e3","at":1772097705347000000,"seq":834,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c9941-1bf8-76b9-8783-456c834401b1","at":1772097707000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9941-23c8-7424-b9d9-3b3b9776880b","at":1772097709000000000,"seq":836,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c9941-75d0-758d-9855-ee9c88925f8f","at":1772097730000000000,"seq":837,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9941-79b8-7fc2-aac1-34a5e2552166","at":1772097731000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

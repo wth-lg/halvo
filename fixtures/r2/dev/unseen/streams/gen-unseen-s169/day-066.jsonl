@@ -1,0 +1,18 @@
+{"v":1,"id":"019cc73b-8184-7a1f-a1c2-eed1b55e2704","at":1772869091716000000,"seq":1204,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc73b-8184-76d2-bb0f-75e7edb6f044","at":1772869091716000000,"seq":1205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cc73b-ec18-7ae0-8e5a-0cb1e031791c","at":1772869119000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc73b-f3e8-772b-b1c9-96a1938d85af","at":1772869121000000000,"seq":1207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cc73c-3e20-778d-8d4b-7ae1994f8ce4","at":1772869140000000000,"seq":1208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc73c-8025-7ff2-b981-13d26b40dc5a","at":1772869156901000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cc73c-ab80-764c-9d91-ba9526746dcd","at":1772869168000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cc742-fb3d-7cfc-a60a-dc3cae8077a1","at":1772869581629000000,"seq":1211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cc743-0098-7030-bd76-263e46df204f","at":1772869583000000000,"seq":1212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc743-7631-71a4-939d-699216449781","at":1772869613105000000,"seq":1213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cc743-8d38-740d-831b-671ebe915b70","at":1772869619000000000,"seq":1214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc743-a890-7bac-858d-b157714e4fb1","at":1772869626000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cc752-37dd-717f-98ee-0416801eaf6e","at":1772870580189000000,"seq":1216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cc752-a098-7173-91e5-56ecddef56fd","at":1772870607000000000,"seq":1217,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc752-a480-797d-999e-07bd2125c2fd","at":1772870608000000000,"seq":1218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc752-bbf0-7e7a-9533-0a638cf0d397","at":1772870614000000000,"seq":1219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cc752-cb90-71d4-9f9e-ab3a143e9523","at":1772870618000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc752-e6e8-7487-8408-1668203fcb69","at":1772870625000000000,"seq":1221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

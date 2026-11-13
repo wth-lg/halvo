@@ -1,0 +1,22 @@
+{"v":1,"id":"019d52b4-d382-754f-b3bd-14ae6614dcb5","at":1775209075586000000,"seq":1106,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52b4-d382-738e-9732-6efeb25dfde4","at":1775209075586000000,"seq":1107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d52b5-13a0-7ff0-97ad-b0a714722247","at":1775209092000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b5-6574-7b3f-ab22-53d5a24518aa","at":1775209112948000000,"seq":1109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d52b5-6d78-7bc1-9e42-8116033903f2","at":1775209115000000000,"seq":1110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d52b5-7548-7dbc-ad96-b26ec816911c","at":1775209117000000000,"seq":1111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d52b5-7548-7fb8-8d90-b2a453109f82","at":1775209117000000000,"seq":1112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d52b5-9870-7f7f-9b42-4bbff217b780","at":1775209126000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52cd-8208-75b8-9134-9dce404230bb","at":1775210693128000000,"seq":1114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d52cd-b450-7c6a-a20c-31b642abf97b","at":1775210706000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52cd-c3f0-713c-bfe8-9f319dfc245c","at":1775210710000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d52cd-d70e-796c-b22b-85bd8102425f","at":1775210714894000000,"seq":1117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d52cd-eb00-7f4c-8a64-a2f44363644d","at":1775210720000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d52ce-2980-7881-b3bc-dfc5eb7bf531","at":1775210736000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52ce-966c-7537-9864-c2e245be5209","at":1775210763884000000,"seq":1120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d52ce-a680-732d-82b1-465d4b55a238","at":1775210768000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52cf-0c10-7977-a931-431839fcb4c8","at":1775210794000000000,"seq":1122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d52cf-4491-73ad-9200-6fb928a5c8d5","at":1775210808465000000,"seq":1123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d52cf-a080-72f6-bb82-dd172452425d","at":1775210832000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d52cf-cf60-78da-a30e-219cfb800173","at":1775210844000000000,"seq":1125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52cf-e6d0-7be7-b1bd-9b781762689f","at":1775210850000000000,"seq":1126,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52cf-fe40-78b5-8719-4f78d2b9fa6f","at":1775210856000000000,"seq":1127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

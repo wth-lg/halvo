@@ -1,0 +1,15 @@
+{"v":1,"id":"019c4be2-6d74-772b-aa69-c09ad3c786aa","at":1770799656308000000,"seq":596,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4be2-6d74-72bf-a348-0705c8c6e927","at":1770799656308000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4be2-7fc8-7304-b3c4-1d0897dd04c4","at":1770799661000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c4be2-aea8-720a-8d63-6f3acb3e1fc6","at":1770799673000000000,"seq":599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4be2-b290-7638-9a15-5a9ddc26f03e","at":1770799674000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4be4-69bd-773e-a150-9a35357f89af","at":1770799786429000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c4be4-8368-7598-b2b7-1385162d7531","at":1770799793000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4be4-f0c8-7ae4-9668-d7084aefc4c9","at":1770799821000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4be5-0010-7702-b2e5-f80e2d5be785","at":1770799824912000000,"seq":604,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c4be5-2390-77dd-a7d1-9f403ffd3134","at":1770799834000000000,"seq":605,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4be5-3718-7fa6-b4fc-8f9ca86524a4","at":1770799839000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4be5-5658-7b0e-a9ee-a90586bf43a9","at":1770799847000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4be5-783d-7d46-94f2-e37fbba450a4","at":1770799855677000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c4be5-a090-75b9-858a-9a580d159382","at":1770799866000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4be5-ac48-76f2-a548-e638d9a8f28b","at":1770799869000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

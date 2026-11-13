@@ -1,0 +1,28 @@
+{"v":1,"id":"019c043f-572a-734c-b01d-d85332ddb73f","at":1769597785898000000,"seq":334,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c043f-572a-73d8-9ff6-77c598730918","at":1769597785898000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c043f-9228-77e2-a7f9-7773faa937ae","at":1769597801000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c043f-9610-7dc4-8618-9cdd37ddc4bf","at":1769597802000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c043f-ad8e-7e48-9c37-41f8a7b4cfd0","at":1769597808014000000,"seq":338,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c043f-c108-7cd7-9169-2a3416654a34","at":1769597813000000000,"seq":339,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c043f-d878-7af1-a6bd-8afb414e1b72","at":1769597819000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c0455-6873-75ee-b4db-e9f3d0ee9717","at":1769599232115000000,"seq":341,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0455-77a0-7df7-9b4b-98652240f49b","at":1769599236000000000,"seq":342,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0455-8358-75c0-94d2-ffe3525ecd98","at":1769599239000000000,"seq":343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0455-8b28-70ee-85cf-ad1c41fed031","at":1769599241000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0455-96e0-7719-8975-2dcc86bdcdd7","at":1769599244000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c0455-9ac8-7b77-b5db-6af8ae722e84","at":1769599245000000000,"seq":346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c046a-14ae-7a02-81f2-cc65ce2b9735","at":1769600586926000000,"seq":347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c046a-2498-7809-ab3d-e08db15d2945","at":1769600591000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c046a-5f30-71d0-91a5-88862fac02df","at":1769600606000000000,"seq":349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c046a-7830-7cc3-b677-4a77f8837f90","at":1769600612400000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c046a-a580-7f9e-b320-81d950f16584","at":1769600624000000000,"seq":351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c046a-a968-72c7-ac21-75b4b8ea28d8","at":1769600625000000000,"seq":352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c046b-3dd8-7ab4-8e04-d46e559df12b","at":1769600663000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c046b-3fa7-7aa5-a93c-26bfb4226793","at":1769600663463000000,"seq":354,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c046b-4d78-76b2-a738-7d89b720ab62","at":1769600667000000000,"seq":355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c046b-5548-7a93-a30a-6fa78e0f28ac","at":1769600669000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c046b-7870-7a34-af7d-0cf5ad27ab3c","at":1769600678000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c046b-87b3-75a1-a2cc-2d8c53671c62","at":1769600681907000000,"seq":358,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c046b-b308-734c-b0eb-fc55cd1e7d21","at":1769600693000000000,"seq":359,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c046b-b6f0-7e0b-ae9d-738bd9fdf1d2","at":1769600694000000000,"seq":360,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c046b-e1e8-741c-a3b5-c4c2af737a8d","at":1769600705000000000,"seq":361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019b886d-34e7-7c90-8acf-ce68ab9d84f5","at":1767520416999000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b886d-34e7-7124-a598-f76e7a30f8cd","at":1767520416999000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b886d-5040-7fb3-b293-38509ea3c0c8","at":1767520424000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b886d-6b98-76c9-874a-202a1d902a90","at":1767520431000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8881-fa49-7a24-8df9-8fd0281c779f","at":1767521778249000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019b8882-5328-70eb-9c7b-75530f286377","at":1767521801000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8882-6a98-7e8d-89ea-b56586ffad10","at":1767521807000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8882-91c2-7653-9eea-c6f33399a6b6","at":1767521817026000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019b8883-06d8-75f9-86e4-9d9be58d9da2","at":1767521847000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b8883-2b1e-7803-90c8-91be76cf15a0","at":1767521856286000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019b8883-31d0-75ca-bcb6-1aeb15c6aad6","at":1767521858000000000,"seq":10,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8884-2018-78c9-8216-1ea28d82a12b","at":1767521919000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b8884-2647-73c1-a66c-6b8424b95595","at":1767521920583000000,"seq":12,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019b8884-4b10-7c7a-a80f-e5a7edaf1b98","at":1767521930000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b8884-4ef8-775a-97b1-978fbb76765b","at":1767521931000000000,"seq":14,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8884-7dd8-76ca-882c-bf6d5830e847","at":1767521943000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b888a-ca84-77a0-bfdd-3cd1e17294b7","at":1767522355844000000,"seq":16,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b888a-ca84-7850-a9ba-46e681d5b898","at":1767522355844000000,"seq":17,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b888b-05b8-7394-ba7c-465723844879","at":1767522371000000000,"seq":18,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b888b-4050-7115-a672-d290eeb59899","at":1767522386000000000,"seq":19,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b888b-4438-790c-8ec0-64d8c6082f8d","at":1767522387000000000,"seq":20,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}

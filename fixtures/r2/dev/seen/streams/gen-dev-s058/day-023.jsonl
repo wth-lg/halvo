@@ -1,0 +1,18 @@
+{"v":1,"id":"019bea74-9c61-732f-92c4-b1b8a0dfd4a0","at":1769165069409000000,"seq":242,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea74-9c61-72f8-9597-0fbe6580509e","at":1769165069409000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bea75-7cab-7538-bd5a-4a63d25fbf6e","at":1769165126827000000,"seq":244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bea75-b408-7a4c-b8f7-4d76b65e92f7","at":1769165141000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bea75-cb78-7806-921b-6e453620853d","at":1769165147000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea75-eab8-7f68-8d37-e80f68abc302","at":1769165155000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea76-30d7-75d3-8c6b-3b030f3063cd","at":1769165172951000000,"seq":248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bea76-7f28-7901-8a97-931f723e774d","at":1769165193000000000,"seq":249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea76-d518-7764-8980-92a7117ed5f7","at":1769165215000000000,"seq":250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea76-e29d-7793-a98e-14f81f3148d5","at":1769165218461000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bea76-f840-7e25-a87a-623532dc504d","at":1769165224000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bea77-03f8-7c85-9212-a3444df36ba6","at":1769165227000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea77-1780-76aa-bd79-a297ac0afd03","at":1769165232000000000,"seq":254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea77-4278-73a7-8afc-c7fee3c1ed47","at":1769165243000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea77-c185-7434-8ecb-dfca0a516cf0","at":1769165275525000000,"seq":256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bea78-05c8-7395-98d8-7fc5586b67bf","at":1769165293000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea78-2120-7e18-9400-e9c05b18de3c","at":1769165300000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea78-53e8-7a91-9b2c-25b98ec9b750","at":1769165313000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,29 @@
+{"v":1,"id":"019beee5-6193-7de7-9dc7-55056a177b11","at":1769239568787000000,"seq":389,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019beee5-6193-7676-a97f-e73ede1a0b7a","at":1769239568787000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019beee5-d798-738e-b293-d9160e71e183","at":1769239599000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beee5-eb20-716b-8e01-bdd20ce7738b","at":1769239604000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beee5-f423-7fdb-9e8a-0aef79529867","at":1769239606307000000,"seq":393,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019beee6-0290-7aeb-afb6-30ca4eeb1d71","at":1769239610000000000,"seq":394,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019beee6-0a60-7885-a5b9-302ac3d53e25","at":1769239612000000000,"seq":395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beee6-25b8-74e5-ad2c-0ce6d2d301cc","at":1769239619000000000,"seq":396,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019beee6-3940-7354-9be1-87290674557f","at":1769239624000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beee6-3940-7a31-b2be-06cdf08b7170","at":1769239624000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019beee6-3eb8-75b4-92af-e1c6abecb755","at":1769239625400000000,"seq":399,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019beee6-de48-79a4-9719-3abe86780f67","at":1769239666248000000,"seq":400,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019beee6-e908-7867-898d-4aed0399782e","at":1769239669000000000,"seq":401,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019beee6-ecf0-77b9-bb48-4b9c766d5b97","at":1769239670000000000,"seq":402,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019beee6-fc90-71a0-a9d2-7861d94b8e13","at":1769239674000000000,"seq":403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beeec-3462-75b0-8a6a-65dc7cc65927","at":1769240015970000000,"seq":404,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019beeec-ad98-7f6c-8b50-5e507a41a101","at":1769240047000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019beeec-da34-7221-bd3a-1e784a40ac12","at":1769240058420000000,"seq":406,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019beeed-0f40-72ff-aa7a-10c6be3d68b7","at":1769240072000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beeed-5590-7cbc-8def-eb28795daea8","at":1769240090000000000,"seq":408,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019beeed-6918-7d77-83c6-ab93ac42d4cd","at":1769240095000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef1-99e1-70b1-bcef-f802348ca66d","at":1769240369633000000,"seq":410,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019beef2-7610-7920-8ac1-7c0eefe7f1e4","at":1769240426000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019beef8-6651-741b-8c2a-f873fd318946","at":1769240815185000000,"seq":412,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019beef8-6651-7a67-a8eb-7a65acd5089f","at":1769240815185000000,"seq":413,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019beef8-7150-7252-907b-d23bb5f9bda1","at":1769240818000000000,"seq":414,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019beef8-7538-717f-be21-f531835d6d8f","at":1769240819000000000,"seq":415,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019beef8-a418-7568-8ec5-fb2a94efc650","at":1769240831000000000,"seq":416,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef8-afd0-7fce-8702-28cae8b1a3b7","at":1769240834000000000,"seq":417,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

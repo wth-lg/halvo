@@ -1,0 +1,24 @@
+{"v":1,"id":"019c7fb1-8ae0-7e3e-9311-9cc66013c2d8","at":1771668867808000000,"seq":693,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7fb1-8ae0-7b8d-a978-9b28d074d542","at":1771668867808000000,"seq":694,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7fb1-c638-76f5-9682-bc0e058405c2","at":1771668883000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fb1-ed48-7172-a725-9e1e6f53cb82","at":1771668893000000000,"seq":696,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7fb2-71a7-7282-8a46-37afd6a26d8a","at":1771668926887000000,"seq":697,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7fb2-85a0-7d6c-9aa1-c219374f4b0b","at":1771668932000000000,"seq":698,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7fb2-9d10-72a9-a830-40ea72ab545b","at":1771668938000000000,"seq":699,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7fb2-bc50-787c-857f-2937fba08f5b","at":1771668946000000000,"seq":700,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fb2-bc50-7e3b-8bf0-9aeb5d53b5e6","at":1771668946000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c7fb2-cfd8-7e00-b5ec-474790a7497e","at":1771668951000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fc2-9242-7239-a3ae-b23bd91de0bc","at":1771669983810000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c7fc3-0830-7bed-8fe7-03f29a775793","at":1771670014000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c7fc3-3514-7276-9461-ff12f8edd451","at":1771670025492000000,"seq":705,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c7fc3-46b0-7b77-b9b2-760645fe8f60","at":1771670030000000000,"seq":706,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7fc3-65f0-761f-820e-d1b02e765b40","at":1771670038000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fc3-71a8-72c6-9171-c47b42c35dc4","at":1771670041000000000,"seq":708,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7fc3-72b6-7f1a-a640-ab56bd93aacb","at":1771670041270000000,"seq":709,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c7fc3-e6d8-7d64-b2d0-3eb18f1f2d93","at":1771670071000000000,"seq":710,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7fc4-3110-7329-819b-869f97c8b0fe","at":1771670090000000000,"seq":711,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fc4-38e0-7c0c-b7b6-7a682a549734","at":1771670092000000000,"seq":712,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fc4-4dcf-788f-9a9d-2c5d83a637c3","at":1771670097359000000,"seq":713,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c7fc4-63d8-7277-b242-32e748939a59","at":1771670103000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c7fc4-6ba8-73d6-887b-b2264a3a1a4f","at":1771670105000000000,"seq":715,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7fc4-ae10-7cf5-8e36-95c4192f616a","at":1771670122000000000,"seq":716,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,34 @@
+{"v":1,"id":"019bb1a3-c020-7812-8108-fada8109e6f4","at":1768211857440000000,"seq":156,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1a3-c020-7d6a-9f0b-6681b6f8f561","at":1768211857440000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a4-08a0-7ed7-83ed-a9fe051d8a86","at":1768211876000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a4-4ef0-7d67-85ef-f955c3ca88a6","at":1768211894000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bb1a9-5425-7cce-9859-f1319d7abd0a","at":1768212223013000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1aa-1768-7fe3-9c48-dacffcdac966","at":1768212273000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1aa-3783-78d6-aa0e-370fc097fc7a","at":1768212281219000000,"seq":162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1aa-5200-7663-ac13-ad904b065f48","at":1768212288000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1aa-c756-7e57-9bbe-adb6c5c93fe1","at":1768212318038000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1aa-f610-73cb-aee3-b8d692d10be3","at":1768212330000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bb1ab-4430-7c1b-aa93-07993399346f","at":1768212350000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1ab-5f88-72d2-af5a-0ce02079824f","at":1768212357000000000,"seq":167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb1ab-7310-71c0-b189-adc8233dd157","at":1768212362000000000,"seq":168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb1ab-b789-732f-8f53-a88ee83da39c","at":1768212379529000000,"seq":169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1ab-b960-7e18-a691-c52c7b28c96c","at":1768212380000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb1ab-bd48-7467-be5d-83d0f3f77b7f","at":1768212381000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bb1ab-c130-7074-ae37-f385b4f69edf","at":1768212382000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1ab-e840-7b4c-89c7-d4070a2eace6","at":1768212392000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1ac-0780-7486-bd63-5ea2be801e07","at":1768212400000000000,"seq":174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb1be-679e-7f32-9a39-db07b238c70b","at":1768213604254000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bb1be-9d50-762d-ae5a-a972e3ff69bf","at":1768213618000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1be-a908-7e85-aea7-52e83958de6e","at":1768213621000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bb1be-aaab-7561-b6c3-b44255e3050f","at":1768213621419000000,"seq":178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bb1be-ef58-7451-a0ec-063d2477a591","at":1768213639000000000,"seq":179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb1bf-06c8-7533-a458-339d90cc00d6","at":1768213645000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1bf-0e08-7b3e-ae87-7cd3c6abdbba","at":1768213646856000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bb1bf-1a50-76b6-8920-cd2144a22451","at":1768213650000000000,"seq":182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb1bf-4930-71b2-a105-26ab70777acd","at":1768213662000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1bf-7040-7231-b0f3-5278570b5644","at":1768213672000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bb1bf-83c8-79e4-8905-a9852f6e04d6","at":1768213677000000000,"seq":185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb1bf-84b2-7d62-8cce-d8bf3a5b9cf2","at":1768213677234000000,"seq":186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bb1bf-9b38-76b9-ab59-0a4760e80f28","at":1768213683000000000,"seq":187,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb1c0-3390-7ce3-8b86-f1b7449d11e0","at":1768213722000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bb1c0-6e28-7ded-872e-4bd91b129a84","at":1768213737000000000,"seq":189,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

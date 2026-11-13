@@ -1,0 +1,42 @@
+{"v":1,"id":"019d2948-6636-7d60-864a-a2fb34f786f4","at":1774514103862000000,"seq":1230,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2948-6636-711a-a203-00f0dbd7612c","at":1774514103862000000,"seq":1231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2948-7278-760f-8c97-0d24bc6d5c1d","at":1774514107000000000,"seq":1232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d2948-89e8-7b50-9d42-fbac7d2f396e","at":1774514113000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2949-1a21-7061-aff8-ad065cc3c062","at":1774514149921000000,"seq":1234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2949-39b0-73e3-9d48-092b75638a71","at":1774514158000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d2949-58f0-77b4-8f81-1e222ffcec5f","at":1774514166000000000,"seq":1236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2949-5cd8-7213-95a2-864ff9a7a766","at":1774514167000000000,"seq":1237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2949-ca65-7bb7-a15f-96029b31e26c","at":1774514195045000000,"seq":1238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2949-e1a8-7ffd-af72-00ceffcc5829","at":1774514201000000000,"seq":1239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2949-ed60-7c5c-89d8-c6e7b0454220","at":1774514204000000000,"seq":1240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2949-f918-748a-abfa-8ac7e64a8ab5","at":1774514207000000000,"seq":1241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d294a-52f0-7ecb-863c-0954bab3311e","at":1774514230000000000,"seq":1242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d294a-6787-7067-a08f-0dc1488447b4","at":1774514235271000000,"seq":1243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d294a-c438-7209-a883-37916f8b1cdf","at":1774514259000000000,"seq":1244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d294a-fed0-7997-af7c-09d9416ab8a8","at":1774514274000000000,"seq":1245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d294b-1a28-7abe-b94e-9990f88879db","at":1774514281000000000,"seq":1246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d294b-25e0-79bc-a1fd-15ac7412a9f4","at":1774514284000000000,"seq":1247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d294b-380c-724a-ad34-09d97339f21b","at":1774514288652000000,"seq":1248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d294b-4908-728a-b5f4-91e27b9e7e75","at":1774514293000000000,"seq":1249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d294b-6c30-71ff-a8d0-e0fbcfb33ea7","at":1774514302000000000,"seq":1250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d294b-77e8-715b-a77b-ebc70f744155","at":1774514305000000000,"seq":1251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d294b-7fb8-740c-a379-7639e301dac6","at":1774514307000000000,"seq":1252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d294b-8fdb-75de-a0a2-4c813e06e3f5","at":1774514311131000000,"seq":1253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d294b-9728-7d1a-a16d-d731cd1d52bb","at":1774514313000000000,"seq":1254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d294b-aab0-7f27-89fd-a9a71a4658ea","at":1774514318000000000,"seq":1255,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d295b-37b2-7087-9d37-e3f3f98cd1b3","at":1774515337138000000,"seq":1256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d295b-46c8-7d2d-b432-e34978730102","at":1774515341000000000,"seq":1257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d295b-c42e-76ac-bb4a-bd31a02f6012","at":1774515373102000000,"seq":1258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d295b-d750-7814-9921-24af981dab1c","at":1774515378000000000,"seq":1259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d295c-0248-77b2-b363-2b1c19419ca1","at":1774515389000000000,"seq":1260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d295c-b723-785a-b686-7239ce1110b6","at":1774515435299000000,"seq":1261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d295c-bdc8-7fc8-abc3-ecb4b82cfa20","at":1774515437000000000,"seq":1262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d295c-d150-7f59-a739-a3448c64d7b3","at":1774515442000000000,"seq":1263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d295c-f860-782f-bf48-eac6422a1aba","at":1774515452000000000,"seq":1264,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d295d-0418-73da-8f35-9a3558a98925","at":1774515455000000000,"seq":1265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d295d-2b28-73d4-a0b2-c1668ebab20d","at":1774515465000000000,"seq":1266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d295d-57b4-707c-9a1e-b6fd12d69f34","at":1774515476404000000,"seq":1267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d295d-e2c0-71f4-af3c-8952afad51a6","at":1774515512000000000,"seq":1268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d295d-f260-7c8a-ab4f-38939a409c7c","at":1774515516000000000,"seq":1269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d295e-4080-7d61-b4a5-78f92314d6c8","at":1774515536000000000,"seq":1270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d295e-5020-798d-afc3-378f29730174","at":1774515540000000000,"seq":1271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

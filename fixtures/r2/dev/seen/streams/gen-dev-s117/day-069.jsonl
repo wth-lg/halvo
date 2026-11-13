@@ -1,0 +1,9 @@
+{"v":1,"id":"019cd6e1-581a-7679-b60e-baf537e779b5","at":1773131618330000000,"seq":972,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6e1-581a-754c-be93-1935195eb9d5","at":1773131618330000000,"seq":973,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e2-3cbb-70ec-87c1-9cf75759a357","at":1773131676859000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e2-e158-77f6-9198-885321e4dfcb","at":1773131719000000000,"seq":975,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd6e2-fcb0-7ff2-9482-ebf7615c63a0","at":1773131726000000000,"seq":976,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd6f3-c010-76a0-8682-a67c0b3853aa","at":1773132824592000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f3-cd60-7776-ba71-f3b96c8fa5b2","at":1773132828000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f3-e4d0-78d4-b56a-5d13b066b83f","at":1773132834000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd6f3-e4d0-7db6-ba4d-f71311bdc1af","at":1773132834000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

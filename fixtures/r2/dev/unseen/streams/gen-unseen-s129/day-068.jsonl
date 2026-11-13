@@ -1,0 +1,35 @@
+{"v":1,"id":"019cd190-3a94-7fbd-8852-ce709f504417","at":1773042416276000000,"seq":723,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd190-3a94-7c39-b970-aa594778bd25","at":1773042416276000000,"seq":724,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd190-b5f0-7a8c-b5d7-3b1d639fc7f4","at":1773042447856000000,"seq":725,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cd190-d1d8-7832-b1d7-2960faec8dae","at":1773042455000000000,"seq":726,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd191-00b8-7163-934c-bf9a6371ea5c","at":1773042467000000000,"seq":727,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cd193-a330-7f68-a983-9f9c412bb39a","at":1773042639664000000,"seq":728,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd193-a330-7912-9fea-3233b41a66fe","at":1773042639664000000,"seq":729,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cd193-cf78-7469-bd5d-84a2733cf1de","at":1773042651000000000,"seq":730,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cd193-df18-7168-9a6e-206cf0fd780c","at":1773042655000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd193-e27d-79c6-9b08-66459e48afa1","at":1773042655869000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cd194-0628-7a57-af7d-82c20f4af2be","at":1773042665000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd194-5c18-73c2-9100-6a47cbfdff15","at":1773042687000000000,"seq":734,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd194-d148-7be6-ba35-bf3db002c4c9","at":1773042717000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd194-d492-77f5-9085-123d292cd50b","at":1773042717842000000,"seq":736,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cd195-3ea8-7cf7-92b3-34dbeb478fff","at":1773042745000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd195-4e48-79ca-9baa-c13d80b6edd1","at":1773042749000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd195-abdc-7a9e-958c-93dc916f276a","at":1773042772956000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cd195-bf90-7e2d-9953-d28e78264c0e","at":1773042778000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd195-c378-705a-a9f9-8af4ac1066c4","at":1773042779000000000,"seq":741,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd195-cb48-7a4b-9de0-bf1970b0620e","at":1773042781000000000,"seq":742,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd195-cf30-7d12-8089-9d5e304fc28d","at":1773042782000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd1ad-774e-7397-9e9c-1723deccce2e","at":1773044332366000000,"seq":744,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cd1ad-8d50-7d9e-aa0a-bb5d68073276","at":1773044338000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ad-bc7e-7e4f-8589-ceaae3292c3c","at":1773044350078000000,"seq":746,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cd1ad-cfb8-797e-9838-eab8bc041764","at":1773044355000000000,"seq":747,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd1ae-0a50-7bdf-84de-decec7913bee","at":1773044370000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ae-0bc7-7252-9b1e-449e3ea74756","at":1773044370375000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cd1ae-21c0-7ac9-bf96-162233e01cf0","at":1773044376000000000,"seq":750,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd1ae-2d78-7fe1-886c-2f1a152151f2","at":1773044379000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cd1ae-8b38-7636-bfcb-9c4e770f2ab8","at":1773044403000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ae-e128-7f8c-ab72-83a261196ec4","at":1773044425000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ae-f112-79ff-a128-687673f302f1","at":1773044429074000000,"seq":754,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cd1af-42d0-736b-bed3-46f430376359","at":1773044450000000000,"seq":755,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1af-8150-7b2e-9916-5e0bd4eae6ac","at":1773044466000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1af-a090-7d2f-9962-8ae6f5914e4e","at":1773044474000000000,"seq":757,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

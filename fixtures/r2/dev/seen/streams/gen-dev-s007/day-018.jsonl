@@ -1,0 +1,20 @@
+{"v":1,"id":"019bd092-9e0b-7bc5-9b47-b4db3a5e6529","at":1768730828299000000,"seq":218,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd092-9e0b-72ea-8d2b-0faa9571e862","at":1768730828299000000,"seq":219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bd093-15f8-7f98-aa77-3f41b838e427","at":1768730859000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd093-51c0-74a1-9125-1c79d9bbc8f7","at":1768730874304000000,"seq":221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bd093-6030-7eb7-b18c-e036bc784571","at":1768730878000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd093-ba08-7e6f-89e3-806e604e3126","at":1768730901000000000,"seq":223,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd093-c1d8-76fc-bdaf-d79509a561db","at":1768730903000000000,"seq":224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd093-f0b8-718e-b81e-1846ef183e99","at":1768730915000000000,"seq":225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd09e-0cb2-7df9-9af9-b699627356f0","at":1768731577522000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd09e-4158-72c2-a345-18fe7fda921b","at":1768731591000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd09e-4928-701a-8083-e19bbfd0df04","at":1768731593000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bd09e-6480-7381-bfa1-cf92c4497871","at":1768731600000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd09e-6c50-73a0-b712-f3d2d27b2717","at":1768731602000000000,"seq":230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd0a3-04b4-71df-a342-d610c22cda95","at":1768731903156000000,"seq":231,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd0a3-04b4-74d5-ad1a-4d2898d6cf83","at":1768731903156000000,"seq":232,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd0a3-2358-730d-a099-a152f4a88a27","at":1768731911000000000,"seq":233,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0a3-2740-7cbd-81bc-d5bf9d524fd1","at":1768731912000000000,"seq":234,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bd0a3-3ac8-7026-baf9-3a16fdfe6009","at":1768731917000000000,"seq":235,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bd0a3-4298-7178-bc94-4824968807f2","at":1768731919000000000,"seq":236,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0a3-5a08-7207-95bc-b95de661f11c","at":1768731925000000000,"seq":237,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}

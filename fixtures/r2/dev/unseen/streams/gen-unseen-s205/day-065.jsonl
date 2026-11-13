@@ -1,0 +1,13 @@
+{"v":1,"id":"019cc24f-adb7-7710-9a29-f6ec427bb807","at":1772786527671000000,"seq":929,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cc24f-adb7-7bcb-9b08-c796e53d6024","at":1772786527671000000,"seq":930,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cc267-dbc8-7e7d-85c8-8189d15e62d5","at":1772788112328000000,"seq":931,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cc267-e250-7b11-85b4-0cf03f357cca","at":1772788114000000000,"seq":932,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc267-ea20-76e2-9c02-862fa3e1aec8","at":1772788116000000000,"seq":933,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cc268-28a0-77e5-bca6-097f90701c59","at":1772788132000000000,"seq":934,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cc272-2c4d-7ac5-8721-18ac77277a06","at":1772788788301000000,"seq":935,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cc272-5a00-76ad-b74f-6180cf5e3cfe","at":1772788800000000000,"seq":936,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cc272-5de8-7040-94ca-41bba2e153b9","at":1772788801000000000,"seq":937,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cc272-6d88-7718-a5b4-bd8da8c546f1","at":1772788805000000000,"seq":938,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cc272-7170-720c-85d4-1c5e9c1d34bf","at":1772788806000000000,"seq":939,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc28a-17ad-72f6-9625-2cb6972dd50d","at":1772790355885000000,"seq":940,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cc28a-4318-7779-8ca6-954268b96819","at":1772790367000000000,"seq":941,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}

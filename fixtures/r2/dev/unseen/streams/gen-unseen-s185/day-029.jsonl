@@ -1,0 +1,31 @@
+{"v":1,"id":"019c08c2-dc6d-71b5-9565-290f2deb15dc","at":1769673514093000000,"seq":362,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08c2-dc6d-733b-8fdb-1eba46599803","at":1769673514093000000,"seq":363,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c08c3-0320-7d6e-9252-91ae6e158a27","at":1769673524000000000,"seq":364,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08c3-0af0-7ca6-8207-246688615ef9","at":1769673526000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c3-7c38-7963-a865-855e0919c3a1","at":1769673555000000000,"seq":366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c3-a6b7-784d-b4f4-be408b9a4f89","at":1769673565879000000,"seq":367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c08c3-c670-7c10-9acc-d0c8cda84a44","at":1769673574000000000,"seq":368,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08c4-08d8-78c5-8fd5-a86c0692ff0d","at":1769673591000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c08c4-3f88-740a-82e2-486f71ae8948","at":1769673605000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d4-4f81-7f40-82b9-dc65bd88f750","at":1769674657665000000,"seq":371,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c08d4-4f81-7e15-9e22-de6e4d318d0a","at":1769674657665000000,"seq":372,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c08d4-6458-7498-b586-c58c47670f35","at":1769674663000000000,"seq":373,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c08e2-8fa5-75a8-bb1b-271706109811","at":1769675591589000000,"seq":374,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08e2-8fa5-786e-83cc-f4b65a7d3fca","at":1769675591589000000,"seq":375,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c08e2-9910-7bf7-903f-1cb20ead290b","at":1769675594000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e2-c7e0-7e68-8e0e-f8cf10217bed","at":1769675605984000000,"seq":377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c08e2-cfc0-7c5f-910c-6d923df9efb6","at":1769675608000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e2-e348-757b-88fd-c2bffe45e0f5","at":1769675613000000000,"seq":379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08e2-e730-7778-8e4e-11ace2790af7","at":1769675614000000000,"seq":380,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08e2-fea0-7392-9026-1660e7991e16","at":1769675620000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e3-0002-7f5a-9fa4-78f49e36618e","at":1769675620354000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c08e4-08ca-7c9f-8fbd-a0a7c0766aff","at":1769675688138000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c08e4-13f8-7ac1-b11c-6ea8731a3b32","at":1769675691000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e4-1bc8-7952-a64e-2c354de2166b","at":1769675693000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c08e4-9cb0-72f6-97e1-4c7da88c7b67","at":1769675726000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c08e4-ac50-7933-a1c1-41d3b5c9967d","at":1769675730000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e4-b9f0-7716-a0e8-03b16ddd8630","at":1769675733488000000,"seq":388,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c08e4-c3c0-7dd9-bea9-e9ad9ba9b3ac","at":1769675736000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e4-db30-73ff-9b42-da651abe4298","at":1769675742000000000,"seq":390,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08e5-09af-78f1-bcfe-5be2e7aba6cf","at":1769675753903000000,"seq":391,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c08e5-d148-7ec0-97d2-08c94dd1f8ad","at":1769675805000000000,"seq":392,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

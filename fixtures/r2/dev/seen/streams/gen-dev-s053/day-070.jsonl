@@ -1,0 +1,41 @@
+{"v":1,"id":"019cdc0b-e12a-7b05-8c8f-33a8cf9cde6b","at":1773218292010000000,"seq":1103,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc0b-e12a-7782-add5-147a7a95aaa7","at":1773218292010000000,"seq":1104,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc0b-f0c0-7ce1-bdcb-bc238eb3ca7a","at":1773218296000000000,"seq":1105,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cdc0c-13e8-7fea-a03b-9a1174a365aa","at":1773218305000000000,"seq":1106,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cdc0c-2b58-763c-b555-cc2117cfb15f","at":1773218311000000000,"seq":1107,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cdc0c-3710-7240-80f3-2af11ec1bbdd","at":1773218314000000000,"seq":1108,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc0c-5a38-7527-aca7-597fe9df761f","at":1773218323000000000,"seq":1109,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc12-0864-7731-ba71-52b075f89484","at":1773218695268000000,"seq":1110,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc12-0864-7a52-b15f-35b58b84d203","at":1773218695268000000,"seq":1111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cdc12-5578-7cef-b112-85e0e95d0228","at":1773218715000000000,"seq":1112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdc12-70d0-7a46-a1e7-c2b6d3afc1ec","at":1773218722000000000,"seq":1113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc20-eae1-7636-a618-ce51a1f813bf","at":1773219670753000000,"seq":1114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cdc21-12e8-7cf8-8f3c-a0fededc7142","at":1773219681000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cdc21-8fe8-7eca-b7e0-595919dd9d31","at":1773219713000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc21-93d0-7d65-a6e1-7d6fab9c207d","at":1773219714000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc21-a403-75f6-97c8-44f9a7063bc6","at":1773219718147000000,"seq":1118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cdc21-f578-7ef2-a64a-579b37aadfec","at":1773219739000000000,"seq":1119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdc22-10d0-7dfc-8bba-295182a8577b","at":1773219746000000000,"seq":1120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cdc25-4b67-738d-97ca-c98634192b71","at":1773219957607000000,"seq":1121,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc25-4b67-79be-8aed-c6535045d434","at":1773219957607000000,"seq":1122,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc25-50d8-72ae-b632-90530835a6ed","at":1773219959000000000,"seq":1123,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdc25-7400-7911-836b-edf17c7e322d","at":1773219968000000000,"seq":1124,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cdc25-8788-7966-a811-fefd646ab45f","at":1773219973000000000,"seq":1125,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc25-8f58-765e-9795-ad8140092d98","at":1773219975000000000,"seq":1126,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cdc27-96a5-7c9f-a871-d19374006f39","at":1773220107941000000,"seq":1127,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc27-96a5-7474-bf41-1cee2b0114f9","at":1773220107941000000,"seq":1128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cdc27-c9a8-76a3-9f30-1ed1807f24db","at":1773220121000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc28-2380-70cf-8f8c-97f1ee78803a","at":1773220144000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc28-35bc-7790-8d22-3db72ea6341b","at":1773220148668000000,"seq":1131,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cdc28-3af0-71e1-9e3a-c304696684ca","at":1773220150000000000,"seq":1132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc28-42c0-71d4-bdf3-19c8436e661c","at":1773220152000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc28-5a30-7108-a423-d2dcf9e5a3c3","at":1773220158000000000,"seq":1134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc28-71a0-7877-b783-4e86d4b4c9d8","at":1773220164000000000,"seq":1135,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc28-ac38-7988-8e91-ddb937615d78","at":1773220179000000000,"seq":1136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cdc28-c07c-74a3-8dbe-9eaa25ead0bb","at":1773220184188000000,"seq":1137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cdc29-4c60-79c2-a548-54bb01d841ae","at":1773220220000000000,"seq":1138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc29-5048-747b-985d-555a43d5c671","at":1773220221000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc29-7370-71c4-b28e-e33ae5db14d7","at":1773220230000000000,"seq":1140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc29-beaf-7937-9d34-8a853cbb0313","at":1773220249263000000,"seq":1141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cdc29-f070-7f21-b43a-aec2c9175a30","at":1773220262000000000,"seq":1142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cdc2a-2ef0-7789-8e92-3eabcd42f88a","at":1773220278000000000,"seq":1143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

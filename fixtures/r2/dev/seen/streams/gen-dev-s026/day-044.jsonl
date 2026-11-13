@@ -1,0 +1,19 @@
+{"v":1,"id":"019c55d6-09ba-7677-b2ab-d3364888ef4c","at":1770966616506000000,"seq":496,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c55d6-09ba-74c7-b908-01e8d436c0d2","at":1770966616506000000,"seq":497,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c55d6-59c8-735c-b1c7-af1b42768e3e","at":1770966637000000000,"seq":498,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c55d6-7cf0-76f7-b686-d7f45ceddaca","at":1770966646000000000,"seq":499,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ec-8d23-724b-becc-714358232342","at":1770968091939000000,"seq":500,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c55ec-8d23-70bd-a6a7-236f68b0e7d9","at":1770968091939000000,"seq":501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c55ec-df68-7706-999f-aa5b052a0fe6","at":1770968113000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ec-df68-7051-8306-5e7401b6204e","at":1770968113000000000,"seq":503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c55ed-0e48-7f83-afe2-a3ca0d33c39a","at":1770968125000000000,"seq":504,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55fd-50ed-7425-b929-e69799b1e52a","at":1770969190637000000,"seq":505,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c55fd-a460-7ed5-84e9-59a24fb4e1d9","at":1770969212000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55fd-bbd0-7b7c-b3eb-a872ae11d233","at":1770969218000000000,"seq":507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55fd-dba9-72a8-ab51-42ed07838edf","at":1770969226153000000,"seq":508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c55fe-1990-78fe-b662-48f13d00e7da","at":1770969242000000000,"seq":509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55fe-4c58-7dd2-96e7-76b6009dbf9f","at":1770969255000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55fe-bc7a-71a9-87a4-6b5c2876b25d","at":1770969283706000000,"seq":511,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c55fe-d510-70f6-984d-514ea8c2ba3a","at":1770969290000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c55fe-dce0-7e79-9d7a-3fa6b2fe3541","at":1770969292000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ff-0bc0-7ce1-b793-8a98601ef734","at":1770969304000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

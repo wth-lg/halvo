@@ -1,0 +1,34 @@
+{"v":1,"id":"019b926f-aadc-7774-82e5-5f06b198661e","at":1767688350428000000,"seq":62,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b926f-aadc-7830-a9ae-d9b80ed2a2c1","at":1767688350428000000,"seq":63,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b926f-bcb8-7212-92ff-4661a28f5558","at":1767688355000000000,"seq":64,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b926f-c0a0-7ad1-a205-da4ad7225691","at":1767688356000000000,"seq":65,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9270-4958-71d9-9ede-2f8f517d34a4","at":1767688391000000000,"seq":66,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9270-6c80-73c1-ba03-19a4d85fac0b","at":1767688400000000000,"seq":67,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b9278-c900-7d44-9e28-4b9dae75adc4","at":1767688947968000000,"seq":68,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b9279-1f10-7d97-9a6b-8d7d31a6e06c","at":1767688970000000000,"seq":69,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9279-a256-78ee-b961-6e453e125ddd","at":1767689003606000000,"seq":70,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b9279-caf0-7541-bf0f-28fe7172cf5a","at":1767689014000000000,"seq":71,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9279-de78-76b6-a409-81290886b22e","at":1767689019000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b9279-e648-734e-a876-8cb2466d9c63","at":1767689021000000000,"seq":73,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b927a-01a0-75a0-b863-2f188a82cc33","at":1767689028000000000,"seq":74,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b928d-74e0-7618-85a0-1ae1294f0cf5","at":1767690302688000000,"seq":75,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b928d-74e0-7edb-91a8-1474fd40f6da","at":1767690302688000000,"seq":76,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b928d-9170-7c55-b154-b9003ce77810","at":1767690310000000000,"seq":77,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b928d-b498-7736-b949-53dbb557bb56","at":1767690319000000000,"seq":78,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b928d-c820-786c-b2cc-34471db2e8ce","at":1767690324000000000,"seq":79,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b9298-2d65-7320-b16e-05ab27fc51c8","at":1767691005285000000,"seq":80,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9298-2d65-7e05-936f-131ac9a8bebc","at":1767691005285000000,"seq":81,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9298-4f70-79c1-bd1c-672e9d5d7ec9","at":1767691014000000000,"seq":82,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9298-66e0-7686-b22f-1e0058532587","at":1767691020000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b9298-7298-7b9d-9e2c-e30a3ba43e13","at":1767691023000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9298-b001-7e5d-8f50-ccd6f1d89daf","at":1767691038721000000,"seq":85,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9298-d828-7499-b54a-2b793858763e","at":1767691049000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9298-f380-7f60-8a85-5e8e49eb4ee9","at":1767691056000000000,"seq":87,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9299-0af0-7ce9-9d98-7789ce0afaad","at":1767691062000000000,"seq":88,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92b1-f968-7afb-b61f-3aceb469af1d","at":1767692695912000000,"seq":89,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b92b2-2c88-78cf-b4a3-460d5cb4d16d","at":1767692709000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92c5-7c29-75fc-ad70-e055de065c2d","at":1767693974569000000,"seq":91,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b92c5-d7b0-703a-bede-6bd2cf0dbca1","at":1767693998000000000,"seq":92,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b92c5-f308-7ec8-acc0-efef6554922d","at":1767694005000000000,"seq":93,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b92c6-0ee9-78ac-88f1-21802a771791","at":1767694012137000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b92c6-3570-71dd-8f80-0e359cea707e","at":1767694022000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

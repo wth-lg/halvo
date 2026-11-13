@@ -1,0 +1,20 @@
+{"v":1,"id":"019cc28f-ded5-7a8a-9f9f-8aebf93e6675","at":1772790734549000000,"seq":779,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc28f-ded5-7d26-995a-281155182cc6","at":1772790734549000000,"seq":780,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc28f-f808-7944-8a04-5c35c0ff79b9","at":1772790741000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cc290-4f01-7f3e-a627-04818749bd43","at":1772790763265000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc290-a7d0-729c-8eb1-0a98cb6f4f4f","at":1772790786000000000,"seq":783,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc291-0590-7464-81e6-a10eb6cac206","at":1772790810000000000,"seq":784,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc291-24d0-7339-b590-b4c15be5bdf5","at":1772790818000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cc291-38dd-799b-b6ee-997fb9579afd","at":1772790823133000000,"seq":786,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc292-0f30-7bfa-8a62-1fc39ee0be2c","at":1772790878000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc292-2b28-78dd-9542-4e816dab19f0","at":1772790885160000000,"seq":788,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cc292-49c8-796c-b9b1-8adb5304ee7f","at":1772790893000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc292-5198-78a9-b4b1-b39e1021f19b","at":1772790895000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc298-ad3d-744d-89e5-472250bf9fa3","at":1772791311677000000,"seq":791,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cc298-dd60-7bd2-b8e4-544c32da082d","at":1772791324000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc299-9110-72d3-859c-ff6c7bdb097a","at":1772791370000000000,"seq":793,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc29f-6a12-7cb5-b948-0c5f25ee45d9","at":1772791753234000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cc29f-8098-7105-ac55-76a407b004ed","at":1772791759000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cc2a0-0950-7c30-9c53-2d9948208be0","at":1772791794000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2a0-3448-705d-908f-6f8eda81c337","at":1772791805000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2a0-4fa0-7130-815c-57bd29ad8367","at":1772791812000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

@@ -1,0 +1,15 @@
+{"v":1,"id":"019be4bd-bab5-7073-8fd6-04c08f6e57db","at":1769069198005000000,"seq":278,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be4bd-bab5-7a2a-a356-e958ff5ceda9","at":1769069198005000000,"seq":279,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be4bd-d9f0-7b1e-a384-0f0ccbf305dd","at":1769069206000000000,"seq":280,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4bd-f930-7747-9944-dbc87688a64a","at":1769069214000000000,"seq":281,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4be-2bf8-7259-9cd3-fff00a395921","at":1769069227000000000,"seq":282,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019be4be-4f20-7241-b62b-334fdfa39741","at":1769069236000000000,"seq":283,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019be4d3-0027-7cf9-86c4-c308cde1fcda","at":1769070592039000000,"seq":284,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be4d3-0027-78b1-8ed2-5b8769757fa0","at":1769070592039000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019be4d3-3e80-77d4-8665-09c279bcac22","at":1769070608000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019be4d3-55f0-7b55-bc39-e078e53d756d","at":1769070614000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d3-611e-724f-b089-852739d6814d","at":1769070616862000000,"seq":288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019be4d3-8ca0-78b6-b693-517d0b444885","at":1769070628000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d3-c350-73eb-8ede-2591c6855dbb","at":1769070642000000000,"seq":290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4d3-e290-7873-a139-2b03780ba176","at":1769070650000000000,"seq":291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be4d3-e678-7b7b-9b78-6167adee9d7a","at":1769070651000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,7 @@
+{"v":1,"id":"019c2d16-f4ed-7aef-aed3-037267720d61","at":1770283005165000000,"seq":509,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d16-f4ed-78ac-af7a-4762af34b312","at":1770283005165000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c2d17-7148-79cb-afc5-1d134f387b34","at":1770283037000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c2d17-aa52-7726-9760-f02924aae667","at":1770283051602000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c2d17-bb80-7709-9d94-72f745a53d94","at":1770283056000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c2d17-c350-7470-8499-a79858715980","at":1770283058000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d17-c738-75f6-bf3c-d87148635586","at":1770283059000000000,"seq":515,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

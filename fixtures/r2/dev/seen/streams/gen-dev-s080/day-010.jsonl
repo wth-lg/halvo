@@ -1,0 +1,28 @@
+{"v":1,"id":"019ba6fa-4522-71e0-ae78-f07c6b09faf0","at":1768032978210000000,"seq":53,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba6fa-4522-7acd-8b62-fe9335f9aac5","at":1768032978210000000,"seq":54,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ba6fa-4838-742e-aae1-1522b0509ce6","at":1768032979000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ba707-af31-7547-bad7-84c157195483","at":1768033857329000000,"seq":56,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba707-b5b8-7468-8886-c58a725d2a5d","at":1768033859000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba707-cd28-7fa1-a2cc-3e58816d31ed","at":1768033865000000000,"seq":58,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba708-0fbf-7fd7-81b9-8664bd350351","at":1768033882047000000,"seq":59,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba708-1760-7161-98a3-c4bc53fc01fc","at":1768033884000000000,"seq":60,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ba708-2700-70f5-b76c-40c5b21b09ad","at":1768033888000000000,"seq":61,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba708-9c30-7461-8d96-84a08b69f59b","at":1768033918000000000,"seq":62,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba708-a7e8-732d-83e7-46cf1b252e58","at":1768033921000000000,"seq":63,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba708-c2a1-799e-9798-a94c5ad9b8de","at":1768033927841000000,"seq":64,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba708-d2e0-7925-9071-dbe8843b22b0","at":1768033932000000000,"seq":65,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba709-01c0-78ba-bb7a-e74fcb400f10","at":1768033944000000000,"seq":66,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba709-5b98-751c-a723-0e0d15db7077","at":1768033967000000000,"seq":67,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ba709-8e60-7c97-8f0e-d60e55725e2a","at":1768033980000000000,"seq":68,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba709-abe4-7f65-87f4-ef0d5c757aee","at":1768033987556000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba709-e838-7648-a473-c7bd1b1c1445","at":1768034003000000000,"seq":70,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba70a-51b0-7643-a5a4-1fec43cfd4db","at":1768034030000000000,"seq":71,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ba70a-5d68-76f9-8423-27e43f1cbb9e","at":1768034033000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ba70a-6ead-7621-9eb7-4ae71a930aa3","at":1768034037421000000,"seq":73,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba70a-70f0-76a8-8f9a-7c28cc474214","at":1768034038000000000,"seq":74,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ba70a-9be8-73fc-8b93-5f957817d039","at":1768034049000000000,"seq":75,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba70a-a7a0-7c75-8482-1baade2b01ee","at":1768034052000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba70b-3440-7b1d-a99b-c98cabbaadc8","at":1768034088000000000,"seq":77,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba70b-480b-7123-8cde-09bc907e45fd","at":1768034093067000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ba70b-4bb0-77c1-b561-f6150b98e7e1","at":1768034094000000000,"seq":79,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba70b-5768-7dc0-a52e-516a0651b04c","at":1768034097000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

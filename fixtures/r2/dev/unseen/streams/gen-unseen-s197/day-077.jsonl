@@ -1,0 +1,25 @@
+{"v":1,"id":"019d0045-5a26-753a-bd99-71978ce20d99","at":1773826038310000000,"seq":945,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0045-5a26-7bd3-8d36-3baf91aa5908","at":1773826038310000000,"seq":946,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0045-83e8-7b6e-b7d6-ca258c126312","at":1773826049000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0045-aaf8-7106-8dbf-52b1c93aa963","at":1773826059000000000,"seq":948,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d0045-d423-7a4c-82cf-b8805cf87603","at":1773826069539000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0045-e590-776d-acc0-6f4fe899ec11","at":1773826074000000000,"seq":950,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0046-1088-73fa-975f-686ce589957c","at":1773826085000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0046-2be0-71d3-822c-deeb60ad028a","at":1773826092000000000,"seq":952,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0046-30d3-7556-9e33-b26e739ea6e6","at":1773826093267000000,"seq":953,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0046-7230-7b7c-834b-37f6f30fa0ba","at":1773826110000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0046-728c-7097-b271-36f592f8d893","at":1773826110092000000,"seq":955,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0046-7de8-7f38-ab5e-41f6d2d36e8d","at":1773826113000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0046-a4f8-7ca7-b7d1-35b738cb1c1a","at":1773826123000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d0047-16dd-71f7-82ec-3da918a7a80f","at":1773826152157000000,"seq":958,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0047-3d50-75a7-96c5-94ce8902d25b","at":1773826162000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0047-4138-76ab-88e0-3eb4c774981c","at":1773826163000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0047-59f0-7bdb-8a3d-bf1987d62104","at":1773826169328000000,"seq":961,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d0047-7fb8-7de5-a932-6c8645d84ed0","at":1773826179000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0047-a6c8-7c42-9c5d-6069154ce977","at":1773826189000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0047-ae98-7ed3-819d-51ffe40d9f27","at":1773826191000000000,"seq":964,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0057-aaf6-71b3-8c80-bd3517626f3c","at":1773827238646000000,"seq":965,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0057-b810-79b5-ba8b-848137a80500","at":1773827242000000000,"seq":966,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0057-bbf8-710e-931d-9a158428d39b","at":1773827243000000000,"seq":967,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0057-e6f0-75ca-b45a-95f35cf366cb","at":1773827254000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0057-fa78-73f7-9e76-de486db7da13","at":1773827259000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

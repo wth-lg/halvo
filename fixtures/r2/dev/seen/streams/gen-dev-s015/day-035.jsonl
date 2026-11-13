@@ -1,0 +1,12 @@
+{"v":1,"id":"019c27a1-db7e-7683-ab79-5beeffeae98e","at":1770191444862000000,"seq":426,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c27a1-db7e-77de-9b04-500c05b81613","at":1770191444862000000,"seq":427,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c27a2-8018-799e-8573-8902dbe478e5","at":1770191487000000000,"seq":428,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c27a7-8bad-7074-b424-98019c422e30","at":1770191817645000000,"seq":429,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c27a7-8bad-7e02-85ff-dd07bb2ece11","at":1770191817645000000,"seq":430,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c27a7-cb90-7751-9352-0519813dcf7e","at":1770191834000000000,"seq":431,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c27a7-d748-7ebf-bec9-8bc07746c502","at":1770191837000000000,"seq":432,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c27b6-4657-7a98-af48-6f400791f6b7","at":1770192782935000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c27b6-65d8-76a8-8a9c-3b74c57d8506","at":1770192791000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27b6-db08-70f5-b9f6-9ad015b1947b","at":1770192821000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c27b6-f278-73e0-81af-dc3e82ed0a5a","at":1770192827000000000,"seq":436,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c27b7-11b8-7f3f-b0f9-16e36329960c","at":1770192835000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,25 @@
+{"v":1,"id":"019bff17-0e79-73fb-8fa9-3a7f00ec7aec","at":1769511259769000000,"seq":351,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bff17-0e79-7158-8435-8cbac0eee224","at":1769511259769000000,"seq":352,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bff17-3288-7bf8-8b1b-201733588fde","at":1769511269000000000,"seq":353,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bff17-3670-70f5-92d7-f79804465a8b","at":1769511270000000000,"seq":354,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bff17-74f0-772b-b4de-fbdd29b941ad","at":1769511286000000000,"seq":355,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bff17-f1f0-71ca-977e-bfcf66b4fa26","at":1769511318000000000,"seq":356,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bff17-f585-7f66-8469-cc2fbbb551d2","at":1769511318917000000,"seq":357,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bff18-0190-7ed5-ae80-d87b9d753ebb","at":1769511322000000000,"seq":358,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bff18-24b8-7dc1-9004-0efc0d9eae39","at":1769511331000000000,"seq":359,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bff18-4010-7350-97d2-1759c8647ad0","at":1769511338000000000,"seq":360,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bff18-72d8-7fcc-89e3-92007a560295","at":1769511351000000000,"seq":361,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bff18-a988-748b-8bec-004054d52d58","at":1769511365000000000,"seq":362,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bff1f-39a5-7e03-8633-65d2619b13b6","at":1769511795109000000,"seq":363,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bff1f-39a5-737d-a1bd-b35ced5fc2a4","at":1769511795109000000,"seq":364,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bff1f-5878-71e9-bbc6-38037497f200","at":1769511803000000000,"seq":365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bff1f-a2b0-74d0-9b5d-8391c6e83c4c","at":1769511822000000000,"seq":366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bff1f-b2a2-7312-b716-058b41f974ca","at":1769511826082000000,"seq":367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bff1f-b638-7f3c-81bf-a297b320de40","at":1769511827000000000,"seq":368,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bff1f-d578-728a-b0a5-dc635c26f619","at":1769511835000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bff1f-e900-79c4-9110-dfc65a0a2fb7","at":1769511840000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bff20-082c-7668-80d3-defdc31d06f1","at":1769511847980000000,"seq":371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bff20-7988-7fb5-8c35-c836ef131e09","at":1769511877000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bff20-c04e-788f-aa7e-e4567c92fdaf","at":1769511895118000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bff20-db30-722a-ac7a-ef7eb65764bc","at":1769511902000000000,"seq":374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bff20-f2a0-75e9-89a2-193926eca054","at":1769511908000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

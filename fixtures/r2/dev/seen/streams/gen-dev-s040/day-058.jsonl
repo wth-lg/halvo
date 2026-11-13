@@ -1,0 +1,20 @@
+{"v":1,"id":"019c9e30-be45-777f-83e4-fce6ede563cf","at":1772180520517000000,"seq":735,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9e30-be45-714e-84b4-fef36d7a683e","at":1772180520517000000,"seq":736,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9e31-6ff0-7809-b7b9-b5cee5f5ca40","at":1772180566000000000,"seq":737,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e31-7f90-7eb0-9990-2d9771190b2a","at":1772180570000000000,"seq":738,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e31-a7ec-76ab-b2f7-11d9167eb1d7","at":1772180580332000000,"seq":739,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c9e31-b258-700b-a9c9-c91a563964b8","at":1772180583000000000,"seq":740,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e31-c9c8-7624-8516-6eeab8c1be55","at":1772180589000000000,"seq":741,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c9e31-dd50-75f6-a641-1231558cc98f","at":1772180594000000000,"seq":742,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e4a-b2db-7d0f-974a-c7c3598278f2","at":1772182221531000000,"seq":743,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e4a-b2db-702f-872e-8010c799591e","at":1772182221531000000,"seq":744,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9e4a-b4b0-7ced-89d1-50100633fe7e","at":1772182222000000000,"seq":745,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e4a-fee8-7db1-a24f-952d7d5b4d8f","at":1772182241000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e61-f21c-75f6-9c05-a60977ce7298","at":1772183745052000000,"seq":747,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c9e61-f5d0-7563-ba25-c5628c1fbcad","at":1772183746000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e62-1128-76e4-b3ee-d9bba6b44dec","at":1772183753000000000,"seq":749,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9e62-3751-75b4-9f18-e5b9b4e8ff7e","at":1772183762769000000,"seq":750,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9e62-6718-79a5-a884-84465927e1f3","at":1772183775000000000,"seq":751,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9e62-7bd1-7306-b165-8d1628a177b4","at":1772183780305000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c9e63-0b28-7eef-ae67-ac564b3d80e6","at":1772183817000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c9e63-2680-76d1-b760-d66ec995aaa0","at":1772183824000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

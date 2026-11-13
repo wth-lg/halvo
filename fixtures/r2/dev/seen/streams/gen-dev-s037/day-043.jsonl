@@ -1,0 +1,19 @@
+{"v":1,"id":"019c5180-787d-7570-852f-aaec9a9b9ce3","at":1770893899901000000,"seq":726,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5180-787d-7693-96a9-cd0bcd353a84","at":1770893899901000000,"seq":727,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5180-f1f8-73a5-a198-59c927bb1be2","at":1770893931000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5181-4018-7836-a77a-aee84fa3f7c6","at":1770893951000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c5181-460f-7e2e-8adb-3031c642b61a","at":1770893952527000000,"seq":730,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5181-ad17-7d1c-88d5-72fe57369a4b","at":1770893978903000000,"seq":731,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5182-3a18-705e-b460-77dd31fcfd58","at":1770894015000000000,"seq":732,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5182-848b-7ce9-93eb-8799210a2a73","at":1770894034059000000,"seq":733,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5182-8838-754d-846c-2faac8a65cb1","at":1770894035000000000,"seq":734,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5182-9008-7711-8e0f-7f21c97efd92","at":1770894037000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5182-ab60-705c-a6b0-01743650c471","at":1770894044000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c5182-af48-7e19-98b3-80a7f91c5652","at":1770894045000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5182-d658-7445-9a04-6f4f5888427f","at":1770894055000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5182-debf-770e-bce7-9344ef6b6182","at":1770894057151000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5182-f980-7d22-9b1a-e9edb2e76767","at":1770894064000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5183-18c0-7b92-800b-22d412d60552","at":1770894072000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c5183-2478-7c49-a995-baa3a4810c9e","at":1770894075000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5183-a560-7040-a7bf-ce328e1df282","at":1770894108000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5183-cc70-717f-be01-c3c876b78ee5","at":1770894118000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

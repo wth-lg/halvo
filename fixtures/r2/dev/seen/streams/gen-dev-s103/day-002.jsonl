@@ -1,0 +1,39 @@
+{"v":1,"id":"019b7e39-9ce6-7705-9fa8-aaac1c0d1633","at":1767349263590000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e39-9ce6-7d1b-aded-f3ed396a528e","at":1767349263590000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b7e3a-2b20-7792-94a5-c8010a775b6c","at":1767349300000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e3a-2f08-74fd-b32a-23cabe279cb7","at":1767349301000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b7e3a-536b-7590-913d-028154fd4faf","at":1767349310315000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b7e3a-a820-75f8-91a4-ccb38445fb1f","at":1767349332000000000,"seq":5,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7e3a-ac08-7ea8-836f-7d7aea84288b","at":1767349333000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e3a-b3d8-7163-86c6-673b18ec2cae","at":1767349335000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b7e3a-e9d2-744e-bf99-8879375bc2a6","at":1767349348818000000,"seq":8,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b7e3b-2520-7277-97b5-6d4fe4759938","at":1767349364000000000,"seq":9,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e3b-38a8-7120-b114-f609e49292a0","at":1767349369000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b7e3b-a220-76a3-98ca-e06dc7fecfa1","at":1767349396000000000,"seq":11,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e3b-a497-7cb2-a108-9403c1c57f1d","at":1767349396631000000,"seq":12,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019b7e3b-dcb8-7bff-b3b7-0f854225f020","at":1767349411000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b7e3c-1f20-7516-9317-d878c88b9617","at":1767349428000000000,"seq":14,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e3c-4248-7742-aba8-07b87e5b6b11","at":1767349437000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e3c-51e8-7cea-aeb5-f5ac3522451c","at":1767349441000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e3c-6188-7b96-9127-88251763e327","at":1767349445000000000,"seq":17,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e41-bbe7-747a-b094-e44c7ea24a59","at":1767349795815000000,"seq":18,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7e41-d028-7d8c-a34f-f616248a88f5","at":1767349801000000000,"seq":19,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e41-d410-76c7-a917-bf7171a25da6","at":1767349802000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b7e41-e798-75b6-9cb0-698f0a741916","at":1767349807000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e4b-f2f0-7b9a-b495-f28adde68679","at":1767350465264000000,"seq":22,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7e4c-0188-7ed8-8349-36f124627f84","at":1767350469000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e4c-24b0-7c57-90f0-d534236b99ec","at":1767350478000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e58-271b-7398-ac29-81597aa8073f","at":1767351265051000000,"seq":25,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e58-3a70-7345-b374-1813d3bd215d","at":1767351270000000000,"seq":26,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e58-7cd8-781b-ae47-1f2273dc3c7b","at":1767351287000000000,"seq":27,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e72-e99b-7cf9-b32b-c4ffe3166604","at":1767353018779000000,"seq":28,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b7e73-09b8-7c4a-8514-22a1c6332b88","at":1767353027000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7e73-9681-79dc-a49f-ad0468ec46e4","at":1767353063041000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b7e73-ef8a-79ff-a57f-4714408b9278","at":1767353085834000000,"seq":31,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b7e74-3298-764f-95b6-7ad9870b7257","at":1767353103000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e74-55c0-7492-b0cf-7e1aa3116643","at":1767353112000000000,"seq":33,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e74-78e8-750c-90e6-79a80fda662c","at":1767353121000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e74-9102-799d-8e80-67ea49ea3af9","at":1767353127170000000,"seq":35,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b7e74-9ff8-717d-a1fb-9ce5300af3e1","at":1767353131000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e74-d2c0-76df-9cf9-0a0ec56cbdbd","at":1767353144000000000,"seq":37,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e74-f9d0-730e-a531-ffb9aeaade09","at":1767353154000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

@@ -1,0 +1,31 @@
+{"v":1,"id":"019c898a-afb6-7ee9-98eb-aba315214d72","at":1771834093494000000,"seq":805,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c898a-afb6-7896-a783-14b5030ac483","at":1771834093494000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c898a-c538-7819-bf3c-2c204500c62e","at":1771834099000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c898a-d8c0-7456-bad8-4cd67f149592","at":1771834104000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c898a-e090-709c-a2b3-e7a729f09023","at":1771834106000000000,"seq":809,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a3-79a8-7a50-9aeb-0ff6966e8fae","at":1771835718056000000,"seq":810,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c89a3-f670-7d26-8620-ec6571ade605","at":1771835750000000000,"seq":811,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a4-4142-7326-abb9-8a4070676079","at":1771835769154000000,"seq":812,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c89a4-67b8-7aad-bccd-1263e5de5360","at":1771835779000000000,"seq":813,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c89a4-a250-76d9-bf74-294d4bc0b408","at":1771835794000000000,"seq":814,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c89a4-aa20-754c-8374-171fb1c56a3f","at":1771835796000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c89a4-b1e0-7fb3-a39f-ea1bbccd9b2d","at":1771835797984000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c89a4-d900-712f-b651-377f53fcda12","at":1771835808000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a4-f458-710f-9ce7-977b00a7f8b4","at":1771835815000000000,"seq":818,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c89a5-2b08-7afe-acfd-c4c25afa0d25","at":1771835829000000000,"seq":819,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c89a5-32fd-7cdc-b7d5-b6b7f8f927c4","at":1771835831037000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c89a6-28f0-783a-9d4f-84695ba998aa","at":1771835894000000000,"seq":821,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c89b8-f1f6-7351-863f-8cec44f578a0","at":1771837125110000000,"seq":822,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c89b9-2838-73e8-a18b-88c4062c1a2c","at":1771837139000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c89b9-b77f-7995-81bb-ca2b16251cb6","at":1771837175679000000,"seq":824,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c89b9-c090-7854-9e9e-2e816803b0fc","at":1771837178000000000,"seq":825,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c89b9-d418-703e-a241-866558cde34f","at":1771837183000000000,"seq":826,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ba-54aa-7c99-8228-a0092ba0e7f7","at":1771837215914000000,"seq":827,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c89ba-6888-7268-8edd-d7d7f05db7c0","at":1771837221000000000,"seq":828,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c89ba-7058-782e-a61e-6f2351bc8742","at":1771837223000000000,"seq":829,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c89ba-ed58-7b1a-a1eb-a71483d2cb16","at":1771837255000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89bb-15bc-79a4-a52d-dc78701ae71d","at":1771837265340000000,"seq":831,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c89bb-2020-7314-8a96-3bdf014cf898","at":1771837268000000000,"seq":832,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c89bb-3790-7b22-a0af-cb71b5c384e0","at":1771837274000000000,"seq":833,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c89bb-8998-7edf-b4f3-d7e85d4d670e","at":1771837295000000000,"seq":834,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c89bb-cfe8-7bfc-8ee0-c1049dd0d6ba","at":1771837313000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

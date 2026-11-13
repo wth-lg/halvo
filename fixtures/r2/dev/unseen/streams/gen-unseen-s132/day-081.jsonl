@@ -1,0 +1,16 @@
+{"v":1,"id":"019d14f6-5130-7839-a541-5aec22626741","at":1774173180208000000,"seq":968,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14f6-5130-7a57-9f36-c70226cd4a2c","at":1774173180208000000,"seq":969,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d14f6-ae20-71c3-86f1-482875d1f09b","at":1774173204000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f7-4299-77c5-bea0-5c06237dbe1d","at":1774173242009000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d14f7-90b0-75b9-84a3-6e6d984052b0","at":1774173262000000000,"seq":972,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d14f8-2138-7065-886c-fdb8f352f7d5","at":1774173299000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f8-3af6-712f-80db-f7da7d368a7f","at":1774173305590000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d14f8-6788-7bb7-9d95-a14327717a0d","at":1774173317000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d14f8-6b70-73b1-a617-d2aac4fd2e74","at":1774173318000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f8-9545-7ac9-82e1-cce25bb4c3c1","at":1774173328709000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d14f8-a9f0-7856-8fff-3f50e6ccd7e3","at":1774173334000000000,"seq":978,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d14f8-c548-7d73-949c-06121046a7e4","at":1774173341000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d14f8-fbf8-7e54-aaf7-226e281c1dea","at":1774173355000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d1513-042b-7868-88f3-d40d865867d3","at":1774175061035000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d1513-0bd8-752b-b46d-a2c3a882ab81","at":1774175063000000000,"seq":982,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1513-a430-7a93-8b3a-3818fe056cd7","at":1774175102000000000,"seq":983,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

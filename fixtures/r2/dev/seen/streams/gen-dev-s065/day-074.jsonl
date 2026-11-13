@@ -1,0 +1,51 @@
+{"v":1,"id":"019cf055-4fd2-773f-8ead-3e9569df7f8f","at":1773558648786000000,"seq":1127,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf055-4fd2-7a9a-899f-28f99f78246c","at":1773558648786000000,"seq":1128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cf055-6c00-774b-b239-34d8bcbe3e9f","at":1773558656000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf055-c0c2-7170-be9e-07259e8b5eae","at":1773558677698000000,"seq":1130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cf055-dd48-7c7d-a687-27ddfd4bd26b","at":1773558685000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf056-4e90-7628-b34d-e03b3ccb85f5","at":1773558714000000000,"seq":1132,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf056-5a48-7762-884c-397ecc02d74f","at":1773558717000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cf056-6dd0-78b3-b090-0ce85b3765cc","at":1773558722000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf056-75ba-74cd-acf7-80124e5c721f","at":1773558724026000000,"seq":1135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cf056-90f8-7af6-86d4-8e841a9569d1","at":1773558731000000000,"seq":1136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cf056-94e0-79ef-aa8c-81c131162f7d","at":1773558732000000000,"seq":1137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf056-9cb0-7e81-abb5-9b34a9c8698e","at":1773558734000000000,"seq":1138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf056-a868-7144-b74b-bb314f4f2dd5","at":1773558737000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf056-d748-74d3-af96-aec0baad06f7","at":1773558749000000000,"seq":1140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf056-d76c-7cce-be69-6754011eaca2","at":1773558749036000000,"seq":1141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cf057-2568-7387-8e7a-191b3af8f5b9","at":1773558769000000000,"seq":1142,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf057-4890-74eb-af1b-37c438b437ca","at":1773558778000000000,"seq":1143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cf057-6000-7023-8f31-1c2833080523","at":1773558784000000000,"seq":1144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf066-c922-7fe8-95a7-8fd4ca6e3f00","at":1773559793954000000,"seq":1145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf066-dcd8-7b3b-9056-532b76b5afba","at":1773559799000000000,"seq":1146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cf067-0000-7803-aee9-73983d221e68","at":1773559808000000000,"seq":1147,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf067-2ee0-780b-8700-746f2b394b64","at":1773559820000000000,"seq":1148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf067-55f0-7757-acf3-9d900d6a1bb5","at":1773559830000000000,"seq":1149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf06a-3fe9-7042-bade-6c6e08bdc235","at":1773560020969000000,"seq":1150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf06a-7aa0-77ef-a5da-d9af3acff3f6","at":1773560036000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf06a-99e0-72cc-bfd0-7269c2a6e75c","at":1773560044000000000,"seq":1152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cf06a-b150-7d37-9401-0c101a5820a3","at":1773560050000000000,"seq":1153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf070-fc43-77ff-bd26-fd0dba61c79b","at":1773560462403000000,"seq":1154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cf071-0668-75fa-9037-84e1d6674768","at":1773560465000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf071-1dd8-7229-beb6-6f60c0835503","at":1773560471000000000,"seq":1156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cf071-3d18-7e43-aea6-ca55111b497d","at":1773560479000000000,"seq":1157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf071-415d-76dc-8c42-85a97620c369","at":1773560480093000000,"seq":1158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cf071-48d0-760f-9628-5cabc44fce28","at":1773560482000000000,"seq":1159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf071-73c8-7839-a09e-ff2fd55c4ea9","at":1773560493000000000,"seq":1160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf071-8f20-709b-aa3a-9f7afee601bf","at":1773560500000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cf071-9339-7d56-9ea5-194599076f10","at":1773560501049000000,"seq":1162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cf071-b248-7d4b-8d1b-0905a8556103","at":1773560509000000000,"seq":1163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf071-ba18-7892-a506-5c57a52787c2","at":1773560511000000000,"seq":1164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf071-e128-7b43-89dd-6cb3024c9a9d","at":1773560521000000000,"seq":1165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf071-ece0-7a3e-ad13-2da4cf760349","at":1773560524000000000,"seq":1166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf071-f0c8-77e5-b945-a4ab0a30eac9","at":1773560525000000000,"seq":1167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cf071-f6ed-7abb-ad48-c2404c2e27f4","at":1773560526573000000,"seq":1168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cf072-0838-7dcd-bf41-68e74c6484f3","at":1773560531000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cf072-5a40-7911-ae55-c188baec5b47","at":1773560552000000000,"seq":1170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf072-5e28-79e3-8735-1eb22ad649d1","at":1773560553000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf072-8d08-7257-999d-7ac69be3efae","at":1773560565000000000,"seq":1172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf076-3a4d-76d6-a72a-bcadccd9838e","at":1773560805965000000,"seq":1173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf076-3e58-7933-a7ca-d49941422ae9","at":1773560807000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cf076-6180-7e76-9d85-6f0311877cb0","at":1773560816000000000,"seq":1175,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf076-6568-7246-9cd0-0f52c19ecb55","at":1773560817000000000,"seq":1176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf076-7120-7838-bfde-7c25ed4d3df4","at":1773560820000000000,"seq":1177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

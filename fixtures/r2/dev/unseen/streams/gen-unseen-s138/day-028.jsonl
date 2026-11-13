@@ -1,0 +1,12 @@
+{"v":1,"id":"019c039a-62f3-76c9-9f1c-684220b921b1","at":1769586975475000000,"seq":406,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c039a-62f3-7f07-b922-c7b8c3577cc7","at":1769586975475000000,"seq":407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c039a-ab50-7ac3-909a-2dc90c1c701e","at":1769586994000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c039a-d648-7df3-a5d0-e99230f0d505","at":1769587005000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c039a-de18-7ef2-91f1-5dc463394859","at":1769587007000000000,"seq":410,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c039a-e0df-77d2-aee0-9979f8a38ad9","at":1769587007711000000,"seq":411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c039b-5348-7cde-b5b4-f8b95f8d0b72","at":1769587037000000000,"seq":412,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c039b-a16d-7068-9132-08145a924e6d","at":1769587057005000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c039b-b8d8-71dc-a668-880dbc0728d1","at":1769587063000000000,"seq":414,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c039c-5029-7426-b6a6-b814c532761b","at":1769587101737000000,"seq":415,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c039c-f158-7166-8a2f-2bd215ae4c75","at":1769587143000000000,"seq":416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c039d-2420-7435-8c5f-d8991df6baf5","at":1769587156000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

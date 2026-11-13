@@ -1,0 +1,19 @@
+{"v":1,"id":"019d29a6-4508-7951-9ad2-12d6070a1201","at":1774520255752000000,"seq":1195,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d29a6-4508-7370-8636-1bd62ee4609f","at":1774520255752000000,"seq":1196,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d29a6-55a0-7362-ace8-c14ef881efa4","at":1774520260000000000,"seq":1197,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29a6-8c50-7e56-8a91-aa1a0ed3f66b","at":1774520274000000000,"seq":1198,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d29a6-8c50-79cc-8ae1-9eea4496ccf2","at":1774520274000000000,"seq":1199,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d29a6-9bf0-785d-89a5-694b4803a4f5","at":1774520278000000000,"seq":1200,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d29a6-9fd8-7ea9-889f-1b0f77ae6c8c","at":1774520279000000000,"seq":1201,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ae-61d5-79d9-9866-b42c94289004","at":1774520787413000000,"seq":1202,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d29ae-61d5-71dc-bc12-133e63552a0a","at":1774520787413000000,"seq":1203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d29ae-6808-7953-a8d7-63cedbe312d5","at":1774520789000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ae-8f18-733c-a251-f0a1901b771c","at":1774520799000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29ae-ad13-78d8-b25b-f99ab55185f1","at":1774520806675000000,"seq":1206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d29ae-d950-7724-8747-ea7246892daa","at":1774520818000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d29ae-ecd8-7b7f-9a19-d25052b72172","at":1774520823000000000,"seq":1208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d29af-2131-771a-918b-d872984b9226","at":1774520836401000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d29af-5e20-7406-8f06-7d078925d2b7","at":1774520852000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29af-71a8-7acb-bcfe-d7e69da70ba7","at":1774520857000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29af-c3b0-77cc-806b-979f69e35b24","at":1774520878000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d29af-c798-78ca-8349-a808ee751977","at":1774520879000000000,"seq":1213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

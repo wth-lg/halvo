@@ -1,0 +1,20 @@
+{"v":1,"id":"019c8435-63a9-7877-b172-278f3e128964","at":1771744617385000000,"seq":875,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8435-63a9-717e-b967-6f1c1344a387","at":1771744617385000000,"seq":876,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c8435-ac60-7b94-95f4-cc9e58cf6d59","at":1771744636000000000,"seq":877,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c8435-e69d-7b1e-bb1d-978dcfc65c16","at":1771744650909000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c8436-2190-7a5e-a17e-bec936e30074","at":1771744666000000000,"seq":879,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8436-2d48-7df4-9455-22cf6170a261","at":1771744669000000000,"seq":880,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8436-48a0-7dec-bab6-c26f270a9732","at":1771744676000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c8442-45dd-739b-81fb-3dc7ef826b8d","at":1771745461725000000,"seq":882,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8442-45dd-7ec1-8076-1fb276509e98","at":1771745461725000000,"seq":883,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8442-e718-7da8-ac97-37e2922cc35a","at":1771745503000000000,"seq":884,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c8443-0e28-7452-aa3a-a30da2de5b53","at":1771745513000000000,"seq":885,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8443-2598-7fdd-bb9e-e95b64b02dba","at":1771745519000000000,"seq":886,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c845b-1c4d-7fc2-b18c-be3b3e2c220b","at":1771747089485000000,"seq":887,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c845b-1c4d-71ef-8e9f-0b26bc0dd1a7","at":1771747089485000000,"seq":888,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c845b-ce18-79aa-85f2-b722169c41a9","at":1771747135000000000,"seq":889,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c846b-8a5e-733b-809a-d2352527162a","at":1771748166238000000,"seq":890,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c846b-9140-748d-9889-c63b86ba32a1","at":1771748168000000000,"seq":891,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c846b-a0e0-79a8-ba77-b2f2cc6d2712","at":1771748172000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c846b-c408-7594-aaaa-9fb8dda82d97","at":1771748181000000000,"seq":893,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c846b-df60-72f3-9aa2-3a753610aa1a","at":1771748188000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

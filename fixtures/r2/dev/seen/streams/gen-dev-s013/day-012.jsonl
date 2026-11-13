@@ -1,0 +1,25 @@
+{"v":1,"id":"019bb1a9-e726-7913-9251-3cc163597c3a","at":1768212260646000000,"seq":68,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1a9-e726-753b-a676-5702d2d75618","at":1768212260646000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a9-fff8-709f-9ae7-b1efcf0a6120","at":1768212267000000000,"seq":70,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb1aa-55e8-7308-b795-aaebf6856293","at":1768212289000000000,"seq":71,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb1b8-0398-75ca-8a85-9646f4907022","at":1768213185432000000,"seq":72,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bb1b8-1188-76d5-8ee8-d330e6e23771","at":1768213189000000000,"seq":73,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1b8-7a58-7e47-a555-2c702b4e9956","at":1768213215832000000,"seq":74,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bb1b8-b598-736b-99d7-6aa962fb0e3f","at":1768213231000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bb1b8-c920-796a-96c9-a4ebb23b5964","at":1768213236000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1b8-f030-78c5-beb6-24a3ec3948d8","at":1768213246000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1c9-c0b8-7558-b0c5-79a1e68b707f","at":1768214347960000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bb1c9-d080-7025-97d6-83bb8090e5d8","at":1768214352000000000,"seq":79,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb1ca-1ea0-7b1d-9b3d-6f47e4e6d71e","at":1768214372000000000,"seq":80,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1ca-2670-737d-94b4-75eb0b9fcec8","at":1768214374000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bb1ca-4998-778b-98a6-18d2b72ccfff","at":1768214383000000000,"seq":82,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb1d0-d220-7cb3-8bed-956b50ccace8","at":1768214811168000000,"seq":83,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb1d0-d948-7acd-9da4-394db03020bf","at":1768214813000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bb1d1-0c10-7d6e-9423-7fa27701b05f","at":1768214826000000000,"seq":85,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb1d1-3320-7e9f-97b2-1548511b0545","at":1768214836000000000,"seq":86,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb1da-ce9a-7fd4-8221-4ae77b8c182a","at":1768215465626000000,"seq":87,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb1da-ce9a-73bc-a803-b25333b457c6","at":1768215465626000000,"seq":88,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb1da-d3f8-72d7-bdd7-77d416e94227","at":1768215467000000000,"seq":89,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bb1da-dbc8-782d-98b3-c7f20323c7ac","at":1768215469000000000,"seq":90,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bb1da-f338-7f8f-88e9-bc08e532bb1c","at":1768215475000000000,"seq":91,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1db-50f8-7b89-ac09-64711d459960","at":1768215499000000000,"seq":92,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

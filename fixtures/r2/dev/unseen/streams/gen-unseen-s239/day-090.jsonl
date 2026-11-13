@@ -1,0 +1,31 @@
+{"v":1,"id":"019d42dc-0917-7203-bffc-85e3054c3612","at":1774943209751000000,"seq":1150,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42dc-0917-7a88-add5-722993b59e9a","at":1774943209751000000,"seq":1151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d42dc-11e0-7c71-8f13-9c1b2ea72542","at":1774943212000000000,"seq":1152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d42dc-19b0-724a-a9c4-5d6b23abf27e","at":1774943214000000000,"seq":1153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42dc-2950-7ebd-b3e9-f946eb34f3d6","at":1774943218000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d42dc-5c18-77c0-9cfb-ee94e114a516","at":1774943231000000000,"seq":1155,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d42f2-2231-7053-867a-af477f0df687","at":1774944657969000000,"seq":1156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d42f2-39c0-72f4-9b19-62687adc9ed6","at":1774944664000000000,"seq":1157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f2-4960-79f3-be7d-11cf9b626f3d","at":1774944668000000000,"seq":1158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42f2-4d48-7995-beb5-3f8ca58270ce","at":1774944669000000000,"seq":1159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f3-7d69-771a-94d8-0b758cd05046","at":1774944746857000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d42f3-81e0-71b5-959b-016afc041bf3","at":1774944748000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f3-a508-7544-818d-8db2fa4c7958","at":1774944757000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f3-bc78-7adb-85ff-aab5fdd9f341","at":1774944763000000000,"seq":1163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d42f8-5944-7dc6-bd2c-ab2bd90b0c86","at":1774945065284000000,"seq":1164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d42f8-5c10-7ca7-9abe-5ef10f703ba1","at":1774945066000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f8-5ff8-74fb-98ab-15c72689bc7a","at":1774945067000000000,"seq":1166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f8-b98c-70ca-8f03-5cff090b2527","at":1774945089932000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d42f8-e0e0-76f4-8a86-41abe439a4da","at":1774945100000000000,"seq":1168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d42f8-e8b0-7916-86d5-a157ce1c0895","at":1774945102000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d42f9-2348-7db3-ac71-cf4e28dd5324","at":1774945117000000000,"seq":1170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42f9-32e8-7a94-a7a8-b2ae23c46a5a","at":1774945121000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f9-5e66-7240-87ec-c6a1b8d0b3f6","at":1774945132134000000,"seq":1172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d42f9-cf28-7283-9252-a0a648579bf2","at":1774945161000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42f9-dae0-7adb-89b9-870db890a0d3","at":1774945164000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42fa-1960-7c23-9b15-a5131f924d83","at":1774945180000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d42fa-21de-7f72-a867-bcf4a4800d4d","at":1774945182174000000,"seq":1176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d42fa-34b8-7ea2-805e-0585f41189aa","at":1774945187000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42fa-5bc8-7cdd-8558-4aa2d31bb398","at":1774945197000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42fa-5bc8-7d02-bcf6-49f73011e2d2","at":1774945197000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d42fa-6780-7c90-9efe-f85049ce9dd0","at":1774945200000000000,"seq":1180,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

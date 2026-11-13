@@ -1,0 +1,36 @@
+{"v":1,"id":"019ca860-f256-7adf-9bf8-718cf8c8556a","at":1772351451734000000,"seq":736,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca860-f256-7392-a5f9-5e4b7dd39753","at":1772351451734000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca867-0fb9-74b0-a7ba-9e84841d3ba0","at":1772351852473000000,"seq":738,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca867-0fb9-709d-bd89-522e18b4b0a5","at":1772351852473000000,"seq":739,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca867-3108-7556-b5f8-a0648f896fa3","at":1772351861000000000,"seq":740,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ca867-40a8-700e-9f84-83abeff02938","at":1772351865000000000,"seq":741,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca86f-355e-76a0-83a3-c2a11115618c","at":1772352386398000000,"seq":742,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca86f-355e-7ee7-9a2a-a7920c1ab0a6","at":1772352386398000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ca86f-7e08-7b8f-89b1-e1fdc7966dd7","at":1772352405000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca86f-85d8-7b7e-a0b2-b2b7b49aa75f","at":1772352407000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca86f-ddcb-733c-8d15-d79768a45cb9","at":1772352429515000000,"seq":746,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ca86f-e398-736a-91e4-b3b462ddb5a0","at":1772352431000000000,"seq":747,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca870-1a48-778a-b34c-c7255435de72","at":1772352445000000000,"seq":748,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca870-31b8-7e78-90de-04c6fa99b242","at":1772352451000000000,"seq":749,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca870-7fd8-7ff3-bf9f-1fab5eded3ba","at":1772352471000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ca870-872e-7c55-a8de-39a932dd815d","at":1772352472878000000,"seq":751,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ca870-9748-71ff-bc06-96e67655f013","at":1772352477000000000,"seq":752,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca870-9f18-7b8c-a575-37132eb075d1","at":1772352479000000000,"seq":753,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca870-aeb8-7ed6-b14e-8d5a60512e4d","at":1772352483000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca870-b688-7caf-937a-ae07ec40f5d3","at":1772352485000000000,"seq":755,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca870-c2e9-781b-aaa0-c08debbd265c","at":1772352488169000000,"seq":756,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019ca88a-4bfd-77fb-9971-e276e2886501","at":1772354161661000000,"seq":757,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca88a-e748-7269-9b1a-86ce64f0d318","at":1772354201416000000,"seq":758,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca88b-04e8-7447-9275-46581b110168","at":1772354209000000000,"seq":759,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca88b-6e60-70d0-b039-90f470ab25e5","at":1772354236000000000,"seq":760,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca88b-7e00-756f-a8e9-9ee39a6d7046","at":1772354240000000000,"seq":761,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88b-9188-77b0-b2c6-550434493c1e","at":1772354245000000000,"seq":762,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ca88b-9563-7cb3-a96a-c218c5bc4f81","at":1772354245987000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca88c-3980-712d-9d6c-0b9f76dbdf1a","at":1772354288000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88c-4150-7023-8ee0-ca15b9bb6b6f","at":1772354290000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88c-4538-73db-92df-50fc1ba3ba18","at":1772354291000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca88c-480e-7bef-8d22-658cdd5af293","at":1772354291726000000,"seq":767,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca88c-4d08-70f2-acdb-d3af834357ef","at":1772354293000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca88c-6090-7841-8a70-491bce029c7b","at":1772354298000000000,"seq":769,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca88c-6860-7741-a7cc-10721041e876","at":1772354300000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca88c-7418-7099-9b4a-23c8feb96bb4","at":1772354303000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

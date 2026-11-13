@@ -1,0 +1,31 @@
+{"v":1,"id":"019d3e56-44e9-74e2-9724-1867e5a9b976","at":1774867334377000000,"seq":1273,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3e56-44e9-77b2-8f72-0906a7eda2dd","at":1774867334377000000,"seq":1274,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3e56-c070-7b60-a334-1138f8e66f6c","at":1774867366000000000,"seq":1275,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e6f-2d13-7628-ac11-d88024078f55","at":1774868966675000000,"seq":1276,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3e6f-2d13-73ad-990c-b577636b0749","at":1774868966675000000,"seq":1277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3e70-0918-7874-9f5b-3b1aaf6af006","at":1774869023000000000,"seq":1278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d3e70-26f1-7c8b-ada7-cc2a9c1b7019","at":1774869030641000000,"seq":1279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3e70-3028-7bf6-998b-bcd9e580fd1e","at":1774869033000000000,"seq":1280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3e70-5350-7595-a070-a6334750dec4","at":1774869042000000000,"seq":1281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e70-6ac0-732f-a618-41c7f0610a87","at":1774869048000000000,"seq":1282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e70-8a00-78e9-b483-5efaec53d0b7","at":1774869056000000000,"seq":1283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3e70-daf0-7180-bc6a-0fd2cac41ed5","at":1774869076720000000,"seq":1284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3e70-dc08-7223-aaa2-f1f15ceeeb05","at":1774869077000000000,"seq":1285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e70-e7c0-75f7-b9d7-c81dbafe50e7","at":1774869080000000000,"seq":1286,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3e71-0ae8-74d3-82ae-7a54b902b137","at":1774869089000000000,"seq":1287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3e71-39c8-74a5-bd55-bf51c64223c2","at":1774869101000000000,"seq":1288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d3e71-3c60-73d2-bb74-728d70841e5d","at":1774869101664000000,"seq":1289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3e71-ddd8-7d56-8ca3-2859c844aa1d","at":1774869143000000000,"seq":1290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3e71-e1c0-7c07-965a-2593984537df","at":1774869144000000000,"seq":1291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e72-3b71-7100-af75-0d0076b97125","at":1774869166961000000,"seq":1292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3e72-5ec0-7f41-abd2-e973d82d9bec","at":1774869176000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d3e72-7248-7a53-b471-70a9e8bef781","at":1774869181000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e72-753c-7131-b631-c217972e2b95","at":1774869181756000000,"seq":1295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3e76-2721-74aa-a10d-c42b34b9a114","at":1774869423905000000,"seq":1296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3e76-3b08-73c2-9617-75920c887ac3","at":1774869429000000000,"seq":1297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e76-5660-7647-8c4f-0eaae34d8c6d","at":1774869436000000000,"seq":1298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3e76-6600-74f6-91ca-4f5539cd4b9a","at":1774869440000000000,"seq":1299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e76-6600-702f-9333-849752508c49","at":1774869440000000000,"seq":1300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d3e7d-6b98-7123-9a5c-9650bb0dc8f3","at":1774869900184000000,"seq":1301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3e7d-f780-76da-b841-c314e60c6b6a","at":1774869936000000000,"seq":1302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d3e7e-16c0-70b0-9c8c-31f59de48d44","at":1774869944000000000,"seq":1303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

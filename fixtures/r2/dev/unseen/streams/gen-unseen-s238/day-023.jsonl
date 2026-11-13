@@ -1,0 +1,12 @@
+{"v":1,"id":"019bea36-5207-7205-b96d-7cabb634b081","at":1769160987143000000,"seq":309,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea36-5207-7b0f-9b54-05e74ccc8e0a","at":1769160987143000000,"seq":310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bea36-74a0-7c2c-9a8f-91079c1db528","at":1769160996000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bea36-8ff8-7d31-9c36-d0847f41bdaa","at":1769161003000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea36-c757-7fbf-b9be-50cf01e64dc6","at":1769161017175000000,"seq":313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bea36-d648-70bb-9642-08704d263ba5","at":1769161021000000000,"seq":314,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bea36-e200-70bb-96cc-e23791c9e361","at":1769161024000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea37-10e0-7ce6-994a-ce5f8cfde0e7","at":1769161036000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bea37-14c8-7b8f-82fb-0718c6106ea1","at":1769161037000000000,"seq":317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bea37-1cbe-7b1a-86fe-44058770f52f","at":1769161039038000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019bea37-37f0-730c-8045-2a681eb7b2d2","at":1769161046000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea37-43a8-7138-86cc-0ac86b74abe5","at":1769161049000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019c609d-c4b4-7090-bbe8-f010ea479da8","at":1771147478196000000,"seq":720,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c609d-c4b4-702c-9e52-1a7b57468d70","at":1771147478196000000,"seq":721,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c609d-cfa8-7094-b48d-16289b09b381","at":1771147481000000000,"seq":722,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c609e-1ffa-732e-97d7-0760b1751f05","at":1771147501562000000,"seq":723,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c609e-44d8-793d-9b32-bda2d4ce40a3","at":1771147511000000000,"seq":724,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c609e-b238-724a-9f83-5f4f64566deb","at":1771147539000000000,"seq":725,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c609e-b620-7ef5-9f0e-d6473503a3a8","at":1771147540000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c609e-c60e-70be-904a-9232515a125b","at":1771147544078000000,"seq":727,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c609e-fc70-7f7c-ae04-51dcc105bd4f","at":1771147558000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c609f-2380-745b-86b6-f060f0df7d22","at":1771147568000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c609f-3708-7e98-b2b0-193830f67aec","at":1771147573000000000,"seq":730,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c609f-3af0-7405-af4e-0565caa4cf5f","at":1771147574000000000,"seq":731,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c60a0-433b-7a04-bce2-a37377dab92b","at":1771147641659000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c60a0-5048-71f5-9e08-f773d86f9caa","at":1771147645000000000,"seq":733,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c60a0-5c00-77cd-b0db-fc0e68bde886","at":1771147648000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60a0-7f28-776f-91e3-54944d408c05","at":1771147657000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c60b5-9699-7d04-906a-c08c8e8d47e7","at":1771149039257000000,"seq":736,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c60b5-9699-720f-980d-752ddd02b73a","at":1771149039257000000,"seq":737,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c60b5-ff10-7a99-b2a6-3ba19f800c1a","at":1771149066000000000,"seq":738,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c60b5-ff10-7f23-a90c-bd97a354f25f","at":1771149066000000000,"seq":739,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c60b6-35c0-72dd-aedb-e3a4a1e20f03","at":1771149080000000000,"seq":740,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

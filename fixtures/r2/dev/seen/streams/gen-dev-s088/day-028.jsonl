@@ -1,0 +1,42 @@
+{"v":1,"id":"019c03e6-12f9-72bb-baa1-96b9c3eec98f","at":1769591935737000000,"seq":285,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c03e6-12f9-764d-b4ff-e855358cef21","at":1769591935737000000,"seq":286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c03e6-94e8-712f-b14c-9a85037bd12c","at":1769591969000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c03e6-b810-73dd-826e-54d9dbc875ec","at":1769591978000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f0-62a4-717b-b247-69cdfa8513dd","at":1769592611492000000,"seq":289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c03f0-8bb0-7b8e-984a-c1fe4bec8eca","at":1769592622000000000,"seq":290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c03f0-ce18-7a70-92ee-2e0cb82dcfd6","at":1769592639000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f0-d346-7573-a54d-7571e86ee687","at":1769592640326000000,"seq":292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c03f1-2020-754d-a707-cad3a5db5bce","at":1769592660000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f1-4348-798b-bb53-2f44e812b2c6","at":1769592669000000000,"seq":294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c03f4-74e3-7ecd-a4cf-c58559acdd66","at":1769592878307000000,"seq":295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c03f4-aa60-7ea9-8755-adc4c912eea9","at":1769592892000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f5-46a0-72a9-9d73-c3e8026bb301","at":1769592932000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f5-8051-710c-80e6-51881d4fb74e","at":1769592946769000000,"seq":298,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c03f5-8908-7c93-b887-63f71614086d","at":1769592949000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f5-c788-7429-b400-d77503ed04f9","at":1769592965000000000,"seq":300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c03f6-1990-71fa-ac50-f8252e00b009","at":1769592986000000000,"seq":301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c03f6-40a0-7379-a723-e90f90cf6524","at":1769592996000000000,"seq":302,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c03f6-4998-79be-8645-16f578f57e4e","at":1769592998296000000,"seq":303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c03f6-4c58-7dd7-b4a2-f37e0a504857","at":1769592999000000000,"seq":304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c03f6-7b38-7255-8fa9-916e8af0b742","at":1769593011000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c03f6-ae00-7dda-98b8-43cf854c56b4","at":1769593024000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f6-b1e8-7a4b-9af1-71e2c0beb638","at":1769593025000000000,"seq":307,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c03f6-bdf2-7faa-8983-dd83b68a6a80","at":1769593028082000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c03f7-2330-7d16-983b-d9e8209830fc","at":1769593054000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c03f7-55f8-7df4-a7a0-59684ca2aba6","at":1769593067000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0407-ec7f-7abe-a000-82a48b966690","at":1769594154111000000,"seq":311,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0407-ec7f-7606-8de9-454ed5029bb2","at":1769594154111000000,"seq":312,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0408-1af0-7368-8314-a0eeda605295","at":1769594166000000000,"seq":313,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c0408-3260-780d-946b-ea9496ab180b","at":1769594172000000000,"seq":314,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c0410-92e6-74de-a9ab-d59942761fce","at":1769594720998000000,"seq":315,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0410-92e6-7280-bb71-f60d1fe58619","at":1769594720998000000,"seq":316,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c0410-d168-7927-8a20-c1a24c74bd9b","at":1769594737000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c0410-e3d2-7a62-9938-992672b4b5fc","at":1769594741714000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c0411-0c00-76d7-8a0c-22ca768be0dd","at":1769594752000000000,"seq":319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0411-2344-7aec-a3e4-da1d98a81cbb","at":1769594757956000000,"seq":320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c0411-2758-7732-be25-74ecc2d75bf5","at":1769594759000000000,"seq":321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0411-def0-771a-93ad-c38bbbdd3c91","at":1769594806000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c042d-73a2-7c38-a36e-08d0837a21fc","at":1769596613538000000,"seq":323,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c042d-73a2-74ae-bca5-12b38ba51a54","at":1769596613538000000,"seq":324,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c042d-b3f0-7323-a409-31ad1f8c665d","at":1769596630000000000,"seq":325,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c042d-c778-7a0a-bddf-c902388ebd19","at":1769596635000000000,"seq":326,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}

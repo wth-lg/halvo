@@ -1,0 +1,23 @@
+{"v":1,"id":"019c3c66-673b-7d7b-9455-e37c3312ff10","at":1770539870011000000,"seq":731,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c66-673b-7490-9638-0af625723c8a","at":1770539870011000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c3c66-72e8-7ac9-a9e0-9021e8435f52","at":1770539873000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c3c66-9de0-7d82-aa13-0390f0bcb014","at":1770539884000000000,"seq":734,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c66-e430-7d67-b45d-1f8b5c514e2c","at":1770539902000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c67-30dc-74a0-ac16-8141c2a2c131","at":1770539921628000000,"seq":736,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c3c67-7c88-730b-a6ac-1119624fe8f2","at":1770539941000000000,"seq":737,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3c67-8840-7f21-b22d-c235c5093399","at":1770539944000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c67-97e0-784e-90db-7cd31ba00586","at":1770539948000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c71-6c70-7f11-b357-2781a8b2d509","at":1770540592240000000,"seq":740,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c3c71-9e48-79ef-ab5a-e916a0ae281c","at":1770540605000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c3c71-dd7f-7d8f-9ee6-2384e878da9e","at":1770540621183000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c3c72-03d8-7aed-a17b-7d144f75b28e","at":1770540631000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3c72-2318-734b-abb6-cc56ef240205","at":1770540639000000000,"seq":744,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3c72-635b-7eef-b51b-704c637ae955","at":1770540655451000000,"seq":745,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c3c72-d2e0-7d3a-9e61-2afa353af4b1","at":1770540684000000000,"seq":746,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3c72-ee38-798b-b3b3-5b8776a79a1f","at":1770540691000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c3c73-4fe0-71e2-8a97-ce9f80c67f4d","at":1770540716000000000,"seq":748,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c73-6383-77b8-9b33-5923e9d446e7","at":1770540721027000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c3c78-5d4e-7e49-a4af-02686c392198","at":1770541047118000000,"seq":750,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3c78-5d4e-731b-957f-4c6a2ee1d35b","at":1770541047118000000,"seq":751,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3c78-6c78-7ccb-ad0c-b7d585262009","at":1770541051000000000,"seq":752,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c3c78-9b58-7a47-b046-f7ccf820372c","at":1770541063000000000,"seq":753,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

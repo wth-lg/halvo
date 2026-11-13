@@ -1,0 +1,64 @@
+{"v":1,"id":"019b8d67-9e53-7460-93b0-950f0bb173e8","at":1767603936851000000,"seq":104,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8d67-9e53-74af-bff3-7683e8bcdfa0","at":1767603936851000000,"seq":105,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8d67-c210-7591-9308-a27259779b19","at":1767603946000000000,"seq":106,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b8d68-2432-740a-928d-8cc4541e2ba6","at":1767603971122000000,"seq":107,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8d68-4ac8-719b-a5d7-77112da7d524","at":1767603981000000000,"seq":108,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d68-6238-7ba4-b284-5fa37d0fc45d","at":1767603987000000000,"seq":109,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d68-9500-77d9-b80d-5e6252381efb","at":1767604000000000000,"seq":110,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b8d68-f2c0-79c5-9f7f-86cfdb7f274d","at":1767604024000000000,"seq":111,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8d7c-dabd-7cb3-bba1-55082de89a34","at":1767605328573000000,"seq":112,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d7c-dabd-7152-af74-554ad4e40c2d","at":1767605328573000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019b8d7d-3a28-78a8-b05b-e6bd0826f934","at":1767605353000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b8d7d-49c7-7af4-adb0-f90f171085ad","at":1767605356999000000,"seq":115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019b8d7d-f5a8-7b0b-acd3-4ac3884402ba","at":1767605401000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b8d7d-f990-7d29-9ad1-d8def1758eb4","at":1767605402000000000,"seq":117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d7e-18d0-7a77-88e1-a8a623c7887d","at":1767605410000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d7e-45f8-731b-b302-37515766f416","at":1767605421560000000,"seq":119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019b8d7e-5f20-715a-9ab1-4fe08d202ade","at":1767605428000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d7e-e7d8-715c-a300-f50c3c78c2ef","at":1767605463000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b8d7f-41b0-77c7-b072-cf78f05718bb","at":1767605486000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d8e-7eea-7a88-ac52-cf4928b9aed5","at":1767606484714000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b8d8e-be88-7cbd-818f-045916909908","at":1767606501000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b8d8f-71c2-7e1f-9b8f-672a563034fd","at":1767606546882000000,"seq":125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8d8f-b4a0-731b-a4b0-c2ab11a72174","at":1767606564000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d8f-c440-74bc-b835-53c531fbcc26","at":1767606568000000000,"seq":127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d8f-dbb0-7a3b-a09e-78ee1e7e36a2","at":1767606574000000000,"seq":128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d8f-e768-724f-ba70-4748753debe2","at":1767606577000000000,"seq":129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b8d90-22e0-7e62-bcfe-60b8ecc82f71","at":1767606592224000000,"seq":130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b8d90-9730-74b3-8431-fcd38984b254","at":1767606622000000000,"seq":131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d90-a6d0-7d07-9cf4-9f718b32686f","at":1767606626000000000,"seq":132,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8d91-1eac-7467-b222-d9dbdb831049","at":1767606656684000000,"seq":133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b8d91-b070-71d9-89bb-c4605f1f1d8c","at":1767606694000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d91-df50-7d64-9200-b88bbac982e8","at":1767606706000000000,"seq":135,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8d92-1d11-74d7-8718-68416c985766","at":1767606721809000000,"seq":136,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b8d92-44e0-7711-af85-e0531e0270d0","at":1767606732000000000,"seq":137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d92-c5c8-7bc0-bf84-8b0091ab7255","at":1767606765000000000,"seq":138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b8d92-d568-70c4-a7e2-fe7510e66487","at":1767606769000000000,"seq":139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d93-0c18-706f-9436-72caff04a685","at":1767606783000000000,"seq":140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8d96-a715-7b9a-b47e-c5f18895ac9c","at":1767607019285000000,"seq":141,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8d96-a715-7ae8-8274-9ce07dd15244","at":1767607019285000000,"seq":142,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8d96-adc8-7f25-8809-26bc3866c8aa","at":1767607021000000000,"seq":143,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b8d96-c920-7bc5-8f33-544c415c6384","at":1767607028000000000,"seq":144,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b8d96-cd08-7f11-85de-9e84b3b60eb9","at":1767607029000000000,"seq":145,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b8db2-3c3a-71e6-b248-edfcd6aab8ac","at":1767608826938000000,"seq":146,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8db2-3c3a-7cf4-978f-ed0bf8ff955c","at":1767608826938000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b8db2-4830-76df-8765-2fca7e020eef","at":1767608830000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8db2-7ee0-752c-b206-c055c9c8b9ed","at":1767608844000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b8db2-e024-7d5e-91e1-bc12d4e09a82","at":1767608868900000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b8db2-f7f8-7cd2-922c-600a8609cd5f","at":1767608875000000000,"seq":151,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8db3-0798-7d23-998c-d1182a0a6994","at":1767608879000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8db3-2ea8-7322-9b41-5641959cc821","at":1767608889000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8db3-74f8-741c-8b4a-7b1c4f150179","at":1767608907000000000,"seq":154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8db3-83d4-7bf0-b361-09ddafbc5112","at":1767608910804000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b8db3-8880-7fc3-b8cf-c80b460a6ea3","at":1767608912000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b8db3-9c08-7f29-8842-128fc0ddb6f8","at":1767608917000000000,"seq":157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8db3-aba8-7436-8067-e17611fd03e5","at":1767608921000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8db3-bf30-710b-84b0-60f4a66e6ce4","at":1767608926000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8db3-e258-7e20-8804-c1d614e35af9","at":1767608935000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8db3-e335-7569-a38a-a956543105be","at":1767608935221000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b8db4-6ef8-70c7-a1a3-453450696597","at":1767608971000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8db4-9220-707f-816f-b72940c3d031","at":1767608980000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dba-5915-7651-a3e7-1ad488b28b87","at":1767609358613000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8dba-a8b8-7c91-8b09-e3c6d04b651c","at":1767609379000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dba-bc40-77f2-8dfe-83b2166d4567","at":1767609384000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dba-c410-7c14-b6b1-d864f9e1d2c9","at":1767609386000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

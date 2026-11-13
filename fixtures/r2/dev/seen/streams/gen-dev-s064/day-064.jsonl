@@ -1,0 +1,22 @@
+{"v":1,"id":"019cbd3b-c4bf-75bd-b053-e8c0e316bc4f","at":1772701336767000000,"seq":844,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd3b-c4bf-77f7-8382-e7f04bd5b171","at":1772701336767000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cbd3c-1848-7f1f-a9e8-d01183ee5e66","at":1772701358152000000,"seq":846,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cbd3c-aed4-7671-aa19-c47dc0978308","at":1772701396692000000,"seq":847,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cbd3c-bfa8-741e-a798-b3f77922a9ae","at":1772701401000000000,"seq":848,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3c-ee88-70e6-85ad-c6ba87abeb0a","at":1772701413000000000,"seq":849,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbd3d-05f8-7320-a067-f2248cf70f92","at":1772701419000000000,"seq":850,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbd3d-1009-7aaa-919d-6145528f6a9a","at":1772701421577000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cbd3d-2920-7496-aa75-8984faaa21b5","at":1772701428000000000,"seq":852,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3d-30f0-7068-8aad-9262de24f2fd","at":1772701430000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3d-63b8-726a-af10-a94a4b010ce6","at":1772701443000000000,"seq":854,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd3d-7f10-7daa-b25b-4e94a7c52ae3","at":1772701450000000000,"seq":855,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cbd3d-94cb-7a3d-b2ca-bb7c9de7bf34","at":1772701455563000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019cbd3d-a620-7686-b324-1dddd237a894","at":1772701460000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cbd3d-aa08-7eae-b703-abd92e704a14","at":1772701461000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3d-adf0-7ba9-ad77-909865298926","at":1772701462000000000,"seq":859,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbd3d-c560-71ea-a4d4-c78f108308db","at":1772701468000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd3d-d500-74b6-8cbf-126fb214628f","at":1772701472000000000,"seq":861,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cbd3d-db08-74d7-ad18-b6c276cb4d1f","at":1772701473544000000,"seq":862,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cbd3d-ec70-7bc6-b333-b2f026f591ba","at":1772701478000000000,"seq":863,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd3d-fc10-7787-a952-f7fba1a2b4ba","at":1772701482000000000,"seq":864,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cbd3e-1b50-7461-bdb0-9492bd467b8b","at":1772701490000000000,"seq":865,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

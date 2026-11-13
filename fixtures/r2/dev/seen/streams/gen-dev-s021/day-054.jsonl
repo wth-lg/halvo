@@ -1,0 +1,16 @@
+{"v":1,"id":"019c895c-8c54-76f9-82d2-c23402c433ba","at":1771831069780000000,"seq":749,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c895c-8c54-7f0a-87d6-9071915cafda","at":1771831069780000000,"seq":750,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c895c-a0b8-780d-b5c1-717c0ff51e66","at":1771831075000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c895c-b058-7a29-9408-0626c31bab7b","at":1771831079000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c895c-bff8-7f2c-8bbf-d44ff1d90d0f","at":1771831083000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c895c-c3bc-77a4-8893-69e454197e42","at":1771831083964000000,"seq":754,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c895c-df38-7237-bef7-8af82addbf24","at":1771831091000000000,"seq":755,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c895c-fa90-73f8-9da5-eb4592a51cd3","at":1771831098000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8962-b426-7188-8c17-aeb32698af3b","at":1771831473190000000,"seq":757,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c8962-da78-7b8c-8037-8954b7bcdab1","at":1771831483000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8963-18f8-7ad6-9d50-4cb2a68f22cd","at":1771831499000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c8963-6b00-78a4-940a-f55c5e628d62","at":1771831520000000000,"seq":760,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c897b-d823-78b5-84e3-6ed56cf7e4d2","at":1771833120803000000,"seq":761,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c897b-d823-7563-9ce2-31f825dba4d7","at":1771833120803000000,"seq":762,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c897c-1f38-721a-999b-c2dbd49a5aed","at":1771833139000000000,"seq":763,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c897c-2af0-7347-b4c8-a001ee22c0b3","at":1771833142000000000,"seq":764,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

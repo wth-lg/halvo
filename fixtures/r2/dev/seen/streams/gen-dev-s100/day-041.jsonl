@@ -1,0 +1,27 @@
+{"v":1,"id":"019c4662-f1b2-75a4-b027-9349d018ef1c","at":1770707415474000000,"seq":675,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4662-f1b2-730b-b28a-169311e765f0","at":1770707415474000000,"seq":676,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4663-8c18-711f-aab0-f3d1434db342","at":1770707455000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4663-93e8-7a03-82cf-800ef76cf85e","at":1770707457000000000,"seq":678,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4670-9a49-7b74-819f-5736f9eb7154","at":1770708310601000000,"seq":679,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c4670-df28-71e7-87bd-5fd3b65a8445","at":1770708328232000000,"seq":680,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c4670-e610-766d-ba15-ab1970382435","at":1770708330000000000,"seq":681,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4671-3048-7746-a5f4-4f01b2f6f191","at":1770708349000000000,"seq":682,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4671-a190-77a3-9784-f882ed421aac","at":1770708378000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4671-e0be-7522-8af7-977d0a583f7e","at":1770708394174000000,"seq":684,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c4672-2278-7810-9fe7-cf07b9a34218","at":1770708411000000000,"seq":685,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4672-39e8-7be2-9126-31d724b8559e","at":1770708417000000000,"seq":686,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c4672-4988-7c1a-8d6a-6acbae7aa770","at":1770708421000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4672-9463-7bf9-9453-19988415fb67","at":1770708440163000000,"seq":688,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c4672-b300-76e8-86d6-941bb4466f65","at":1770708448000000000,"seq":689,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4672-d240-7579-8604-0db4b44daab9","at":1770708456000000000,"seq":690,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4672-e5c8-7b39-a452-4e8bcb212716","at":1770708461000000000,"seq":691,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4673-2c18-70a5-b642-51dd8b347d77","at":1770708479000000000,"seq":692,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c4686-1171-7637-9ec7-f9cdc2425426","at":1770709717361000000,"seq":693,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4686-2778-7f2e-9528-e93b99db7ade","at":1770709723000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4686-46b8-72fa-b282-f9b3a6802cb8","at":1770709731000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4699-a890-7e56-ac1a-79f83bf864a6","at":1770711001232000000,"seq":696,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c4699-bb30-7df6-bcc8-0efd175ea068","at":1770711006000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c469a-09d3-7c2e-95d8-a82eb3fb8228","at":1770711026131000000,"seq":698,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c469a-1508-7ba3-a39d-39e05e1aa9f9","at":1770711029000000000,"seq":699,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c469a-1cd8-7518-9169-758f44cfcedd","at":1770711031000000000,"seq":700,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c469a-1cd8-7c22-b5bb-d89f76856993","at":1770711031000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

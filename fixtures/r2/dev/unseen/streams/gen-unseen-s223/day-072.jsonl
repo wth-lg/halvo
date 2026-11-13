@@ -1,0 +1,23 @@
+{"v":1,"id":"019ce61b-9a9c-7207-8990-2fd5d8f1384b","at":1773387094684000000,"seq":855,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce61b-9a9c-7520-89b2-2d77e9b29181","at":1773387094684000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce61b-a790-7e81-abfb-9cb289bb00e1","at":1773387098000000000,"seq":857,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce61b-de40-77ae-9c7d-5d8aab51cebe","at":1773387112000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ce62d-c465-771f-a60b-7c776f227229","at":1773388285029000000,"seq":859,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ce62d-dfa0-7eb8-9e0b-135dcc3ff530","at":1773388292000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce62d-fee0-721b-a179-2a735064bc42","at":1773388300000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ce62e-80f6-7974-bbb3-83ed92c85654","at":1773388333302000000,"seq":862,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ce62e-8f68-7cb2-beb3-777a20945cf5","at":1773388337000000000,"seq":863,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce62e-9f08-7656-bb7a-98ab3cde26a0","at":1773388341000000000,"seq":864,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ce62e-c230-705a-8dc5-3962efd65b02","at":1773388350000000000,"seq":865,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce62f-048b-787d-a04d-3fa33f3ca3e0","at":1773388366987000000,"seq":866,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ce62f-0880-7b5b-82b2-ac348518e06d","at":1773388368000000000,"seq":867,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce62f-1ff0-7eb7-aaf5-e8dccc2dc78f","at":1773388374000000000,"seq":868,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce62f-4318-7626-924b-bc9ea4900a35","at":1773388383000000000,"seq":869,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce62f-4409-7bab-8ac1-ba017019612e","at":1773388383241000000,"seq":870,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ce62f-5a88-7f9e-a7c2-81bb00c276cd","at":1773388389000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce62f-75e0-7908-93f2-3885b1e60a47","at":1773388396000000000,"seq":872,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ce63f-71a5-7ccf-a27a-9094ccadf0d8","at":1773389443493000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce63f-8ef8-7afa-9551-48a33f43063d","at":1773389451000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce63f-d930-7f44-9121-10a53d8f3306","at":1773389470000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce63f-ecb8-7b4b-abbf-21d7fcc7e9cf","at":1773389475000000000,"seq":876,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce63f-ecb8-7eef-a64e-2c265e0af0ed","at":1773389475000000000,"seq":877,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

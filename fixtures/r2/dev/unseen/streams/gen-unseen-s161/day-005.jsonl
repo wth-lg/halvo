@@ -1,0 +1,18 @@
+{"v":1,"id":"019b8d4a-cb3b-7502-b900-014022febc95","at":1767602047803000000,"seq":24,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d4a-cb3b-7149-b672-858cd4c44a97","at":1767602047803000000,"seq":25,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8d4b-c218-743b-b8e1-60348e59c75d","at":1767602111000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d59-730d-7997-a74b-8ea0ce9d5679","at":1767603008269000000,"seq":27,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8d59-7db8-704f-9d7c-8b57b6ad546b","at":1767603011000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b8d59-9cf8-7274-a718-f8ea4eb21440","at":1767603019000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d70-3681-76a2-a03b-af893e0c3816","at":1767604500097000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b8d70-8893-7c82-8478-5b7e43fe2bb6","at":1767604521107000000,"seq":31,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b8d70-97c8-7264-bd47-5b7c7efb032c","at":1767604525000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d70-da30-7e72-8a22-aa7f2df6424c","at":1767604542000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d71-3bdb-70ea-8786-f38b92c6e83d","at":1767604567003000000,"seq":34,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b8d71-66d0-7563-8773-6ddc0ddbc52c","at":1767604578000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d71-6ea0-73d9-b630-61b316c7b0ac","at":1767604580000000000,"seq":36,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d71-9cbc-70ef-8ccd-d1a5d33df4f4","at":1767604591804000000,"seq":37,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b8d71-c490-7758-a769-a4f8bf45db46","at":1767604602000000000,"seq":38,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8d71-d818-7dc4-957c-7b45e8434e85","at":1767604607000000000,"seq":39,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b8d72-35d8-70ee-a657-954b60452dad","at":1767604631000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d72-8bc8-739d-9e22-1fc17cea0b30","at":1767604653000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

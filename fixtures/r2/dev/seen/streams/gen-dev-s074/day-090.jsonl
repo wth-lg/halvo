@@ -1,0 +1,19 @@
+{"v":1,"id":"019d436a-29e0-75e9-a556-1bf7c3d63bf6","at":1774952524256000000,"seq":1225,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d436a-29e0-7dd9-bc67-bc249d0b3525","at":1774952524256000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d436a-5ba8-723e-85c9-e79454c4f5b6","at":1774952537000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d436a-673f-72c0-a890-dc608744ca84","at":1774952539967000000,"seq":1228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d436a-8a88-7508-8500-90bceb4792cb","at":1774952549000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d436a-ccf0-7524-be0c-187e9ad51e39","at":1774952566000000000,"seq":1230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d436b-0b70-7fb1-b630-97574dacb44d","at":1774952582000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4377-13d6-70ee-bb1b-a22cb3184d8e","at":1774953370582000000,"seq":1232,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4377-13d6-747d-98fe-5b6d012380ac","at":1774953370582000000,"seq":1233,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4377-34b8-7047-8991-e5eff69cfca1","at":1774953379000000000,"seq":1234,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d4377-4c28-7120-9f87-ee006c768013","at":1774953385000000000,"seq":1235,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4377-86c0-7fb1-a63d-b0509424a9c8","at":1774953400000000000,"seq":1236,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4377-8aa8-7d97-98db-c04b2b9d7bd4","at":1774953401000000000,"seq":1237,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d437b-61cc-7a68-9566-9381e406cd44","at":1774953652684000000,"seq":1238,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d437b-61cc-770f-bb87-bd6afff45fe4","at":1774953652684000000,"seq":1239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d437b-99b8-7aa0-b04d-5c31b84d9697","at":1774953667000000000,"seq":1240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d437c-0b00-798a-91ac-0eaa3709df1e","at":1774953696000000000,"seq":1241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4393-6541-706c-a94b-6774b5fc54be","at":1774955226433000000,"seq":1242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4393-8aa0-7dbb-beca-ebe578dee4f5","at":1774955236000000000,"seq":1243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

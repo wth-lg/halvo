@@ -1,0 +1,37 @@
+{"v":1,"id":"019c0901-5d4d-7419-b9fc-c5c5ee567fe3","at":1769677610317000000,"seq":484,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0901-5d4d-7c90-bf56-792faea91b2b","at":1769677610317000000,"seq":485,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0901-96a8-7907-8d3c-916946ebdc82","at":1769677625000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0901-aa30-7963-b51d-ff5e723bce8e","at":1769677630000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0901-b200-742a-8413-c9e982593d50","at":1769677632000000000,"seq":488,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c090a-bb12-73b5-8875-3aee43bbce54","at":1769678224146000000,"seq":489,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c090a-bb12-7089-a762-d143b0bd2c16","at":1769678224146000000,"seq":490,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c090a-ce08-785a-9d70-9c03deb1d0c8","at":1769678229000000000,"seq":491,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c090b-00d0-72a4-80b9-86bdde0bb314","at":1769678242000000000,"seq":492,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c090b-1c28-7036-b786-e2ae5f267795","at":1769678249000000000,"seq":493,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c0925-b1a6-7b52-84a7-5f5be73e27a8","at":1769679991206000000,"seq":494,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0925-b1a6-7f32-a0a7-19c0abfd959f","at":1769679991206000000,"seq":495,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c0926-0e98-723f-ba06-708bc38bf24c","at":1769680015000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c0926-3359-7aab-a993-916d956af412","at":1769680024409000000,"seq":497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c0926-7810-7652-8065-46c508d3d7a5","at":1769680042000000000,"seq":498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c0926-9368-7d90-8e95-455baa4c44ea","at":1769680049000000000,"seq":499,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0927-37a9-7ed4-974f-ec568301f9a5","at":1769680091049000000,"seq":500,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0927-5aa0-7492-8242-134017568f75","at":1769680100000000000,"seq":501,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0927-8d68-76dc-b110-08b68e1e2519","at":1769680113000000000,"seq":502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0927-ad12-7851-b7b7-957109374830","at":1769680121106000000,"seq":503,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0927-b478-7ce0-b87a-72c89dd39305","at":1769680123000000000,"seq":504,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c0927-ec64-771d-8574-0621102eaa3e","at":1769680137316000000,"seq":505,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0928-0298-7b89-b67b-df2552bd0a13","at":1769680143000000000,"seq":506,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0928-3178-70bf-aa62-5d74be745a7e","at":1769680155000000000,"seq":507,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0928-5f95-79cc-af8e-34ff2bb2f28a","at":1769680166805000000,"seq":508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0928-8f38-7dd7-b728-211f105e1bea","at":1769680179000000000,"seq":509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0928-a2c0-715c-b0b0-6946c178f867","at":1769680184000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0929-0c38-793c-b89c-788c12cee01b","at":1769680211000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c0929-5dfa-72be-941b-878ba4b01aad","at":1769680231930000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0929-7998-7baa-a5b5-05813258455d","at":1769680239000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c0929-f167-7ac8-8373-27ec2bb55188","at":1769680269671000000,"seq":514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c092a-1da8-7c89-8d39-0c7e28b92bce","at":1769680281000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c092a-3900-7d5f-8bf9-4e5856991f5b","at":1769680288000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c092a-4c88-73c4-9ccf-5508a2ec0a02","at":1769680293000000000,"seq":517,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c092a-6746-78d2-8c1b-a64e78287588","at":1769680299846000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c092a-7398-750e-be38-e40687324ea1","at":1769680303000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c092a-92d8-79f8-8d92-1659e69285e8","at":1769680311000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

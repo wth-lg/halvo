@@ -1,0 +1,22 @@
+{"v":1,"id":"019bda8c-d365-7035-8d62-da65a33fd513","at":1768898220901000000,"seq":147,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bda8c-d365-7294-a1aa-03203f938eea","at":1768898220901000000,"seq":148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bda8c-d3c8-7f1e-a767-1b23d3885dd0","at":1768898221000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda8c-e368-7957-b741-2b12738cf2d3","at":1768898225000000000,"seq":150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda8d-73f0-78c1-85b1-6f370b68fe7e","at":1768898262000000000,"seq":151,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bda8d-8390-7509-8d2b-a4a08ac28321","at":1768898266000000000,"seq":152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bda9d-1f56-7413-8fa4-17035cf1b1d3","at":1768899288918000000,"seq":153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bda9d-3330-79ed-9e20-8782f802c93a","at":1768899294000000000,"seq":154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda9d-46b8-7342-b0ff-49bde64efefc","at":1768899299000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda9d-8d42-7dea-96b9-a7809109ba0b","at":1768899317058000000,"seq":156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bda9d-cf70-7f34-8576-08e66985fffc","at":1768899334000000000,"seq":157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bda9e-3b9e-763e-8f1a-5c298dea887f","at":1768899361694000000,"seq":158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bda9f-01b7-76af-8edb-804b181fb314","at":1768899412407000000,"seq":159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bda9f-2730-7a32-ac52-1f82846bad3c","at":1768899422000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda9f-7d20-7a0f-9fec-5863c760f98f","at":1768899444000000000,"seq":161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bda9f-9c60-76e6-990d-1d76ef3d4095","at":1768899452000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bda9f-a818-7520-8176-4cabe4959a99","at":1768899455000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bda9f-ee68-7491-9f71-0e4a8101329d","at":1768899473000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bda9f-fe4b-7ce0-b962-1398447d19a1","at":1768899477067000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019bdaa0-30d0-7b21-accb-c3671c5d23e8","at":1768899490000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaa0-34b8-7120-a0f4-2b8ce371b9d2","at":1768899491000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaa0-3c88-7034-b152-fc7cd8cd2d03","at":1768899493000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

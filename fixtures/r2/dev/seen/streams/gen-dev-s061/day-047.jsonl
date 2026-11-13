@@ -1,0 +1,10 @@
+{"v":1,"id":"019c656b-9511-7aca-bf59-2b54767fcd37","at":1771228075281000000,"seq":618,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c656b-9511-70fa-b6ac-c69b657d6652","at":1771228075281000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c656b-97e0-7396-9fa7-b9b20b5aee13","at":1771228076000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c656b-a780-75ec-8677-cb3a53ec70d9","at":1771228080000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c656b-bef0-7692-b652-b32a4805bafa","at":1771228086000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c656b-cc64-7074-97d2-52a942537e24","at":1771228089444000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c656b-e218-74ea-a372-06793596c208","at":1771228095000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c656c-da48-76ed-b0d1-f11af42c366c","at":1771228158536000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c656c-dc18-7fba-9b77-98e86505f4e5","at":1771228159000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c656d-4590-7192-a127-f91b365c7b16","at":1771228186000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,36 @@
+{"v":1,"id":"019c46ca-e467-7a48-a553-98cac7fd3c6f","at":1770714227815000000,"seq":627,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c46ca-e467-7c65-bbda-eb20e5bb71fc","at":1770714227815000000,"seq":628,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c46ca-e520-7626-9091-7555cccc2c8f","at":1770714228000000000,"seq":629,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46ca-e908-7c81-a326-bb9b43d97651","at":1770714229000000000,"seq":630,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46cb-42e0-7438-9cac-d1767bd849ec","at":1770714252000000000,"seq":631,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c46cb-5a50-7ade-b673-4ac742035b38","at":1770714258000000000,"seq":632,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c46cb-6220-734f-b143-c71aa3d2c615","at":1770714260000000000,"seq":633,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c46de-311a-7b4a-b435-7a92cc9b8a1c","at":1770715492634000000,"seq":634,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c46de-311a-7e82-b0e2-d267ab0772b8","at":1770715492634000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c46de-3670-727f-9585-26b7d3ed1f9c","at":1770715494000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46de-4228-7fbd-8490-48e754abad8a","at":1770715497000000000,"seq":637,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c46de-8c60-7c31-8d70-23a41d58466a","at":1770715516000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f6-2e14-7aa4-824e-7917705d703c","at":1770717064724000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46f6-65d8-7d0f-a012-db8761fdf784","at":1770717079000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f6-de6e-7e7d-88e7-923eab91ef63","at":1770717109870000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46f7-b1e0-75bd-acf8-6c4a1dd04494","at":1770717164000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f7-c568-7cf6-a39f-dcb600502161","at":1770717169000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c46f7-e0a8-74ec-a060-ef7cee2ad262","at":1770717175976000000,"seq":644,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46f8-4268-7a10-a58b-ae27168c2c74","at":1770717201000000000,"seq":645,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c46f8-7148-7011-9485-5541220b6d51","at":1770717213000000000,"seq":646,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c46f8-84d0-7e17-809a-ae06aeef3e68","at":1770717218000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f8-88b8-7fc9-9912-7bed60a417e0","at":1770717219000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f8-d2f0-7d18-8e95-54b51ecbd8ea","at":1770717238000000000,"seq":649,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c46f8-efd0-7c64-9e0c-649efb5542e7","at":1770717245392000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46f9-1940-74f4-a51c-cdc4c64749cd","at":1770717256000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f9-30b0-7d49-9da0-72ca26de92ef","at":1770717262000000000,"seq":652,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c46f9-f069-7351-b028-f63205cc7d54","at":1770717311081000000,"seq":653,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46fa-1340-70d4-b8f5-1de97cdf995c","at":1770717320000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46fa-4716-7d8f-a5af-6e44166a9127","at":1770717333270000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c46fa-49f0-7720-8406-05b2e427cc25","at":1770717334000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46fa-4dd8-7e32-99a2-135eb0fd563c","at":1770717335000000000,"seq":657,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c46fa-78d0-7086-89b8-2f10ffd19fdf","at":1770717346000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c470e-572b-7cb1-b22a-afa4a1bf9828","at":1770718648107000000,"seq":659,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c470e-572b-7cda-9649-9ee834fd463a","at":1770718648107000000,"seq":660,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c470e-5aa8-7393-acc9-c654bc8f15cb","at":1770718649000000000,"seq":661,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c470e-6a48-780d-bcb4-17fd6e45b0b7","at":1770718653000000000,"seq":662,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

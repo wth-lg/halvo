@@ -1,0 +1,42 @@
+{"v":1,"id":"019b8d53-76f7-726b-9ffd-df7ad23cd1f2","at":1767602616055000000,"seq":77,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d53-76f7-7de5-9439-51439d5a18a3","at":1767602616055000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8d53-7aa8-74cc-862b-95620ff21c89","at":1767602617000000000,"seq":79,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8d53-c0f8-7845-bbe1-13a0cd91168a","at":1767602635000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8d53-d098-7321-9701-ad91e01131b6","at":1767602639000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d5c-ae33-7662-81c8-a27b16a97079","at":1767603220019000000,"seq":82,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b8d5c-f470-7ee3-93fd-b4d356e39a2f","at":1767603238000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b8d5d-0be0-75ab-9d16-66dcbee79397","at":1767603244000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d5d-5816-7e93-8117-d86e07381008","at":1767603263510000000,"seq":85,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b8d5d-c760-7cab-b954-ccb5624fb71f","at":1767603292000000000,"seq":86,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8d5d-ded0-7ade-a1d2-2c1b3a46e851","at":1767603298000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b8d5d-fe10-7f3e-a325-030052083b1e","at":1767603306000000000,"seq":88,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d5e-0677-76ea-8550-3973a7890526","at":1767603308151000000,"seq":89,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b8d5e-7b10-7d49-ac0f-b87b317a6569","at":1767603338000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d5e-86c8-7656-8c6d-3b153578a1fa","at":1767603341000000000,"seq":91,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d5e-f040-76d8-a9c9-92b77df0a1ee","at":1767603368000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d5f-051f-73bd-84e0-2f384e6949b8","at":1767603373343000000,"seq":93,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b8d5f-abc0-7f24-8d13-7455dc8bd7a1","at":1767603416000000000,"seq":94,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8d68-5dc3-703b-982b-55ecb7bc04a7","at":1767603985859000000,"seq":95,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b8d68-c3e0-78c0-9ce8-52032adfd19f","at":1767604012000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d68-d2de-7364-8356-92aa60fa70db","at":1767604015838000000,"seq":97,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b8d69-5080-788c-808d-a51120df2522","at":1767604048000000000,"seq":98,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d69-5ee2-71f1-b860-821fb78d8fa5","at":1767604051682000000,"seq":99,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b8d69-7b78-7a01-9011-8d9ac5363c7e","at":1767604059000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d69-8348-759a-9380-5575da9d341f","at":1767604061000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b8d69-8b18-73e1-9d72-92898ed350c5","at":1767604063000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d69-9ea0-7653-be60-5532f08ce914","at":1767604068000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8d69-a670-708b-b577-32413f8e9030","at":1767604070000000000,"seq":104,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8d69-af31-7366-ae7c-972d41967864","at":1767604072241000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019b8d69-e108-7796-a556-5e368344eaca","at":1767604085000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b8d6a-0048-7a8d-8e5e-31afa46e29b1","at":1767604093000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d78-d048-7d98-a004-d3e919f697ac","at":1767605063752000000,"seq":108,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8d78-d048-74a1-a25b-f06fd2b870e3","at":1767605063752000000,"seq":109,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8d79-0408-733d-a2fe-4834a5d7e996","at":1767605077000000000,"seq":110,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b8d79-36d0-7492-9683-1107d26de010","at":1767605090000000000,"seq":111,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b8d84-0ab8-7d5a-ac30-a6634670f1fc","at":1767605799608000000,"seq":112,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d84-0ab8-761c-ab81-99b253547aee","at":1767605799608000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8d84-3f08-744c-bb30-6f0d4ceba8ec","at":1767605813000000000,"seq":114,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8d84-79a0-7068-83e6-41fd16963649","at":1767605828000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b8d84-cf90-7aea-9ade-bf5efe200af0","at":1767605850000000000,"seq":116,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d88-97f4-7662-9c10-4ece08c8109b","at":1767606097908000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b8d88-dea0-7a07-aabc-dd7631dc012e","at":1767606116000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

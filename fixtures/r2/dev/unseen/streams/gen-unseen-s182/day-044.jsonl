@@ -1,0 +1,26 @@
+{"v":1,"id":"019c568f-aede-7d99-af8d-6ac807541bfe","at":1770978782942000000,"seq":637,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c568f-aede-75ff-a865-32b5cfd55bfc","at":1770978782942000000,"seq":638,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c568f-f180-70cc-9c16-b40573dab339","at":1770978800000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c5690-0cd8-7905-980a-974a300e8988","at":1770978807000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5690-2448-779e-a2eb-ffc1f11038a5","at":1770978813000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56ab-5a37-7321-ae08-41d96734e40c","at":1770980596279000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c56ab-60f0-73e7-9a7f-b2d64c38786c","at":1770980598000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56ab-8030-71ec-a22e-1f4787c7b2b5","at":1770980606000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c56ab-8800-7c48-96ca-d81da07dccf3","at":1770980608000000000,"seq":645,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c56ab-b2f8-7cae-bcb5-a8c1e67bf77a","at":1770980619000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56af-1e0b-7f44-892e-2739d2d0b856","at":1770980843019000000,"seq":647,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c56af-3d38-711b-a1e1-1f6e9c42979f","at":1770980851000000000,"seq":648,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c56af-7fa0-7a6c-815d-5e946d6a6587","at":1770980868000000000,"seq":649,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c56c3-4c78-7566-9d41-2b604e590563","at":1770982165624000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c56c3-e8a2-74c4-a7a6-0e2f15b1cf1c","at":1770982205602000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c56c4-3c38-7314-9dfa-2477e5eec9b8","at":1770982227000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56c4-4fc0-7b43-b167-c15c5ce21083","at":1770982232000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56c4-bd20-7760-9d49-fd5cc506f5ae","at":1770982260000000000,"seq":654,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c56c4-c44c-76dc-8e24-91c1c87c2178","at":1770982261836000000,"seq":655,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c56c4-dc60-7065-aa53-387d4dcb8eea","at":1770982268000000000,"seq":656,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c56c4-f3d0-73f5-b33f-0886cfe16268","at":1770982274000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56c5-0f28-7be3-a2f7-f3c3da09a7a3","at":1770982281000000000,"seq":658,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c56c5-5578-7e65-ab01-0a646c84db14","at":1770982299000000000,"seq":659,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c56c5-b2e0-7c11-8710-8e6b43ee9962","at":1770982322912000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c56c5-f5a0-742a-a20b-7549d48ab299","at":1770982340000000000,"seq":661,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c56c6-3038-7e26-974e-1220a3b518db","at":1770982355000000000,"seq":662,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

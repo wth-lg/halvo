@@ -1,0 +1,42 @@
+{"v":1,"id":"019d297b-5202-7a07-b922-90276b47d103","at":1774517441026000000,"seq":1188,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d297b-5202-7b37-8bf1-18bf018a2a6b","at":1774517441026000000,"seq":1189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d297b-55d0-71e5-84ab-c6dc41455e96","at":1774517442000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d297c-1538-7d24-81de-4da43ef5a13c","at":1774517491000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d297c-154d-775b-bb55-00a43f2f5a59","at":1774517491021000000,"seq":1192,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d297c-154d-7f29-83c0-ce5c01561d65","at":1774517491021000000,"seq":1193,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d297c-3c48-79e6-8209-85f11f94e403","at":1774517501000000000,"seq":1194,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d297c-4418-7c42-8cfe-71d09c7ea9ab","at":1774517503000000000,"seq":1195,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d297c-72f8-7759-a848-0beed5e9f43b","at":1774517515000000000,"seq":1196,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d297c-7431-7f58-a2ff-b0c16bccfd34","at":1774517515313000000,"seq":1197,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d297c-7431-77a9-a270-b46b46de01f1","at":1774517515313000000,"seq":1198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d297c-d4a0-7690-a013-921b99b1265d","at":1774517540000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d297d-7e69-7fbe-a765-50c7ce2eb4e0","at":1774517583465000000,"seq":1200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d297d-a3a8-738b-8c18-d28011f79d70","at":1774517593000000000,"seq":1201,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d297d-f998-7971-930a-7997bcf3ec56","at":1774517615000000000,"seq":1202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d297e-1854-7bcf-8a97-8c4a1e0ccd76","at":1774517622868000000,"seq":1203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d297e-d458-7d6f-b837-1ab989a23b22","at":1774517671000000000,"seq":1204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d297e-e7e0-73a5-8ebd-d7474df59e91","at":1774517676000000000,"seq":1205,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2982-984d-7e64-84b0-c2a1a19b6422","at":1774517917773000000,"seq":1206,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2982-984d-7355-be8b-c5075247a0dc","at":1774517917773000000,"seq":1207,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2982-acb8-7fa2-ba2f-907d4ef745df","at":1774517923000000000,"seq":1208,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2982-acb8-7c8b-8903-53403bf298cf","at":1774517923000000000,"seq":1209,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d2983-0e60-7507-9af0-558bf552fdca","at":1774517948000000000,"seq":1210,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2983-2554-7838-b7e7-95c5ee1837ba","at":1774517953876000000,"seq":1211,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2983-2554-7b22-818c-5a4629dccbe5","at":1774517953876000000,"seq":1212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d2983-5c80-7c1d-a79a-b7794d451b23","at":1774517968000000000,"seq":1213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2983-7008-758a-a75a-09a4bf23da8b","at":1774517973000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d2983-87ed-73df-b3de-5a8faa285fd5","at":1774517979117000000,"seq":1215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d2983-ed08-727e-b9fc-39a3ab429799","at":1774518005000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2984-5298-7638-b5ad-7a77d382eb33","at":1774518031000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2984-885e-74d7-83d6-63fde4d3e48e","at":1774518044766000000,"seq":1218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d2984-8948-775d-8554-57c3d77e4796","at":1774518045000000000,"seq":1219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2984-b058-7046-afce-0aa847a667af","at":1774518055000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2984-bc10-75a9-9740-ff7a397edbdf","at":1774518058000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d2984-c9be-754f-b0f2-b0f337e2cdcd","at":1774518061502000000,"seq":1222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d2984-cbb0-7717-a588-2bacf60ce67f","at":1774518062000000000,"seq":1223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2984-eed8-7d1e-a069-35a53b584e7a","at":1774518071000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2985-238a-7ead-a353-1b799b34d407","at":1774518084490000000,"seq":1225,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2985-238a-762a-8fb5-9d405e12df2f","at":1774518084490000000,"seq":1226,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2985-2970-7c9a-8bf3-86b887e97821","at":1774518086000000000,"seq":1227,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2985-c5b0-7049-adda-2aca431d739a","at":1774518126000000000,"seq":1228,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2985-ecc0-72a2-a913-19f9eba0c422","at":1774518136000000000,"seq":1229,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

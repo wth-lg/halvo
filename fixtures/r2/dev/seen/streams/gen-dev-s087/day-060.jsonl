@@ -1,0 +1,20 @@
+{"v":1,"id":"019ca85f-d4ac-73ff-857d-ac136eccc41d","at":1772351378604000000,"seq":829,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca85f-d4ac-75e5-82f4-20d873abb980","at":1772351378604000000,"seq":830,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca860-4b68-70ae-accd-90fabd49cfbb","at":1772351409000000000,"seq":831,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca876-4814-7fc0-8b4a-6a980c0930ae","at":1772352849940000000,"seq":832,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca876-4814-7caf-bc33-17222b4bf240","at":1772352849940000000,"seq":833,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ca876-9670-7cb5-84f9-cf8375bae5b9","at":1772352870000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca876-c168-71f8-a2e5-0247b450ef33","at":1772352881000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca876-d4f0-71c1-8785-9f323bac6b16","at":1772352886000000000,"seq":836,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ca876-ffa4-7a90-aa72-6fbb979f4a33","at":1772352896932000000,"seq":837,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ca877-2ec8-76b7-a4d4-e2e6c15ec22e","at":1772352909000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca877-9840-7f35-b7d3-461c1a7227e3","at":1772352936000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ca877-bb68-7f55-8512-0ef4d907045c","at":1772352945000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca877-c720-7e93-9bdb-aa78bced6d65","at":1772352948000000000,"seq":841,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca878-10a2-7586-9679-b88c8c9d885b","at":1772352966818000000,"seq":842,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ca87b-015c-761c-a8b1-e99043588895","at":1772353159516000000,"seq":843,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca87b-015c-7871-b672-b9ace1865f54","at":1772353159516000000,"seq":844,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca87b-5548-7853-a2bb-c483d2230bc6","at":1772353181000000000,"seq":845,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca87b-9b98-7ed3-b70f-086a54524b9f","at":1772353199000000000,"seq":846,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca882-f025-768f-a222-d472bd300a44","at":1772353679397000000,"seq":847,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ca883-2160-77ef-a578-82cdca2e0e00","at":1772353692000000000,"seq":848,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}

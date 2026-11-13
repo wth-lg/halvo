@@ -1,0 +1,21 @@
+{"v":1,"id":"019be9d8-1397-71de-b46e-169be3b5eb47","at":1769154810775000000,"seq":428,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be9d8-1397-7063-9cf4-38a3d3f0b62f","at":1769154810775000000,"seq":429,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be9d8-4358-7d65-b967-e1546c866d66","at":1769154823000000000,"seq":430,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019be9e4-ac8c-7c0e-b517-7c842dc45f96","at":1769155636364000000,"seq":431,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be9e4-ac8c-7238-8478-4a767d0d2793","at":1769155636364000000,"seq":432,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019be9e4-c678-754f-b3a1-730eea8304d5","at":1769155643000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019be9e5-0110-7b1d-8dd8-1ea805d7d8be","at":1769155658000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9e5-076e-7501-bbb4-4384b1161b95","at":1769155659630000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019be9e5-4b48-7f04-a00b-2ef6e1e72766","at":1769155677000000000,"seq":436,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be9e5-a520-7381-a32a-3e29d8b38840","at":1769155700000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f3-3a11-7650-80ad-5e3e946fe39a","at":1769156590097000000,"seq":438,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019be9f3-7448-7ea4-b932-0f533812820d","at":1769156605000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019be9f3-87d0-774d-a6aa-0e62677edfb2","at":1769156610000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f3-ba98-79d3-a68d-1651115ed17e","at":1769156623000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f4-2928-71bf-9091-2686a2b380e1","at":1769156651304000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be9f4-2fc8-7fd4-a11d-e9564d5914a4","at":1769156653000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f4-a93b-7c85-befb-db2bcaa10689","at":1769156684091000000,"seq":444,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019be9f4-c438-78d8-8983-9e43c02cd66d","at":1769156691000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f5-1e10-7b90-a8e9-adbaa98e17b0","at":1769156714000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f5-43d8-73ca-ab33-a2bff0100fd8","at":1769156723672000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019be9f5-b668-752b-b427-08a30b3da2bf","at":1769156753000000000,"seq":448,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

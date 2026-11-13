@@ -1,0 +1,24 @@
+{"v":1,"id":"019bdaa0-7b57-7b6d-9484-b9ae4fb82b27","at":1768899509079000000,"seq":244,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdaa0-7b57-741e-857d-38beeac6da92","at":1768899509079000000,"seq":245,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdaa1-03c0-799e-b5a0-7f7f76a81f3d","at":1768899544000000000,"seq":246,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaa1-32a0-77d0-ac39-61ad28043754","at":1768899556000000000,"seq":247,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bdaae-8daf-7f16-b322-0fa1a7ab9ade","at":1768900431279000000,"seq":248,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdaae-8daf-7ef1-b15e-f5a64d2b453c","at":1768900431279000000,"seq":249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bdaaf-2add-7180-bbcd-21b875d8e681","at":1768900471517000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bdaaf-2cc0-7576-9e59-81c07d84d92c","at":1768900472000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaaf-57b8-74ce-bf98-30bd5900441a","at":1768900483000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdaaf-7ae0-765d-8466-308c5a3cbffe","at":1768900492000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bdaaf-7ec8-721f-aa24-c20724ae38e0","at":1768900493000000000,"seq":254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdaaf-8e3a-787a-905a-3c5226ce7f79","at":1768900496954000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bdab0-2aa8-7e29-954e-9963485c6401","at":1768900537000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdab0-7b61-78a1-9760-024386e3d476","at":1768900557665000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bdab0-9420-72e8-86c1-0ec1bff4b08e","at":1768900564000000000,"seq":258,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdab1-0568-71c0-92de-5a16ffaf6d7a","at":1768900593000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaba-5d46-78a3-abd5-f5f911c96772","at":1768901205318000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bdaba-aa28-7af9-afa0-9118f17e59b2","at":1768901225000000000,"seq":261,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdac1-818a-7998-93a7-7778b2138cce","at":1768901673354000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bdac1-8be0-7d5d-89e8-17dc6c83aba8","at":1768901676000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdac1-d618-7c2f-9cb7-bad9bc6b0ec3","at":1768901695000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bdac2-53f3-72dd-b4ff-b3fae213e260","at":1768901727219000000,"seq":265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bdac2-9968-79a7-a3f7-ff57b7116ca6","at":1768901745000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdac2-f728-7f8d-a0a0-d54e13a8d15a","at":1768901769000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

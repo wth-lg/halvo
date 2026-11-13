@@ -1,0 +1,19 @@
+{"v":1,"id":"019cd6f0-0816-7a35-ba71-b49eeb300551","at":1773132580886000000,"seq":977,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6f0-0816-7a32-959b-b48e85a250bc","at":1773132580886000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f1-00de-7f0e-92f7-cc68998d03f4","at":1773132644574000000,"seq":979,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f1-6fe8-7907-8260-bdf8556f3a5f","at":1773132673000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cd6f1-d4db-7eca-b6d6-ac5fefa6834c","at":1773132698843000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f2-0c28-71b6-9d5f-26b4b434b63f","at":1773132713000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cd6f2-9185-700a-a623-491c5f084f63","at":1773132747141000000,"seq":983,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f2-fa70-7244-a721-1c40f0ac3ebb","at":1773132774000000000,"seq":984,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd6f3-6fa0-7983-a55a-4b83a037722a","at":1773132804000000000,"seq":985,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd6f8-f5ca-737d-ac16-cb2c9c67e87a","at":1773133166026000000,"seq":986,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd6f8-f5ca-7d5d-bb7f-3cea1559183a","at":1773133166026000000,"seq":987,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd6f9-18d8-7b88-a28e-eabdcbdf9ba6","at":1773133175000000000,"seq":988,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f9-3fe8-79db-aaff-9a7c19781d86","at":1773133185000000000,"seq":989,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cd6f9-99c0-7ac8-8ef2-62b642b01dcd","at":1773133208000000000,"seq":990,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cd6f9-c4b8-75be-ac9c-5cc06c0d7017","at":1773133219000000000,"seq":991,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cd6f9-ecef-71b8-b230-e73753ebc5cb","at":1773133229295000000,"seq":992,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cd6f9-f780-7691-b27c-8b55851e5696","at":1773133232000000000,"seq":993,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cd6fa-39e8-7e41-b457-5b8b6edb3fae","at":1773133249000000000,"seq":994,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cd6fa-5158-79a9-9cab-81b36007237c","at":1773133255000000000,"seq":995,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

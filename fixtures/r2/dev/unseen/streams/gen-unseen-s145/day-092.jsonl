@@ -1,0 +1,10 @@
+{"v":1,"id":"019d4d15-c802-7ca7-87c7-af40fa3b341e","at":1775114766338000000,"seq":1405,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d15-c802-7085-aef6-23317b40ead0","at":1775114766338000000,"seq":1406,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d4d16-aac6-7b87-bcdb-35e03cb6fb54","at":1775114824390000000,"seq":1407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d4d17-1a88-709e-98cf-67e5bb05f6f1","at":1775114853000000000,"seq":1408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d4d17-6d01-7a5f-9464-e50171d58d67","at":1775114874113000000,"seq":1409,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d4d17-7460-7a1e-ace1-cdce3d4caece","at":1775114876000000000,"seq":1410,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d17-f196-7cfc-8f34-cdc4638d1fb1","at":1775114908054000000,"seq":1411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d4d18-08d0-782f-83a1-78be91d3e346","at":1775114914000000000,"seq":1412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d4d18-4b38-76b6-8931-7107e3d66f32","at":1775114931000000000,"seq":1413,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4d18-5308-7a16-9bb2-072bab6b0722","at":1775114933000000000,"seq":1414,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

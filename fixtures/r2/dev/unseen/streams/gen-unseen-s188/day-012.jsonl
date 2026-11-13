@@ -1,0 +1,21 @@
+{"v":1,"id":"019bb131-7aee-7d19-91ac-f784a8d91f2a","at":1768204368622000000,"seq":154,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb131-7aee-752d-8022-c55d3d8f3b3d","at":1768204368622000000,"seq":155,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bb131-8438-7264-80b7-12e299a9af92","at":1768204371000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb132-43a0-7740-943f-7d36f6b80551","at":1768204420000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb132-641d-7fc0-8f96-db194483f8e6","at":1768204428317000000,"seq":158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bb132-95a8-7533-9b5d-c03edbfb6d39","at":1768204441000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb132-b100-7d50-ac2d-9c5d6bb59714","at":1768204448000000000,"seq":160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb132-b8cd-7a50-9c04-68dcf08267dd","at":1768204449997000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bb132-b8d0-7e53-bfcc-c41f257ca895","at":1768204450000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb132-c488-7373-baf1-1da5d7d9e664","at":1768204453000000000,"seq":163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb132-eb98-7a38-80bd-36d1714dba3f","at":1768204463000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bb135-635a-77f6-b574-04c9cd0c5cab","at":1768204624730000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bb135-f8d8-7923-ab1b-63eccc5d0c23","at":1768204663000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb136-4ec8-7072-b727-25e637c42a8f","at":1768204685000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb136-5698-7cdc-a2fc-529d5105a413","at":1768204687000000000,"seq":168,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb140-44ba-7dc7-931f-8ab107ae98d2","at":1768205337786000000,"seq":169,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb140-44ba-7416-8565-c5dcd454f378","at":1768205337786000000,"seq":170,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb140-7470-7cc5-81ef-3bcd93483f6c","at":1768205350000000000,"seq":171,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bb140-a7d9-764a-9f91-ca226b442cdd","at":1768205363161000000,"seq":172,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bb140-d230-7669-9575-5bf71cd9d7a2","at":1768205374000000000,"seq":173,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bb141-2c08-7407-b6db-47f7fbe557f8","at":1768205397000000000,"seq":174,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

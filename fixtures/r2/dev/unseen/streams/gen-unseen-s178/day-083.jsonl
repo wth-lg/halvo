@@ -1,0 +1,23 @@
+{"v":1,"id":"019d1f33-c057-728c-b1b3-636c9c3de474","at":1774344978519000000,"seq":1109,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1f33-c057-7b7e-b3bd-ae0853d4e59b","at":1774344978519000000,"seq":1110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1f34-0875-738e-975c-35b054bcb37b","at":1774344996981000000,"seq":1111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1f34-1440-7d02-9696-2a6c41f890c1","at":1774345000000000000,"seq":1112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1f34-1c10-7b07-937c-da3d32c94182","at":1774345002000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f34-3768-76fb-8b72-9c8768caa39d","at":1774345009000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d1f34-86a0-7a07-8f67-55abf562c799","at":1774345029280000000,"seq":1115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1f34-a8b0-77ae-95f3-6e4c282a68db","at":1774345038000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f34-c7f0-7404-bdb2-7e026b4eaef1","at":1774345046000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d1f35-184e-7f4e-a35f-5d807ea0aebc","at":1774345066574000000,"seq":1118,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d1f35-2998-7442-aa73-916111625346","at":1774345071000000000,"seq":1119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1f35-6430-71e3-aec9-234022f111c3","at":1774345086000000000,"seq":1120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d1f35-6c00-712d-81fa-e03dc1bb68db","at":1774345088000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f43-7663-7318-8f25-fef939516be2","at":1774346008163000000,"seq":1122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1f43-9118-75ef-a8cb-3b66d270c9bd","at":1774346015000000000,"seq":1123,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1f43-9cd0-7d99-b253-56bb51ebc618","at":1774346018000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f43-cbb0-71cf-97b7-1cddcfb1f0dd","at":1774346030000000000,"seq":1125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f43-cbb0-7045-8cc7-43d15bba6137","at":1774346030000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d1f46-dd97-7e80-8bc1-4c503e8781a3","at":1774346231191000000,"seq":1127,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1f46-dd97-76e7-aa4d-008e36f5f1a0","at":1774346231191000000,"seq":1128,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1f55-fdaa-7782-ba6b-5cfd11ef9a4b","at":1774347222442000000,"seq":1129,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1f55-fdaa-74e8-897f-d0134b645a9d","at":1774347222442000000,"seq":1130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1f56-4628-742d-b720-0e9cdcc6a8f3","at":1774347241000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

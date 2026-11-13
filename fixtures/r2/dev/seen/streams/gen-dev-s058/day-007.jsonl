@@ -1,0 +1,33 @@
+{"v":1,"id":"019b9764-c65d-7ef1-b3ec-75c6b258677e","at":1767771522653000000,"seq":58,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9764-c65d-7efd-b615-1fff6b477dc0","at":1767771522653000000,"seq":59,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b9764-fa80-7e0f-86e0-a396671830cd","at":1767771536000000000,"seq":60,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9765-0250-7418-ac81-27e979ae9118","at":1767771538000000000,"seq":61,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9765-d528-7614-aaf9-3e758364422a","at":1767771591976000000,"seq":62,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9765-d528-72ba-97eb-4b2d51517b24","at":1767771591976000000,"seq":63,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9765-f480-72bd-a964-675872e8d96c","at":1767771600000000000,"seq":64,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9766-25e4-75ea-9f3b-334a67681128","at":1767771612644000000,"seq":65,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9766-25e4-784c-8a56-c9320498022a","at":1767771612644000000,"seq":66,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b9766-36e8-726c-a49d-a9e184f34331","at":1767771617000000000,"seq":67,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9766-36e8-7778-80d5-f5c8507b5e51","at":1767771617000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b9766-5a10-7697-b31d-5c754c2a8cc1","at":1767771626000000000,"seq":69,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9766-69b0-7421-9edd-ba389c9b1d9b","at":1767771630000000000,"seq":70,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9766-d384-7073-b00c-a37bb0011bea","at":1767771657092000000,"seq":71,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b9766-e6b0-77ce-8ea6-c9896a35ac76","at":1767771662000000000,"seq":72,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9767-0208-73ca-8a4e-a4c8579996fb","at":1767771669000000000,"seq":73,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9767-0dc0-7404-9a8b-3324c9f017b5","at":1767771672000000000,"seq":74,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b9767-3ca0-7e02-8358-668adf7c8856","at":1767771684000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9767-5028-71fa-b40e-2c3b84185c54","at":1767771689000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9767-63fa-7b6f-9133-76d4e573ade9","at":1767771694074000000,"seq":77,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019b9767-a618-7f96-b788-2800a887d7a7","at":1767771711000000000,"seq":78,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9767-b1d0-7b80-8f41-a843d2624476","at":1767771714000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b9767-f050-7381-8446-838aee7fc631","at":1767771730000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9769-a985-783b-95ef-76a8c4c8cee9","at":1767771842949000000,"seq":81,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b9769-b570-78ec-ba4e-12a973847135","at":1767771846000000000,"seq":82,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b976a-3e28-7bb2-a8ee-fed6fd45b868","at":1767771881000000000,"seq":83,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b976f-82fa-7299-81fa-77e442fbe0fb","at":1767772226298000000,"seq":84,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019b976f-f15a-7e93-9d43-0d78476a4755","at":1767772254554000000,"seq":85,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b976f-f15a-7dc3-943e-50cc8a839f57","at":1767772254554000000,"seq":86,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9770-8f58-729d-ab0c-6918211a089a","at":1767772295000000000,"seq":87,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9770-9ef8-7bfa-9fee-102d7a5201f9","at":1767772299000000000,"seq":88,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9770-a374-7e93-8906-a4d0e408270a","at":1767772300148000000,"seq":89,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9770-a374-7a8d-97c7-6a423cc95b33","at":1767772300148000000,"seq":90,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}

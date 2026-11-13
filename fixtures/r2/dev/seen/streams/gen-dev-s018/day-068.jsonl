@@ -1,0 +1,27 @@
+{"v":1,"id":"019cd176-d135-775d-bc73-c87c94886914","at":1773040750901000000,"seq":770,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd176-d135-771a-9992-c61bd6ab4908","at":1773040750901000000,"seq":771,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd176-d198-7e61-8d38-bd05b75f019b","at":1773040751000000000,"seq":772,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd177-2788-7005-850d-e8f8a0fa5cde","at":1773040773000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cd183-7eb3-792b-ad28-697a92dbcec2","at":1773041581747000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cd183-c9e8-77dd-860f-25f8ab3c96e9","at":1773041601000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd184-1420-7e3a-884b-b10791a86bec","at":1773041620000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd184-2f78-76c5-9ecb-8c4ed7a612f4","at":1773041627000000000,"seq":777,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cd184-62ba-70a0-bedf-73741e21b0c6","at":1773041640122000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cd184-8d38-7460-b66b-95cd699cdccb","at":1773041651000000000,"seq":779,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd184-bc18-7789-9d74-43b99e5b9e05","at":1773041663000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd184-c3e8-7a0c-a7c1-230115bcf4a3","at":1773041665000000000,"seq":781,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd184-fa98-7179-af56-97a4fd7c3f72","at":1773041679000000000,"seq":782,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cd185-52c9-7332-9ab3-bfe15ddb255c","at":1773041701577000000,"seq":783,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cd185-b618-7183-a4f4-3831c0acf484","at":1773041727000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cd186-204d-7489-aab9-c9eca2b01af6","at":1773041754189000000,"seq":785,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019cd186-2378-7208-9d29-d72d724ddaff","at":1773041755000000000,"seq":786,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd186-42b8-799e-a6d9-b8a8f7d2165a","at":1773041763000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd186-bfb8-72e6-a867-748f8c6f95bf","at":1773041795000000000,"seq":788,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd186-bfb8-7d8b-bbe7-6d5edcf85f2c","at":1773041795000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cd192-ebe8-75e0-97cb-dddc10554a6a","at":1773042592744000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cd193-17e0-76a6-a9e7-e4d4e4c0cdf4","at":1773042604000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd193-3b08-79de-a2a5-5561381b770d","at":1773042613000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cd193-3ef0-7096-8bce-d16b615054ed","at":1773042614000000000,"seq":793,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd193-42d8-7a4d-b786-2a00308c753c","at":1773042615000000000,"seq":794,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd19c-bfde-7423-b8c3-122032cbc56e","at":1773043236830000000,"seq":795,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cd19d-6c68-7e8c-91de-0715e607187a","at":1773043281000000000,"seq":796,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

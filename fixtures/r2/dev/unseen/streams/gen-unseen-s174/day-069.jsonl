@@ -1,0 +1,33 @@
+{"v":1,"id":"019cd6cf-f8be-7fa8-9c67-61f92b1f884e","at":1773130479806000000,"seq":889,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd6cf-f8be-7deb-94f2-8649940445fb","at":1773130479806000000,"seq":890,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd6d0-8df0-7abc-85f4-8abe8421069b","at":1773130518000000000,"seq":891,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd6d0-c4a0-772d-becf-5eef4a9be924","at":1773130532000000000,"seq":892,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6d0-e601-703a-aa08-467ba48b5d5c","at":1773130540545000000,"seq":893,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cd6d0-f768-7332-b288-adf20e0bae67","at":1773130545000000000,"seq":894,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd6d1-2a30-7f3d-a609-180a49728b5b","at":1773130558000000000,"seq":895,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6d1-60e0-72bb-b40d-7b129f6501ee","at":1773130572000000000,"seq":896,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e6-fdd8-740c-9228-503cfd6abf40","at":1773131988440000000,"seq":897,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6e6-fdd8-7575-aafe-4f8ea95b908b","at":1773131988440000000,"seq":898,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e7-4950-79b0-aa9a-9845b3d3f82d","at":1773132007760000000,"seq":899,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e7-55f8-74bc-ab6e-4749a9e4aac6","at":1773132011000000000,"seq":900,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd6e7-7d08-71ec-995f-c4d9e8b39381","at":1773132021000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e7-bdf3-7cee-9940-3e51538f7111","at":1773132037619000000,"seq":902,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e7-d2f8-7ee9-a7a4-79198b9268db","at":1773132043000000000,"seq":903,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e8-09a8-728a-8858-504576e995b9","at":1773132057000000000,"seq":904,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd6e8-1560-7a6c-8018-13cd1ca0065e","at":1773132060000000000,"seq":905,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd6e8-6b50-76a0-9938-b02a76e34e44","at":1773132082000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f0-41f4-7cec-9fcb-3c4f2d402a6a","at":1773132595700000000,"seq":907,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f0-4ed8-74c6-9b74-3d2aa97d3fcd","at":1773132599000000000,"seq":908,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd6f0-6648-73bc-88e1-abbe493f45ea","at":1773132605000000000,"seq":909,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd6f0-6e18-76d1-8ae3-469e16a6c2f6","at":1773132607000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f4-628c-73b5-8287-38940ba4d595","at":1773132866188000000,"seq":911,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd6f4-628c-70af-a9c7-10a906d6d803","at":1773132866188000000,"seq":912,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd6f4-69a0-770a-b29c-fe625291e47c","at":1773132868000000000,"seq":913,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cd6f4-b3d8-7f78-9dd6-4c09c408e5d1","at":1773132887000000000,"seq":914,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cd6f4-bf90-75b0-b14e-20a79edd0912","at":1773132890000000000,"seq":915,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f7-e51f-72de-bc87-81dd64d0380f","at":1773133096223000000,"seq":916,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6f7-e51f-7074-93af-a733366fe79d","at":1773133096223000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f7-e828-7c9a-b331-455223e928c2","at":1773133097000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f8-51a0-7225-a2c9-116f0e4c92e2","at":1773133124000000000,"seq":919,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd6f8-70e0-7a66-9228-3c5ba4aeabe5","at":1773133132000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f8-a3a8-7be5-ab35-9064e280f93f","at":1773133145000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

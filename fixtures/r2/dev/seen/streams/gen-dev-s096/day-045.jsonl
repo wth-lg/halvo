@@ -1,0 +1,46 @@
+{"v":1,"id":"019c5bbe-d210-7fed-a5d5-f0dae5863f58","at":1771065758224000000,"seq":539,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5bbe-d210-7df7-9db3-409573bb56a6","at":1771065758224000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5bbf-2338-7f92-8368-4ccf3adc2e15","at":1771065779000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c5bbf-285d-79f9-8bab-1d11ed93221c","at":1771065780317000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5bbf-a808-7f78-bd34-ff007c7c149c","at":1771065813000000000,"seq":543,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bbf-deb8-77f4-b095-c74031d7844a","at":1771065827000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c5bbf-e96b-783a-b584-b6d4df71335b","at":1771065829739000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc0-1d38-76fe-9b6c-a5506d6b314e","at":1771065843000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc0-5000-7a31-aac8-d403dbfdabc6","at":1771065856000000000,"seq":547,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c5bc0-7ee0-7098-b24f-b270f5b7e314","at":1771065868000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc0-9268-7408-8883-c6d8604d8353","at":1771065873000000000,"seq":549,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5bc0-9a38-770a-a50a-00a6f87c728e","at":1771065875000000000,"seq":550,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5bc0-ea37-71a8-92d2-c72f8857e4e7","at":1771065895479000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc1-b203-70cc-979f-000e52f5fb76","at":1771065946627000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc1-e640-7dfe-9275-0eb8c35089f1","at":1771065960000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc1-f1f8-7bb4-b2fa-241350885e1b","at":1771065963000000000,"seq":554,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c5bc2-b77b-7def-a97e-c705129f1b7f","at":1771066013563000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc2-e810-7a8f-b431-945405e044c5","at":1771066026000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc3-0f20-76d5-9278-92920f811cda","at":1771066036000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c5bc3-1d85-7d88-833b-d95a57ada3a2","at":1771066039685000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc3-22a8-7df2-94d5-cf54e58d339c","at":1771066041000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5bc3-7898-7b63-b91b-b9dc4a833884","at":1771066063000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc3-8c20-7c3d-87f2-4182864a4075","at":1771066068000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc3-af48-75e2-8fc6-9b5867bb35cb","at":1771066077000000000,"seq":562,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5bc3-de60-7362-8f98-1ecd54485fd5","at":1771066089056000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc4-0538-732e-afb7-ae66c10ce82e","at":1771066099000000000,"seq":564,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bc4-0d08-781e-b16b-68cf47e9d592","at":1771066101000000000,"seq":565,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5bc4-2c48-7e32-a96d-d51d5a15a528","at":1771066109000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc4-7886-78e5-90fc-89dd3692081a","at":1771066128518000000,"seq":567,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc4-7a68-7035-a0b8-50b0b143c604","at":1771066129000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c5bc4-95c0-7a1b-8a46-241e61f66b5c","at":1771066136000000000,"seq":569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc4-9d90-75c3-a1e7-1878e8a7a7aa","at":1771066138000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc4-c888-73b6-b43e-6e0bd685c209","at":1771066149000000000,"seq":571,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5bc4-e775-7a70-93e1-221c5051ec40","at":1771066156917000000,"seq":572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5bc4-e7c8-779c-9e6a-c42685b86aa8","at":1771066157000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c5bc5-68b0-71b9-9b19-f3f1330657bc","at":1771066190000000000,"seq":574,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bd0-a9b9-742e-9977-d5a5eb63af00","at":1771066927545000000,"seq":575,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c5bea-f5eb-70d4-a25f-5e6ad6333f7b","at":1771068650987000000,"seq":576,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5bea-f5eb-7758-9889-a433ebdbfe98","at":1771068650987000000,"seq":577,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5beb-3478-7d37-92fe-68e80c3798d0","at":1771068667000000000,"seq":578,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5beb-5b88-7bac-b1fb-e830a6e8f711","at":1771068677000000000,"seq":579,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5beb-9620-7360-b4ff-2b5231f49379","at":1771068692000000000,"seq":580,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c5bec-03a7-7fb8-9795-132c3ebedafd","at":1771068720039000000,"seq":581,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5bec-0768-7438-ac95-8d9eca1cd6b8","at":1771068721000000000,"seq":582,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bec-0b50-75ac-86db-21960fda1bdc","at":1771068722000000000,"seq":583,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bec-1320-7a3f-a4fa-e81def905d92","at":1771068724000000000,"seq":584,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

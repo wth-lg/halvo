@@ -1,0 +1,47 @@
+{"v":1,"id":"019ce1b4-0075-705f-b48a-959d59bd6a5e","at":1773313196149000000,"seq":1064,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce1b4-0075-7cab-829f-339d36bb27f7","at":1773313196149000000,"seq":1065,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce1b4-55d0-7a4e-b33b-fb0993eef865","at":1773313218000000000,"seq":1066,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1b4-a3f0-7970-864d-b4427f4c8108","at":1773313238000000000,"seq":1067,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ce1b4-cee8-7862-a3f0-a6df19902514","at":1773313249000000000,"seq":1068,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce1ca-c3ee-7e32-ba56-30983d90797f","at":1773314687982000000,"seq":1069,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ce1ca-c400-75b1-a5bc-bf1b5ea5f265","at":1773314688000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ce1ca-cbd0-7091-9438-729ea1cb9fd7","at":1773314690000000000,"seq":1071,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1ca-e340-7403-95a6-31ff0cf908f2","at":1773314696000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1ca-fd52-77bd-9d1a-4edd296d24c5","at":1773314702674000000,"seq":1073,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ce1cb-1dd8-7b49-8dd5-6ba36933095a","at":1773314711000000000,"seq":1074,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce1cb-21c0-75b4-bb0c-1e2e8d3f3c86","at":1773314712000000000,"seq":1075,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce1cb-2990-7cb4-a264-dba07d5c6487","at":1773314714000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1cb-2d78-76e2-a8c6-dba12019d046","at":1773314715000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1cb-6a67-7720-93ed-5e61aafbcef1","at":1773314730599000000,"seq":1078,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ce1cb-8f20-7a01-ad4a-74afe4b7ca94","at":1773314740000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1cb-9308-714f-9fbc-bd22dbeda147","at":1773314741000000000,"seq":1080,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce1cb-dd40-7b5a-9f8d-25417f8d67a0","at":1773314760000000000,"seq":1081,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce1cb-e0cf-7a1f-88c1-7712f1fa761f","at":1773314760911000000,"seq":1082,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019ce1d1-fa06-75b4-8cb3-dcac5819f57a","at":1773315160582000000,"seq":1083,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ce1d2-70d8-7913-9044-71673e0df685","at":1773315191000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1d2-9bd0-7de5-9ca2-63f2f0d94318","at":1773315202000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1d2-b11b-7e77-b3e3-c10f8f1457a6","at":1773315207451000000,"seq":1086,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ce1d2-e220-7201-8f36-8156e1cc6e15","at":1773315220000000000,"seq":1087,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce1d2-f5a8-7545-aca6-fbbc89c43cf4","at":1773315225000000000,"seq":1088,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce1de-f189-7748-9152-fc235209e6b6","at":1773316010377000000,"seq":1089,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce1de-f189-77bd-8dab-00788360e6d3","at":1773316010377000000,"seq":1090,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce1df-1338-7789-93e0-f99659543b31","at":1773316019000000000,"seq":1091,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ce1df-5988-77c0-95e2-7ada3a342dd0","at":1773316037000000000,"seq":1092,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ce1df-5d70-7d5c-a2f0-246ee28d3ec6","at":1773316038000000000,"seq":1093,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1f4-3e64-747d-b600-3028ec983c60","at":1773317406308000000,"seq":1094,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce1f4-3e64-73b9-b7c6-429756dc258e","at":1773317406308000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ce1f4-4cd0-7cb0-88eb-987fa42e8180","at":1773317410000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1f4-bc1d-7e5a-98a3-3523c982765c","at":1773317438493000000,"seq":1097,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ce1f4-e910-7aef-a5bb-554ea09f68bb","at":1773317450000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1f5-0080-77d5-80ff-ec9e99fe05df","at":1773317456000000000,"seq":1099,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce1f5-0468-7218-9a34-3bea5f5633ad","at":1773317457000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1f5-1ab6-7bb4-88f0-2c2e30ead4ac","at":1773317462710000000,"seq":1101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ce1f6-1519-75ae-8f4e-ccc3fdf17a9c","at":1773317526809000000,"seq":1102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ce1f6-5c28-7502-acdd-87c0e1594da5","at":1773317545000000000,"seq":1103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce1f6-7780-7b51-8814-2806a016d03c","at":1773317552000000000,"seq":1104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1f6-92d8-76aa-b34b-6aca8f042c30","at":1773317559000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ce1f6-9aa8-7d07-a338-37794083c061","at":1773317561000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1f6-a71e-7aa7-bb0b-597d094d0153","at":1773317564190000000,"seq":1107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019ce1f7-3eb8-7dcb-84c8-cfab5e384759","at":1773317603000000000,"seq":1108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce1f7-4e58-78e0-b66a-1b6a28990c8c","at":1773317607000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce1f7-88f0-7193-b998-1232445e545a","at":1773317622000000000,"seq":1110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019b78b7-fc8e-74cb-90dd-43edf40bec4f","at":1767256882318000000,"seq":0,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b78b7-fc8e-72d4-a813-290df0fe4ac7","at":1767256882318000000,"seq":1,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b78b8-3db8-7366-b71c-4182cf2b63b7","at":1767256899000000000,"seq":2,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78b8-b2e8-7dd6-ae56-64596af1c563","at":1767256929000000000,"seq":3,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78cd-f975-7ca9-8ab6-ac131308856e","at":1767258323317000000,"seq":4,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b78cd-f975-7aba-8d06-1d594ab9298b","at":1767258323317000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b78ce-03f0-7ac5-8cb2-a320e4e24e70","at":1767258326000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ce-2718-7eae-acc3-9415c68e0c87","at":1767258335000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ce-4a40-799a-b889-d3b5cdc57029","at":1767258344000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b78ce-5b79-7e71-9460-a89f4cdeb974","at":1767258348409000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b78cf-356d-77a4-bc34-b3282d6cab04","at":1767258404205000000,"seq":10,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b78cf-a5e8-736e-96da-a8d7534d7e3e","at":1767258433000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b78cf-c528-7ed1-81e4-2e0a09a7504f","at":1767258441000000000,"seq":12,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b78d0-03c6-7496-9f41-8d74152fccc6","at":1767258457030000000,"seq":13,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b78d0-3e40-72e3-b8d6-acc546449c44","at":1767258472000000000,"seq":14,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b78d9-580e-7d00-bf52-aa4c961c4624","at":1767259068430000000,"seq":15,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b78d9-a868-7091-9481-c21785c75cc1","at":1767259089000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78e0-7c26-72a9-a5df-69e8894b9d94","at":1767259536422000000,"seq":17,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b78e0-7c26-7ec5-8b91-f856013d982e","at":1767259536422000000,"seq":18,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b78e0-fb68-7f36-8fd6-7c7cc796f231","at":1767259569000000000,"seq":19,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78e1-8038-7a22-8d3f-5185aed514f4","at":1767259603000000000,"seq":20,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

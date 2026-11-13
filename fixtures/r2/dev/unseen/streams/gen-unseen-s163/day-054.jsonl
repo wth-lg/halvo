@@ -1,0 +1,15 @@
+{"v":1,"id":"019c894f-dc9e-7efb-97a7-c05fd494770a","at":1771830238366000000,"seq":648,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c894f-dc9e-773e-b82b-b8c8b291ca80","at":1771830238366000000,"seq":649,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c894f-f688-7b24-9b5a-495387cdcc48","at":1771830245000000000,"seq":650,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8950-5512-763d-8bc3-995de710b0b8","at":1771830269202000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c8950-5c18-735c-ac0a-017e113fb22b","at":1771830271000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8950-63e8-7259-89f3-38eb70f1eee3","at":1771830273000000000,"seq":653,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8950-8ee0-796b-8987-47cf62f8e525","at":1771830284000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8950-b5f0-7726-bdce-c541a37ebea5","at":1771830294000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c8950-eeda-7246-88e3-b2007b8b0b0a","at":1771830308570000000,"seq":656,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c8953-4909-7c75-8750-f245e50fe481","at":1771830462729000000,"seq":657,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8953-4909-7840-a2c1-a11e693e5262","at":1771830462729000000,"seq":658,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8953-a7d8-7d7c-b8d4-808a4a874d27","at":1771830487000000000,"seq":659,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8953-c330-741a-b826-7a6d00231875","at":1771830494000000000,"seq":660,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8954-01b0-75d8-aa0f-774227991077","at":1771830510000000000,"seq":661,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c8954-3090-737a-ac29-da3ca466741e","at":1771830522000000000,"seq":662,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}

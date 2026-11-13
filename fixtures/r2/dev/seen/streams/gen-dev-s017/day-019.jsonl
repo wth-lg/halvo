@@ -1,0 +1,31 @@
+{"v":1,"id":"019bd583-e6fb-79d8-9488-8422997b8e3c","at":1768813750011000000,"seq":332,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd583-e6fb-7b67-b6cf-d6593921375e","at":1768813750011000000,"seq":333,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bd584-5450-7c71-aaf1-58bf4bf8357d","at":1768813778000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd595-b3db-7d08-9e9f-5fef780a8a45","at":1768814916571000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bd595-ec38-7fa7-b936-7307d9ef4009","at":1768814931000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd595-ec38-79b8-8412-69f0fbce5566","at":1768814931000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bd596-62f7-7766-ba55-cc464a66e290","at":1768814961399000000,"seq":338,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bd596-8490-74cd-b156-994b4506f160","at":1768814970000000000,"seq":339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bd596-bf28-7ab6-88a8-fd67c4b2e017","at":1768814985000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd596-c6f8-772d-a35f-8f66cd1b6846","at":1768814987000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd596-df93-77b0-874b-142e30980a5b","at":1768814993299000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bd597-1900-782e-a7e3-7b9c2d2241ec","at":1768815008000000000,"seq":343,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd597-6ef0-78a9-8f54-a25e34c7361c","at":1768815030000000000,"seq":344,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd597-6ef0-721e-b081-af17ab83777d","at":1768815030000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bd597-7526-70c3-954f-7fffc39760c2","at":1768815031590000000,"seq":346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bd597-d098-7590-943c-268329189439","at":1768815055000000000,"seq":347,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd597-f7a8-7ba2-994f-2539a456ce85","at":1768815065000000000,"seq":348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd597-f890-7d1a-8cc9-95f2246288c3","at":1768815065232000000,"seq":349,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bd597-fb90-7946-a743-cdb696c29980","at":1768815066000000000,"seq":350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd598-1eb8-7526-8e91-c0807377c1d4","at":1768815075000000000,"seq":351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd598-3240-7b1b-8450-1dddf358f6e9","at":1768815080000000000,"seq":352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bd598-8830-75c3-8b3b-a99005d0f607","at":1768815102000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd598-9d7e-7e4f-8cab-c32adce7368b","at":1768815107454000000,"seq":354,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bd598-ab58-76c5-8ebd-5386498b38c6","at":1768815111000000000,"seq":355,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bd598-e5f0-78db-8be9-2de29e1b2fa6","at":1768815126000000000,"seq":356,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd599-2858-7f7f-9e59-ec3a6ff3d49b","at":1768815143000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd599-2c40-70ee-89fe-fc1aede20189","at":1768815144000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd599-2f9d-7816-99c0-b60a536d9e9e","at":1768815144861000000,"seq":359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bd599-7678-7f7f-91c9-5e7d0565d377","at":1768815163000000000,"seq":360,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd599-9d88-79c8-8850-e4e25de02587","at":1768815173000000000,"seq":361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd599-bc4c-73a1-8ae5-d0f4de939b74","at":1768815180876000000,"seq":362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}

@@ -1,0 +1,43 @@
+{"v":1,"id":"019cb309-282c-7c78-b1eb-4f114d1196c0","at":1772530247724000000,"seq":859,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb309-282c-7487-ab57-22dd529f06d4","at":1772530247724000000,"seq":860,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cb309-b5e0-751f-a0d9-69f86f69f78c","at":1772530284000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb309-c580-74db-8d7e-0bb401a2a259","at":1772530288000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb309-c6e8-7229-9543-b22da59a8f0b","at":1772530288360000000,"seq":863,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cb30a-07e8-79a1-bfd6-3f44502f1c45","at":1772530305000000000,"seq":864,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb30a-6d78-72f6-a80d-54abdef6c36c","at":1772530331000000000,"seq":865,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb30a-88d0-7911-9967-676f117b0ae0","at":1772530338000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb30a-90a0-7e86-8ff7-bd37aff076f0","at":1772530340000000000,"seq":867,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb30a-91c7-7dfd-afcc-512b5ad548d1","at":1772530340295000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cb30b-1958-794d-a40e-8b94afc27506","at":1772530375000000000,"seq":869,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb30b-2128-7d8b-8852-943ac117224c","at":1772530377000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb30b-34b0-7ba6-aed0-a1d6efc45fa5","at":1772530382000000000,"seq":871,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb30b-3f58-75f0-aa41-7ba8350c0e61","at":1772530384728000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cb30b-5008-70aa-b79a-b01eb3991bc4","at":1772530389000000000,"seq":873,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb30b-6778-71c8-8fe9-e1e57f952cf7","at":1772530395000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cb30b-7330-78d8-8610-a20d4e52a97d","at":1772530398000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb30b-7b00-7f0f-be51-796cda6e4ac5","at":1772530400000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb321-0c22-7082-95c2-acb094bca66c","at":1772531813410000000,"seq":877,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cb321-a2e0-7cea-b825-82f96bc71b03","at":1772531852000000000,"seq":878,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb334-1bd1-7cc8-aafb-2e115b183c3d","at":1772533062609000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cb334-b5b0-7457-852c-101137824521","at":1772533102000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cb334-e490-7a0e-abcb-c3e64294a2d3","at":1772533114000000000,"seq":881,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb337-ba2a-7486-88ab-26f96d29daef","at":1772533299754000000,"seq":882,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb337-ba2a-7daa-add8-e28e8675706b","at":1772533299754000000,"seq":883,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb33b-77f7-791c-b37a-6234cf298ef9","at":1772533544951000000,"seq":884,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb33b-77f7-71cc-8d80-6ecdab675ce1","at":1772533544951000000,"seq":885,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cb33b-7828-752d-bde3-376d675c050b","at":1772533545000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33b-7ff8-7d06-8d61-b52f63fa720f","at":1772533547000000000,"seq":887,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33b-be78-72e2-991c-3af4459f1001","at":1772533563000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cb33b-e61c-75a3-880f-16f3a4575663","at":1772533573148000000,"seq":889,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cb33b-f528-76a6-803c-74b431329571","at":1772533577000000000,"seq":890,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb33c-2020-747a-bcb3-3acfc87a3b6b","at":1772533588000000000,"seq":891,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb33c-4730-73d2-b1ab-4afd1a20948c","at":1772533598000000000,"seq":892,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb33c-7228-7e29-a591-db99767b8c4a","at":1772533609000000000,"seq":893,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33c-d5d1-7e42-adc9-f5b7bbe95eee","at":1772533634513000000,"seq":894,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cb33c-eb40-70dd-8f6b-93008716c40e","at":1772533640000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cb33c-fae0-7a91-949c-9f57b1d65884","at":1772533644000000000,"seq":896,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb33c-fec8-715b-bf57-a29467f47cd9","at":1772533645000000000,"seq":897,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb33d-0698-7900-be54-df0a07c477cf","at":1772533647000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb33d-12e9-7492-b9d7-d1a7222dacc9","at":1772533650153000000,"seq":899,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019cb33d-1638-76ea-b910-9aeb43227f68","at":1772533651000000000,"seq":900,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb33d-1e08-7ff1-9639-5ee25a436240","at":1772533653000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

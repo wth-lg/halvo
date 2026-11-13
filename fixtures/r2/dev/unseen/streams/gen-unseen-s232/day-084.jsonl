@@ -1,0 +1,33 @@
+{"v":1,"id":"019d23fc-b65c-7ddd-afdc-947546fb1d1a","at":1774425257564000000,"seq":1216,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d23fc-b65c-7c7e-970c-a6639c79e2dc","at":1774425257564000000,"seq":1217,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d23fc-c3c8-7faf-af85-8f51325205f5","at":1774425261000000000,"seq":1218,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d23fc-ead8-7447-a172-9359e1cec746","at":1774425271000000000,"seq":1219,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d23fc-fa78-76ea-8fff-89d4ea9b4fd0","at":1774425275000000000,"seq":1220,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d23fd-2570-7b23-8ee6-8afa78393480","at":1774425286000000000,"seq":1221,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2409-cbbe-71f7-a2bb-dc856dbfac62","at":1774426115006000000,"seq":1222,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2409-cbbe-745c-b6b3-dae5dcf21e57","at":1774426115006000000,"seq":1223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d240a-7798-79dc-a257-9497484bd13d","at":1774426159000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d240a-9afb-7710-9aa7-c7444329d54c","at":1774426168059000000,"seq":1225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d240a-aa60-7d16-a417-af877f6ca7ea","at":1774426172000000000,"seq":1226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d240a-c9a0-75f1-99bd-b47b01119386","at":1774426180000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d240a-ecc8-78fc-b479-a8bf3ca1e5fd","at":1774426189000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240b-2d28-7d09-b2b5-73acd9996eac","at":1774426205480000000,"seq":1229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d240b-2f30-73fa-9721-608919a7a14c","at":1774426206000000000,"seq":1230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d240b-4a88-7e77-9ebb-fc7ac14e39ca","at":1774426213000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240b-6db0-7ae6-bb7d-a9811158efcd","at":1774426222000000000,"seq":1232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d240b-8520-7bb3-be76-04a836da9b9b","at":1774426228000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240b-98bb-71c7-adc0-ef6f9eac19ae","at":1774426233019000000,"seq":1234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d240b-c3a0-78e5-bd98-e09aba881b88","at":1774426244000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240b-fe38-7f40-bbf4-5813feea8e44","at":1774426259000000000,"seq":1236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d240c-0608-7e36-bacd-4bfd2c57d56d","at":1774426261000000000,"seq":1237,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d240c-7368-71b8-a6f7-78010ce18745","at":1774426289000000000,"seq":1238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d240f-b6b8-7dce-b62c-f669020d8d18","at":1774426502840000000,"seq":1239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d240f-ea20-762a-bcc6-eb2b132344c3","at":1774426516000000000,"seq":1240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2410-6338-70a4-a802-36426c4a0294","at":1774426547000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2410-6720-7417-b883-e735472dc2df","at":1774426548000000000,"seq":1242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2410-72d8-700e-8959-96fe381baea5","at":1774426551000000000,"seq":1243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d2410-8278-70ae-a0df-9bd79174e967","at":1774426555000000000,"seq":1244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2419-a636-72dc-bc91-93aae52f8c41","at":1774427153974000000,"seq":1245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d2419-a650-73b6-92a2-64758b352680","at":1774427154000000000,"seq":1246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2419-c978-7d1e-ba76-c892051c1117","at":1774427163000000000,"seq":1247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d241a-5de8-7c31-9abf-89f296d45472","at":1774427201000000000,"seq":1248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

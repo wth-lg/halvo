@@ -1,0 +1,22 @@
+{"v":1,"id":"019cf0f3-f1bc-7b7b-8730-a8bee8cd23dd","at":1773569044924000000,"seq":998,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf0f3-f1bc-7beb-aacd-4b933508b248","at":1773569044924000000,"seq":999,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf0f4-8678-7ea7-b634-1d4734fc5d66","at":1773569083000000000,"seq":1000,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0f4-9618-72ac-8f60-0a99c8e8ae29","at":1773569087000000000,"seq":1001,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cf109-dfc5-7cd0-904c-efbe6f9f0a81","at":1773570482117000000,"seq":1002,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf109-dfc5-7169-8375-73af263abe13","at":1773570482117000000,"seq":1003,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf10a-96e8-780d-a9ee-8673bde99cb6","at":1773570529000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf10a-c9b0-77b0-a1fe-842dd6afcdc3","at":1773570542000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cf10a-d5f7-7437-b368-5d3e29bc307f","at":1773570545143000000,"seq":1006,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf10a-d5f7-7b2f-a8c6-0153ea7653c4","at":1773570545143000000,"seq":1007,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf10a-e8f0-7d66-8598-b27b8236fa64","at":1773570550000000000,"seq":1008,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cf10b-0060-720e-9c1a-43a66661a5d8","at":1773570556000000000,"seq":1009,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf10b-17d0-715a-ab60-118968fd7e5d","at":1773570562000000000,"seq":1010,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf10b-5a38-725c-a147-5f174e3a9f90","at":1773570579000000000,"seq":1011,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf10b-5a48-7129-b85e-8b72e19a525c","at":1773570579016000000,"seq":1012,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf10b-5a48-7f28-b0ad-be25644c57ba","at":1773570579016000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf10b-c726-7dc2-8ca4-d981ceb5957a","at":1773570606886000000,"seq":1014,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf10b-db20-79f3-b9ee-c1c9ad954d60","at":1773570612000000000,"seq":1015,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf10c-5e99-7820-840f-c1a26a0b6982","at":1773570645657000000,"seq":1016,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cf10c-5ff0-757f-92f2-3b9467ea9307","at":1773570646000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cf10c-e4c0-7beb-a695-5a23dabcc7e5","at":1773570680000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf10d-0bd0-79de-9cbe-5c225c95eb3c","at":1773570690000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

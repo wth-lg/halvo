@@ -1,0 +1,29 @@
+{"v":1,"id":"019c37a5-9743-7822-a672-540774413f1e","at":1770460124995000000,"seq":324,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c37a5-9743-722f-8f30-6c5e0f5226f9","at":1770460124995000000,"seq":325,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c37a5-9f18-72f8-beb0-789a863547f3","at":1770460127000000000,"seq":326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37a5-a6e8-7715-bf45-c17f2d101a9b","at":1770460129000000000,"seq":327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37a6-31f7-7c08-af70-c8e92f8cf4d8","at":1770460164599000000,"seq":328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c37a6-4af8-7659-97bf-59279025dfad","at":1770460171000000000,"seq":329,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c37a6-bc40-7fdd-a719-7f6fa97930c3","at":1770460200000000000,"seq":330,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c37a7-15d9-7257-94d4-dc67656a7926","at":1770460222937000000,"seq":331,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c37a7-6820-782e-b575-e95868d949ed","at":1770460244000000000,"seq":332,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c37a7-ff4c-773d-a196-14a427fe4668","at":1770460282700000000,"seq":333,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c37a8-1018-7337-8f33-31cb96fb34e6","at":1770460287000000000,"seq":334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c37a8-1400-71a6-8a64-78e0d2997630","at":1770460288000000000,"seq":335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c37a8-17e8-77e7-a4ab-0eb79c44c4bf","at":1770460289000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37a8-3b10-7943-835c-e8145c4ca4c2","at":1770460298000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37af-b646-7aa4-870d-0d2307cb9839","at":1770460788294000000,"seq":338,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c37af-b646-70a2-a373-7ca096966ecc","at":1770460788294000000,"seq":339,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c37af-d460-7757-9a04-9179c2486469","at":1770460796000000000,"seq":340,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c37b0-9b98-72c3-adc2-4746cc52b00e","at":1770460847000000000,"seq":341,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c37b0-bedc-7bfc-bd54-0ae662d7d99c","at":1770460856028000000,"seq":342,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c37b0-bedc-7018-98a5-f79d9de8fbdc","at":1770460856028000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c37b1-0510-71d6-b00a-64bf9564d7e6","at":1770460874000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37b1-cede-75d4-8aa3-ac4192bf9e96","at":1770460925662000000,"seq":345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c37b2-aed8-761d-8e49-d36b66f5d84d","at":1770460983000000000,"seq":346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37b2-d32a-73ed-b7c0-b0474184e260","at":1770460992298000000,"seq":347,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c37b2-d32a-7ab5-affc-64a5a4b8df73","at":1770460992298000000,"seq":348,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c37b2-f910-778c-9bd9-5a5ef6110e7b","at":1770461002000000000,"seq":349,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c37b3-3b78-789e-a4e3-64bb09a07efe","at":1770461019000000000,"seq":350,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37b3-56d0-7389-b59b-2d50406d2861","at":1770461026000000000,"seq":351,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37b3-5ab8-744c-a83f-49fa6cfeb666","at":1770461027000000000,"seq":352,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}

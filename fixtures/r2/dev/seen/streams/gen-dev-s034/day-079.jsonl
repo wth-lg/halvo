@@ -1,0 +1,26 @@
+{"v":1,"id":"019d0a63-b888-73a6-b37b-6fc7c5c90399","at":1773995800712000000,"seq":1217,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0a63-b888-772b-9ae8-ee8ba83ee1be","at":1773995800712000000,"seq":1218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0a63-d500-7da2-826e-300fc2ffad44","at":1773995808000000000,"seq":1219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d0a63-e4a0-7741-9f49-1673ec746351","at":1773995812000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a63-f828-73c2-91aa-ba0e886e02f7","at":1773995817000000000,"seq":1221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0a64-245c-7a38-a01d-53541f68636e","at":1773995828316000000,"seq":1222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0a64-61a0-7cb2-bc48-7f8ae19adfb8","at":1773995844000000000,"seq":1223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a64-e670-71eb-bbee-e7489842e889","at":1773995878000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a65-0d80-7037-b6b5-5270e41c7f84","at":1773995888000000000,"seq":1225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0a6c-e26b-7857-b450-e94022f177a0","at":1773996401259000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0a6d-6638-786e-9e3f-94086408736e","at":1773996435000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a86-75c3-7e9b-9e0a-de23ea224023","at":1773998077379000000,"seq":1228,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0a86-75c3-758b-a607-6679250762f5","at":1773998077379000000,"seq":1229,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0a86-7c18-7f6d-9233-0674e119cb00","at":1773998079000000000,"seq":1230,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d0a8a-23a4-718f-86ae-720a5ac01c2b","at":1773998318500000000,"seq":1231,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0a8a-23a4-7a9b-bfab-ccfbf66b6990","at":1773998318500000000,"seq":1232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0a8b-2220-7c97-9ea6-1f1b3f2a9b1b","at":1773998383648000000,"seq":1233,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0a8b-8528-7461-94eb-c236e91499e4","at":1773998409000000000,"seq":1234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a8b-a850-7bb3-97b0-a92aa1a95b28","at":1773998418000000000,"seq":1235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0a8b-cb78-7a93-aca0-3dd85fdd3379","at":1773998427000000000,"seq":1236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d0a8c-1d80-7784-a3fd-9eecb2f3f753","at":1773998448000000000,"seq":1237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a8c-22f9-7b96-81c6-9fb1f3dc57e5","at":1773998449401000000,"seq":1238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0a8c-2938-7194-9552-56af90ec98fc","at":1773998451000000000,"seq":1239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a8c-40a8-73f5-a5e6-e23fc68d452c","at":1773998457000000000,"seq":1240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a8c-4490-7560-971e-e3bf8e399b7f","at":1773998458000000000,"seq":1241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0a8c-4c60-73e2-be3e-7702e65b98b8","at":1773998460000000000,"seq":1242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

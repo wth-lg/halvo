@@ -1,0 +1,21 @@
+{"v":1,"id":"019d23e2-d046-75e5-942e-da5b83897293","at":1774423560262000000,"seq":1081,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d23e2-d046-7337-8ae4-42ea9c2e10bd","at":1774423560262000000,"seq":1082,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d23e2-d328-767c-bd98-fd711989326a","at":1774423561000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d23e2-e2c8-7f1c-a448-b3e7044d6a89","at":1774423565000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d23e3-14f3-78c3-beec-7a08d6282e3f","at":1774423577843000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d23e3-1d60-7427-9410-a4bbff4eb50c","at":1774423580000000000,"seq":1086,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d23e3-7b20-7370-a798-fb44c824fe68","at":1774423604000000000,"seq":1087,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d23e3-90e6-7217-8944-6bc3bec46265","at":1774423609574000000,"seq":1088,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d23e4-51f8-7efc-870c-05d7028d8871","at":1774423659000000000,"seq":1089,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d23e4-7d71-7bf4-8c9b-f33d259a36df","at":1774423670129000000,"seq":1090,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d23e4-80d8-72c6-a636-8e7da89ba47a","at":1774423671000000000,"seq":1091,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d23e4-a400-75d2-a10c-9afb25e5184f","at":1774423680000000000,"seq":1092,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d23e4-b788-7457-89ff-e96de9f73b12","at":1774423685000000000,"seq":1093,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d23ea-78db-7088-8854-483d5dd77824","at":1774424062171000000,"seq":1094,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d23ea-83e8-73dc-8215-7f13f127afe4","at":1774424065000000000,"seq":1095,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d23ea-d9d8-7e64-9b07-4e76030f4688","at":1774424087000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d23ff-91b7-748e-aca7-f010dc741ec7","at":1774425444791000000,"seq":1097,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d23ff-d4f0-71b6-a579-bc7d4252105c","at":1774425462000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d23ff-e0a8-7dca-83a9-b939692394c8","at":1774425465000000000,"seq":1099,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2400-2310-7d77-a416-ff135f4305ea","at":1774425482000000000,"seq":1100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2400-2ae0-7bee-a734-dc2f806a83ea","at":1774425484000000000,"seq":1101,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

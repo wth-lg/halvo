@@ -1,0 +1,12 @@
+{"v":1,"id":"019be9c5-bc6b-79e3-b2eb-7d21580e08ac","at":1769153608811000000,"seq":411,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be9c5-bc6b-701b-971b-a778a7c91b75","at":1769153608811000000,"seq":412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019be9c6-acbb-7941-b34f-55520aff43fe","at":1769153670331000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019be9c6-af58-7659-b1ea-1ede00da396f","at":1769153671000000000,"seq":414,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be9c7-14e8-7ca0-ba12-4d4c34239974","at":1769153697000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019be9c7-2c58-7663-b5a2-5b99d2a0e2eb","at":1769153703000000000,"seq":416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be9c7-5565-70de-af98-930cc53d4201","at":1769153713509000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019be9c7-f778-74ac-bcfe-0db214b79782","at":1769153755000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019be9c8-3c05-709e-be7f-ad2af38db850","at":1769153772549000000,"seq":419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019be9c8-60f0-71d9-a9fc-e31f40ef94ad","at":1769153782000000000,"seq":420,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be9c8-68c0-7da9-bd9a-223112cf0417","at":1769153784000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9c8-e5c0-7eef-aa53-912e65dc48f3","at":1769153816000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,23 @@
+{"v":1,"id":"019d0f6a-4568-75d0-bfe7-9723e34563d4","at":1774080116072000000,"seq":1166,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0f6a-4568-7461-8c99-968f74b131e9","at":1774080116072000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6a-58a8-716d-83e3-6d2f7aeff47a","at":1774080121000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6a-8b70-71ac-a4bf-dbc50c3eb525","at":1774080134000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6a-b008-727d-aa26-08e3e06f761b","at":1774080143368000000,"seq":1170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6a-c220-7789-9fd0-8ce7a2ccc97b","at":1774080148000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6a-e160-70c1-b199-b7bd93d8a4fa","at":1774080156000000000,"seq":1172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0f6b-6d16-7884-b333-dda71891deb5","at":1774080191766000000,"seq":1173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6b-b068-7681-b0e6-0cbaa8f6d2c9","at":1774080209000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6c-0658-7eb1-acf3-b1daf1a2ccbe","at":1774080231000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6c-16ec-7714-8629-99342f06b65e","at":1774080235244000000,"seq":1176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d0f6c-d948-7b7f-8aa9-e2f8a1781ac9","at":1774080285000000000,"seq":1177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f6d-23b4-7b60-811a-a52ef18830ea","at":1774080304052000000,"seq":1178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d0f7a-e052-76e3-91e1-75f0c0a5c61e","at":1774081204306000000,"seq":1179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d0f7b-2958-72a1-9a46-92e4d4e9b546","at":1774081223000000000,"seq":1180,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0f7b-8718-778c-a480-4b9f26d48780","at":1774081247000000000,"seq":1181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f7b-9aa0-7dad-b1a5-154f2b6711be","at":1774081252000000000,"seq":1182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0f92-43a0-7743-9907-6d0ee37a95fe","at":1774082737056000000,"seq":1183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d0f92-4750-765b-86a6-1e34e24305bd","at":1774082738000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f92-56f0-7eb1-8fb5-8c1edde28cc9","at":1774082742000000000,"seq":1185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d0f92-7248-747a-b042-c9da20f8a478","at":1774082749000000000,"seq":1186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0f92-8da0-7354-bc3b-12533d54257b","at":1774082756000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f92-ace0-7470-bbd3-596e6b2ad473","at":1774082764000000000,"seq":1188,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

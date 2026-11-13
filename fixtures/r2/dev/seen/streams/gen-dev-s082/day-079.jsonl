@@ -1,0 +1,26 @@
+{"v":1,"id":"019d0aad-ba75-7e80-89d9-161ca2295446","at":1774000650869000000,"seq":1041,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0aad-ba75-7e7a-b136-fd552d01e997","at":1774000650869000000,"seq":1042,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d0aae-22a6-792a-9167-c12604ba6311","at":1774000677542000000,"seq":1043,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d0aae-3be0-70ee-9d0c-43f773bf09ac","at":1774000684000000000,"seq":1044,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0aae-3be0-721f-b068-4ead4a9a9226","at":1774000684000000000,"seq":1045,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d0aae-5738-7bbf-b181-935c4efd0f2a","at":1774000691000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0aae-5b20-7a94-969e-1bcf2ed635ce","at":1774000692000000000,"seq":1047,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aae-95b8-7e7d-a644-8fa51bb4e794","at":1774000707000000000,"seq":1048,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab9-53cf-792c-bd25-d418a10bc3f8","at":1774001411023000000,"seq":1049,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab9-6b28-7e23-81c2-15a335b268a1","at":1774001417000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d0ab9-9d9d-7927-985f-8c3191ef79a5","at":1774001429917000000,"seq":1051,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab9-ec10-755a-bb73-bd8c4aa35dbe","at":1774001450000000000,"seq":1052,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0aba-1708-7e45-8434-dba28936195b","at":1774001461000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aba-44f4-732d-886b-36def8a4d878","at":1774001472756000000,"seq":1054,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0aba-4db8-78b4-8d66-0b92d31917f0","at":1774001475000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d0aba-74c8-7d44-92de-e2fd6ceb1523","at":1774001485000000000,"seq":1056,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0aba-854b-70f8-ade1-9054fe94deae","at":1774001489227000000,"seq":1057,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0aba-bb18-7e4e-8d44-4cd29a20324e","at":1774001503000000000,"seq":1058,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0abb-3048-7d1f-b1e1-fea91caa8e33","at":1774001533000000000,"seq":1059,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0abb-66f8-7653-a3e6-a6267ad44173","at":1774001547000000000,"seq":1060,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0abb-6ec8-7798-a12d-093b07393763","at":1774001549000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ad3-0aa1-762d-852e-0e516171e23f","at":1774003096225000000,"seq":1062,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0ad3-0aa1-7291-a682-d53f719015a7","at":1774003096225000000,"seq":1063,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0ad3-5010-775b-915b-06a2523a574b","at":1774003114000000000,"seq":1064,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d0ad3-5bc8-7775-876b-a79e50687f66","at":1774003117000000000,"seq":1065,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d0ad3-a9e8-75d4-a22b-908cff42cb9f","at":1774003137000000000,"seq":1066,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

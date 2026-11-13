@@ -1,0 +1,33 @@
+{"v":1,"id":"019d1f54-a046-7cc6-9281-c3f343000e92","at":1774347132998000000,"seq":1326,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1f54-a046-7044-bd29-f208e42519f8","at":1774347132998000000,"seq":1327,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d1f54-a818-70cd-bf0f-ed0f92d726f0","at":1774347135000000000,"seq":1328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f55-09dd-7e26-926c-c16018a496c2","at":1774347160029000000,"seq":1329,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d1f55-add0-7adf-84d9-ff52359438a5","at":1774347202000000000,"seq":1330,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1f55-e868-75d0-afb0-20214dab1eef","at":1774347217000000000,"seq":1331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f56-0b90-75c3-87af-dad4875f8db9","at":1774347226000000000,"seq":1332,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1f56-0e4b-786b-9c21-7302aca6b40b","at":1774347226699000000,"seq":1333,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d1f56-7120-7071-96e3-a0ccaf4c75f8","at":1774347252000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d1f56-caf8-787f-8605-bf001a1cc790","at":1774347275000000000,"seq":1335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f56-df70-7d5d-b0f7-1548b0e743c4","at":1774347280240000000,"seq":1336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d1f56-e268-79ab-b30b-94bfa92a46e5","at":1774347281000000000,"seq":1337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f56-f208-7a96-8cfd-fc4894db3b84","at":1774347285000000000,"seq":1338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1f57-5b80-7d2a-90bd-5345ca758f58","at":1774347312000000000,"seq":1339,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f57-8611-7c78-81ba-fa58c0bb6820","at":1774347322897000000,"seq":1340,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d1f57-a1d0-72f2-9f04-e9edb09c4838","at":1774347330000000000,"seq":1341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f57-ccc8-730c-9ee7-62e1dc95acb0","at":1774347341000000000,"seq":1342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f57-e820-7547-b420-9670a19c1e3a","at":1774347348000000000,"seq":1343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d1f57-ec28-7248-b2f1-f9d028ef5df8","at":1774347349032000000,"seq":1344,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d1f57-fba8-7748-8472-3547f6654150","at":1774347353000000000,"seq":1345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f58-1ed0-785c-ae37-d83edf919bac","at":1774347362000000000,"seq":1346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d1f58-240c-7eee-ae77-4cd617b26473","at":1774347363340000000,"seq":1347,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d1f58-2a88-7a87-9654-25f0c9ba4a4b","at":1774347365000000000,"seq":1348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f58-70d8-7321-b62d-fdd9cbc9d67b","at":1774347383000000000,"seq":1349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1f58-7c90-7f5c-ba95-9b9147c68631","at":1774347386000000000,"seq":1350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d1f58-ab70-7b82-a4e1-cff54f44d76c","at":1774347398000000000,"seq":1351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f58-bdba-79de-9b6b-e1426a967e6b","at":1774347402682000000,"seq":1352,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d1f58-bef8-7f0d-b5e0-5786a3bf4735","at":1774347403000000000,"seq":1353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f59-0548-7fac-ae3e-69845941622c","at":1774347421000000000,"seq":1354,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f68-e598-7aca-bab4-5fa7b1235fbf","at":1774348461464000000,"seq":1355,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1f68-e598-7b74-a0e3-7510c335156b","at":1774348461464000000,"seq":1356,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1f68-f368-73db-962c-69b4bbf86d45","at":1774348465000000000,"seq":1357,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f69-3da0-700e-9de6-26b1ff3211e5","at":1774348484000000000,"seq":1358,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

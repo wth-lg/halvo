@@ -1,0 +1,13 @@
+{"v":1,"id":"019d4326-74cd-756e-8fdc-a131dd650804","at":1774948086989000000,"seq":1413,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4326-74cd-7316-a432-11e2db106569","at":1774948086989000000,"seq":1414,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d4326-af70-7db6-82c2-397c113d3155","at":1774948102000000000,"seq":1415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d4326-b679-7835-8631-55ec15ec74c6","at":1774948103801000000,"seq":1416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d4326-f1d8-7f76-b310-43bdd997ed2d","at":1774948119000000000,"seq":1417,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4327-20b8-75cf-a6cb-bb15476b4ca7","at":1774948131000000000,"seq":1418,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4327-4e87-72ef-8363-5840e2ffe4d6","at":1774948142727000000,"seq":1419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d4327-c8b0-7c52-b173-1c21b008a16a","at":1774948174000000000,"seq":1420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d4327-ebd8-738c-bfcb-a1c5aff6ad38","at":1774948183000000000,"seq":1421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d433c-b027-768b-803c-da6de5eebb50","at":1774949543975000000,"seq":1422,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d433c-b027-7e7b-b359-09c133db98b1","at":1774949543975000000,"seq":1423,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d433c-b040-791b-80a9-fd1cc0ed3c52","at":1774949544000000000,"seq":1424,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d433d-15d0-7937-be25-f2f14c33aabc","at":1774949570000000000,"seq":1425,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

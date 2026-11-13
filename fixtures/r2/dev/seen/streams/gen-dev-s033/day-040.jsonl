@@ -1,0 +1,24 @@
+{"v":1,"id":"019c41c6-724d-78c8-b6d5-5087cdb8ae65","at":1770630050381000000,"seq":535,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c41c6-724d-7d16-b912-9e2fc6d5da34","at":1770630050381000000,"seq":536,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c41c6-9fb0-7783-a30c-d559d80b0e2e","at":1770630062000000000,"seq":537,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c6-f988-7788-a557-6b397963d519","at":1770630085000000000,"seq":538,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d6-7166-77ce-9dd1-1964e5f20558","at":1770631098726000000,"seq":539,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41d6-7166-70ed-a115-7fb09600fc3f","at":1770631098726000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c41d7-06e8-7c9a-93f4-a0dc806f78bb","at":1770631137000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c41d7-1a70-77b2-8d4e-b9785e158d9a","at":1770631142000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d7-3545-7cae-9826-71565e3ded98","at":1770631148869000000,"seq":543,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c41d7-4568-7643-aeea-dc8059c6ea36","at":1770631153000000000,"seq":544,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41d7-7060-70c8-9217-03de272937a5","at":1770631164000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d7-9b58-7d7e-8cc4-232b1f664644","at":1770631175000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d7-9d74-7602-970b-37f42ec3d2ea","at":1770631175540000000,"seq":547,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c41d7-ddc0-73f9-a3ea-cfb9960b5ecf","at":1770631192000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41d7-e58b-79c2-866b-77ffa952f450","at":1770631193995000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c41ee-287e-7d99-b227-1720ffc65c10","at":1770632652926000000,"seq":550,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c41ee-287e-75de-8f4b-f17234a644fe","at":1770632652926000000,"seq":551,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c41ee-2cb0-73f9-83fa-adc096a357d8","at":1770632654000000000,"seq":552,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c41ee-4bf0-79c9-a2a0-8e3097fd2efb","at":1770632662000000000,"seq":553,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c41ee-53c0-7683-83ad-6f15ed1e3d12","at":1770632664000000000,"seq":554,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c41ee-6c9a-70a4-b712-92b832aa87fb","at":1770632670362000000,"seq":555,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c41ee-76e8-798f-a6b7-a13b4d04e65b","at":1770632673000000000,"seq":556,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c41ee-82a0-7762-985d-f54d8ddd96ba","at":1770632676000000000,"seq":557,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ee-8688-7a08-8e4f-98462d1e2081","at":1770632677000000000,"seq":558,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

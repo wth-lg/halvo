@@ -1,0 +1,14 @@
+{"v":1,"id":"019c939d-3f8d-7224-b7a0-6cbb7198e8c9","at":1772003082125000000,"seq":790,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c939d-3f8d-7a85-a351-2f6eef63f5b1","at":1772003082125000000,"seq":791,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c939d-6a08-7ea8-a57e-d7057a436a72","at":1772003093000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c939d-71d8-7eed-8f2a-8ad7fcec65d3","at":1772003095000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c939d-c3e0-7a07-a924-441069f9db00","at":1772003116000000000,"seq":794,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c939e-0648-7cde-855f-0be28b3dc0e9","at":1772003133000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c93a2-7b69-7cc4-a65d-d501943f6971","at":1772003425129000000,"seq":796,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c93a2-b968-7622-9a57-b1bec7b4d566","at":1772003441000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93a2-fbd0-718b-9057-d10d9ac72160","at":1772003458000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93a3-80a9-7d74-800c-7c2fbb1314ae","at":1772003492009000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c93a3-8870-7a02-a001-06214bf9458b","at":1772003494000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93a3-cad8-700f-815f-7a1862c71937","at":1772003511000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93a3-f5d0-7a6a-933e-0cc13571d4ed","at":1772003522000000000,"seq":802,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c93a4-1510-7fd3-9714-d1e1a740df35","at":1772003530000000000,"seq":803,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

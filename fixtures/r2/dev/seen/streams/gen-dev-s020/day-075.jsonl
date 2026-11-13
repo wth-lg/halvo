@@ -1,0 +1,13 @@
+{"v":1,"id":"019cf629-9419-73ee-96ae-2062f0806bf2","at":1773656445977000000,"seq":1157,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf629-9419-74ec-a90e-7a4731fce4ce","at":1773656445977000000,"seq":1158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cf62a-0190-771c-987e-94f4bb2dbfad","at":1773656474000000000,"seq":1159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cf641-ab1d-7690-9db7-63db6d5e259c","at":1773658024733000000,"seq":1160,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf641-ab1d-7276-8226-1375fb5645b2","at":1773658024733000000,"seq":1161,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf641-b3f8-7d92-b680-d52aeb814176","at":1773658027000000000,"seq":1162,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf641-e6c0-7003-9e0a-542467503079","at":1773658040000000000,"seq":1163,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cf642-1988-7d72-9cb7-7a39e1c7194c","at":1773658053000000000,"seq":1164,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf642-2158-7746-ba50-bd852ec4237c","at":1773658055000000000,"seq":1165,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cf642-3ac3-7de6-abf1-7120741f07be","at":1773658061507000000,"seq":1166,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cf642-5038-7e0c-a8c4-d1b2393cd29c","at":1773658067000000000,"seq":1167,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf642-5420-7a73-80a8-8a0f09822b7e","at":1773658068000000000,"seq":1168,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cf642-5fd8-7ade-9915-88b95e861c1d","at":1773658071000000000,"seq":1169,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

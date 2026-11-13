@@ -1,0 +1,20 @@
+{"v":1,"id":"019b7d95-9d42-74a6-95ed-4771a8ece82c","at":1767338515778000000,"seq":15,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7d95-9d42-71bf-833f-df6df81a14d5","at":1767338515778000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7d95-d0e8-78b5-8a39-a21a227fb40f","at":1767338529000000000,"seq":17,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7d96-03b0-711f-ae7b-63b7f6cc3f5b","at":1767338542000000000,"seq":18,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7db0-f305-70e7-8d91-0f8a06d90350","at":1767340307205000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7dc7-d380-76a4-b2ff-ac12ab7e5169","at":1767341806464000000,"seq":20,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7dc7-e150-7586-95e1-5a03df779a32","at":1767341810000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dc8-42f8-7618-9245-c904991438bc","at":1767341835000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dc8-4830-7dbb-813e-d3234eb67f3f","at":1767341836336000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7dc8-6620-7566-8e0a-4fa85df05850","at":1767341844000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dc8-71d8-70d1-85d4-6f6255e9f0b6","at":1767341847000000000,"seq":25,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7dc8-8560-7e1b-9fd3-1d7fc1f425a5","at":1767341852000000000,"seq":26,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7dc8-9118-706e-ad65-a855183ed2d5","at":1767341855000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b7dc8-9b84-7c33-b13f-a736f9e5f4a8","at":1767341857668000000,"seq":28,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7dc8-a888-7f3e-883f-e959c0d4f733","at":1767341861000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dc9-1db8-7632-9bfe-f7c2796e72d4","at":1767341891000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7dc9-3140-7dc6-b7e3-23e12aba16e4","at":1767341896000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dc9-4581-7ec5-9567-68620f1c1320","at":1767341901185000000,"seq":32,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b7dc9-6408-71af-9cd7-8a04572f60e1","at":1767341909000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dc9-f0a8-7f86-b604-a90eefa861e3","at":1767341945000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,23 @@
+{"v":1,"id":"019c84b3-edb4-76fd-84e0-9154f7101f51","at":1771752910260000000,"seq":837,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84b3-edb4-73cf-afb1-13e6fd7e7232","at":1771752910260000000,"seq":838,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c84b4-0fd8-7584-9cc8-f1d31e8b62da","at":1771752919000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84b4-65c8-7d8a-b644-5db104ee7fed","at":1771752941000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c84b4-e4b0-7aec-8a78-5c405d7e3239","at":1771752973488000000,"seq":841,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c84b5-2d00-7e9e-8323-67d3cd05a9fc","at":1771752992000000000,"seq":842,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c84b5-86d8-7ffd-bbaa-6bbdb3169f8a","at":1771753015000000000,"seq":843,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84b5-8ba0-73b5-ae0f-00db2ec08280","at":1771753016224000000,"seq":844,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c84b5-d8e0-7453-885e-cac1da2cfd1e","at":1771753036000000000,"seq":845,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84b6-0e40-7059-a75d-552cb9d986cd","at":1771753049664000000,"seq":846,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c84b6-4258-78aa-9358-3405b49bca28","at":1771753063000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84b6-9848-7e45-adc0-3c3fff416a2c","at":1771753085000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c84cb-5781-748e-97d3-aecfe0bad54f","at":1771754444673000000,"seq":849,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c84cb-5cb0-7d6d-8ec9-5e60eb6cda09","at":1771754446000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c84cb-8b90-7cd1-b354-1803ec05dfab","at":1771754458000000000,"seq":851,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c84d1-9b60-7af2-9c9c-69871a1ffd98","at":1771754855264000000,"seq":852,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c84d1-9b60-7c7b-8434-5e0324c885dd","at":1771754855264000000,"seq":853,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c84d1-ade0-7241-8c43-3add6295f61e","at":1771754860000000000,"seq":854,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c84d1-cd20-704c-9ce3-235d25ab950d","at":1771754868000000000,"seq":855,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c84d1-d4f0-75aa-895d-121c2e0d3545","at":1771754870000000000,"seq":856,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c84e7-4646-73f8-a625-ee3de088aa80","at":1771756275270000000,"seq":857,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c84e7-54d8-7e81-96ac-2bf3f467325e","at":1771756279000000000,"seq":858,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84e7-87a0-733f-a7e1-e91e002b49df","at":1771756292000000000,"seq":859,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

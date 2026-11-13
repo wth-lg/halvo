@@ -1,0 +1,24 @@
+{"v":1,"id":"019c4c12-6c80-7aff-8e82-4a8d64d6b387","at":1770802801792000000,"seq":669,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c12-6c80-7db8-b006-9964162384f5","at":1770802801792000000,"seq":670,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c12-9078-7679-b16a-6ceb360efc72","at":1770802811000000000,"seq":671,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c4c13-01c0-75b4-a02c-9017dc8db2be","at":1770802840000000000,"seq":672,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c4c13-1160-7319-8d8c-85b97d9c2e06","at":1770802844000000000,"seq":673,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c4c15-c073-7725-94d7-ff25d72b8fe1","at":1770803019891000000,"seq":674,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c15-c073-7f2b-b888-d261a7a2a355","at":1770803019891000000,"seq":675,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4c15-c8b0-7286-ba36-c335b077bbac","at":1770803022000000000,"seq":676,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c15-e408-73cd-bcda-6772e76eda4f","at":1770803029000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c16-5168-7189-b20d-529c2679cf2f","at":1770803057000000000,"seq":678,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c1f-3f7f-72c6-b9dc-1fd1cf210e8e","at":1770803642239000000,"seq":679,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c1f-3f7f-77d9-aba8-ec4c1e3eeb92","at":1770803642239000000,"seq":680,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c1f-9868-7269-bae2-5b243fe48325","at":1770803665000000000,"seq":681,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c1f-cb30-7175-b3a2-b266f9759a52","at":1770803678000000000,"seq":682,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c4c1f-cf18-7c20-9baa-a2392544e4e5","at":1770803679000000000,"seq":683,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c1f-d170-7224-9897-a87062845637","at":1770803679600000000,"seq":684,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c4c1f-e2a0-7c93-8b63-46fbcf542815","at":1770803684000000000,"seq":685,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c20-3890-7c10-bef3-d4a89e3b0777","at":1770803706000000000,"seq":686,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c4c20-4060-70db-b99a-23eff65fc480","at":1770803708000000000,"seq":687,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c36-83d6-7616-ba0f-85fc727a2029","at":1770805167062000000,"seq":688,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c36-83d6-7815-8236-8238b59a1972","at":1770805167062000000,"seq":689,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c4c36-ba48-7bc5-94b9-69e7a3db92ad","at":1770805181000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c36-c9e8-7f8b-b1a5-6a3fa8a6818b","at":1770805185000000000,"seq":691,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c37-394c-7e8a-a992-57c45779f21f","at":1770805213516000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}

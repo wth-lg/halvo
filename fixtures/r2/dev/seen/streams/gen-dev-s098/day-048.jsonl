@@ -1,0 +1,23 @@
+{"v":1,"id":"019c6aaa-5817-77fe-9339-394804dae39e","at":1771316074519000000,"seq":581,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6aaa-5817-77f3-8028-1c84e32bb0af","at":1771316074519000000,"seq":582,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c6aaa-8cc0-7743-8815-6ea45082681b","at":1771316088000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6aaa-cf28-79d8-919c-03395228d192","at":1771316105000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aab-2a17-7fa3-bffb-1c1d77d6b075","at":1771316128279000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c6aab-34b8-777f-9a8e-4e8d6a5baea3","at":1771316131000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aab-5010-77fa-a7c2-4569f03ccf66","at":1771316138000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c6aab-698f-7b2c-be51-52a54d261861","at":1771316144527000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c6aab-6f50-7214-95b9-c93057814894","at":1771316146000000000,"seq":589,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6aab-9e30-777c-9f75-6420437179a5","at":1771316158000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aab-9e30-7ddc-80aa-5582b063697d","at":1771316158000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6ac1-53e0-7217-8a22-82ee5f03b451","at":1771317580768000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6ac1-6468-7e1b-9307-de59d198697a","at":1771317585000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac1-c610-7f76-a6c6-bc13fa5a2acd","at":1771317610000000000,"seq":594,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ac2-0878-7101-a83f-0e73727f8dfa","at":1771317627000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c6acf-0fa2-71c2-81b4-0c15a3a2a4f0","at":1771318480802000000,"seq":596,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6acf-0fa2-7747-81ec-6a25818d273b","at":1771318480802000000,"seq":597,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6acf-56b8-7e4b-b4f4-1a295168cd2e","at":1771318499000000000,"seq":598,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c6acf-c030-7bb6-a553-a28a636b82a6","at":1771318526000000000,"seq":599,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6ae5-6368-7c8b-a837-67d51cf9b5d5","at":1771319944040000000,"seq":600,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6ae5-ad78-7366-8003-56997bb677fd","at":1771319963000000000,"seq":601,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae5-d488-723c-80b0-251a350502b0","at":1771319973000000000,"seq":602,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ae6-0b38-77e8-aca9-3785559654f9","at":1771319987000000000,"seq":603,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

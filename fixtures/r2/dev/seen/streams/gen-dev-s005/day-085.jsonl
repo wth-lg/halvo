@@ -1,0 +1,35 @@
+{"v":1,"id":"019d2905-a6cc-7e0c-a9f0-028d038832cd","at":1774509729484000000,"seq":1362,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2905-a6cc-7150-b349-77f5188e2464","at":1774509729484000000,"seq":1363,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d2905-bc58-7ec2-90fc-e31cfd97aee7","at":1774509735000000000,"seq":1364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2906-5c80-7cb2-b101-59b644546199","at":1774509776000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d2906-722e-7131-869b-7650dbd09582","at":1774509781550000000,"seq":1366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d2906-9ee8-73cd-8560-7485337c1997","at":1774509793000000000,"seq":1367,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2906-a2d0-7675-b08b-11878f383e09","at":1774509794000000000,"seq":1368,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2907-3754-7d18-bdc9-6d377b556da6","at":1774509832020000000,"seq":1369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d2907-5e50-785e-86b4-c9e06b998727","at":1774509842000000000,"seq":1370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2907-8178-76cf-bece-f49b58f7ba22","at":1774509851000000000,"seq":1371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d2907-c7c8-767d-aee8-dba9867d5a91","at":1774509869000000000,"seq":1372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2907-d136-756a-9d58-35e90a40ad5d","at":1774509871414000000,"seq":1373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d2907-df38-77bb-b0db-5ea3c80df6cb","at":1774509875000000000,"seq":1374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2908-1200-700f-9af5-b975ba95d7e2","at":1774509888000000000,"seq":1375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2908-87c1-7887-92ff-0e8a4748dd17","at":1774509918145000000,"seq":1376,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d2908-b610-7f2e-b46b-d8ad5e0b3720","at":1774509930000000000,"seq":1377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d2908-c5b0-7f67-bdd9-50311bcb6005","at":1774509934000000000,"seq":1378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2922-0c04-7409-ae54-cb82ee365f49","at":1774511590404000000,"seq":1379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d2922-ae80-77bc-9070-544e5ffde732","at":1774511632000000000,"seq":1380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2922-d173-70cc-9130-55c279797c8e","at":1774511640947000000,"seq":1381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d2923-0088-7c20-8e3c-4cae542ad24f","at":1774511653000000000,"seq":1382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2923-79a0-769d-ad3e-80e0d83164aa","at":1774511684000000000,"seq":1383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2923-bcde-7ef1-bbad-926eb35c2699","at":1774511701214000000,"seq":1384,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d2923-e700-74a8-883e-3cc68e09d2d5","at":1774511712000000000,"seq":1385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d2923-eed0-7848-9a53-02ee5576421d","at":1774511714000000000,"seq":1386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2924-0640-754c-a5b6-fdb5f605f2b3","at":1774511720000000000,"seq":1387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2924-3138-75cb-9b67-f34480e9cab9","at":1774511731000000000,"seq":1388,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2924-371c-7c71-bcd0-9c8653bc5172","at":1774511732508000000,"seq":1389,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d2924-3908-7e93-bd95-e03098f0c03d","at":1774511733000000000,"seq":1390,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2924-4c90-7d2a-a1cc-b0455b9c52ff","at":1774511738000000000,"seq":1391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2924-73a0-78c9-86b4-fa96dac6ff75","at":1774511748000000000,"seq":1392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d2924-c990-7e5c-a10c-f6c9aac61723","at":1774511770000000000,"seq":1393,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d293d-6d8a-745b-b558-8e295ff1bcc0","at":1774513384842000000,"seq":1394,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d293d-6d8a-722d-8d2c-6bd16e03d03b","at":1774513384842000000,"seq":1395,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d293e-0a68-7cba-85f4-22ec04e3640e","at":1774513425000000000,"seq":1396,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

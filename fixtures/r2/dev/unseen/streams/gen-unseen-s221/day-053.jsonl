@@ -1,0 +1,27 @@
+{"v":1,"id":"019c848d-eb25-716f-8109-5e3db35b24c7","at":1771750419237000000,"seq":779,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c848d-eb25-7cb8-99ad-0a5bd75d36cb","at":1771750419237000000,"seq":780,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c848e-24d0-7d43-a853-3588372f2a8c","at":1771750434000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c848e-24d0-7ad2-929e-1452d43acfd9","at":1771750434000000000,"seq":782,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c848e-3858-7edf-a8ec-c8e6bd901492","at":1771750439000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c848e-4efc-7577-af63-d06838021936","at":1771750444796000000,"seq":784,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c848e-4fc8-7fd6-9486-29d73376adb7","at":1771750445000000000,"seq":785,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c848e-5798-73c9-9370-2eaa45517be4","at":1771750447000000000,"seq":786,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c848e-5f68-72b4-80df-34cf7d939412","at":1771750449000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c848e-b170-73d0-93a5-46a60cb31fc0","at":1771750470000000000,"seq":788,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c848f-3e5a-79f2-aef9-fda9a3561ae4","at":1771750506074000000,"seq":789,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c848f-5968-7a53-a68f-652278519125","at":1771750513000000000,"seq":790,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c848f-74c0-71a4-96da-79a7f023be99","at":1771750520000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c848f-9bd0-790f-9db2-ae01c026f3e5","at":1771750530000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c8495-c3c6-7f67-87f8-6eb87d2a0fdf","at":1771750933446000000,"seq":793,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8495-c3c6-75f1-ae52-9ea07fecb9af","at":1771750933446000000,"seq":794,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8495-e148-737f-9db6-984b6fda4269","at":1771750941000000000,"seq":795,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c8496-3738-764b-b787-f01392eaf663","at":1771750963000000000,"seq":796,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8496-75b8-7085-88ec-c253d01a35ee","at":1771750979000000000,"seq":797,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c849c-5406-7e2e-b7de-3687d75dea5d","at":1771751363590000000,"seq":798,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c849c-5406-75f6-ba82-1c64f3c4739c","at":1771751363590000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c849c-8098-744f-890b-7c64f8f781c8","at":1771751375000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c849c-d2a0-7ceb-b194-a02c33898767","at":1771751396000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c849d-4000-7f16-9920-c783058eea2e","at":1771751424000000000,"seq":802,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c84a0-a31e-72bf-b71d-7e7fcd05d3ac","at":1771751645982000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c84a0-e598-705c-b04d-16868959f215","at":1771751663000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84a0-fd08-7d55-95d6-7a4b07187478","at":1771751669000000000,"seq":805,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

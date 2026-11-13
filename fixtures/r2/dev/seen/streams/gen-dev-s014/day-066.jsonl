@@ -1,0 +1,17 @@
+{"v":1,"id":"019cc7a5-748b-733c-85a7-b3388b4ff8cb","at":1772876035211000000,"seq":910,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc7a5-748b-7b16-8b74-0cd9beac4fc1","at":1772876035211000000,"seq":911,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cc7a5-8358-7c8d-86b7-84624c3d0fd7","at":1772876039000000000,"seq":912,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc7a5-a680-7717-a510-e05386ea8ad5","at":1772876048000000000,"seq":913,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc7b4-e964-790f-b8d4-f78f43d82ed3","at":1772877048164000000,"seq":914,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cc7b5-1f70-7f68-84c7-1da9f69fd53b","at":1772877062000000000,"seq":915,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7b5-4a68-7150-99ee-a51cd2606759","at":1772877073000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7b5-d371-74ba-9c61-5f85e9f1745e","at":1772877108081000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cc7b6-5bd8-770d-9a78-91e05055aa51","at":1772877143000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cc7b6-6790-747b-bb8e-1933273fa043","at":1772877146000000000,"seq":919,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc7b6-91a3-7cd8-9cb3-efd2ae98d6dd","at":1772877156771000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cc7b7-a089-7d58-a650-a9fed7428a6d","at":1772877226121000000,"seq":921,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cc7b7-abc8-7164-a494-6f209145773e","at":1772877229000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7b7-afb0-7f99-8c13-1cb050df6e9e","at":1772877230000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7b7-b780-700c-a3ce-71315dec7b32","at":1772877232000000000,"seq":924,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc7b7-c720-77be-baa7-4d0cb53eb83e","at":1772877236000000000,"seq":925,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc7b7-d6c0-79db-9a0f-ff8570d154d8","at":1772877240000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

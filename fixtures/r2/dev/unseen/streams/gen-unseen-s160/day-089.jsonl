@@ -1,0 +1,17 @@
+{"v":1,"id":"019d3e30-40e5-7399-82c9-46122279ac18","at":1774864842981000000,"seq":1218,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3e30-40e5-7fb9-8fbf-353c1ea5fb27","at":1774864842981000000,"seq":1219,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3e3a-d1b2-7794-b2ce-2348be2c9796","at":1774865535410000000,"seq":1220,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3e3b-5cb8-79f3-b5d2-2f909c9c6bb8","at":1774865571000000000,"seq":1221,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d3e3b-be60-7794-acb0-9355516b1849","at":1774865596000000000,"seq":1222,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e3b-cc98-7f52-bd99-dffe16c4b690","at":1774865599640000000,"seq":1223,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3e3b-cc98-7254-b926-175d3eff1ecf","at":1774865599640000000,"seq":1224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3e3b-ed40-778f-a60d-82afbb501271","at":1774865608000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e3b-fce0-710b-8c66-9eb2aa477116","at":1774865612000000000,"seq":1226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e3c-00c8-7b45-8389-f5791350847f","at":1774865613000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d3e3c-2942-7b05-90b9-ff24bcf173f4","at":1774865623362000000,"seq":1228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019d3e3c-6658-7369-8368-75e7aa072be0","at":1774865639000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e3c-99e3-7615-b029-b2c2cc0f6b54","at":1774865652195000000,"seq":1230,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3e3c-99e3-7d17-9160-213fa0372d30","at":1774865652195000000,"seq":1231,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3e3c-a4d8-7e90-a0ba-a705f140ca55","at":1774865655000000000,"seq":1232,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e3c-ef10-7912-94c7-32d1ee5d20f2","at":1774865674000000000,"seq":1233,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e3d-21d8-7db9-9e52-d46ba5d63913","at":1774865687000000000,"seq":1234,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}

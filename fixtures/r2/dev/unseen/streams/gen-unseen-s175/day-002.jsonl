@@ -1,0 +1,44 @@
+{"v":1,"id":"019b7dad-dba0-7fb9-9603-45331f843684","at":1767340104608000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7dad-dba0-72f1-a5f9-152dcf4710f1","at":1767340104608000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7dae-2b48-7212-9893-c06dc88343f8","at":1767340125000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7dae-3318-7522-ac8f-aa2124ac7733","at":1767340127000000000,"seq":3,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7dbf-e804-7b35-95f9-36439c41e30a","at":1767341287428000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7dbf-f5f8-77f1-ba0c-8381f3a88f21","at":1767341291000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7ddb-b44e-7015-b6e0-7a7cc3d5d282","at":1767343109198000000,"seq":6,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7ddb-c710-7451-8531-4b7e31bc703c","at":1767343114000000000,"seq":7,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7ddc-24d0-7185-91c5-55cc46c5a727","at":1767343138000000000,"seq":8,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7ddc-7ac0-7cc0-a400-db9d03ec2530","at":1767343160000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df6-10d4-7c93-97aa-1fe34b725e6d","at":1767344836820000000,"seq":10,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b7df6-f030-782f-a48d-6a95288d7276","at":1767344894000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df7-21b1-7d39-979d-549590d218b9","at":1767344906673000000,"seq":12,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b7df7-22f8-77f4-8d9e-2a2cdfacf0b2","at":1767344907000000000,"seq":13,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7df7-9440-72b7-a6cc-028041d31fac","at":1767344936000000000,"seq":14,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7df7-a7c8-7500-9aac-98217ce5fa8f","at":1767344941000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df8-168f-793c-a547-1c9140f0f654","at":1767344969359000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b7df8-9228-7e4e-a112-8db54f09ee7a","at":1767345001000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df8-a998-7634-ba79-c3a407baaa4b","at":1767345007000000000,"seq":18,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7df8-d532-7418-95be-55098eea735e","at":1767345018162000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b7df8-d878-74f3-a823-e9d389911789","at":1767345019000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df8-efe8-7435-91a0-c5718419a3e2","at":1767345025000000000,"seq":21,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7df9-2698-796e-8cc9-4d2c261bdc6c","at":1767345039000000000,"seq":22,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7df9-5960-748f-92da-9a5578574164","at":1767345052000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7df9-5c7f-7f68-a13f-5461756513fe","at":1767345052799000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b7df9-93f8-75b0-b015-fb7bdb4a7c7c","at":1767345067000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b7df9-9e85-7e5a-897d-5d41c5fa25a7","at":1767345069701000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b7df9-ce90-7bdf-8da2-8b72cb16d873","at":1767345082000000000,"seq":27,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7df9-d660-7531-9671-e89e08a4c19d","at":1767345084000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7df9-edd0-7883-a89d-91cc1b264570","at":1767345090000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e06-c6e8-7ea4-80bd-0402253f7902","at":1767345932008000000,"seq":30,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b7e07-1cd0-7e2f-ac60-d05130599a0d","at":1767345954000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e07-2888-7782-a5a1-32f9cb1abdc4","at":1767345957000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e07-3681-764d-bfe4-6ea42fdab562","at":1767345960577000000,"seq":33,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b7e07-43e0-7dd5-ae6f-6d6ac23056be","at":1767345964000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e07-6320-7913-a306-a2513e80db15","at":1767345972000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e07-abac-7f92-bec7-6e9ccedffe8f","at":1767345990572000000,"seq":36,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b7e07-d850-7615-9842-46eedb2cf9fc","at":1767346002000000000,"seq":37,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e07-dc38-7bc0-986a-51ee0eb276e2","at":1767346003000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e08-0348-7199-a79a-ca4bea8be2e5","at":1767346013000000000,"seq":39,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e08-0f00-7477-846e-6852f7c9297e","at":1767346016000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b7e08-1020-77f1-acc7-4b8bc8642708","at":1767346016288000000,"seq":41,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019b7e08-16d0-757a-abcd-02bc0fdb5be1","at":1767346018000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e08-3228-7fc5-9e1b-c9b77bb34e0d","at":1767346025000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,10 @@
+{"v":1,"id":"019ce154-caeb-73b5-a318-b08aa2d11ab7","at":1773306956523000000,"seq":976,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce154-caeb-769d-ae6b-89a527de69e1","at":1773306956523000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ce155-389c-7cd6-81b5-31acf01a477b","at":1773306984604000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce155-b340-71e2-b7ae-58020f215925","at":1773307016000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce155-cab0-7290-bfd8-160ba817a48f","at":1773307022000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce155-ce98-78ff-975c-f7e514cc0a86","at":1773307023000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ce155-ed16-7ee1-9d52-9bba56023586","at":1773307030806000000,"seq":982,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ce156-0160-727b-aaf6-9b8fd2ff1dc2","at":1773307036000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce156-b510-7d28-be25-0f9d4443e1b8","at":1773307082000000000,"seq":984,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce156-c0c8-7dbf-ab11-ed7c9ff40e61","at":1773307085000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

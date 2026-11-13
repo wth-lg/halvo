@@ -1,0 +1,13 @@
+{"v":1,"id":"019c5b35-ee50-776c-b9b2-4ddc420ceefc","at":1771056787024000000,"seq":618,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b35-ee50-7892-833f-c10bb28d27d3","at":1771056787024000000,"seq":619,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5b36-1548-7471-98a7-4a5c1166de46","at":1771056797000000000,"seq":620,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c5b36-30a0-7cc4-972f-fc6b964ed6f4","at":1771056804000000000,"seq":621,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b36-7330-779d-a6b6-88c6f23bbb15","at":1771056821040000000,"seq":622,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b36-7330-71c5-8b62-5c23febeb208","at":1771056821040000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c5b36-a1e8-7a55-8a5a-bb5e436c67b5","at":1771056833000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5b36-e068-72fc-8ee9-40f2eacb6be2","at":1771056849000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b36-e450-74d4-a6fa-dfa71b0d64db","at":1771056850000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5b37-22d0-752e-b797-6c7d75d25f28","at":1771056866000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b37-5598-7bb1-8ad8-7a1a1f176538","at":1771056879000000000,"seq":628,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5b37-5c4c-7475-9fcb-a55dd1d1eacc","at":1771056880716000000,"seq":629,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5b37-5c4c-7ced-91a3-2a8ae83853b6","at":1771056880716000000,"seq":630,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019d0a8e-ffd7-7ef9-a106-749a08f00c18","at":1773998637015000000,"seq":1146,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0a8e-ffd7-7759-99d7-03e3dee93c0b","at":1773998637015000000,"seq":1147,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0a8f-22f0-75b0-9b78-0465d21735cc","at":1773998646000000000,"seq":1148,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a8f-4a00-73e1-9510-b3fc64e5e408","at":1773998656000000000,"seq":1149,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d0aa7-6714-78c8-8a12-7991ce0f3064","at":1774000236308000000,"seq":1150,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d0aa7-8138-76be-a11f-9af494125e7e","at":1774000243000000000,"seq":1151,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aa7-90d8-7f39-8c26-bf559ecd7942","at":1774000247000000000,"seq":1152,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d0aa7-ac30-76bb-9d6c-3c9aa896c948","at":1774000254000000000,"seq":1153,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aa7-bbd0-7556-8cfc-d1b779e09afc","at":1774000258000000000,"seq":1154,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d0aad-755a-7f36-843c-fd911daa621b","at":1774000633178000000,"seq":1155,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0aad-755a-743f-a861-cace2e6296e9","at":1774000633178000000,"seq":1156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0aae-43b0-7f53-8f4c-c038d86856c3","at":1774000686000000000,"seq":1157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0ab3-39f8-7568-985e-7cacb5afa27c","at":1774001011192000000,"seq":1158,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab3-f0d0-7968-9074-9b56d3c47334","at":1774001058000000000,"seq":1159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d0ab4-0285-7f13-b176-af5494b3ba0f","at":1774001062533000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab4-71b8-722d-a957-7aaf76ea6c53","at":1774001091000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d0ab4-ac50-7838-9142-15b6432111b8","at":1774001106000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab4-f3ed-7794-803a-dc3a80e9d144","at":1774001124333000000,"seq":1163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d0ab4-fe58-778f-9250-7f23708e5ee7","at":1774001127000000000,"seq":1164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab6-0028-7028-872b-69c842df912f","at":1774001193000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ab6-043f-7915-b8a1-ff40dc238b65","at":1774001194047000000,"seq":1166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}

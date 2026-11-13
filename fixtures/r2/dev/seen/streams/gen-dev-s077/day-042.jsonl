@@ -1,0 +1,24 @@
+{"v":1,"id":"019c4bde-e53e-76df-908e-23daed776801","at":1770799424830000000,"seq":772,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4bde-e53e-7921-9b2b-d9792be350ae","at":1770799424830000000,"seq":773,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4bdf-3408-757c-a262-df1de6db943b","at":1770799445000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bf7-d8fa-7a43-a04e-b14faba88b8b","at":1770801060090000000,"seq":775,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4bf7-d8fa-78cb-8243-be5162c75ac8","at":1770801060090000000,"seq":776,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c11-7401-7ae4-982a-d4f1e5b5107f","at":1770802738177000000,"seq":777,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c11-7401-78fe-8455-0637fd290097","at":1770802738177000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4c11-ade8-77b8-b83e-83848d090132","at":1770802753000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c4c11-b1d0-70a8-a770-c78f39f4239b","at":1770802754000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c11-d110-70a0-a2c5-e8975cc3f145","at":1770802762000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c12-11fa-75fb-bdd1-4bdbf4355894","at":1770802778618000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4c12-36a0-7afd-84a9-1f8cb95985ee","at":1770802788000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c12-6d50-7cad-bb05-43e16c2a25fc","at":1770802802000000000,"seq":784,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c4c12-7520-7657-90d1-7452835bd74a","at":1770802804000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c12-7b5f-76fc-afe9-5e4d92af1973","at":1770802805599000000,"seq":786,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4c12-a018-75ed-864c-9cd6857af99d","at":1770802815000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c12-ea50-7e4b-b091-3f5a73adbe34","at":1770802834000000000,"seq":788,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c12-f220-7aa8-8453-0536182a859f","at":1770802836000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c13-53c8-75a3-83b9-35223ff69855","at":1770802861000000000,"seq":790,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c13-74ed-7808-bcf8-e98932aff039","at":1770802869485000000,"seq":791,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c4c13-8e60-7ca2-8f99-01c70a44a3d1","at":1770802876000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c13-8e60-74fa-b75d-1dc714bb034d","at":1770802876000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c4c13-9e00-7e07-84af-68d9334afb6e","at":1770802880000000000,"seq":794,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c13-a5d0-775f-8f48-7017885b3a0e","at":1770802882000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

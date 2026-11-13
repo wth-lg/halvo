@@ -1,0 +1,28 @@
+{"v":1,"id":"019cf056-1d1b-7505-aea5-483cfd603c31","at":1773558701339000000,"seq":1064,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf056-1d1b-7d78-9e85-a156ce820a33","at":1773558701339000000,"seq":1065,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf056-90f8-7220-86e4-cd19f01d8b6e","at":1773558731000000000,"seq":1066,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf056-98c8-764b-87e6-725c3b4003a1","at":1773558733000000000,"seq":1067,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cf056-b420-7b7d-bc3a-36999cedd12d","at":1773558740000000000,"seq":1068,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf056-b808-730a-af75-fd365e55bbe3","at":1773558741000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf067-a527-7846-8d86-e578aab6b0d2","at":1773559850279000000,"seq":1070,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf067-a527-7b45-b1e4-6380c80c91a2","at":1773559850279000000,"seq":1071,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf067-dac0-7c61-9ffb-74952557d890","at":1773559864000000000,"seq":1072,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cf067-e290-7f1b-b44d-8d676e50c8a0","at":1773559866000000000,"seq":1073,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf068-4820-7748-9c30-348d604c13a7","at":1773559892000000000,"seq":1074,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf068-53d8-73ef-865b-7a691a9ae808","at":1773559895000000000,"seq":1075,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cf06a-c34d-7b3a-8b5d-c4074434f840","at":1773560054605000000,"seq":1076,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf06a-c34d-738c-98a9-3f1c5948f238","at":1773560054605000000,"seq":1077,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf06b-0b28-7db3-9e9f-84cc8daad1a3","at":1773560073000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf06b-1eb0-7368-8433-87e2dcf3ac29","at":1773560078000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cf07b-187b-7197-b9ef-3eac61190b75","at":1773561124987000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cf07b-6a90-78fb-be4f-48b59e5025a0","at":1773561146000000000,"seq":1081,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf07b-81fc-78d7-89d1-8a71d35220c7","at":1773561151996000000,"seq":1082,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cf07b-c080-718f-ac21-fce107ab4a89","at":1773561168000000000,"seq":1083,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf07b-f730-722f-b48b-4e99e0a0a15a","at":1773561182000000000,"seq":1084,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf07c-1288-77d2-b6fc-ead77f178cb1","at":1773561189000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cf07c-3712-76a4-a72d-f2ea44b6e5e6","at":1773561198354000000,"seq":1086,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cf07c-3998-7957-ba7f-992e26d241a8","at":1773561199000000000,"seq":1087,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf07c-4938-78c0-ad01-6e5957696952","at":1773561203000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cf07c-4d20-7d70-ba4a-b6304fa363c3","at":1773561204000000000,"seq":1089,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf07c-a6f8-755e-bc91-b20e2de52f5f","at":1773561227000000000,"seq":1090,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf07c-aec8-729e-8522-f89c5b61beeb","at":1773561229000000000,"seq":1091,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

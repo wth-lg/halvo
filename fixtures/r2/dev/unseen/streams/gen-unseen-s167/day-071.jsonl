@@ -1,0 +1,12 @@
+{"v":1,"id":"019ce15d-522e-7e7b-9986-28c2d5ebfdba","at":1773307515438000000,"seq":1089,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce15d-522e-7643-96c4-92a2bf7680bb","at":1773307515438000000,"seq":1090,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce15d-8b10-7369-a3f1-53b0ed59d3ee","at":1773307530000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ce15d-aa50-72ad-9dc7-7c0de5a19003","at":1773307538000000000,"seq":1092,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15d-cc2d-7cb2-aa4f-313f49575a94","at":1773307546669000000,"seq":1093,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce15d-d160-7c1e-bff5-8bae2a02ad48","at":1773307548000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15e-69b8-7acd-ac99-386bdbf9db9b","at":1773307587000000000,"seq":1095,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ce15e-941e-77c6-8fec-93b25eef1906","at":1773307597854000000,"seq":1096,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"spending by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019ce15e-9898-7cd5-b9c9-f74f18ae9bd1","at":1773307599000000000,"seq":1097,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce15e-d718-7a73-843b-4969a123c825","at":1773307615000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ce15e-db00-77df-bd5a-1977597c2591","at":1773307616000000000,"seq":1099,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce15f-2d08-745c-9bde-c79a920bcae1","at":1773307637000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

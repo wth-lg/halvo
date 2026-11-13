@@ -1,0 +1,18 @@
+{"v":1,"id":"019b8d33-28d7-7830-9665-669417ffb650","at":1767600498903000000,"seq":43,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d33-28d7-7a92-85af-295a749a8527","at":1767600498903000000,"seq":44,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b8d33-5048-7e11-a5bf-5c474c2e832a","at":1767600509000000000,"seq":45,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d33-92b0-7b88-a1f2-d781ba6ff9a7","at":1767600526000000000,"seq":46,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d33-99c1-711a-82cb-e9faa6fdb7fc","at":1767600527809000000,"seq":47,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8d33-d900-7d0b-a261-aeda75341fb7","at":1767600544000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d34-1f50-767a-9100-6af3f44c528d","at":1767600562000000000,"seq":49,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d34-4278-7e08-9c20-611b4171918f","at":1767600571000000000,"seq":50,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b8d34-5fc3-7837-a910-52bdd172ba26","at":1767600578499000000,"seq":51,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b8d34-ad82-789c-b991-5c1cfa4f609d","at":1767600598402000000,"seq":52,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b8d34-cb30-763f-b40b-088e0b2558d5","at":1767600606000000000,"seq":53,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8d35-1180-71db-9c6f-b9f563568df7","at":1767600624000000000,"seq":54,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8d35-86b0-7e92-b503-77d7cbb1e5ec","at":1767600654000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b8d41-6ad4-7cd7-9b12-c1bd53ae1cfa","at":1767601433300000000,"seq":56,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b8d41-cf25-7305-860e-b71b98137458","at":1767601458981000000,"seq":57,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b8d41-cf38-74d1-ac22-9681c27a094d","at":1767601459000000000,"seq":58,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b8d41-f260-74c3-b7cd-557f3df3cff4","at":1767601468000000000,"seq":59,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8d42-2528-7b5f-96a1-97bd8afa6d0d","at":1767601481000000000,"seq":60,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

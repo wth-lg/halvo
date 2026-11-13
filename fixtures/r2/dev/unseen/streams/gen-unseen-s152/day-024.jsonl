@@ -1,0 +1,29 @@
+{"v":1,"id":"019bef02-166c-7d5b-b8d6-d6efc7423f96","at":1769241450092000000,"seq":409,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef02-166c-753f-8098-e08363aee121","at":1769241450092000000,"seq":410,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bef02-1de0-79ce-b807-319e878f2c49","at":1769241452000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef02-5143-7ec7-bf07-fd0e8a7dba2b","at":1769241465155000000,"seq":412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bef02-6818-7bb4-9880-35d70043c6ee","at":1769241471000000000,"seq":413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bef02-77b8-76fe-afe3-2cb4e2004328","at":1769241475000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef02-9ae0-7dd7-86be-47a2ba113fd1","at":1769241484000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef02-9ec8-71b9-834a-402c872f132e","at":1769241485000000000,"seq":416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bef02-a046-7bf4-b7db-dc8efa10e508","at":1769241485382000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bef02-a2b0-7f67-818d-586f654e6475","at":1769241486000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef03-0070-7f51-9dcd-6c5f8dd89802","at":1769241510000000000,"seq":419,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bef03-2780-7798-a840-5f4032fd0913","at":1769241520000000000,"seq":420,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bef03-522c-707b-b363-34338acaabe1","at":1769241530924000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bef03-a098-7b81-91cb-6709f4b89903","at":1769241551000000000,"seq":422,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bef17-2d82-7440-991f-1d552ddebbe8","at":1769242832258000000,"seq":423,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bef17-4fa8-7956-8646-7d1cded1c2a4","at":1769242841000000000,"seq":424,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bef17-5f48-7276-8379-4b1255486bf1","at":1769242845000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef17-f502-77e7-9338-4e722d154427","at":1769242883330000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bef18-0f10-77bd-a19a-2b9e30c92ca4","at":1769242890000000000,"seq":427,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bef18-16e0-7d7f-b0e2-3402b351524b","at":1769242892000000000,"seq":428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef18-3238-77e2-9d69-afcee004e64d","at":1769242899000000000,"seq":429,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef18-70b8-71e6-bb58-d0676167b876","at":1769242915000000000,"seq":430,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bef18-9a97-7958-82dd-0b47a54a1d24","at":1769242925719000000,"seq":431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bef18-f588-76ea-8db8-919a8f1d7678","at":1769242949000000000,"seq":432,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef19-2468-74ac-9a48-3333e0e0b2d5","at":1769242961000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef19-4af5-775c-a22a-ad3ca0b534fd","at":1769242970869000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bef19-5348-7df6-ad2e-00b5e8166e44","at":1769242973000000000,"seq":435,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef19-89f8-76a2-acc1-ccec8d36c8e5","at":1769242987000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bef19-d048-70c9-98a6-42760afb58a6","at":1769243005000000000,"seq":437,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

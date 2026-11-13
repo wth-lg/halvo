@@ -1,0 +1,37 @@
+{"v":1,"id":"019b9269-9aa0-7c10-836e-6d6fe317421c","at":1767687953056000000,"seq":61,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9269-9aa0-7e61-8c52-2f838d567c49","at":1767687953056000000,"seq":62,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b9269-a238-77c1-95b0-d50abe02ac58","at":1767687955000000000,"seq":63,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9269-d8e8-7c5f-9a92-46fc1bac591d","at":1767687969000000000,"seq":64,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b9269-e34c-7474-b43b-a4916d3cce1d","at":1767687971660000000,"seq":65,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b9269-f440-7ee9-b16d-b1252eb37419","at":1767687976000000000,"seq":66,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b926a-1380-74c9-b21e-2b9b3086da6a","at":1767687984000000000,"seq":67,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b926a-1768-77b4-b375-33b862b05cac","at":1767687985000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b926a-55e8-7cb8-83be-c7cb3f1f043e","at":1767688001000000000,"seq":69,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b926b-cade-7394-bcaa-1d59c8626b68","at":1767688096478000000,"seq":70,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b926b-cade-7ca5-a43b-04f596ea086a","at":1767688096478000000,"seq":71,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b926b-ffb0-7dde-8552-9178d9800bcb","at":1767688110000000000,"seq":72,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b926c-0398-7391-a3c9-8dea326b780a","at":1767688111000000000,"seq":73,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b926c-0f50-7372-beb8-2ef43326142b","at":1767688114000000000,"seq":74,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b926c-1ef0-7241-8145-7704c2fbf05b","at":1767688118000000000,"seq":75,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b926c-3a48-7813-beb7-792207a5ed71","at":1767688125000000000,"seq":76,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b926d-edf3-726b-8cbb-3788f914e3a5","at":1767688236531000000,"seq":77,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b926d-edf3-7067-b249-241b37c037f0","at":1767688236531000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b926d-ff68-7d13-97ea-073eb2938393","at":1767688241000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b926e-3230-78e6-a05b-7985b6fed5e0","at":1767688254000000000,"seq":80,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b926e-5170-70bf-ab12-4bdd5e1db817","at":1767688262000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b926e-541a-7002-8155-b69fafd31de3","at":1767688262682000000,"seq":82,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b926e-541a-771b-b7e7-0189dc962a23","at":1767688262682000000,"seq":83,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b926e-6110-7f65-8c9f-aaf18310a582","at":1767688266000000000,"seq":84,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b926e-7c68-7905-8c1f-a3c28218a568","at":1767688273000000000,"seq":85,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b926e-9f90-73de-84a9-c3928028ca1b","at":1767688282000000000,"seq":86,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b926e-bae8-7035-bc2d-50a1e2645985","at":1767688289000000000,"seq":87,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b926e-c278-7295-aeff-87cf1825283b","at":1767688290936000000,"seq":88,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b926e-c278-7058-8024-bfc6af03bdec","at":1767688290936000000,"seq":89,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019b926e-d640-70ef-8d99-9069d280291e","at":1767688296000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b926f-0908-7cf9-9abd-5e7367aeaf48","at":1767688309000000000,"seq":91,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b926f-5340-7352-8532-411df1e37c59","at":1767688328000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b926f-5b10-7d99-a360-0d4e49c9aebc","at":1767688330000000000,"seq":93,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b926f-6e98-7aa4-ad16-fa9778f3df85","at":1767688335000000000,"seq":94,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9274-3bd0-7752-8dd8-b5c7851dc5e2","at":1767688649680000000,"seq":95,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9274-6fd8-7c48-b4df-274dd6ceb994","at":1767688663000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b9274-73c0-755a-a20c-6d47a7a7ebb7","at":1767688664000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

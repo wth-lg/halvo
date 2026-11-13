@@ -1,0 +1,60 @@
+{"v":1,"id":"019b9cf0-7292-7a1d-8955-29e5ba9eaeb2","at":1767864562322000000,"seq":141,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9cf0-7292-748b-bc24-b2ef70b8d8be","at":1767864562322000000,"seq":142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf0-bb88-730c-aac0-a72cfe3c0891","at":1767864581000000000,"seq":143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b9cf0-f7b6-7ff7-80d9-1bcb14eb8fe8","at":1767864596406000000,"seq":144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf1-1948-7f47-a52a-e1a51b22ce7e","at":1767864605000000000,"seq":145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9cf1-c910-7ad4-bb0d-7966aded5477","at":1767864650000000000,"seq":146,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9cf1-fb24-77e5-bcae-2d1863a62e60","at":1767864662820000000,"seq":147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf2-3e40-7dc7-aab2-b13eb7824a18","at":1767864680000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cf2-4228-7d3a-a63b-71daaf354b98","at":1767864681000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b9cf2-49f8-7996-8053-a5038a9caf1a","at":1767864683000000000,"seq":150,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cf2-6938-752a-95f4-55f505ad7c0b","at":1767864691000000000,"seq":151,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9cf2-8541-756f-95d8-677b74f03d91","at":1767864698177000000,"seq":152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf2-a7b8-7f13-931b-a5838a9b78d0","at":1767864707000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cf2-b370-71ed-9542-c1c44c92115a","at":1767864710000000000,"seq":154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cf3-3458-7a89-9a1b-afe32a8edc29","at":1767864743000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b9d04-ee06-7f51-b789-a8032d30d73f","at":1767865904646000000,"seq":156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9d05-60b0-7dc9-91c3-e19b986938d9","at":1767865934000000000,"seq":157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9d05-7820-74c6-a7c0-77cd237887e2","at":1767865940000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b9d05-a318-789a-8787-4b2825ca1d8c","at":1767865951000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9d0b-ad5e-7365-8184-58b67aac518e","at":1767866346846000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019b9d0c-82f2-7416-95a4-4b6c13a5474e","at":1767866401522000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019b9d0c-abe0-7234-96f0-78f5857d0ae7","at":1767866412000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d0c-b3b0-7b9f-855c-83d0e336efda","at":1767866414000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b9d0c-d898-7ed4-a11b-e7090617e4d4","at":1767866423448000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019b9d0c-ea60-7acf-bc47-0d165802df9d","at":1767866428000000000,"seq":165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9d0c-fa00-7753-830a-8c1f167a8420","at":1767866432000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d0d-1226-789b-b149-cefdfe0ea6ab","at":1767866438182000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019b9d0d-24f8-7050-ac12-22b5b43231c8","at":1767866443000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d0d-3498-7511-a0cc-d0fbcb87dd81","at":1767866447000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d28-39f2-72b5-a82e-7c7f5bb717cb","at":1767868217842000000,"seq":170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b9d28-ea58-7f2f-b599-e0137eb7057e","at":1767868263000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b9d28-f6a5-7ae4-98b1-18ae650716a5","at":1767868266149000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b9d28-fde0-7b41-9216-d88c1e99d205","at":1767868268000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b9d29-1168-7770-a282-35071e0ca03e","at":1767868273000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d29-1550-752b-b3db-0d892f9df3ba","at":1767868274000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d29-33ce-7e8f-adfa-2815c7ddbbf6","at":1767868281806000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b9d29-a491-7083-9138-d57aa303ca55","at":1767868310673000000,"seq":177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019b9d29-e458-7e12-8fe2-ea831d16328a","at":1767868327000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d43-fdec-71d1-ab19-41339cb9e9a5","at":1767870037484000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019b9d43-fff0-7fdd-afcd-55c3b12afbd8","at":1767870038000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d44-5db0-7352-ba1e-00ae41e545b9","at":1767870062000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b9d44-6968-7ce7-91df-c6a8bb2359bc","at":1767870065000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d44-f520-7385-8634-ec06286cbd57","at":1767870100768000000,"seq":183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019b9d45-4428-72ed-9c8d-16664403a157","at":1767870121000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b9d45-4810-7fff-9380-faac10e13ad6","at":1767870122000000000,"seq":185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9d45-c128-76dd-b4d7-c88f9f20b4a9","at":1767870153000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d45-d3fb-79b4-912f-bb1921e137ea","at":1767870157819000000,"seq":187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019b9d46-0b60-76f0-9a62-d6e7a14455f8","at":1767870172000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b9d46-4c75-7428-8802-338f9457d657","at":1767870188661000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019b9d46-6d08-73c7-ae81-a7422e9df034","at":1767870197000000000,"seq":190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9d46-74d8-75bc-baf5-25ea1e732513","at":1767870199000000000,"seq":191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9d46-78c0-7a21-a941-0c019c3b4c58","at":1767870200000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d47-3058-7393-b28b-5749dcd6592e","at":1767870247000000000,"seq":193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d4b-5270-7bb9-b240-44eb308afbec","at":1767870517872000000,"seq":194,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9d4b-5270-747e-aaa0-d6b594ab6c81","at":1767870517872000000,"seq":195,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9d4b-6e48-7400-8fc8-c4f878ae0b34","at":1767870525000000000,"seq":196,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d4b-a110-7e57-8faf-4df97259f289","at":1767870538000000000,"seq":197,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b9d4b-c438-7ab6-8385-b9148fabef43","at":1767870547000000000,"seq":198,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9d4c-0a88-7650-a63e-fd837724dd66","at":1767870565000000000,"seq":199,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d4c-3580-74bd-8c54-6ccb209911b0","at":1767870576000000000,"seq":200,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

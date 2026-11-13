@@ -1,0 +1,36 @@
+{"v":1,"id":"019cccc4-a74a-70bf-9bee-429ff77817a6","at":1772961965898000000,"seq":733,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cccc4-a74a-7d10-9b85-6f6ac84d882b","at":1772961965898000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cccc4-b750-7a30-8064-765c0fcb0421","at":1772961970000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccc4-cec0-7b24-b681-552fc2fc197f","at":1772961976000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cccc4-e630-7b76-b064-d52c7163b5d0","at":1772961982000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccc4-f0a7-7e26-bb27-27eec17338aa","at":1772961984679000000,"seq":738,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cccc5-1510-7ab8-b663-82ba6ceeb190","at":1772961994000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccc5-a598-76ea-a676-57ec6def8f31","at":1772962031000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccc5-d478-74ab-b155-fce2699171e8","at":1772962043000000000,"seq":741,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cccdf-a03c-73e4-a774-22d2a26a012a","at":1772963733564000000,"seq":742,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cccdf-a03c-744f-9ed9-32310bb40fd4","at":1772963733564000000,"seq":743,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cccdf-b578-7943-9af0-953454e1b0b7","at":1772963739000000000,"seq":744,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccdf-cce8-7ddb-baa8-00c5be4dff08","at":1772963745000000000,"seq":745,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cccdf-d8a0-7d1d-8ea8-2201e8678165","at":1772963748000000000,"seq":746,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ccce0-0f50-71ff-8cf6-74e761c8f918","at":1772963762000000000,"seq":747,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccf8-bfa5-7a52-91d3-22e93990e176","at":1772965380005000000,"seq":748,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cccf8-bfa5-76a1-9236-a21f549c1830","at":1772965380005000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cccf8-e6b0-794c-b31e-35f081952da8","at":1772965390000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccf9-2530-71eb-ba03-867d7b65479a","at":1772965406000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cccf9-2d12-7b05-9379-69fa0c4ee87f","at":1772965408018000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cccf9-c71b-71a4-a2a1-e77875e3e2ec","at":1772965447451000000,"seq":753,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cccf9-f438-75b0-a113-7cde269a1301","at":1772965459000000000,"seq":754,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cccfa-4e10-7ef1-bb86-35456b4611fa","at":1772965482000000000,"seq":755,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cccfa-661f-7a6f-b79d-0077e4a26fc5","at":1772965488159000000,"seq":756,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cccfa-661f-7d53-b1ca-8ce7d2f01cb9","at":1772965488159000000,"seq":757,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cccfa-80d8-7bba-97f9-e13f72f3452f","at":1772965495000000000,"seq":758,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cccfb-24e8-7b0f-a568-a831f174565f","at":1772965537000000000,"seq":759,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccfb-5b98-75d8-8439-ad5e347ea6c4","at":1772965551000000000,"seq":760,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccfb-6750-70f6-bde2-84c645ec0155","at":1772965554000000000,"seq":761,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cccfb-74db-769f-a40f-de77cd8aeb2d","at":1772965557467000000,"seq":762,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cccfb-74db-79f7-9abb-03fc2b663e20","at":1772965557467000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cccfb-7ad8-77e1-a159-5a2c87e635c6","at":1772965559000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccfb-8690-7d36-8359-560164f4ed5b","at":1772965562000000000,"seq":765,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cccfb-8e60-7a19-9ad7-76ef950d5f5d","at":1772965564000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cccfb-9630-71ef-8f5b-a9bc782434a5","at":1772965566000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cccfb-cce0-718c-8b85-f70e746b17f4","at":1772965580000000000,"seq":768,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

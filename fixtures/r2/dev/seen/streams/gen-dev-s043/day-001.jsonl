@@ -1,0 +1,22 @@
+{"v":1,"id":"019b78fe-1885-730b-9ea2-f40ea05127a2","at":1767261476997000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b78fe-1885-7b5b-bb00-58e0e6a6fe7e","at":1767261476997000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b78fe-7648-7525-9077-b85e9ad3722d","at":1767261501000000000,"seq":2,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b790f-5681-7586-b8a4-bd370c6d4ffa","at":1767262606977000000,"seq":3,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b790f-9130-784e-a60e-e66308be5e22","at":1767262622000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7910-5291-7c7e-b04f-0f79d26593df","at":1767262671505000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b7910-cd98-70b9-bedc-95f301bcd6d6","at":1767262703000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7910-db8b-7a7b-b3b3-bff837f97884","at":1767262706571000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b7910-dd38-763b-b4a2-af33b7928e16","at":1767262707000000000,"seq":8,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7911-4a98-7373-8a9c-e618b78ba0b9","at":1767262735000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7911-4e80-7e1a-82cc-3361b1be13e9","at":1767262736000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7911-90e8-7fa5-ba0b-cc2b1b08651b","at":1767262753000000000,"seq":11,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7911-b84d-7896-9f81-76ddf1eaddbc","at":1767262763085000000,"seq":12,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b791c-5e90-7032-ad7f-07235f76a3d8","at":1767263461008000000,"seq":13,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b791c-5e90-7fad-99fb-9279d23c6b1d","at":1767263461008000000,"seq":14,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b791c-81b0-757a-9cd5-d3424246ebb1","at":1767263470000000000,"seq":15,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b791c-8d68-7464-8e37-f0d834503b90","at":1767263473000000000,"seq":16,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b791c-db88-7c93-af0a-ec24ecc31cb4","at":1767263493000000000,"seq":17,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b7924-200d-7d2b-8ede-e86d10b49598","at":1767263969293000000,"seq":18,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b7924-49e0-71d2-bee5-9c515fcdecf3","at":1767263980000000000,"seq":19,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b7924-6538-7e49-978f-873a875b64b8","at":1767263987000000000,"seq":20,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b7924-a3b8-7b53-80ca-1916e3fbe015","at":1767264003000000000,"seq":21,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

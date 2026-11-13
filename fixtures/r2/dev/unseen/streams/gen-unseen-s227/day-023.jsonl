@@ -1,0 +1,12 @@
+{"v":1,"id":"019bea72-c1ab-7bb8-9993-2d6012e2c3fd","at":1769164947883000000,"seq":366,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea72-c1ab-72f8-86be-353bf8f61516","at":1769164947883000000,"seq":367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bea72-c220-7d51-86d6-484cbb2c8daf","at":1769164948000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea73-00a0-79b3-af8c-bb326cc89ed4","at":1769164964000000000,"seq":369,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bea73-2f80-73c8-870c-26f1b22dc04c","at":1769164976000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bea73-3368-7ca0-94f8-1f8adfb450c6","at":1769164977000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bea7c-6dd6-7ff0-85cd-0d985b4c8b85","at":1769165581782000000,"seq":372,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bea7c-6dd6-78d8-ae3e-ecc0230e5fc0","at":1769165581782000000,"seq":373,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bea7c-f380-7f89-b56c-1e3257f2b980","at":1769165616000000000,"seq":374,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bea8a-e897-753f-a8c3-821860e32e40","at":1769166530711000000,"seq":375,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea8a-e897-74d1-9ab4-4dace7a363d7","at":1769166530711000000,"seq":376,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bea8b-0510-7bb2-a07f-7155fe2b1c6d","at":1769166538000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

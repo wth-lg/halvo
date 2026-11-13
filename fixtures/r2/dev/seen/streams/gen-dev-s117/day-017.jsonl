@@ -1,0 +1,21 @@
+{"v":1,"id":"019bcaf9-c8dc-7279-9d72-de1fbcfe601c","at":1768636926172000000,"seq":268,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcaf9-c8dc-7727-9aad-31a3de8a5c5a","at":1768636926172000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bcaf9-fee0-75dd-9e2e-0d1d6057e7d3","at":1768636940000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bcafa-1268-7fb6-8ce6-328770687636","at":1768636945000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcafa-605d-7bd1-8b18-2a020d94ae52","at":1768636964957000000,"seq":272,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bcafa-a2f0-708d-9e94-f2d923fb1bcd","at":1768636982000000000,"seq":273,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcafa-aac0-788b-8d70-04fc1236e746","at":1768636984000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcafa-ea11-786e-910a-dbac7fee47bc","at":1768637000209000000,"seq":275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bcafb-00b0-7399-8869-7f480a909c0e","at":1768637006000000000,"seq":276,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcafb-2f90-7f39-9a34-e8870491d3e6","at":1768637018000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bcafb-4ed0-7d09-b26a-a547ced2abac","at":1768637026000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcafb-6258-7be1-8744-d3b69aa933c5","at":1768637031000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcafb-6980-7d03-bea7-7927a641656e","at":1768637032832000000,"seq":280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bcafc-3548-7190-a1ca-1febb774bb41","at":1768637085000000000,"seq":281,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcafc-6040-7bc3-b723-ae1a291d6e46","at":1768637096000000000,"seq":282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bcb07-36e3-7c31-825c-79717468f0cd","at":1768637806307000000,"seq":283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bcb07-5108-731b-8836-42ccb1be5b83","at":1768637813000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bcb07-6c60-72e7-a215-0608393f6e17","at":1768637820000000000,"seq":285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcb07-7430-76c5-ac43-e4c92d0dadb6","at":1768637822000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb07-9f28-7c21-bf7c-95ccdfe1cb69","at":1768637833000000000,"seq":287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb07-ba80-7376-9b8e-93a06008ff14","at":1768637840000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

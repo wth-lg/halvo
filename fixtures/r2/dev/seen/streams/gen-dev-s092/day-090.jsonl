@@ -1,0 +1,41 @@
+{"v":1,"id":"019d4362-9b5a-7ed4-877c-8dd822fcae7d","at":1774952029018000000,"seq":1503,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4362-9b5a-741d-9af8-ad1c6cec16fc","at":1774952029018000000,"seq":1504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d4362-9f30-71be-89a2-16f24d746f09","at":1774952030000000000,"seq":1505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4362-9f30-7f39-918f-1d7a480f3a86","at":1774952030000000000,"seq":1506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d4362-ddb0-7f79-a026-2af418e9250c","at":1774952046000000000,"seq":1507,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4363-176a-77b8-9783-f8d499382818","at":1774952060778000000,"seq":1508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d4363-1848-7f53-90a2-a2b306327869","at":1774952061000000000,"seq":1509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4363-2fb8-7fb0-852d-b34750ff3d03","at":1774952067000000000,"seq":1510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4363-4ef8-7d39-8bd8-17a03e4054e1","at":1774952075000000000,"seq":1511,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4363-52e0-725a-9fb3-3ee79436ab2c","at":1774952076000000000,"seq":1512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d4363-603f-7523-8998-38619f8249ef","at":1774952079423000000,"seq":1513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d4363-81c0-7a62-8c5d-41bb5fc55181","at":1774952088000000000,"seq":1514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4364-4128-767f-881d-196a88533205","at":1774952137000000000,"seq":1515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4364-584f-7787-bf21-a3c958670b82","at":1774952142927000000,"seq":1516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d4364-6068-7054-9965-20679bd5771e","at":1774952145000000000,"seq":1517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4364-6c20-7b22-9366-9f5842f557a0","at":1774952148000000000,"seq":1518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4364-d1b0-7483-b4e9-5425925939a9","at":1774952174000000000,"seq":1519,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4364-dd68-7664-8ee8-7b68dbbf04f9","at":1774952177000000000,"seq":1520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d4364-f4d8-7ef1-8cca-ae8b7336456d","at":1774952183000000000,"seq":1521,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4375-6525-700a-8af3-dbb2f67c7fb3","at":1774953260325000000,"seq":1522,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4375-6525-7d25-a3e7-cb077898b87f","at":1774953260325000000,"seq":1523,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4375-8708-762b-929b-7684db0e4b62","at":1774953269000000000,"seq":1524,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4375-8708-7933-b54e-a4d757ffb986","at":1774953269000000000,"seq":1525,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d4375-ae18-726c-83bc-d6c29425d452","at":1774953279000000000,"seq":1526,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4375-b9d0-7ff2-9dde-90a9df5bf8ce","at":1774953282000000000,"seq":1527,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4375-bdb8-701d-807a-b293ce366c60","at":1774953283000000000,"seq":1528,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d4388-d7cc-7d77-9475-feab86754155","at":1774954534860000000,"seq":1529,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4388-d7cc-7b71-ac94-1742b7697428","at":1774954534860000000,"seq":1530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d439f-0cb0-7cea-af7b-fd166b02a41a","at":1774955990192000000,"seq":1531,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d439f-2b30-776f-b1ad-7f7ecd616d4c","at":1774955998000000000,"seq":1532,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d439f-2f18-76d6-a434-93482ae7a6f6","at":1774955999000000000,"seq":1533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d439f-3ad0-7971-a621-79fd575ac754","at":1774956002000000000,"seq":1534,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d43ad-bdb9-7188-af04-1219fa951700","at":1774956953017000000,"seq":1535,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d43ae-c8af-7997-abe0-a2b7e49db92d","at":1774957021359000000,"seq":1536,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d43ae-ea70-78a2-9c11-8f89594560fa","at":1774957030000000000,"seq":1537,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d43af-1950-74e6-a313-cd156146b8d8","at":1774957042000000000,"seq":1538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d43af-1a0b-7eb0-91f3-2fb196e2548b","at":1774957042187000000,"seq":1539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d43af-4448-7008-a23c-7a16aef25842","at":1774957053000000000,"seq":1540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d43af-4830-750a-944c-3e825824d37c","at":1774957054000000000,"seq":1541,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d43af-6770-79ee-bc5d-ee87eb5fc050","at":1774957062000000000,"seq":1542,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d43af-6b58-78b8-bba5-c62aff777de8","at":1774957063000000000,"seq":1543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

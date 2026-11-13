@@ -1,0 +1,9 @@
+{"v":1,"id":"019c990b-f76e-701f-9d29-99ddffedab2b","at":1772094224238000000,"seq":871,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c990b-f76e-7da0-9cb8-836a7e6a8c6f","at":1772094224238000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c9910-5734-7b40-b32c-e1b25e767e9d","at":1772094510900000000,"seq":873,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c9911-2017-769c-815f-be1675303008","at":1772094562327000000,"seq":874,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c9911-2a88-7402-bc1f-581ae0dcebbd","at":1772094565000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c9911-41f8-7823-be57-d8ac0386c06b","at":1772094571000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9911-5d50-7efc-aded-fb2111c9c62c","at":1772094578000000000,"seq":877,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9911-6908-79fb-95d7-0931e94522ce","at":1772094581000000000,"seq":878,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9911-78a8-7776-97b7-6bddf756e48b","at":1772094585000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

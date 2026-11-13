@@ -1,0 +1,50 @@
+{"v":1,"id":"019d0f64-8206-7c54-9d86-217c8acb1391","at":1774079738374000000,"seq":1110,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0f64-8206-7ae3-b9ee-30f48baac202","at":1774079738374000000,"seq":1111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0f64-ceb0-742a-9229-0efb7afbaa7f","at":1774079758000000000,"seq":1112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f64-e238-789d-85a2-d7811d821adf","at":1774079763000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f65-4246-702a-ac05-74f7c00c17be","at":1774079787590000000,"seq":1114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0f65-4f98-7fb3-9fd0-329bc22b0daa","at":1774079791000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f65-5768-750d-a05d-eb3f8832932c","at":1774079793000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f65-8260-75e9-b9ee-575723a4b083","at":1774079804000000000,"seq":1117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0f65-a1a0-7f02-a2d6-ea14423bfd6c","at":1774079812000000000,"seq":1118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0f65-fecb-792c-b09f-87ec2ebfcabc","at":1774079835851000000,"seq":1119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0f66-0730-7d34-b3b3-a5f2221c145e","at":1774079838000000000,"seq":1120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f66-12e8-70e1-b75a-4a152dc2f7f1","at":1774079841000000000,"seq":1121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0f66-6108-7498-9731-a13cb3fab12f","at":1774079861000000000,"seq":1122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0f66-7490-7ba7-93cc-bd692f431355","at":1774079866000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f66-a758-70da-ae3d-8276f5a59173","at":1774079879000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d0f66-bd7b-7a59-b58f-521ba91bde62","at":1774079884667000000,"seq":1125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0f66-bec8-7136-b168-d900a487112d","at":1774079885000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f66-ce68-7145-a1a4-433b113bd9e1","at":1774079889000000000,"seq":1127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0f67-39c4-75e5-abe9-c5a7870d81a7","at":1774079916484000000,"seq":1128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0f67-4f50-7863-b1c3-6282a395c0bd","at":1774079922000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f67-5720-786c-a153-d05c8d815abc","at":1774079924000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d0f67-7e30-7e95-ac77-2023966ac519","at":1774079934000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0f67-7f58-7152-a751-bd629835efee","at":1774079934296000000,"seq":1132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d0f67-95a0-7380-b754-16b6cc8c0a5e","at":1774079940000000000,"seq":1133,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0f67-cc50-7718-862b-2e75ddc038ab","at":1774079954000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d0f82-87b4-71a8-83b1-cbd7d3a246e9","at":1774081705908000000,"seq":1135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d0f82-e969-7e2a-8f79-aec6c6ced880","at":1774081730921000000,"seq":1136,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d0f83-2c20-71d7-acdc-24f2b3e8ace0","at":1774081748000000000,"seq":1137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f83-33f0-7b57-b61d-d65ebc2f5263","at":1774081750000000000,"seq":1138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0f83-3fa8-70a5-95b3-413dc98d4d80","at":1774081753000000000,"seq":1139,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0f83-4641-7b1c-be47-f75d29ddcb20","at":1774081754689000000,"seq":1140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d0f83-6aa0-706e-b060-16eeaf78e8b2","at":1774081764000000000,"seq":1141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0f83-89e0-7e08-a88b-e7ab898e28c1","at":1774081772000000000,"seq":1142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f83-8ffc-7182-b963-ab53538427f1","at":1774081773564000000,"seq":1143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d0f83-bca8-7f18-8b89-d9d218247643","at":1774081785000000000,"seq":1144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0f83-ef70-7b7c-a843-81b5878f3c8a","at":1774081798000000000,"seq":1145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0f84-1680-77f6-87ca-d0a395b60f17","at":1774081808000000000,"seq":1146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f84-8bb0-78f8-9bbf-703e1d4015c7","at":1774081838000000000,"seq":1147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0f98-d142-726d-b23a-0cee87b34d1a","at":1774083166530000000,"seq":1148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0f98-fa28-7579-8dd4-d2676a629960","at":1774083177000000000,"seq":1149,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0fae-7c8a-7dee-9df4-7d72cc0c549f","at":1774084586634000000,"seq":1150,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0fae-7c8a-7596-b956-7fb5575564a7","at":1774084586634000000,"seq":1151,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0fae-9950-7986-9fec-8de195f7e56d","at":1774084594000000000,"seq":1152,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fae-b890-7393-8cf7-cd1a35409fca","at":1774084602000000000,"seq":1153,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fae-c060-73bc-be5f-af8671ab2fd6","at":1774084604000000000,"seq":1154,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d0fbd-7479-75ff-b97e-a9e9f7008960","at":1774085567609000000,"seq":1155,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fbd-7479-7916-9fcf-b4ca8840cf9a","at":1774085567609000000,"seq":1156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0fbd-79e8-7c95-aaba-a97aa2e12a19","at":1774085569000000000,"seq":1157,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0fbd-7dd0-704b-818e-3fb1ce6a30c5","at":1774085570000000000,"seq":1158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fbd-85a0-7f04-a874-e079e96f4772","at":1774085572000000000,"seq":1159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

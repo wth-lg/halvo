@@ -1,0 +1,23 @@
+{"v":1,"id":"019c567f-ea44-7610-9672-d5cd2611a224","at":1770977749572000000,"seq":546,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c567f-ea44-7d69-9bb5-3cc782247578","at":1770977749572000000,"seq":547,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c5680-0b30-73ec-b930-c7b2b39695d8","at":1770977758000000000,"seq":548,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5680-41e0-778d-bfa5-a1f357ebc7e9","at":1770977772000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5680-4d98-7af1-9435-90c07f65585b","at":1770977775000000000,"seq":550,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5680-74a8-7b8e-b23a-5a49ebede085","at":1770977785000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5698-93f4-76cb-ad03-35ad980a1713","at":1770979365876000000,"seq":552,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5698-ef09-706e-b188-90791cde4e99","at":1770979389193000000,"seq":553,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5699-4438-747c-be78-42356571e499","at":1770979411000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5699-9e60-7b7d-b023-23ca107fb996","at":1770979434080000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c5699-adb0-704b-b49f-37d90cc7574e","at":1770979438000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c5699-c520-715c-a700-7acef142cec1","at":1770979444000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5699-dc90-75d8-85ac-410937aad2a9","at":1770979450000000000,"seq":558,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5699-fbd0-70a6-a673-1235692e25a0","at":1770979458000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c569a-22e0-7e63-b87e-8c0ebda9ecea","at":1770979468000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c569a-3559-74a2-9e58-01e9e1800656","at":1770979472729000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c569a-9d0b-7a48-a193-e446676152c1","at":1770979499275000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c569a-d2a8-7543-988c-fbb90a56d7df","at":1770979513000000000,"seq":563,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c569b-3e01-76bc-9754-01d3c2e15f9c","at":1770979540481000000,"seq":564,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c569b-9210-79f6-a73f-9d2e48786050","at":1770979562000000000,"seq":565,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c569c-33f5-7687-9e23-7a2616c9ebda","at":1770979603445000000,"seq":566,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c569c-3a08-7bc2-9d42-44fb872205c9","at":1770979605000000000,"seq":567,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c569c-7c70-7f23-ad6d-006ce3562df8","at":1770979622000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

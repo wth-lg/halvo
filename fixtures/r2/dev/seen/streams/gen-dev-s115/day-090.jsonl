@@ -1,0 +1,15 @@
+{"v":1,"id":"019d42ec-5055-7edb-bd00-236644b76c22","at":1774944276565000000,"seq":1301,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42ec-5055-7be3-b86b-23fd77c6f150","at":1774944276565000000,"seq":1302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d42ed-05b8-78a9-867a-3d5c54914263","at":1774944323000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d42ed-3e27-71c9-b4d0-8a1e5ac5c134","at":1774944337447000000,"seq":1304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d42ed-5f90-7946-a47c-77e4b8945e1e","at":1774944346000000000,"seq":1305,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d42ed-6760-74db-bf49-a3703b08d4e6","at":1774944348000000000,"seq":1306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d42ed-8210-7bef-9f2f-f8643b6f7e83","at":1774944354832000000,"seq":1307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d42ed-82b8-78c2-a3ad-f6e20b113d23","at":1774944355000000000,"seq":1308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ed-82b8-7dd2-b8c2-9c9f2240ff9a","at":1774944355000000000,"seq":1309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d42ed-8e70-728d-8995-e4751dc1397e","at":1774944358000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ed-de13-76ac-9dd6-2a6034f8be2d","at":1774944378387000000,"seq":1311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d42ed-e078-7178-a92c-8e365c973159","at":1774944379000000000,"seq":1312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ee-51c0-7ec8-a223-f7b03d0dae79","at":1774944408000000000,"seq":1313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d42ee-9bf8-79ff-b29b-0f0a690c0296","at":1774944427000000000,"seq":1314,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d42ee-c6f0-73fa-b97c-036de9428b34","at":1774944438000000000,"seq":1315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

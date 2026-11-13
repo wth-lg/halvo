@@ -1,0 +1,17 @@
+{"v":1,"id":"019d05b7-4bcb-74dc-8180-bad32717eb70","at":1773917391819000000,"seq":933,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d05b7-4bcb-71b7-a707-67aeaa6d39eb","at":1773917391819000000,"seq":934,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d05b7-5838-79fa-a3f9-ff39fb4013f9","at":1773917395000000000,"seq":935,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05cd-8beb-7a8d-9844-5749e1f1d4c8","at":1773918850027000000,"seq":936,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d05cd-8beb-7cc3-af4f-f50030a42cd7","at":1773918850027000000,"seq":937,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d05cd-93a0-75b3-86a4-2359f2894f68","at":1773918852000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05cd-9b70-7902-9cf0-312fae52d8dd","at":1773918854000000000,"seq":939,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05cd-a728-7294-b66f-ee834328f676","at":1773918857000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d05cd-b6c8-75c0-b0ee-88a4acddd6ec","at":1773918861000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d05cd-be98-7d3d-a0a3-ef5e24f1512f","at":1773918863000000000,"seq":942,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d05d8-fa1c-7122-9892-dd0cf6a4b9b7","at":1773919599132000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d05d9-a3cf-793b-a3d2-f092e6747e52","at":1773919642575000000,"seq":944,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d05d9-a3cf-79ea-836e-39069660ed5b","at":1773919642575000000,"seq":945,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d05d9-efb0-7717-beac-738538f7c839","at":1773919662000000000,"seq":946,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d05da-1aa8-7807-a6dc-42f0ef235995","at":1773919673000000000,"seq":947,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d05da-40be-71b1-9061-a6f8418e7b1a","at":1773919682750000000,"seq":948,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d05da-40be-7412-9e5f-827056e3f82f","at":1773919682750000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}

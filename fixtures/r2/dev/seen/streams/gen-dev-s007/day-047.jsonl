@@ -1,0 +1,12 @@
+{"v":1,"id":"019c658b-8f42-7f9b-95ca-f73e9c6dc4b8","at":1771230170946000000,"seq":624,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c658b-8f42-767a-82b6-4d2bb4e6dfad","at":1771230170946000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c658c-23e8-761d-af3b-5fe2c2c9bd33","at":1771230209000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c658c-4af8-706f-9f99-c1a6fb9b5bf8","at":1771230219000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c658c-5c12-728d-9992-a170a23962b2","at":1771230223378000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c658c-5e80-757a-8e57-4860b39be29b","at":1771230224000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c658c-8978-77fc-b7b3-886e7cd7d230","at":1771230235000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c658d-3737-7dee-907d-a50d7161ea7e","at":1771230279479000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c658d-48e0-7d57-bb3c-6941cab59a6d","at":1771230284000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c658d-9ae8-7d40-a743-0989edc13f5d","at":1771230305000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c65a3-7e9a-7727-932b-d9526a9bfc2f","at":1771231739546000000,"seq":634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c65a4-0d00-77f9-a1c1-abbc7f1750d6","at":1771231776000000000,"seq":635,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

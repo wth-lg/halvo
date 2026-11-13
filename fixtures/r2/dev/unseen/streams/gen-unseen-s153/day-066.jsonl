@@ -1,0 +1,11 @@
+{"v":1,"id":"019cc7ca-c57c-74e6-94bf-d8528c52ba6a","at":1772878480764000000,"seq":914,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc7ca-c57c-74cc-b4c6-700caa11da6b","at":1772878480764000000,"seq":915,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cc7ca-f930-7816-a58a-37016055f2dc","at":1772878494000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cc7cb-04e8-73d2-90bc-26a18fbc5711","at":1772878497000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7cb-261b-74cf-a523-46b8f92aef32","at":1772878505499000000,"seq":918,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cc7cb-33c8-709f-8a91-c09544161753","at":1772878509000000000,"seq":919,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc7cb-85d0-71b3-899f-b759e578c564","at":1772878530000000000,"seq":920,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cc7cb-a510-72a2-8d08-35b3a84d23bd","at":1772878538000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7cb-ace0-7cd3-801c-571858db5f29","at":1772878540000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cc7cb-cc20-7494-a5d4-0537ff2355d0","at":1772878548000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc7d6-3b8b-7bae-913e-03e2e55614cb","at":1772879231883000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}

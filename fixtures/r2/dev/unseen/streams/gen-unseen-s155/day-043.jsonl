@@ -1,0 +1,24 @@
+{"v":1,"id":"019c5136-dbe4-798f-999e-b30487df7161","at":1770889075684000000,"seq":591,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5136-dbe4-7adc-b8be-7e0c85a72328","at":1770889075684000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c5137-a515-7903-a087-164c774e8d87","at":1770889127189000000,"seq":593,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c5138-4868-71b5-adc5-832e2d11df7d","at":1770889169000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5138-9a70-7f23-b590-246e6f6d24f5","at":1770889190000000000,"seq":595,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5138-b103-7d60-91bb-3c010cc05ad1","at":1770889195779000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c5138-c950-7ea9-9c1f-e94c65a4a4c8","at":1770889202000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5139-0fa0-7466-b11c-52354576153b","at":1770889220000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5139-1b47-726c-9657-3639d43eebe1","at":1770889222983000000,"seq":599,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c5139-2328-7cde-85f6-583e3512085a","at":1770889225000000000,"seq":600,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5139-2af8-7faa-bb85-1e748643f6fa","at":1770889227000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5139-3a98-706a-9e99-e8fcba4c36ce","at":1770889231000000000,"seq":602,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5139-3a98-7494-ada0-0558d131d227","at":1770889231000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c5139-9470-710d-aa9e-200ce5312a05","at":1770889254000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5149-df50-7838-80b4-42f0f0a7971d","at":1770890321744000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c514a-8460-70a5-a22d-be589a2cfc15","at":1770890364000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c514a-a2f3-7beb-a5e5-a0cb40bb494f","at":1770890371827000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c514a-f5a8-7db7-ad9e-8dd4ece55016","at":1770890393000000000,"seq":608,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c514b-3428-7717-8f2b-f58ecc3967ea","at":1770890409000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c514b-6308-7635-b17c-8e47eccdf002","at":1770890421000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c514b-858b-7529-a9e5-a021ab434d0f","at":1770890429835000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c514b-b128-7bba-87d1-f6ce9554fa0a","at":1770890441000000000,"seq":612,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c514b-c4b0-7dc5-a037-f4f22a59c4e5","at":1770890446000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c514b-cc80-7d28-8ac0-a1e43e18a5a4","at":1770890448000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

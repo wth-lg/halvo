@@ -1,0 +1,20 @@
+{"v":1,"id":"019bf482-dc37-7c09-9f17-1557bc8bd5e9","at":1769333775415000000,"seq":286,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf482-dc37-7e3b-9dd3-ec67a7a69363","at":1769333775415000000,"seq":287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bf482-ee20-74d8-9099-ee30d53d339a","at":1769333780000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf482-fdc0-76ed-8090-4881ce33a22c","at":1769333784000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf483-1bfb-7cfa-b628-00e66200e3dc","at":1769333791739000000,"seq":290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bf483-24d0-705a-9538-d5fe857ce579","at":1769333794000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf483-4be0-7974-b8af-c17334660b08","at":1769333804000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf483-53b0-7de5-a62b-89b075f7d5df","at":1769333806000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bf483-5798-778e-b5cc-84fc8d8ac102","at":1769333807000000000,"seq":294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf483-6b20-79d8-b50d-8326347b45c9","at":1769333812000000000,"seq":295,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf48d-1bc7-78a7-afc8-3e2fb5f1f1b0","at":1769334447047000000,"seq":296,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf48d-1bc7-73cb-ad5c-ce75ecc67233","at":1769334447047000000,"seq":297,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf48d-3ec0-753c-ad6d-f8735f606b15","at":1769334456000000000,"seq":298,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf48d-4690-785b-be5c-161123773968","at":1769334458000000000,"seq":299,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf48d-4e60-7c21-983c-c9f16fd0d115","at":1769334460000000000,"seq":300,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bf48d-61e8-7dde-895a-37c4a6f7f85d","at":1769334465000000000,"seq":301,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bf48d-65d0-7222-bc65-b6ace9717067","at":1769334466000000000,"seq":302,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bf48d-7bad-729c-89a6-6efac62250ef","at":1769334471597000000,"seq":303,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bf48d-a450-7918-aa84-e044c052859e","at":1769334482000000000,"seq":304,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf48d-dee8-7c24-95a4-7e89817ec779","at":1769334497000000000,"seq":305,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}

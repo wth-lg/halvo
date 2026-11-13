@@ -1,0 +1,35 @@
+{"v":1,"id":"019d33f3-9bbc-7e3d-97d9-2e7680fd9267","at":1774693096380000000,"seq":1261,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d33f3-9bbc-7f43-9fb5-7abe7d440c64","at":1774693096380000000,"seq":1262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d33f3-a9e0-7f2b-b999-e3c99b3ffac9","at":1774693100000000000,"seq":1263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33f3-dca8-71c1-ac4e-f30d379baf75","at":1774693113000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33f4-7cd0-7e2a-9378-c815baac9a68","at":1774693154000000000,"seq":1265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d33f4-7f4e-7baa-9891-8e66182dabee","at":1774693154638000000,"seq":1266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d33f4-9828-77d7-b659-73aff7db233b","at":1774693161000000000,"seq":1267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33f4-bf38-7e7f-8c3d-53f60909f741","at":1774693171000000000,"seq":1268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33f5-1f0b-75dc-b2f2-f7211fd4a19d","at":1774693195531000000,"seq":1269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d33f5-4bd8-7a9c-8a65-ba45449e26ac","at":1774693207000000000,"seq":1270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33f5-5f60-7d53-b934-12ee027c100d","at":1774693212000000000,"seq":1271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d33f5-7ab8-7f46-af2b-314f9defaa4b","at":1774693219000000000,"seq":1272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d33f5-c3a2-76dc-b023-e079c5b0fe2a","at":1774693237666000000,"seq":1273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d33f5-d878-785f-8f2e-43cb748d59db","at":1774693243000000000,"seq":1274,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d33f6-2698-7f65-b2e0-c26cbe963c61","at":1774693263000000000,"seq":1275,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d33f6-3638-707f-9fba-acb7b0ad5168","at":1774693267000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d33f6-4da8-71ba-a89a-ded32e2c2e37","at":1774693273000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d340c-127f-7002-8cb5-7cc843ad16c6","at":1774694699647000000,"seq":1278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d340c-6db8-77ce-9467-442fbfbb62d1","at":1774694723000000000,"seq":1279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d340c-97fc-74a5-8e9e-98835cc73a65","at":1774694733820000000,"seq":1280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d340c-98b0-77a1-b07d-7c30192baf37","at":1774694734000000000,"seq":1281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d340c-c790-7db5-9300-cf98756edb2a","at":1774694746000000000,"seq":1282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d340c-d348-75d3-8f64-313ece97ffbd","at":1774694749000000000,"seq":1283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d340c-e965-76a5-9ee6-dae807b75381","at":1774694754661000000,"seq":1284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d340d-0228-7a8a-bfda-a72377dd0087","at":1774694761000000000,"seq":1285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d340d-b548-7820-934d-2508c94abf18","at":1774694806856000000,"seq":1286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d340d-dce8-71e6-8218-74f9ffd5ef30","at":1774694817000000000,"seq":1287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d340e-07e0-72aa-8fc6-344641d8c586","at":1774694828000000000,"seq":1288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d340e-1b68-706f-9a48-3c1b62e1af5e","at":1774694833000000000,"seq":1289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3425-ad62-70c9-941c-86b25871cab2","at":1774696377698000000,"seq":1290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3426-1bf0-7624-9715-4c4783050d43","at":1774696406000000000,"seq":1291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3426-9280-7c49-90c3-1d9d886cda17","at":1774696436352000000,"seq":1292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3426-cbb8-77ff-b2ff-f56ef951df67","at":1774696451000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3426-fa98-77cc-a027-a9c42a125eeb","at":1774696463000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d3427-3530-763e-977f-a219d3af9705","at":1774696478000000000,"seq":1295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

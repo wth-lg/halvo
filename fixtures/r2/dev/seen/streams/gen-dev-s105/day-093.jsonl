@@ -1,0 +1,36 @@
+{"v":1,"id":"019d5229-6cd4-7b53-b5aa-d567b9f07e58","at":1775199939796000000,"seq":1225,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d5229-6cd4-779c-a5fb-f3e0bffece55","at":1775199939796000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d5229-a068-7641-961b-697ecbd67db0","at":1775199953000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5229-d330-7ab5-958e-0e19c8af0989","at":1775199966000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5229-f2c3-78ba-80a8-896a12e63907","at":1775199974083000000,"seq":1229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d522a-05f8-7b45-8a68-8a6e39899ab2","at":1775199979000000000,"seq":1230,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d522a-2920-7634-989e-66bfe5eb000d","at":1775199988000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d522a-82f8-7b7f-9813-cffee8f45974","at":1775200011000000000,"seq":1232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d522a-9680-7f24-ae09-cb3b3a9b5a3c","at":1775200016000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5236-bd0c-72cc-b2f5-3b4c70104f14","at":1775200812300000000,"seq":1234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d5237-3cc8-7369-9af5-824d66f3d91a","at":1775200845000000000,"seq":1235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5237-4498-776c-bc18-df57d17abb03","at":1775200847000000000,"seq":1236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5237-6317-7a79-abdb-27b617b21d63","at":1775200854807000000,"seq":1237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d5238-2340-738d-9892-bbacdaea5e38","at":1775200904000000000,"seq":1238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d5238-2f37-7d49-adf5-b2b76edc942f","at":1775200907063000000,"seq":1239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d5238-36c8-7c2d-8445-1cadc8d0c38e","at":1775200909000000000,"seq":1240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5238-59f0-763a-8379-210f65d75988","at":1775200918000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5238-b7b0-70ee-924c-b5ad422b5c6b","at":1775200942000000000,"seq":1242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d5238-ed0f-79e5-aaf9-f4fa4f296258","at":1775200955663000000,"seq":1243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d5239-53f0-7596-abfe-de5941b7247c","at":1775200982000000000,"seq":1244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d5239-6b60-7e96-afca-0990776d0bb7","at":1775200988000000000,"seq":1245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5239-c150-7166-a81d-691b0960740f","at":1775201010000000000,"seq":1246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d5239-d400-76dd-a0c9-656fed95b043","at":1775201014784000000,"seq":1247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d523f-23e4-7ebc-9c68-45f7c8a2e412","at":1775201362916000000,"seq":1248,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d523f-62b8-78ad-9dea-6849cb4b856f","at":1775201379000000000,"seq":1249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d523f-a908-7561-826e-e2976b6e080a","at":1775201397000000000,"seq":1250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d5245-79e8-7666-adf2-e6ad0b41f8a8","at":1775201778152000000,"seq":1251,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d5245-79e8-7d8a-a3b7-7f838c01c296","at":1775201778152000000,"seq":1252,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d5245-7d38-7f0c-9d8b-3365f7109e79","at":1775201779000000000,"seq":1253,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5245-88f0-7a7a-a2ff-924ccb14657e","at":1775201782000000000,"seq":1254,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d5245-94a8-7116-97a2-93bf62510e73","at":1775201785000000000,"seq":1255,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5246-1590-7f6c-9d9c-05b2e74f9c55","at":1775201818000000000,"seq":1256,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d5246-2148-7859-abaf-8d1b597cb4b5","at":1775201821000000000,"seq":1257,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d5246-6094-760c-a700-5feb6159cafd","at":1775201837204000000,"seq":1258,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d5246-9678-7838-93e8-202843c98be8","at":1775201851000000000,"seq":1259,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d5246-d8e0-72ea-8fbc-a8a87977f335","at":1775201868000000000,"seq":1260,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

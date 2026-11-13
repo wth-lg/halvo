@@ -1,0 +1,22 @@
+{"v":1,"id":"019d2ed0-d035-7c1a-b898-0f19ef37a103","at":1774606929973000000,"seq":1135,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2ed0-d035-7d21-9f01-d46cfd22b0b1","at":1774606929973000000,"seq":1136,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2ed0-f378-7033-be1e-98c923392db9","at":1774606939000000000,"seq":1137,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ed1-39c8-7280-9451-06c9d1c15008","at":1774606957000000000,"seq":1138,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee0-9790-7e9e-a450-f56dcda2d873","at":1774607964048000000,"seq":1139,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2ee0-9790-7cf8-b717-9908ea94aa62","at":1774607964048000000,"seq":1140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee0-b6a0-740f-862a-bc7981ef9c25","at":1774607972000000000,"seq":1141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2eed-037f-7f30-821e-1f42de2b711b","at":1774608778111000000,"seq":1142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d2eed-2250-7cef-b6e3-93e6a3f06cab","at":1774608786000000000,"seq":1143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eed-4696-78f1-9ebf-93a41302fb15","at":1774608795286000000,"seq":1144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d2eed-5900-77b9-a5c4-d80ca165c3a3","at":1774608800000000000,"seq":1145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2eed-a3f9-704c-b73b-0d110896eab5","at":1774608819193000000,"seq":1146,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2eed-a3f9-7ff2-884c-42fd9d3623c0","at":1774608819193000000,"seq":1147,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2eed-baa8-7ce4-8ad5-019532663baa","at":1774608825000000000,"seq":1148,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d2eed-d600-74fd-be75-8a864a578f2d","at":1774608832000000000,"seq":1149,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eed-e5a0-7c37-9be1-27115d9e199f","at":1774608836000000000,"seq":1150,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2eee-4cfd-7d24-a231-114be6c2a91a","at":1774608862461000000,"seq":1151,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2eee-4cfd-7a6d-929d-e7da2d738e6d","at":1774608862461000000,"seq":1152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d2eee-9950-78b1-ae71-349ebb0fcef8","at":1774608882000000000,"seq":1153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eee-9d38-7889-b7f1-714e069eb61d","at":1774608883000000000,"seq":1154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2eee-dbb8-73d0-a205-a7f279a6b52f","at":1774608899000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eee-e388-77da-a624-54524ce8f9c9","at":1774608901000000000,"seq":1156,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

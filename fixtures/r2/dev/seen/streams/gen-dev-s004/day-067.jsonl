@@ -1,0 +1,22 @@
+{"v":1,"id":"019ccc76-72c5-76bb-915a-61589fb6a850","at":1772956840645000000,"seq":949,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccc76-72c5-7e13-9be2-303ed148232a","at":1772956840645000000,"seq":950,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ccc76-9b38-74a3-a763-346d0a42e490","at":1772956851000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc80-7b6e-7710-aa37-b41f52dd0266","at":1772957498222000000,"seq":952,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccc80-7b6e-7271-b6ee-a5a4877bde0b","at":1772957498222000000,"seq":953,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccc80-ebd8-720f-b7e4-691e6e97869b","at":1772957527000000000,"seq":954,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc8e-4b67-73ae-a536-af61d073a435","at":1772958403431000000,"seq":955,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccc8e-4b67-76fd-aabf-008b8874b560","at":1772958403431000000,"seq":956,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ccc8e-6128-7e9a-98cf-ba8f680a9894","at":1772958409000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc8e-9008-7629-b9d8-e90408604086","at":1772958421000000000,"seq":958,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ccc8e-9fa8-7527-b1dc-953ab8903c51","at":1772958425000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc8e-a472-7c9a-84b2-e24eff560d81","at":1772958426226000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ccc8e-a778-77f1-a509-f9457f4f8c83","at":1772958427000000000,"seq":961,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ccc8e-e5f8-78df-b56e-d5b884f3d9aa","at":1772958443000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ccc8f-3030-7325-a116-34fe9e8d3ffe","at":1772958462000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc8f-3418-7306-a3b7-44c446f9ff26","at":1772958463000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc8f-43b8-79e4-9adc-a53516a504f3","at":1772958467000000000,"seq":965,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ccc9b-521f-7139-b662-52e39d2594fa","at":1772959257119000000,"seq":966,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccc9b-521f-7c02-a71b-ba5b9447779c","at":1772959257119000000,"seq":967,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccc9b-5590-787c-8c0d-6eeaeba98e87","at":1772959258000000000,"seq":968,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc9b-70e8-7f4c-a18f-214b7dbb6959","at":1772959265000000000,"seq":969,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccc9b-c2f0-7077-94f3-fb64e154194c","at":1772959286000000000,"seq":970,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}

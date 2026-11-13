@@ -1,0 +1,10 @@
+{"v":1,"id":"019d0a33-b508-762d-855d-8721006670dd","at":1773992654088000000,"seq":1050,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0a33-b508-7d9f-a7a3-1e4492ec3bdf","at":1773992654088000000,"seq":1051,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d0a33-c068-7fbb-bb1a-cab8d1691ee9","at":1773992657000000000,"seq":1052,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a33-ee79-79fc-bce9-2871f32566de","at":1773992668793000000,"seq":1053,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d0a34-2dc8-79aa-a382-b8268c918b54","at":1773992685000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a34-4538-7313-8357-d7403a23a1a1","at":1773992691000000000,"seq":1055,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0a34-54d8-7b5e-b6df-8a71fda52db4","at":1773992695000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0a34-6d95-7086-979b-1ed1297c73bf","at":1773992701333000000,"seq":1057,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d0a34-83b8-7bf4-8b42-836e8472c9f2","at":1773992707000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d0a34-d9a8-7c79-86a2-d61a7b9b8033","at":1773992729000000000,"seq":1059,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

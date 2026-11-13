@@ -1,0 +1,16 @@
+{"v":1,"id":"019cad95-a5ec-7a46-b21b-668789f6ec4e","at":1772438791660000000,"seq":809,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cad95-a5ec-71b4-bc27-4567a7efdc4e","at":1772438791660000000,"seq":810,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cad95-beb0-7bf0-b07e-2df9b1f8a5b8","at":1772438798000000000,"seq":811,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad95-f178-7825-941c-47de4f02a18d","at":1772438811000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cad96-37c8-7eab-8d84-c9aa6a5ee587","at":1772438829000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cad96-5e50-7455-b015-54e0280419a1","at":1772438838864000000,"seq":814,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cad96-7e18-731c-b09c-d8b81526b338","at":1772438847000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cad96-a564-7894-9c45-963be98ebcfa","at":1772438857060000000,"seq":816,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cad97-1288-79ff-8c77-56a0d25c1f58","at":1772438885000000000,"seq":817,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cad97-5cc0-76f3-9cf7-d66e35091a8a","at":1772438904000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadac-31bb-71a0-8b04-24ad95316da4","at":1772440269243000000,"seq":819,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cadac-4450-77bd-9b58-a9d3ee2e4390","at":1772440274000000000,"seq":820,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadac-86b8-7f8f-9b45-15591fe2d2cf","at":1772440291000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadc5-f188-79ff-a5d0-b33ab52cf355","at":1772441956744000000,"seq":822,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cadc5-fe40-703c-872a-40b964a0a855","at":1772441960000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadc6-1d80-73ba-b0d8-d93862b13e60","at":1772441968000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

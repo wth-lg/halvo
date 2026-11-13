@@ -1,0 +1,14 @@
+{"v":1,"id":"019c5103-8626-74fd-ba73-a46a9a8a0754","at":1770885711398000000,"seq":638,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5103-8626-7d24-adae-8d185aa351db","at":1770885711398000000,"seq":639,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5103-9820-7ee5-9047-018b174d64cb","at":1770885716000000000,"seq":640,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5103-aba8-78ba-8190-09c1a06f93f9","at":1770885721000000000,"seq":641,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c5103-da88-73fa-9fee-1cf641433d20","at":1770885733000000000,"seq":642,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5103-f9c8-7715-b237-8d8697e2acb4","at":1770885741000000000,"seq":643,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c5111-ed2f-74b9-87c1-2933b4402de1","at":1770886655279000000,"seq":644,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5111-ed2f-79b6-98be-a1a947b865f2","at":1770886655279000000,"seq":645,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c5112-0388-7d15-a790-e9386959f7a9","at":1770886661000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5112-0388-7168-8e11-c0ba91375727","at":1770886661000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c5112-936a-7673-88ca-8c3d15b515a9","at":1770886697834000000,"seq":648,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c5112-f1d0-792b-bf59-73e9c57bffce","at":1770886722000000000,"seq":649,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5112-f5b8-7623-a1d2-cf386081bf55","at":1770886723000000000,"seq":650,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5113-2880-72a5-821c-d8f3395cbe37","at":1770886736000000000,"seq":651,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

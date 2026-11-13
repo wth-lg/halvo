@@ -1,0 +1,14 @@
+{"v":1,"id":"019cbd26-c3cf-7165-a73c-f84aaa19bbbf","at":1772699960271000000,"seq":931,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd26-c3cf-7410-bc7c-91091f605e60","at":1772699960271000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cbd26-d648-776f-a293-0e7a26ed36cb","at":1772699965000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2d-502d-7335-bf93-1849097a96d9","at":1772700389421000000,"seq":934,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cbd38-6e70-7696-9392-474ab7fbd85a","at":1772701118064000000,"seq":935,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd38-6e70-773f-83ac-c20397b90a70","at":1772701118064000000,"seq":936,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd38-81b8-7fbd-ad61-e763bec94fbd","at":1772701123000000000,"seq":937,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cbd38-a0f8-7421-a861-d8decdc8e578","at":1772701131000000000,"seq":938,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd38-bc50-77a4-bdca-cc30d0abd832","at":1772701138000000000,"seq":939,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd38-df78-787a-9e95-bd6e46ad55f2","at":1772701147000000000,"seq":940,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd45-64d2-743c-82a0-fab20c23d632","at":1772701967570000000,"seq":941,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd45-7df0-7eca-9797-ef3431025d03","at":1772701974000000000,"seq":942,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cbd45-85c0-72a8-a406-e4cc2fdf9900","at":1772701976000000000,"seq":943,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cbd45-89a8-7cf4-a3e9-c1b216b40e6d","at":1772701977000000000,"seq":944,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

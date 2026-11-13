@@ -1,0 +1,10 @@
+{"v":1,"id":"019d42b9-5a0f-77e7-b35c-5dab7ee5f730","at":1774940936719000000,"seq":1153,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42b9-5a0f-7823-b7a5-ee0d0ce43f50","at":1774940936719000000,"seq":1154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"app_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d42b9-5f10-7abc-b765-456618e5710e","at":1774940938000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42b9-a178-72dc-9a33-7847c47e7faa","at":1774940955000000000,"seq":1156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ba-0eeb-7317-b1cf-2f7c1ce7d6ab","at":1774940983019000000,"seq":1157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d42ba-2260-7580-90f5-994bf441dde1","at":1774940988000000000,"seq":1158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d42ba-bb15-718e-bef3-bac1e1b838ec","at":1774941027093000000,"seq":1159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"balance by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d42bb-1490-7a80-861e-fe5b3bfa17e3","at":1774941050000000000,"seq":1160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42bb-1878-7c6b-a9e0-e653f7f5a44f","at":1774941051000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42bb-4b40-78b5-acd8-20c639c2ae3f","at":1774941064000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

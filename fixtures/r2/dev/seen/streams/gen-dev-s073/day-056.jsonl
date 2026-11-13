@@ -1,0 +1,9 @@
+{"v":1,"id":"019c93b7-3ad1-77ba-9228-aff4fffaba22","at":1772004784849000000,"seq":775,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c93b7-3ad1-740c-9c0d-4cb4cefb0bc2","at":1772004784849000000,"seq":776,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c93d3-048f-771d-a275-81c838381e7e","at":1772006605967000000,"seq":777,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c93d3-048f-71a9-87ac-8fd434ad8a90","at":1772006605967000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c93d3-1068-74a9-a662-7db9a3f85f98","at":1772006609000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93ec-5448-7e58-b3ec-4724fd9cbb97","at":1772008264776000000,"seq":780,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c93ec-b2e8-7d95-8a35-d5e3c5c3b86d","at":1772008289000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c93ed-538f-7667-8a49-65aef7a87d26","at":1772008330127000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c93ed-7a20-7658-ab1f-6830694dd944","at":1772008340000000000,"seq":783,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,0 +1,31 @@
+{"v":1,"id":"019c41c7-4160-7c44-a143-cfbfe88b691e","at":1770630103392000000,"seq":556,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41c7-4160-7ff1-860a-7c515aeb67a0","at":1770630103392000000,"seq":557,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c41cd-a6a5-7830-a419-260751443b1d","at":1770630522533000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c41cd-ac60-751e-9d26-138a71a29f64","at":1770630524000000000,"seq":559,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ce-3518-788e-acdb-9a8dff7f7630","at":1770630559000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ce-72bc-755f-ae8a-5f9ad02fc347","at":1770630574780000000,"seq":561,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c41ce-9aa8-71a4-b0aa-08434b612849","at":1770630585000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c41ce-9e90-7c38-a265-09e29edb4291","at":1770630586000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ce-aa48-71a3-8a5b-017e410c7fac","at":1770630589000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ce-af78-73b9-ae49-3c9d540a2a99","at":1770630590328000000,"seq":565,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c41ce-c1b8-7224-9537-602eb6109c94","at":1770630595000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ce-c988-706c-84da-7977126fdfa7","at":1770630597000000000,"seq":567,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c41cf-17a8-7fe8-9fad-96ae45838521","at":1770630617000000000,"seq":568,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c41cf-6107-7027-adf5-00ca494a3f4c","at":1770630635783000000,"seq":569,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c41cf-9890-707e-8ce8-925f0b76d1f0","at":1770630650000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41cf-a830-7b29-b3df-ec698e4ed3d8","at":1770630654000000000,"seq":571,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41cf-c388-7e5a-8ee6-7a560d8233fc","at":1770630661000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41cf-cc10-77bd-8ac8-92f498127079","at":1770630663184000000,"seq":573,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c41d0-6b80-7db3-8c2b-830013c6335c","at":1770630704000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c41d0-7738-7439-8ff4-231fd3bfa4a9","at":1770630707000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d4-f86a-7835-bcfb-db5998f91176","at":1770631002218000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c41d5-12e8-7584-a1a9-119032085fbc","at":1770631009000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d5-67e9-7bf6-9e7a-7ae6e56a3e11","at":1770631030761000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c41d5-70a8-7c4c-92fc-d8d6c434b5ed","at":1770631033000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d5-7c60-700b-9007-c3f2874608a0","at":1770631036000000000,"seq":580,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c41d5-9ba0-7b1f-aff7-2f16af61e39f","at":1770631044000000000,"seq":581,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c41d6-212d-7109-a54e-2f6764edc643","at":1770631078189000000,"seq":582,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c41d6-33f8-787b-8d2f-b9cda5288e16","at":1770631083000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d6-37e0-7b21-aaaf-b94260273370","at":1770631084000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d6-5ef0-7207-a687-d8178eba6f51","at":1770631094000000000,"seq":585,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41d6-62d8-7945-a83c-fd8343809daa","at":1770631095000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

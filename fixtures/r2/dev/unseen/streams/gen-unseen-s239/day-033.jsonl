@@ -1,0 +1,19 @@
+{"v":1,"id":"019c1de9-70f6-7d8f-9cba-52498dd5e4d6","at":1770028364022000000,"seq":367,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1de9-70f6-74ac-95d0-cd1d82257945","at":1770028364022000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c1de9-7c98-7bf6-985d-182a7d38108b","at":1770028367000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c1de9-cea0-7ce4-a3a1-fb11421d6336","at":1770028388000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dea-43b9-7465-973b-cac139dfb289","at":1770028417977000000,"seq":371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c1dfd-209a-7227-8a9b-c21c86f5ebc9","at":1770029654170000000,"seq":372,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1dfd-209a-7463-ad42-bf2149f79d80","at":1770029654170000000,"seq":373,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1dfd-7db0-7500-a33d-cbd8f256662f","at":1770029678000000000,"seq":374,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1dfd-9138-7ab0-890f-5eab8880a9ec","at":1770029683000000000,"seq":375,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1dfd-bc30-7444-9e7c-5e508fe74fed","at":1770029694000000000,"seq":376,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c1dfd-cfb8-7b3d-ad50-e57dd8e4051c","at":1770029699000000000,"seq":377,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e04-b709-74b9-b6e9-dda67c4c2d89","at":1770030151433000000,"seq":378,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1e04-b709-7958-9abb-4405f4c0f24a","at":1770030151433000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1e05-1318-7c6b-bcf3-27d5baea3d6e","at":1770030175000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c1e05-49c8-7c50-805f-6e5c27037b32","at":1770030189000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e05-5580-7c74-81ae-eef099bc8e50","at":1770030192000000000,"seq":382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e1e-b1b2-770d-8e80-ed3e44e5c3af","at":1770031854002000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1e1e-c150-7636-97ca-258a8a47fb5f","at":1770031858000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1e1f-1358-7391-8489-cbaceffe7a8c","at":1770031879000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

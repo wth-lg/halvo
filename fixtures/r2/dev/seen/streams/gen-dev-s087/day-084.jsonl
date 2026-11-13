@@ -1,0 +1,11 @@
+{"v":1,"id":"019d246c-04dc-798d-895b-7f3833bdaf7c","at":1774432552156000000,"seq":1256,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d246c-04dc-7659-8d3d-fdfe106bf6cf","at":1774432552156000000,"seq":1257,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d246c-7588-75c2-8075-e7e738dca277","at":1774432581000000000,"seq":1258,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d246c-8140-7d62-b0c3-e7f4b374c357","at":1774432584000000000,"seq":1259,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d246c-b7f0-7aef-8ea5-4a02dc1787ed","at":1774432598000000000,"seq":1260,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d246c-d348-7713-a7a0-77903ea6252b","at":1774432605000000000,"seq":1261,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2481-e7ee-7c06-bf39-5940c8d3811a","at":1774433986542000000,"seq":1262,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2481-e7ee-7771-8de1-72f56dabf9bf","at":1774433986542000000,"seq":1263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d2482-c4af-7f64-a2ba-485915bec721","at":1774434043055000000,"seq":1264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d2483-1298-7c8f-9ddf-93ff1690eb42","at":1774434063000000000,"seq":1265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2483-83e0-7cf6-8fbe-f2d62f0fadcd","at":1774434092000000000,"seq":1266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

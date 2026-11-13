@@ -1,0 +1,24 @@
+{"v":1,"id":"019c4c1f-7c11-7d6f-adb9-26e22453d603","at":1770803657745000000,"seq":573,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4c1f-7c11-7c20-8974-90b25d37e98c","at":1770803657745000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c4c1f-84e0-7127-a438-0ac893f1d5b4","at":1770803660000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c4c1f-9098-7e0d-b14f-23cbf2d29f4e","at":1770803663000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c1f-a420-73da-afad-ea6fdd340cf5","at":1770803668000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c1f-c291-732b-9d3e-9a48970e2d92","at":1770803675793000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c4c1f-c360-705e-b66e-2edd7c3fff31","at":1770803676000000000,"seq":579,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4c1f-e2a0-72d4-ab9b-ce8c0e3320e1","at":1770803684000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c1f-ee58-72fe-a6cf-47c229b0512b","at":1770803687000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c20-4830-7dc0-a342-252e540858bd","at":1770803710000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c4c20-490c-7bae-8f39-f97c7924ea42","at":1770803710220000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c4c20-53e8-764c-b12b-98184dddca88","at":1770803713000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c20-57d0-7d23-80fc-5c70b4b3ca18","at":1770803714000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c20-b1a8-7f53-8d97-e76a1d941389","at":1770803737000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4c20-c530-7122-9be7-2b027de8cb80","at":1770803742000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c4c36-277b-7ec4-9e77-aa848c0c114c","at":1770805143419000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c4c36-6458-760f-91c7-c2f49c33a73d","at":1770805159000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c36-6c28-7669-ace9-da18c3429f8f","at":1770805161000000000,"seq":590,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4c36-8b68-70eb-9aaf-d5637a57f05d","at":1770805169000000000,"seq":591,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4c4d-681e-7323-9358-0bca0e9500fb","at":1770806667294000000,"seq":592,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c4d-681e-76aa-ac0e-8496846b2959","at":1770806667294000000,"seq":593,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c4d-8638-7b1c-8764-d39eba36e8d9","at":1770806675000000000,"seq":594,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c4c4d-99c0-7540-8d42-144313257e3d","at":1770806680000000000,"seq":595,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c4d-c4b8-70a7-a83f-a95b21ca5b32","at":1770806691000000000,"seq":596,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}

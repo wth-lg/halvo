@@ -1,0 +1,14 @@
+{"v":1,"id":"019d4d69-54d0-7891-a40a-0f73304df716","at":1775120241872000000,"seq":1251,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d69-54d0-7bac-a22a-8989f207a60d","at":1775120241872000000,"seq":1252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d4d6a-56c0-7d4b-b3cd-96187ccb2992","at":1775120307904000000,"seq":1253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d4d6a-8600-786d-b666-256cb97a62c5","at":1775120320000000000,"seq":1254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d6a-b0f8-7597-b06b-ba7ca04154e8","at":1775120331000000000,"seq":1255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d4d85-ad2a-7eb3-a598-655682c7bf4a","at":1775122099498000000,"seq":1256,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4d85-ad2a-74fc-982d-9aaa4ec51b95","at":1775122099498000000,"seq":1257,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4d85-af20-7422-bcb9-cfb344efcafa","at":1775122100000000000,"seq":1258,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d85-f570-7815-a12a-17a5dbbe0b16","at":1775122118000000000,"seq":1259,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d4d86-1898-7e11-96ce-14b24d008456","at":1775122127000000000,"seq":1260,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d9f-beac-7771-aa4d-e922197694ff","at":1775123807916000000,"seq":1261,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4da0-3fe8-78d2-9fd2-09bbf8358533","at":1775123841000000000,"seq":1262,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4da0-5758-7b8c-8be2-9dbf4b54e876","at":1775123847000000000,"seq":1263,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4da0-6310-73b9-b7e0-acf6da89d2ea","at":1775123850000000000,"seq":1264,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

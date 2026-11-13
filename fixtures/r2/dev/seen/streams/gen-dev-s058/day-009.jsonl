@@ -1,0 +1,18 @@
+{"v":1,"id":"019ba226-68a5-7946-971b-54ea2a6f0fa8","at":1767951984805000000,"seq":97,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba226-68a5-7eea-a799-59057bf75c12","at":1767951984805000000,"seq":98,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ba226-b1ab-7aa3-9306-6e01afd78c6c","at":1767952003499000000,"seq":99,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ba226-ea50-765b-bfe5-4a3b2cf1451d","at":1767952018000000000,"seq":100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba227-05a8-741c-984e-10f7e2119956","at":1767952025000000000,"seq":101,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba227-4040-7f74-8fc1-c4d458cccdcc","at":1767952040000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba227-5b98-79b9-a16e-a47cdda36482","at":1767952047000000000,"seq":103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba227-6b38-721c-9de3-42b8099f800a","at":1767952051000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba23d-0969-73ae-8ed5-f70288719c8e","at":1767953467753000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ba23d-48e0-788c-ba08-d79d2ae33810","at":1767953484000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba23d-6438-7abc-aeea-bca9689acd0e","at":1767953491000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba23d-79c5-7787-9cf4-2d5f26925aee","at":1767953496517000000,"seq":108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ba23e-3728-7a18-aed7-40520a477b62","at":1767953545000000000,"seq":109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba23e-7773-70a8-8d3e-45be0f3bf351","at":1767953561459000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ba23e-ac58-7774-a76f-d0b16ce68cd8","at":1767953575000000000,"seq":111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba23e-c3c8-75e4-8daf-dfd0d9d16c3a","at":1767953581000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba23e-cf80-7d04-909b-fa1e74ca99f9","at":1767953584000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba23e-d750-78be-8a37-74951807f8d1","at":1767953586000000000,"seq":114,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

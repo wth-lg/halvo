@@ -1,0 +1,19 @@
+{"v":1,"id":"019cebcb-d51d-7695-b98f-f1e3b6b6f192","at":1773482530077000000,"seq":940,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cebcb-d51d-759f-b5f1-6367ca9b0a3a","at":1773482530077000000,"seq":941,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cebcc-1d50-7384-a1b7-dc4155128fea","at":1773482548560000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cebcd-154c-7c9e-a0ba-731af3b784e1","at":1773482612044000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cebcd-a1c0-7610-bd6d-d9d952e6b67d","at":1773482648000000000,"seq":944,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebcd-ad78-7998-bf94-8059bbcaadc2","at":1773482651000000000,"seq":945,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cebcd-ccb8-7de9-b3ad-eb20dd27d8a8","at":1773482659000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebcf-7cb2-754d-91f0-d75187a5a2ea","at":1773482769586000000,"seq":947,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cebcf-7cb2-75e9-9c2e-b751dce1eb2b","at":1773482769586000000,"seq":948,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cebcf-9d90-7e2a-a3d6-e3ea1c4ad54e","at":1773482778000000000,"seq":949,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cebcf-a178-7a9e-91e3-85d2a21df956","at":1773482779000000000,"seq":950,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebcf-d828-7d1b-921f-675fc69d6845","at":1773482793000000000,"seq":951,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cebcf-e3e0-753d-91e0-328584faa8e6","at":1773482796000000000,"seq":952,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebe3-1130-7578-8a7a-363909a328ca","at":1773484052784000000,"seq":953,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cebe3-8b20-76ca-a3e6-6dafe90c2f48","at":1773484084000000000,"seq":954,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf7-b51d-7509-b6c7-5b394a916a14","at":1773485405469000000,"seq":955,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cebf7-de40-70da-841a-f79789fd1904","at":1773485416000000000,"seq":956,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebf7-f1c8-775f-8fe6-77fb43af6932","at":1773485421000000000,"seq":957,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cebf8-1108-7238-936d-8ba3054f361d","at":1773485429000000000,"seq":958,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

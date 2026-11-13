@@ -1,0 +1,22 @@
+{"v":1,"id":"019cdc32-0b39-7fab-aa57-1a7cd62a0fbd","at":1773220793145000000,"seq":877,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc32-0b39-7802-a65a-ad6ad131d57e","at":1773220793145000000,"seq":878,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cdc32-a6e8-7eda-a675-9f493f9b465e","at":1773220833000000000,"seq":879,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc32-b844-740f-9e30-896dbf3cc65e","at":1773220837444000000,"seq":880,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for July - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cdc33-1448-79da-9348-66ad67cb9b11","at":1773220861000000000,"seq":881,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdc33-2fa0-7d3b-ad5a-4038c2a8b78d","at":1773220868000000000,"seq":882,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdc33-b34c-7fb3-883c-82d86e77d5f7","at":1773220901708000000,"seq":883,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cdc33-d3b0-7ada-9a7d-176f4a1e2953","at":1773220910000000000,"seq":884,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc34-1a63-7dc7-bf97-48efc83ebf09","at":1773220928099000000,"seq":885,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019cdc34-1de8-79b2-ae76-a9c988f62918","at":1773220929000000000,"seq":886,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc34-3d28-705d-beb3-eb0b08c02441","at":1773220937000000000,"seq":887,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc34-7f90-7070-8b1c-a52ba5fe2d83","at":1773220954000000000,"seq":888,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc34-b258-796d-ab88-379d6c779511","at":1773220967000000000,"seq":889,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc3e-1637-796a-8555-29bdbaa357cf","at":1773221582391000000,"seq":890,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cdc3e-3fa8-7943-b6d4-b55714e68157","at":1773221593000000000,"seq":891,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdc3e-62d0-7a7e-bd0f-e0c274eccc42","at":1773221602000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cdc3e-b8c0-7545-96cb-a259d08ad9ca","at":1773221624000000000,"seq":893,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdc46-9a9e-784f-8115-2fbd8ed527fd","at":1773222140574000000,"seq":894,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cdc46-abe8-79d1-ab52-62cac6595efe","at":1773222145000000000,"seq":895,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdc46-f238-769c-a702-77e84829a748","at":1773222163000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc47-05c0-78ff-b6d5-9438ffc17d3f","at":1773222168000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc47-4058-796f-8253-f67ffc2cfd44","at":1773222183000000000,"seq":898,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

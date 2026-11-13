@@ -1,0 +1,9 @@
+{"v":1,"id":"019c2ca0-a07a-7ece-a7ff-35982c48e8c3","at":1770275250298000000,"seq":441,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2ca0-a07a-748a-8d30-d8ef34334f81","at":1770275250298000000,"seq":442,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2ca0-a720-7f04-9998-43a90039e9d8","at":1770275252000000000,"seq":443,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2ca0-baa8-7454-a6c0-4c30773e69a2","at":1770275257000000000,"seq":444,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2cac-b554-723c-8db6-9c28cea92a92","at":1770276042068000000,"seq":445,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c2cac-f778-7bae-8357-4f1a99a2b158","at":1770276059000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cad-7a41-7f5b-b5d9-f2ceeeb6a97e","at":1770276092481000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c2cad-8418-7f81-92af-279e0b9b1063","at":1770276095000000000,"seq":448,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2cad-f948-78ae-b362-ad778a4fe723","at":1770276125000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

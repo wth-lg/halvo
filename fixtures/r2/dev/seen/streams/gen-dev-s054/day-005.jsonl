@@ -1,0 +1,24 @@
+{"v":1,"id":"019b8dc7-0d26-7a99-aad2-a1ded54166dd","at":1767610191142000000,"seq":41,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8dc7-0d26-71da-bc43-c1e628d5fd59","at":1767610191142000000,"seq":42,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b8dc7-4730-7b3c-8531-61738a02ea43","at":1767610206000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b8dc7-88e4-7fdd-b233-a8cfe699d3a2","at":1767610222820000000,"seq":44,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8dc7-bc60-7983-a7c8-65778ea0d472","at":1767610236000000000,"seq":45,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc7-e54f-7766-a1c4-3b17a22759d3","at":1767610246479000000,"seq":46,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b8dc8-6458-743e-bf79-56fd77b8c2d1","at":1767610279000000000,"seq":47,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc8-6840-7e58-a9a9-dbb050a4d942","at":1767610280000000000,"seq":48,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8dc8-e8ef-7ed4-bb52-46067b78915e","at":1767610312943000000,"seq":49,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b8dc8-f4e0-7665-9617-de7395805730","at":1767610316000000000,"seq":50,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b8dc9-0868-7019-9d12-d8b345dbba23","at":1767610321000000000,"seq":51,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b8dc9-4ad0-7ee1-a735-eb4168df9e6f","at":1767610338000000000,"seq":52,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8dc9-6de5-77ee-b1dd-d3916ef195d0","at":1767610346981000000,"seq":53,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019b8dc9-8950-72b6-b655-5d8e5d5d0cd3","at":1767610354000000000,"seq":54,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc9-cbb8-7328-ae7d-2f1756a5ec97","at":1767610371000000000,"seq":55,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8dc9-e328-7cd5-b74a-70fc799dfdbe","at":1767610377000000000,"seq":56,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8dc9-eaf8-78fd-8e23-782c7265c92a","at":1767610379000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8de1-084e-7004-919e-c33708256b68","at":1767611893838000000,"seq":58,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8de1-10c0-7b60-8be0-2dedc4b9ffce","at":1767611896000000000,"seq":59,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8de1-2830-79c3-9b83-c71423a8533c","at":1767611902000000000,"seq":60,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b8de1-3000-7b90-8529-860d8e3d5b75","at":1767611904000000000,"seq":61,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8dfc-ce3c-756c-852f-9495e1441c0b","at":1767613713980000000,"seq":62,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8dfd-1888-757b-be24-f226bd210e8c","at":1767613733000000000,"seq":63,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8dfd-8200-7c9f-a894-885b6c0ccb8d","at":1767613760000000000,"seq":64,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,27 @@
+{"v":1,"id":"019c89eb-33aa-7107-918d-bd2e001fb56c","at":1771840418730000000,"seq":889,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89eb-33aa-7dab-a167-84a1a1a180f7","at":1771840418730000000,"seq":890,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c89eb-b1b8-7e1a-a0f0-42204a65421b","at":1771840451000000000,"seq":891,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89eb-b5a0-75f5-b25d-304164ffbb2b","at":1771840452000000000,"seq":892,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c89eb-dbea-77ce-afc1-6a1263ccded0","at":1771840461802000000,"seq":893,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c89ec-2300-77ff-b9a7-5f94532f265f","at":1771840480000000000,"seq":894,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ec-2300-718c-89aa-623a6ba0b516","at":1771840480000000000,"seq":895,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c89ec-8c78-719e-b3fc-79f256fe731d","at":1771840507000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ec-9e44-70e2-b0f0-94220242c9ff","at":1771840511556000000,"seq":897,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c89ec-bb58-71bc-aa20-ac6f68963ac5","at":1771840519000000000,"seq":898,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c89ec-f208-748d-8b01-7e5063a6b1ae","at":1771840533000000000,"seq":899,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ed-0978-7a12-9edc-bd93e921efbf","at":1771840539000000000,"seq":900,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c89ed-4028-784d-9aec-da0300660c8b","at":1771840553000000000,"seq":901,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c89ed-5cba-7fb1-b6a0-5c6a55a52446","at":1771840560314000000,"seq":902,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c89ed-76d8-71d0-9788-33d18bae84da","at":1771840567000000000,"seq":903,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89ed-8678-71bd-800b-25e69cb59ec6","at":1771840571000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c89ed-8a60-76b7-91dc-93b1546dc7f5","at":1771840572000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a02-7117-773b-80e2-d6a6e63bd0f3","at":1771841941783000000,"seq":906,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c8a02-75d8-71a3-ac71-b68693e0b4ac","at":1771841943000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a02-f2d8-7328-886e-a63abfd1b3df","at":1771841975000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c8a03-688e-7d39-93f0-ea80aa0e1d98","at":1771842005134000000,"seq":909,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c8a03-77a8-7424-b654-2177f74ffc3e","at":1771842009000000000,"seq":910,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8a03-a688-788f-979d-94d4cea50f3a","at":1771842021000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a03-d950-7b3e-88df-dd45556559e3","at":1771842034000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8a1e-060b-7229-9202-200a8b1e3190","at":1771843749387000000,"seq":913,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8a1e-060b-7066-8102-2153c933381d","at":1771843749387000000,"seq":914,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8a1e-3b38-726c-b344-8bc9c0b679fc","at":1771843763000000000,"seq":915,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}

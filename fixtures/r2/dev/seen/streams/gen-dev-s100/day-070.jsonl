@@ -1,0 +1,23 @@
+{"v":1,"id":"019cdbbc-be65-70bb-82e8-e7ab75ebe620","at":1773213105765000000,"seq":1022,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdbbc-be65-744b-82c8-7255cd2526b6","at":1773213105765000000,"seq":1023,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cdbbd-93ca-7e6e-9e1c-b3a02cf579d5","at":1773213160394000000,"seq":1024,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdbbd-93ca-79f7-8dcf-b19c085f6af5","at":1773213160394000000,"seq":1025,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdbbe-38d8-7ea7-be59-463dbddc4451","at":1773213202648000000,"seq":1026,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdbbe-38d8-7409-9784-d91be099a28e","at":1773213202648000000,"seq":1027,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cdbbe-4dc0-73ea-829e-425bfc170da5","at":1773213208000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cdbbe-5d60-756e-ba45-54f1580660a2","at":1773213212000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbbe-f9a0-7294-82cf-6db55c9e271e","at":1773213252000000000,"seq":1030,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdbbf-14f8-72b1-9464-75f9c42147f1","at":1773213259000000000,"seq":1031,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdbbf-3c08-70be-926a-98429eb9b5f2","at":1773213269000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbc6-d580-7cd2-8522-623ddcd2a340","at":1773213767040000000,"seq":1033,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cdbc7-3318-79ed-9d2f-f39d3042f392","at":1773213791000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbc7-42b8-7113-99ef-953f180144d7","at":1773213795000000000,"seq":1035,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdbc7-8520-7ef1-937a-e79493d0cf7a","at":1773213812000000000,"seq":1036,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdbc7-98a8-7f61-a4e3-43dc5375a395","at":1773213817000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbd6-2cf4-7988-9ace-0de01830ec02","at":1773214772468000000,"seq":1038,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdbd6-2cf4-7ef1-b750-7381d3d54ede","at":1773214772468000000,"seq":1039,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdbd6-4678-77cb-a564-e3196ca794da","at":1773214779000000000,"seq":1040,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbd6-5230-7d67-ba73-8c0ad465985f","at":1773214782000000000,"seq":1041,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdbd6-84f8-7dc2-a43d-54d320a664cd","at":1773214795000000000,"seq":1042,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cdbd6-88e0-754b-b6ba-74f48345e5b0","at":1773214796000000000,"seq":1043,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cdbd7-05e0-79c3-ac64-f88f8038bd2f","at":1773214828000000000,"seq":1044,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,37 @@
+{"v":1,"id":"019c2cd0-b686-7b9a-a2f7-b2c8f827a8ae","at":1770278401670000000,"seq":536,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2cd0-b686-732e-8557-6ae4b60f44b5","at":1770278401670000000,"seq":537,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c2cd0-bfa0-7afd-9f89-faf5309f2d9e","at":1770278404000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cd0-bfa0-727b-aa41-d584fc7ee00a","at":1770278404000000000,"seq":539,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c2cd1-24c5-72d0-8f75-fb4ec73c921f","at":1770278429893000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c2cd1-2918-72d9-8a09-5ea1143dc7f0","at":1770278431000000000,"seq":541,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2cd1-5410-7e8d-9fa8-2c0a82d73227","at":1770278442000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cd1-dcb4-7bb1-a0b7-b7e7e16fbb93","at":1770278476980000000,"seq":543,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c2cd2-1378-707f-b8c7-bef7958609fe","at":1770278491000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cd2-2ae8-74dc-9535-8fc106b0f949","at":1770278497000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cd2-36a0-7a53-98d1-50f3f37174b9","at":1770278500000000000,"seq":546,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2cd2-51f8-7e7e-bf7a-bdf58eb24cfc","at":1770278507000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2cd2-8824-71d6-a9a1-ee00e599a352","at":1770278520868000000,"seq":548,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c2cd2-9460-7a7f-9824-c10cfeae8b2e","at":1770278524000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cd2-f220-7414-8a0a-82c3d25ff084","at":1770278548000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cde-fb03-72ee-9e28-3d07df56b1aa","at":1770279336707000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2cdf-4278-7252-a857-2fecf6054996","at":1770279355000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cf6-2212-7de4-8f8a-6e0103091901","at":1770280854034000000,"seq":553,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2cf6-54b8-7ac9-8c9a-8806cfb82f16","at":1770280867000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2cf6-8b68-7b4f-a04a-04620c909739","at":1770280881000000000,"seq":555,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cf6-9b08-7d3a-ac0d-e388a0537d2e","at":1770280885000000000,"seq":556,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cf6-aaa8-7d9c-a211-7533fa11c01b","at":1770280889000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c2cf6-b2b8-7deb-b31e-2187ab42acf2","at":1770280891064000000,"seq":558,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2cf6-ba48-744f-83d2-7b1c545deaa3","at":1770280893000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2cf6-d5a0-778b-9cc1-5a12b9f7fb77","at":1770280900000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cf6-d988-76ed-a49d-2c9c73a47494","at":1770280901000000000,"seq":561,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c2cf6-e158-76a8-ab4d-bc5a7ab44f98","at":1770280903000000000,"seq":562,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cfd-e816-725c-be6b-f603a2b034d8","at":1770281363478000000,"seq":563,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2cfe-1130-737e-acd5-7b28635ff074","at":1770281374000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cfe-1ce8-7fa1-ad43-96ef7a506038","at":1770281377000000000,"seq":565,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cfe-47e0-7b1a-b09e-8202239d80d8","at":1770281388000000000,"seq":566,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2cfe-a1b8-70ab-a9ce-8c2329939847","at":1770281411000000000,"seq":567,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2d18-df57-7574-adc7-a0a053bc2f44","at":1770283130711000000,"seq":568,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2d18-f400-715b-a0aa-ca1f419f475c","at":1770283136000000000,"seq":569,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2d18-fbd0-7307-9674-fda8cb99311e","at":1770283138000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d18-ffb8-7c1f-b963-936d4249428a","at":1770283139000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d19-4608-7a36-86c0-50e30f6b1897","at":1770283157000000000,"seq":572,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

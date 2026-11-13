@@ -1,0 +1,13 @@
+{"v":1,"id":"019bb1c5-5e97-74c7-9a2a-865557545e46","at":1768214060695000000,"seq":176,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1c5-5e97-7fac-8382-1e679df974af","at":1768214060695000000,"seq":177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1c6-07c0-7a9a-bc30-2b6e6a078d68","at":1768214104000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bb1c6-59c8-7cbe-bfa3-3d5ff2a4f768","at":1768214125000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1c6-64eb-7ff8-a0e9-c54aa6d51bc7","at":1768214127851000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1c6-6968-78e7-a2a8-60950507d5ee","at":1768214129000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1c6-a7e8-705e-8baa-fd958f95cf58","at":1768214145000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1c6-bc93-7291-8095-9bee9c2b5db2","at":1768214150291000000,"seq":183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1c6-f608-722d-828a-bedb07c80bc3","at":1768214165000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1c7-3870-7c41-81a9-bc1b6439e99b","at":1768214182000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1c7-6dcd-7689-9ace-d254e013fab0","at":1768214195661000000,"seq":186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1c7-6f20-7a8f-a170-5304dd2324ef","at":1768214196000000000,"seq":187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1c7-9248-7c18-9f81-72feb2f7f94a","at":1768214205000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

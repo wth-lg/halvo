@@ -1,0 +1,45 @@
+{"v":1,"id":"019bc5b3-0f4d-7465-84ab-711faf32a30d","at":1768548405069000000,"seq":239,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc5b3-0f4d-7a4a-8522-f0a70a88b530","at":1768548405069000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bc5b3-d50b-7fc1-aa95-a8dc19193709","at":1768548455691000000,"seq":241,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bc5b3-e9c8-77c8-9dd8-45b6e8890209","at":1768548461000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5b4-2c30-72d7-a867-d57730711b48","at":1768548478000000000,"seq":243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc5b4-4788-74ec-96e3-e7b4743ca0f7","at":1768548485000000000,"seq":244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc5b4-91c0-7032-94a1-6038408d4de1","at":1768548504000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5b4-9d78-7b40-b210-e7619223e289","at":1768548507000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bc5b4-a67e-71bf-92b0-fe7c75222e39","at":1768548509310000000,"seq":247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bc5b4-f750-72c8-93f5-ffaaf6aba10b","at":1768548530000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc5b5-12a8-70bf-bd91-20abe5d76ac7","at":1768548537000000000,"seq":249,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc5b5-97f5-738f-adbf-d39c70166493","at":1768548571125000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bc5b5-b6b8-7ccc-bdab-f894c4fe8d28","at":1768548579000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5b5-be88-78f4-8c98-0517f552b1b2","at":1768548581000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5b5-ca40-757e-9347-33b345a4e5ff","at":1768548584000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bc5b5-d210-74f1-9378-4b1927568246","at":1768548586000000000,"seq":254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc5b5-e003-7862-bae6-09f749e848f0","at":1768548589571000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bc5b6-04d8-7194-aab0-dc32039658cf","at":1768548599000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5b6-7238-749f-bb58-932889779c12","at":1768548627000000000,"seq":257,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc5b6-921e-714a-b783-b496b7d78100","at":1768548635166000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019bc5b6-9560-7774-9f2d-4632fd0c48d9","at":1768548636000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc5b6-b0b8-7971-9a1f-0290e8a1ee8c","at":1768548643000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bc5b6-cc10-7418-aa0f-8c9169f174dc","at":1768548650000000000,"seq":261,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc5b6-cff8-72fb-b42f-60917b261054","at":1768548651000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5ce-5c9a-74e9-9e33-d12b11b5bce6","at":1768550194330000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bc5ce-e408-7ccb-ad93-23071ee62622","at":1768550229000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bc5cf-3981-7b99-b9a8-b32af7ffed7f","at":1768550250881000000,"seq":265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bc5cf-39f8-7d9f-ad1e-0629c82438dd","at":1768550251000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5cf-3de0-77ae-8490-20f0e320dc7a","at":1768550252000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5cf-6cc0-72fd-8d5a-32baacccc8d5","at":1768550264000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bc5cf-b6f8-75d5-a05f-84c7e3c74f4b","at":1768550283000000000,"seq":269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc5cf-c5ea-776b-9f6b-40a8198fa830","at":1768550286826000000,"seq":270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bc5d0-10d0-7005-955c-c68e980e105f","at":1768550306000000000,"seq":271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc5d0-2458-735d-98ec-08a319ffb279","at":1768550311000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bc5d0-a445-79fc-be3d-1884a9fc7a80","at":1768550343749000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bc5d1-0eb8-7705-8ab0-2e0a22ddba76","at":1768550371000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bc5d1-12a0-7c62-8f93-64ef71ee8bfd","at":1768550372000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5e9-80e0-7746-9d34-0b8b1197e12c","at":1768551973088000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc5e9-8470-77bb-b359-14be21ec21ef","at":1768551974000000000,"seq":277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc5e9-e618-77b2-a8cd-e20e07d73e47","at":1768551999000000000,"seq":278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc5e9-fd88-7389-b819-cab076c0b5f7","at":1768552005000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc5f1-b7e8-7e02-8276-b895b26272b0","at":1768552511464000000,"seq":280,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc5f1-b7e8-7553-a2b0-5e9b9ced2d82","at":1768552511464000000,"seq":281,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc5f1-cd88-79c3-ac8f-bfb170c01a4f","at":1768552517000000000,"seq":282,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bc5f2-2b48-75b3-8772-7a7945dff050","at":1768552541000000000,"seq":283,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

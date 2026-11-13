@@ -1,0 +1,12 @@
+{"v":1,"id":"019c4134-b41e-70fe-b430-39cde492409a","at":1770620498974000000,"seq":720,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4134-b41e-7a51-8bb8-63a4dc66f43a","at":1770620498974000000,"seq":721,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4134-b820-73a3-9be8-d0765655c8cd","at":1770620500000000000,"seq":722,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4135-5848-7ed4-bae7-7021ea5e9b06","at":1770620541000000000,"seq":723,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c4150-9406-79ef-af47-c1ebeb112740","at":1770622325766000000,"seq":724,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4150-9406-7db0-98d2-239222b14c6a","at":1770622325766000000,"seq":725,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4150-cba0-7eb3-8b31-1493e2855f27","at":1770622340000000000,"seq":726,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c4151-0a20-74e7-a0d3-9cc99eb643bb","at":1770622356000000000,"seq":727,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c4151-44b8-79cf-a66c-fdef0a39d303","at":1770622371000000000,"seq":728,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4151-4f49-7a0f-a035-6d83ca84fcf2","at":1770622373705000000,"seq":729,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c4151-7b68-7b11-84ea-98cac0d9f61a","at":1770622385000000000,"seq":730,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4151-9e90-7b42-bc18-488c1fa54b4c","at":1770622394000000000,"seq":731,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

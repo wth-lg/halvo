@@ -1,0 +1,41 @@
+{"v":1,"id":"019bdb00-59aa-7b45-8030-18375c6bddc8","at":1768905791914000000,"seq":228,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdb00-59aa-7c69-b162-ce382d7d9e40","at":1768905791914000000,"seq":229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019bdb00-7d28-7bcd-8264-f43d66ab703c","at":1768905801000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bdb01-2cf0-7efa-9eb1-708daa0234d0","at":1768905846000000000,"seq":231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb01-62b3-7d6f-8be3-e3f04d575846","at":1768905859763000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019bdb01-7728-72be-a6fe-0788b56bc7bf","at":1768905865000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdb01-d100-7647-b905-a00f11e345b6","at":1768905888000000000,"seq":234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdb01-d8d0-794d-8d38-d650d9dc6c51","at":1768905890000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bdb13-1212-7047-820c-93a18544b8aa","at":1768907018770000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdb13-2680-770c-86f1-334b0e4dd003","at":1768907024000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bdb13-7888-73af-a5dd-7af371c86f42","at":1768907045000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb13-ab50-7605-920e-ae25f45798ea","at":1768907058000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb14-03bb-7a9c-835c-d323a871be1e","at":1768907080635000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdb14-8de0-7f20-84b4-1e4da1bbeb55","at":1768907116000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb14-fb40-7f64-83bc-540c90389db9","at":1768907144000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb15-0223-71f5-bf3e-2d40807851f0","at":1768907145763000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdb15-0ae0-7323-86ca-ca8716e1d318","at":1768907148000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb15-2250-779a-b430-e3a2a378cb1a","at":1768907154000000000,"seq":245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdb15-2e08-7abe-8075-a48857f9db3b","at":1768907157000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bdb15-35d8-7ffd-bab6-cd3b31b0002d","at":1768907159000000000,"seq":247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdb15-4190-7fc5-b8cd-389c78cdba38","at":1768907162000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb15-48b7-7092-846e-5e0316e9d427","at":1768907163831000000,"seq":249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdb15-9f50-797f-9b37-e7587052b26b","at":1768907186000000000,"seq":250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdb15-c278-7147-9293-9d8b7978fae6","at":1768907195000000000,"seq":251,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdb16-5903-7fd7-91f7-55aaccb5fde7","at":1768907233539000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdb16-c448-78a6-b2f9-5ad0de9b4fbe","at":1768907261000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb17-1f84-74f2-b300-ba7cc1e9f787","at":1768907284356000000,"seq":254,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdb17-31a8-7314-86ff-9a8cc2622233","at":1768907289000000000,"seq":255,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bdb17-cde8-7bde-b9f4-d508537c0e30","at":1768907329000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb17-e558-7205-ac10-8b2b345616c9","at":1768907335000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb17-e558-7d84-a898-a7497e76ed9a","at":1768907335000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bdb19-5914-71e9-a136-ebf481176ca6","at":1768907430164000000,"seq":259,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdb19-5914-7dbe-b860-80e2d1188d11","at":1768907430164000000,"seq":260,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdb19-b248-796d-9fd6-a0c42df1047e","at":1768907453000000000,"seq":261,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb2d-3cc7-7155-8f79-7287c52a0408","at":1768908733639000000,"seq":262,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdb2d-3cc7-70a7-9031-109487180212","at":1768908733639000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bdb2d-c300-784d-9475-13fce9052d57","at":1768908768000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb2d-e284-76b8-9d4a-5979b4073465","at":1768908776068000000,"seq":265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bdb2d-edf8-7647-a827-32d324b043ec","at":1768908779000000000,"seq":266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdb2e-72c8-78d8-b620-aa95bfee2c7a","at":1768908813000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb2e-d858-7170-bbd1-ac67b4705b7a","at":1768908839000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

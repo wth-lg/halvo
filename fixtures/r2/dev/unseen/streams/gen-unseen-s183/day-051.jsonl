@@ -1,0 +1,26 @@
+{"v":1,"id":"019c7a77-e639-79a0-91a7-262a9e50ce00","at":1771581204025000000,"seq":665,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a77-e639-7cd5-a44a-ac4175a2b777","at":1771581204025000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7a77-edf0-7f50-9893-fcce891803ba","at":1771581206000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a78-7a90-7047-926e-8f517129337f","at":1771581242000000000,"seq":668,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a78-c0e0-7846-81c8-117e216ef616","at":1771581260000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a78-c8b0-708d-b383-9cdb0b7167b3","at":1771581262000000000,"seq":670,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a8d-97d4-75f8-8b9f-f2f6d9cd42a7","at":1771582625748000000,"seq":671,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7a8d-9cb8-74ea-b5a0-eb2560e0cba5","at":1771582627000000000,"seq":672,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7a8d-f2a8-7c82-bbed-3df344e8bd8e","at":1771582649000000000,"seq":673,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a8e-7778-7655-bfad-c37e28a03242","at":1771582683000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c7a9f-ddfe-78b5-ac18-13bb8f2514ac","at":1771583823358000000,"seq":675,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa0-3288-7f18-9603-4a0b16c02c93","at":1771583845000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa0-9c00-756d-a1c4-97d1fdd231ac","at":1771583872000000000,"seq":677,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c7aa0-9fe8-7b54-9f47-0533735e223b","at":1771583873000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa0-e2c9-7067-973a-3e6f214c652a","at":1771583890121000000,"seq":679,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa0-f9c0-7e25-953d-777d710ac39d","at":1771583896000000000,"seq":680,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7aa0-fda8-7d93-8204-c8bc873b9301","at":1771583897000000000,"seq":681,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7aa1-0190-7c00-947e-cabe392a9aa5","at":1771583898000000000,"seq":682,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa1-1130-7cb8-b406-b00bcfcc3498","at":1771583902000000000,"seq":683,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa1-1ecf-7320-814c-f1af7e927c43","at":1771583905487000000,"seq":684,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa1-b2f7-74a5-b6a0-790d215f6029","at":1771583943415000000,"seq":685,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa1-f7a8-7dc1-9bd1-86d9d0c35763","at":1771583961000000000,"seq":686,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7aa1-ff78-7a76-84a1-8aca2c34e36c","at":1771583963000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa2-50e9-7d27-8945-f06b5a3f2453","at":1771583983849000000,"seq":688,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa2-f1a8-7442-a4fd-804458e32a79","at":1771584025000000000,"seq":689,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7aa3-10e8-7fdb-a688-1794d846a25c","at":1771584033000000000,"seq":690,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

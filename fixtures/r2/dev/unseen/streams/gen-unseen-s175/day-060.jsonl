@@ -1,0 +1,28 @@
+{"v":1,"id":"019ca8b0-2a79-7e6a-8351-9901bb057a17","at":1772356643449000000,"seq":927,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca8b0-2a79-7b4b-8b90-045c3611ff51","at":1772356643449000000,"seq":928,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca8b0-b558-7aff-90fe-c648f7d4a9d5","at":1772356679000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8b1-20af-79e1-8e19-04ea6ad11454","at":1772356706479000000,"seq":930,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca8b1-ce98-76ad-80dc-7ef34257f3bb","at":1772356751000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8b1-d638-772c-b699-19c9cc8f2f6a","at":1772356752952000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca8b2-0930-770a-b70f-52e916754616","at":1772356766000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8b2-20a0-7f3e-b5dd-f1d52c8f6622","at":1772356772000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca8b2-2c58-7ec7-8825-8e49f83ac0b0","at":1772356775000000000,"seq":935,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca8b2-5b38-762a-89e2-454b2b6423f2","at":1772356787000000000,"seq":936,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca8b2-baf4-7186-8c27-388a6d3f45b0","at":1772356811508000000,"seq":937,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ca8b2-bce0-7c45-a3bc-5256285167d1","at":1772356812000000000,"seq":938,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca8b2-c4b0-774b-8a6f-26d9abab6f5f","at":1772356814000000000,"seq":939,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8b3-0330-7a97-8ac5-e4ad59e07c47","at":1772356830000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ca8b3-39e0-7c42-bfae-502bef1f6d32","at":1772356844000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8cc-b791-7e8a-abb2-b761fdf05be1","at":1772358514577000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ca8cc-d878-7ddc-a994-93f64dc75d05","at":1772358523000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8cc-e430-79ed-8fe6-d53ea0c18810","at":1772358526000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ca8cd-0b40-7616-a4f7-30dcb09feb91","at":1772358536000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8cd-2682-79c9-9a29-b093b1200826","at":1772358542978000000,"seq":946,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ca8cd-ac08-794d-9744-e965904db9d2","at":1772358577160000000,"seq":947,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ca8cd-b720-74f8-9f09-2610f38aec17","at":1772358580000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca8cd-bb08-7591-9871-b4a0b99ffbae","at":1772358581000000000,"seq":949,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca8cd-e9e8-76dc-91e8-5ff940d61a10","at":1772358593000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ca8ce-5c8b-7fe6-b3ad-4500dcddfbab","at":1772358622347000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ca8ce-5f18-7e4f-b7d5-6d727cae0359","at":1772358623000000000,"seq":952,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca8ce-7688-7bb7-b990-19a2a0e0f43c","at":1772358629000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8ce-8df8-74c2-8671-03990fd95dac","at":1772358635000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

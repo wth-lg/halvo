@@ -1,0 +1,14 @@
+{"v":1,"id":"019d2992-1960-7b99-a2ca-2acc890cfaf1","at":1774518933856000000,"seq":1344,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2992-1960-7c1e-980b-a2bad33c1718","at":1774518933856000000,"seq":1345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d2992-a6ec-7d1f-af42-2fe0924dafbc","at":1774518970092000000,"seq":1346,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d2992-cda0-7e5b-85e9-99ebf5e0ae49","at":1774518980000000000,"seq":1347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2992-e510-7a19-b11c-36b1ffecef5b","at":1774518986000000000,"seq":1348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2993-1bc0-726b-ad4e-ba8e3838114d","at":1774519000000000000,"seq":1349,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d2993-73e8-7393-8b41-91a005b9e50c","at":1774519022568000000,"seq":1350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d2993-eeb0-76f5-9956-15ab5eaaabb3","at":1774519054000000000,"seq":1351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2994-0df0-7825-9e91-2a31a9425b11","at":1774519062000000000,"seq":1352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29a3-917e-7661-9c5d-9af80b568f8f","at":1774520078718000000,"seq":1353,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d29a3-adf0-7e48-b139-4b1fa477bc3c","at":1774520086000000000,"seq":1354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d29a3-c178-7fd1-afeb-d21a06e16178","at":1774520091000000000,"seq":1355,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d29a3-c948-7a98-a49b-8a7f65f9817e","at":1774520093000000000,"seq":1356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d29a3-cd30-76c0-b030-6275ad15f047","at":1774520094000000000,"seq":1357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

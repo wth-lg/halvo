@@ -1,0 +1,22 @@
+{"v":1,"id":"019c895a-9d72-7544-bfa3-5b2d1a6f54fe","at":1771830943090000000,"seq":819,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c895a-9d72-7049-8556-60b51fbfd5f9","at":1771830943090000000,"seq":820,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c895b-3570-7db0-ade3-788beff5dc90","at":1771830982000000000,"seq":821,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c895b-8b60-78d3-939c-970f5517ba81","at":1771831004000000000,"seq":822,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c895b-a6b8-7949-becc-aadb1948fdc5","at":1771831011000000000,"seq":823,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c896e-08f4-7abc-acd4-566e3c8a01b4","at":1771832215796000000,"seq":824,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c896e-08f4-77f6-ae26-05920f51ce30","at":1771832215796000000,"seq":825,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c896e-2130-7398-8179-0cf8c0d25627","at":1771832222000000000,"seq":826,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c896e-2900-735b-9666-b9910522d009","at":1771832224000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c896e-88b7-76d9-a49b-3f82fe4ff904","at":1771832248503000000,"seq":828,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c896e-8aa8-7182-9867-dbe0659dcc32","at":1771832249000000000,"seq":829,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c896e-9660-7350-a9a5-14405f4d84cb","at":1771832252000000000,"seq":830,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c896e-9e30-7288-b017-c480088b3376","at":1771832254000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c896e-a9e8-7875-b302-f7b991df26f5","at":1771832257000000000,"seq":832,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c896e-db80-708c-a8e8-9e24329abd5e","at":1771832269696000000,"seq":833,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c896f-03c0-7a3e-9ed5-889eb6d94753","at":1771832280000000000,"seq":834,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c896f-1f18-7b0a-91f7-42144babc43d","at":1771832287000000000,"seq":835,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c896f-2300-7a02-b66e-5ba2bbbb6efd","at":1771832288000000000,"seq":836,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c896f-3e58-70a7-9848-95f1f4bb9d30","at":1771832295000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c896f-47e0-7358-a369-9f815b2482fa","at":1771832297440000000,"seq":838,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c896f-8c78-7ca7-9b95-2d0f733c4acc","at":1771832315000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c896f-9830-7da2-94c2-f8416cf88a6c","at":1771832318000000000,"seq":840,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

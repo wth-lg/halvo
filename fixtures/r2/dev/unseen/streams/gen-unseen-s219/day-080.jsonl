@@ -1,0 +1,23 @@
+{"v":1,"id":"019d0fa8-a7c6-7a6f-be18-135c77399921","at":1774084204486000000,"seq":1108,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fa8-a7c6-77c7-a553-f532a3e34581","at":1774084204486000000,"seq":1109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa8-a9c8-7d0e-80fe-d9636ddfefac","at":1774084205000000000,"seq":1110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d0fa9-0aa9-779f-a80b-ce090e180453","at":1774084229801000000,"seq":1111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa9-0f58-73da-8538-2634b41ff08e","at":1774084231000000000,"seq":1112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d0fa9-22e0-752b-a671-d8821295db0d","at":1774084236000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fa9-3280-78f3-8538-bcf0ee023f53","at":1774084240000000000,"seq":1114,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0fa9-49f0-7938-88b0-681496432ada","at":1774084246000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fa9-7836-7e0b-a1c6-006b963ed9ae","at":1774084257846000000,"seq":1116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d0fa9-f5d0-75f1-9825-6e2d339a5bd0","at":1774084290000000000,"seq":1117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d0faa-3450-742e-a226-4249512cda38","at":1774084306000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0faa-4bc0-7518-8724-5823d99862de","at":1774084312000000000,"seq":1119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0faa-660e-7c6d-97c3-ddff5fd5818a","at":1774084318734000000,"seq":1120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d0faa-6b00-77a2-b3fd-33e9373fa71d","at":1774084320000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0faa-8270-7475-9480-53750526445c","at":1774084326000000000,"seq":1122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0fb9-acea-7ec1-b611-088c3705817b","at":1774085319914000000,"seq":1123,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0fb9-acea-7257-a79a-60e007c6ca2d","at":1774085319914000000,"seq":1124,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0fb9-b128-76f1-ad4c-9ddc80e99a0d","at":1774085321000000000,"seq":1125,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0fb9-e008-7956-9963-0790fcfb295a","at":1774085333000000000,"seq":1126,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0fc6-4190-7edf-a853-220bcc01c1b9","at":1774086144400000000,"seq":1127,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fc6-4190-7fe5-8235-a3006b9c523a","at":1774086144400000000,"seq":1128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d0fc6-6af8-70e4-b829-1c1ace2a8e6c","at":1774086155000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d0fc6-a1a8-719f-aecd-735130fad0cf","at":1774086169000000000,"seq":1130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

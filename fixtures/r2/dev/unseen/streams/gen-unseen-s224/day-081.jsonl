@@ -1,0 +1,22 @@
+{"v":1,"id":"019d1485-319b-7b2a-abc6-cc8e8ad16e4a","at":1774165766555000000,"seq":1225,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1485-319b-78a7-98d8-d5dcaf4cf488","at":1774165766555000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1485-6a08-70e0-8468-db494afb6b9b","at":1774165781000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1485-71d8-7d38-9073-a1ccffa9d37c","at":1774165783000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1485-9022-7043-be24-19429be980c3","at":1774165790754000000,"seq":1229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1485-f6a8-70c8-b69a-c41ed6fcb89d","at":1774165817000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1486-7841-7973-b1ce-5ddb3ae06f89","at":1774165850177000000,"seq":1231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1486-92e8-7860-a356-9133b8f9546e","at":1774165857000000000,"seq":1232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d1486-a288-75e0-89e0-54af12e24bbf","at":1774165861000000000,"seq":1233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1486-ecc0-76e2-83b1-1d396831a5da","at":1774165880000000000,"seq":1234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1487-36f8-7857-b023-b21967f00247","at":1774165899000000000,"seq":1235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1487-5ddd-777f-832b-42c5faca9e3f","at":1774165908957000000,"seq":1236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1487-61f0-7d57-9ecf-2ec4ab28ab47","at":1774165910000000000,"seq":1237,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1488-2158-70bb-a453-a9bb49dbad51","at":1774165959000000000,"seq":1238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d14a3-6d8f-7034-be4f-e81d5c457fb3","at":1774167747983000000,"seq":1239,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d14a3-6d8f-7681-9277-f0aeb9d37f26","at":1774167747983000000,"seq":1240,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d14a3-cb60-7584-b8f5-5f9eb83ea0f4","at":1774167772000000000,"seq":1241,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14a3-d718-7f8a-b89d-fd8ff6f9b8dc","at":1774167775000000000,"seq":1242,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14a4-1598-7b53-b1c8-836b130bc054","at":1774167791000000000,"seq":1243,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d14ba-3273-7cea-b008-71c78d06b64e","at":1774169240179000000,"seq":1244,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14ba-3273-7f61-8546-3169791e2052","at":1774169240179000000,"seq":1245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d14ba-6c58-768f-b3f2-dd3ed76dd32f","at":1774169255000000000,"seq":1246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

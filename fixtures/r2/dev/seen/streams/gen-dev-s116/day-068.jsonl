@@ -1,0 +1,40 @@
+{"v":1,"id":"019cd1ad-b0cf-7bed-bf78-a9df438427b5","at":1773044347087000000,"seq":898,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd1ad-b0cf-765f-b968-176ebd106305","at":1773044347087000000,"seq":899,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd1ad-b460-705a-9f46-bcf0e543636e","at":1773044348000000000,"seq":900,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ad-df58-7bc2-8a1c-9993505c7276","at":1773044359000000000,"seq":901,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ad-e728-73fb-a613-5b7f88d930b9","at":1773044361000000000,"seq":902,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cd1bc-3efb-7959-a407-91c847a067c4","at":1773045300987000000,"seq":903,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd1bc-3efb-7c7f-a9b8-1c2134b7841e","at":1773045300987000000,"seq":904,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd1bc-6230-7f1b-b730-c851046c9086","at":1773045310000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1bc-6de8-7f68-ab62-d178ff1896e8","at":1773045313000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1bc-a880-788c-9cc8-dbffa8d3bbdc","at":1773045328000000000,"seq":907,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd1bc-eae8-7f17-9887-4465dbd0609e","at":1773045345000000000,"seq":908,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd1c3-38e1-7097-95a8-598d96b70c56","at":1773045758177000000,"seq":909,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cd1c3-6ee0-7ea0-8b7a-2c59f16cc290","at":1773045772000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1c3-b530-79a1-ad2a-43584558199a","at":1773045790000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1c3-d470-77fd-a6b0-a3627f2ee4f0","at":1773045798000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cd1c4-1fb2-7534-ad71-da70cfdbab44","at":1773045817266000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cd1c4-5170-763d-9197-63de006dcdc9","at":1773045830000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cd1c4-5d28-7fc3-81fc-f26ac75ffcc5","at":1773045833000000000,"seq":915,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd1c4-6cc8-70e3-b0b9-5896809cecde","at":1773045837000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1c4-70b0-7414-a835-3a57fe7cbe00","at":1773045838000000000,"seq":917,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd1c4-773d-73a2-99c5-8af9b87ec378","at":1773045839677000000,"seq":918,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cd1c4-8438-7e49-aa5a-65bbd5f96fdb","at":1773045843000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1c4-8ff0-7e30-a394-2b9fdb4e00b2","at":1773045846000000000,"seq":920,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd1c4-af30-7136-b1aa-be3801f32f22","at":1773045854000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1d8-a7b0-7d31-a555-1d7ef0905a87","at":1773047162800000000,"seq":922,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cd1d8-c3d0-7174-ba98-31bf49fba1ca","at":1773047170000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cd1d9-19c0-76cd-a707-e73e183a65ec","at":1773047192000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1d9-2190-7c89-9200-17efc18133a1","at":1773047194000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1d9-a338-7a0d-bbd3-bc3ebac370b7","at":1773047227192000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cd1da-0038-77d0-94e2-7460c1844e75","at":1773047251000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cd1da-0420-7525-a536-7ca325978567","at":1773047252000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cd1da-4a70-787a-ba81-79a102455af0","at":1773047270000000000,"seq":929,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd1da-5308-7f86-a175-f61a5c471e62","at":1773047272200000000,"seq":930,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Oak Square - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cd1da-5628-7293-a053-640eb63741bd","at":1773047273000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cd1da-6d98-78bf-b899-18c0eb1ed11f","at":1773047279000000000,"seq":932,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1da-7d38-7a63-9c21-1d912d12f3a2","at":1773047283000000000,"seq":933,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd1da-9c1e-7c5b-8ed6-62e5d8a2574d","at":1773047290910000000,"seq":934,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cd1da-9c78-7373-b291-f2d1039d17ef","at":1773047291000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cd1da-c388-7eb8-a12e-66633927a572","at":1773047301000000000,"seq":936,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1da-cf40-73dc-b505-ffc7972115fd","at":1773047304000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

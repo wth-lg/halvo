@@ -1,0 +1,12 @@
+{"v":1,"id":"019d05bb-d22c-74cf-8978-9fb8aac0a090","at":1773917688364000000,"seq":949,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d05bb-d22c-7c89-9a4c-6453fc31eeb0","at":1773917688364000000,"seq":950,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d05bc-0388-7fc8-a19c-a25309188c4d","at":1773917701000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d05bc-0770-7c21-97b5-d4ec08052cd5","at":1773917702000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05bc-1259-7f59-9ec8-483c0e2a2a1a","at":1773917704793000000,"seq":953,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d05bc-1af8-7b1b-b311-36b6a96c5d95","at":1773917707000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d05bc-2a98-7d18-a6a9-8d1d1c39154a","at":1773917711000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d05bc-49d8-7d3c-8384-79527f74fb1c","at":1773917719000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d05bc-59e0-7b10-a9f7-557f789c1e74","at":1773917723104000000,"seq":957,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d05bc-6918-7306-9cc9-9178ec405dd3","at":1773917727000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05bc-97f8-766e-ab23-683d6c164a1f","at":1773917739000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d05bc-af68-792d-8229-2022a626253c","at":1773917745000000000,"seq":960,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

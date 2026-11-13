@@ -1,0 +1,23 @@
+{"v":1,"id":"019c0e79-2207-758f-8a26-23fccc9730e3","at":1769769345543000000,"seq":459,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e79-2207-7a38-927f-353db358cac9","at":1769769345543000000,"seq":460,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e7a-0278-76b3-85dd-649081f5e2ce","at":1769769403000000000,"seq":461,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e91-7f78-77d0-8b9e-5a1dbf791c53","at":1769770942328000000,"seq":462,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e91-7f78-7227-b1e4-8782ee22e363","at":1769770942328000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c0e91-b4e0-7eb6-bca6-2d540ddfa874","at":1769770956000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e91-df30-7d42-ba3d-935a033c8ddf","at":1769770966832000000,"seq":465,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c0e92-39b0-7890-bade-b2d6ab7307fa","at":1769770990000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e92-4950-7958-80f4-983d4ad6e06d","at":1769770994000000000,"seq":467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e92-5cd8-7eb4-af68-34edb51ce876","at":1769770999000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c0e92-64a8-7c7b-b678-69dadd356dc3","at":1769771001000000000,"seq":469,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e92-6a2d-7c65-9fb3-8bf0814141b7","at":1769771002413000000,"seq":470,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c0e92-8bb8-7ded-a55b-264c43a4ec97","at":1769771011000000000,"seq":471,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e92-9b58-7bd5-af1f-2f81a13afad1","at":1769771015000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c0e92-cdde-7e83-b023-85ebe947bd77","at":1769771027934000000,"seq":473,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c0e92-e1a8-71c1-8cce-397f6acc4ee1","at":1769771033000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c0e93-04d0-73a3-a719-af5f082166ea","at":1769771042000000000,"seq":475,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e93-2028-71c6-b29f-f0b71af1ffef","at":1769771049000000000,"seq":476,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e93-b880-7184-821c-e0d69f9b53fa","at":1769771088000000000,"seq":477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0eaa-9c1a-7f24-b0e5-e9522e0f4d1b","at":1769772588058000000,"seq":478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c0eaa-a3b0-7b29-b955-05b02c5db5a5","at":1769772590000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0eaa-d678-7fbd-b8b5-539f57891dd6","at":1769772603000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0eaa-f5b8-7ce4-8133-4703046eead1","at":1769772611000000000,"seq":481,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

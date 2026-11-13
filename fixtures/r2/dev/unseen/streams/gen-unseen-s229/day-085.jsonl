@@ -1,0 +1,26 @@
+{"v":1,"id":"019d2998-d74e-7bad-bc95-2acee959812b","at":1774519375694000000,"seq":1252,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2998-d74e-7348-82dd-bce7b098c35a","at":1774519375694000000,"seq":1253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d2999-45e0-732e-938c-b30cab08cad6","at":1774519404000000000,"seq":1254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d2999-6514-72b4-ae0d-bbf5b1078e89","at":1774519411988000000,"seq":1255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d2999-78a8-7e0b-8fbc-edf1cfbc452f","at":1774519417000000000,"seq":1256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2999-8c30-79c4-ad41-a45e04cd1ab0","at":1774519422000000000,"seq":1257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2999-bef8-723c-9fb4-2ed5bcd3ef39","at":1774519435000000000,"seq":1258,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2999-d668-76bf-8db0-099f6e703ad3","at":1774519441000000000,"seq":1259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2999-e220-75b0-add1-68cdcf19eae8","at":1774519444000000000,"seq":1260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d299a-0662-70fc-a870-5be7361d511e","at":1774519453282000000,"seq":1261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d299a-3810-7965-adbe-2be61f8513ab","at":1774519466000000000,"seq":1262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d299a-b128-7575-809d-198181ef0451","at":1774519497000000000,"seq":1263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d299a-b510-7383-909e-11b79c8cc7b4","at":1774519498000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d299a-f778-7c33-9024-55a406406b88","at":1774519515000000000,"seq":1265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d299a-f966-7566-8f3d-9162a7e799c2","at":1774519515494000000,"seq":1266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d299a-ff48-7269-8b67-b4fdf82ea19f","at":1774519517000000000,"seq":1267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d299b-4598-7a6b-a270-d2fff861ccc9","at":1774519535000000000,"seq":1268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d299b-7090-7dd5-be0e-e7563c8ccbcd","at":1774519546000000000,"seq":1269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d299b-7860-732e-be37-42f7132bffe1","at":1774519548000000000,"seq":1270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d29a5-99b9-7c49-b1f1-51eb7bc931fe","at":1774520211897000000,"seq":1271,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d29a5-99b9-7271-b4c2-953b329c84c1","at":1774520211897000000,"seq":1272,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d29a5-a5d8-7988-ac03-e7778ad95a82","at":1774520215000000000,"seq":1273,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d29a5-ffb0-7bca-adf6-a753ddc65620","at":1774520238000000000,"seq":1274,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d29b8-f0fa-7682-adcd-21f41d2f5ac2","at":1774521479418000000,"seq":1275,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d29b8-f0fa-7593-bd79-1dbc28aa5b75","at":1774521479418000000,"seq":1276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d29b9-9368-79f8-a625-33c905520f65","at":1774521521000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

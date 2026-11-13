@@ -1,0 +1,16 @@
+{"v":1,"id":"019c3785-363a-7aae-9cbc-1c7e529cb792","at":1770458003002000000,"seq":684,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3785-363a-76d2-9193-2cd5403ebabb","at":1770458003002000000,"seq":685,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3785-9bc8-755d-9610-0d02e99b2fe5","at":1770458029000000000,"seq":686,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3785-caa8-7d70-81c9-3c0224cfaade","at":1770458041000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3786-13ca-7c10-adcf-6cd70b00a7de","at":1770458059722000000,"seq":688,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3786-1cb0-7d59-b610-7e2c4739ac16","at":1770458062000000000,"seq":689,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3786-6300-728f-a065-df46434b3652","at":1770458080000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3786-6ad0-777f-9577-5fa6b44cfc8d","at":1770458082000000000,"seq":691,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3786-7cfb-72b7-b231-2654642e46e6","at":1770458086651000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3786-95c8-73e0-815f-c9a68b238c69","at":1770458093000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3786-c890-77ad-84d1-e8c124036946","at":1770458106000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3787-1c9c-7678-8b2d-5fb02c110d85","at":1770458127516000000,"seq":695,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c3787-2650-7a7b-9640-6d90d3427ded","at":1770458130000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3787-5530-7655-b1d2-020bf7f6ecb6","at":1770458142000000000,"seq":697,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3787-60e8-70cb-8147-e4f2cad47882","at":1770458145000000000,"seq":698,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3787-8410-7271-82e9-acc549826858","at":1770458154000000000,"seq":699,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

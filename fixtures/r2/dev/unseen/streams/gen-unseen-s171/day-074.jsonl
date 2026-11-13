@@ -1,0 +1,48 @@
+{"v":1,"id":"019cf09f-adf5-7abc-8fc6-65cab904d98b","at":1773563522549000000,"seq":932,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf09f-adf5-7905-8f71-f0e5702e9ce5","at":1773563522549000000,"seq":933,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf0a0-57b0-77a4-aea7-7b8224e7d3a3","at":1773563566000000000,"seq":934,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf0a0-5f80-74db-9a98-54de42ea94a6","at":1773563568000000000,"seq":935,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ad-628d-74cb-ad5e-a25635cd888b","at":1773564420749000000,"seq":936,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf0ad-628d-72e1-aae5-8f913d15c427","at":1773564420749000000,"seq":937,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ae-55b8-7af1-b54a-75955a1378df","at":1773564483000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cf0ae-5768-77ee-ba95-4a3df84d6661","at":1773564483432000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cf0ae-9438-7f31-9f83-ef6a29bdcf36","at":1773564499000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0ae-bf30-7e76-98cd-5f561decdcc7","at":1773564510000000000,"seq":941,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf0ae-f9c8-74ac-8111-4f7a9e8eb056","at":1773564525000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cf0af-1cf0-7e00-9dab-b0b98b40b108","at":1773564534000000000,"seq":943,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf0af-54a5-7f6f-ac23-6fa6be0c5fd5","at":1773564548261000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cf0af-7e98-7b47-9263-260fe745e4e1","at":1773564559000000000,"seq":945,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf0af-9220-73ed-848a-f545110c6455","at":1773564564000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cf0af-a990-7ba5-b289-547aa4bcac7f","at":1773564570000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf0af-eb95-7d6a-8d29-c1091c469121","at":1773564586901000000,"seq":948,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cf0af-f3c8-7122-a33d-9198a514b9c0","at":1773564589000000000,"seq":949,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf0b0-2a78-7d8b-b558-f6f8633fd3b7","at":1773564603000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cf0b0-7898-7e6c-8317-e45fd84c5d74","at":1773564623000000000,"seq":951,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf0b6-eaa1-70b7-90aa-cf179593f3fb","at":1773565045409000000,"seq":952,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cf0b7-94e8-7fa6-b734-735d0eab165e","at":1773565089000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b7-c031-7b02-af20-dd73c3258f25","at":1773565100081000000,"seq":954,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cf0b7-cf80-7567-a37e-15aea9960ff8","at":1773565104000000000,"seq":955,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b7-df20-7701-96fe-c31d67843562","at":1773565108000000000,"seq":956,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf0b8-0630-7dc1-a004-2cdf3dc6edba","at":1773565118000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b8-2570-7df0-834d-18732e714bec","at":1773565126000000000,"seq":958,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf0b8-3848-77cb-9966-1f0d859665fc","at":1773565130824000000,"seq":959,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cf0b8-5068-7a80-94d6-beaddd02f3fb","at":1773565137000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b8-5450-784d-a381-48640220053d","at":1773565138000000000,"seq":961,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf0b8-5838-776e-8123-1a9d787cc058","at":1773565139000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b8-81a7-7b16-a5b2-2d6ec7fbc52f","at":1773565149607000000,"seq":963,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf0b8-81a7-721f-9627-791a5182e3ca","at":1773565149607000000,"seq":964,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf0b8-8718-7c81-ad7f-b1430be38e0c","at":1773565151000000000,"seq":965,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b8-a270-7313-bf3f-3893f93da62a","at":1773565158000000000,"seq":966,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cf0b8-a658-716b-89de-43218832a487","at":1773565159000000000,"seq":967,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf0b8-eca8-7670-a99f-69df54f9621e","at":1773565177000000000,"seq":968,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cf0b9-359a-758e-bfe4-9d3958d3a211","at":1773565195674000000,"seq":969,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf0b9-359a-746e-b3b3-08ea892bc37a","at":1773565195674000000,"seq":970,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cf0b9-3ac8-7902-83fb-3885c6a4e52d","at":1773565197000000000,"seq":971,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf0b9-65c0-7361-adb7-183b6e8981aa","at":1773565208000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b9-a828-75a2-93cf-bf1bd6fece1a","at":1773565225000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0b9-daf0-7b1e-8618-93ebe51b7988","at":1773565238000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf0c2-c327-756e-8364-1e8d151842ec","at":1773565821735000000,"seq":975,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf0c2-c327-7f15-9a9e-dbb4fb92c3b7","at":1773565821735000000,"seq":976,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf0c2-c430-7ac4-a44d-58e7055d7438","at":1773565822000000000,"seq":977,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0c2-ef28-78ca-9c3f-4a786521fecd","at":1773565833000000000,"seq":978,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf0c2-f310-762d-b4c6-85577856d5fa","at":1773565834000000000,"seq":979,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

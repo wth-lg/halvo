@@ -1,0 +1,23 @@
+{"v":1,"id":"019c74da-caec-78a7-9639-9d87cf376014","at":1771487021804000000,"seq":753,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c74da-caec-76a5-b92a-66bc8694e2f6","at":1771487021804000000,"seq":754,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c74da-cbb0-7b3a-961e-b4e65e05bf1b","at":1771487022000000000,"seq":755,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74da-eaf0-7a6e-ad2e-74b7b8a56342","at":1771487030000000000,"seq":756,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c74da-fa90-73d8-bc2d-232c8c6b3001","at":1771487034000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74df-521c-70b5-b9b9-b6056ab3c73e","at":1771487318556000000,"seq":758,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c74df-9258-7275-8dc0-80575b711801","at":1771487335000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74df-b580-7097-a5c7-3a8fd51b01bf","at":1771487344000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c74df-bd50-7627-872b-85683d2da9a1","at":1771487346000000000,"seq":761,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74df-ec0f-780e-bd4e-4a7bf80f04b0","at":1771487357967000000,"seq":762,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c74e0-51c0-78cb-8654-caf5e4e2a663","at":1771487384000000000,"seq":763,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74e0-55a8-76a6-b0cb-58879186bf4d","at":1771487385000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74e0-74e8-7cc4-8b55-4732cd303995","at":1771487393000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c74e0-a7b0-7069-99b7-1f9ea124c429","at":1771487406000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c74e0-bf20-75c9-9ecd-b7699dfed982","at":1771487412000000000,"seq":767,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c74e0-c4c3-76b3-8945-39492a9cb001","at":1771487413443000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c74e1-0188-7e43-ada6-bdd191b66c04","at":1771487429000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c74e1-0d40-72b6-9bbb-89a16f34ea01","at":1771487432000000000,"seq":770,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c74e1-1510-734f-ab7d-35c39f5c257d","at":1771487434000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c74e1-3f16-71ed-b246-0eb298ba4807","at":1771487444758000000,"seq":772,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c74e1-5b60-761a-8137-bd3bb617eb78","at":1771487452000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c74e1-7e88-7382-ae2d-4d266368f734","at":1771487461000000000,"seq":774,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c74e1-8658-7eb9-812d-4fce42361b17","at":1771487463000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,26 @@
+{"v":1,"id":"019c420e-1803-7172-8067-0e9b2d4274f7","at":1770634745859000000,"seq":467,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c420e-1803-78fc-a281-a6ca15cf5a18","at":1770634745859000000,"seq":468,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c420e-33e8-7eb0-b2da-dfbed10f751d","at":1770634753000000000,"seq":469,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c420e-8dc0-7d0b-9813-9500e6a08139","at":1770634776000000000,"seq":470,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c420e-a148-7916-8a04-362feb29dc9c","at":1770634781000000000,"seq":471,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c4222-8bd1-7fbd-9fb9-f505744371fd","at":1770636086225000000,"seq":472,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4222-8bd1-7603-8f12-06cfa1725492","at":1770636086225000000,"seq":473,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c4223-1790-717b-9cfd-cfee80588102","at":1770636122000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4228-eb19-7a42-97d7-2f3e2936eaa5","at":1770636503833000000,"seq":475,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c4229-3dc8-71c4-b477-7db15b7f4f50","at":1770636525000000000,"seq":476,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4229-8418-7410-8031-61b41df48af4","at":1770636543000000000,"seq":477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4229-8c05-704e-a69a-3e4204fe679d","at":1770636545029000000,"seq":478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c422a-2058-7c38-9b47-2ebd9f414e0d","at":1770636583000000000,"seq":479,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c422d-9953-768e-baa2-2264bbbd7b8a","at":1770636810579000000,"seq":480,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c422d-9953-7564-85d3-44d0b7c810d3","at":1770636810579000000,"seq":481,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c423a-29a9-7131-9b83-4568a3e86002","at":1770637633961000000,"seq":482,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c423a-29a9-70c0-aed6-49011527d0a2","at":1770637633961000000,"seq":483,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c423a-dd80-7bc5-81dc-9f6d2c4a0efc","at":1770637680000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c423b-27b8-7a49-b77a-7e3ace2c01cc","at":1770637699000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c423b-2b39-7402-8afa-668f046b0210","at":1770637699897000000,"seq":486,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c423b-c3f8-75aa-9d6b-a7126b458335","at":1770637739000000000,"seq":487,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c423b-d398-7836-b4d1-b198c7282d0a","at":1770637743000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c423b-e338-7036-a441-2e3a672c16c7","at":1770637747000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c423c-35b3-7600-af98-0fc15b97b990","at":1770637768115000000,"seq":490,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c423c-8bd4-732b-8c3f-82a669a72668","at":1770637790164000000,"seq":491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c423d-2388-7be5-a1ef-027576485c66","at":1770637829000000000,"seq":492,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

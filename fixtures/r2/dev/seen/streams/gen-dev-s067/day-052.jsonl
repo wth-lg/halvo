@@ -1,0 +1,11 @@
+{"v":1,"id":"019c7f10-a532-760c-8803-cbb85f95ca14","at":1771658323250000000,"seq":931,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7f10-a532-738c-a746-87fa90539227","at":1771658323250000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7f10-ee70-7ed5-88d0-a0842c92f7b7","at":1771658342000000000,"seq":933,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f21-98ff-757e-ae1f-df55e9705d21","at":1771659434239000000,"seq":934,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c7f22-831a-7b7b-819a-f148e18cad57","at":1771659494170000000,"seq":935,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c7f22-95f8-700c-9874-2536d2e9ff76","at":1771659499000000000,"seq":936,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f22-a980-7e42-ac95-f5c4d8a9ff90","at":1771659504000000000,"seq":937,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7f22-ad68-7d11-80fb-dc9c74eccc04","at":1771659505000000000,"seq":938,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7f22-c8c0-7426-9de7-86f6a3964225","at":1771659512000000000,"seq":939,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7f22-f263-7713-be77-fa69f3286f1f","at":1771659522659000000,"seq":940,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c7f23-3df0-7e1b-a587-1f1403da4195","at":1771659542000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

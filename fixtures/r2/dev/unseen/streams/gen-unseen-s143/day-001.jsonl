@@ -1,0 +1,21 @@
+{"v":1,"id":"019b785e-9660-7824-8c38-760db27f72e3","at":1767251023456000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b785e-9660-7998-a674-7333d57e3de8","at":1767251023456000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b785e-bf90-771c-ba9b-82302ae83ca5","at":1767251034000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b785f-1e51-71ca-bbea-e902efa0de7a","at":1767251058257000000,"seq":3,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b785f-4c30-7e89-9881-3be044fa5f05","at":1767251070000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b785f-b5a8-7450-a261-2623b61c0f52","at":1767251097000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7860-19a8-7347-8394-2c558cd9d4fd","at":1767251122600000000,"seq":6,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7860-1b38-7ddd-8008-5b4c3267c971","at":1767251123000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7860-6570-7b91-82a1-8f2a6d2f04c2","at":1767251142000000000,"seq":8,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7860-8c80-7037-9ac3-f161085c8f31","at":1767251152000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7860-e270-7020-bf00-0e808707d10e","at":1767251174000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b7860-faad-7fe9-a1ba-6ec771007f41","at":1767251180205000000,"seq":11,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7861-3860-73e7-bd17-81c98afff4e3","at":1767251196000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7861-4418-76af-ab0f-0c3aef7bd7e4","at":1767251199000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7866-0ece-7d12-bd1d-c35e78186ee2","at":1767251513038000000,"seq":14,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7866-0ece-75d7-ae3b-813743ea6b19","at":1767251513038000000,"seq":15,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7866-1a60-7214-9f6d-2a81be0bdfc0","at":1767251516000000000,"seq":16,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7866-2230-73b1-9410-7bfb5d272db8","at":1767251518000000000,"seq":17,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b7866-7ff0-7707-9935-664d0f08a8b6","at":1767251542000000000,"seq":18,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b787c-cbcb-72a4-823c-82c60d541d6c","at":1767253003211000000,"seq":19,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b787c-cbcb-7d2e-aaf4-11965e92495c","at":1767253003211000000,"seq":20,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}

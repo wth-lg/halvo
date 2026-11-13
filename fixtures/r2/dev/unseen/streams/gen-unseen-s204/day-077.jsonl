@@ -1,0 +1,25 @@
+{"v":1,"id":"019cfff8-7cb7-7c4c-9c04-1faca1b52229","at":1773821000887000000,"seq":1114,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfff8-7cb7-7cab-aa46-f50a00251987","at":1773821000887000000,"seq":1115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cfff8-ded0-7d54-971e-9ed542ac164d","at":1773821026000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff9-4abc-7f12-a4a9-00fc1ae125de","at":1773821053628000000,"seq":1117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cfff9-6788-7098-969f-ebc7a36c361b","at":1773821061000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff9-b1c0-763f-b2dc-ddba66c33a77","at":1773821080000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfff9-e819-7c09-bf7a-91eb908ab3d2","at":1773821093913000000,"seq":1120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cfff9-f810-7cd3-9d40-e9137425989f","at":1773821098000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfffa-32a8-735f-9e63-cf3aae4f956b","at":1773821113000000000,"seq":1122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cfffa-7510-7f5c-b615-27ae61220124","at":1773821130000000000,"seq":1123,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfffa-7ce0-798b-984f-d819c32a714d","at":1773821132000000000,"seq":1124,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfffa-7d00-75c2-af81-4d4bac18e0cc","at":1773821132032000000,"seq":1125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019cfffa-bf48-7da1-b3a6-87cdd125a392","at":1773821149000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfffa-d2d0-78bc-be81-49079e886432","at":1773821154000000000,"seq":1127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfffa-d6b8-7941-8771-1bd7c895ee6a","at":1773821155000000000,"seq":1128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0001-a66a-7f36-987e-6bf8c224694c","at":1773821601386000000,"seq":1129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d0002-2da0-7e79-bda7-ee240e16020f","at":1773821636000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0002-9a28-72fa-a0b7-afa11b2b3c55","at":1773821663784000000,"seq":1131,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d0002-9b00-712e-adbd-958eb7940a6c","at":1773821664000000000,"seq":1132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0003-3358-7292-83dd-dce49260025f","at":1773821703000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d0003-4eb0-710a-9ba8-622052446472","at":1773821710000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0003-8cc6-7739-bb2d-0250c0ce50f8","at":1773821725894000000,"seq":1135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d0003-b828-7db1-a96f-93151fadbc46","at":1773821737000000000,"seq":1136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0004-3140-734b-b17e-b3859ecadc14","at":1773821768000000000,"seq":1137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0004-5850-7135-9996-7cd3948793bb","at":1773821778000000000,"seq":1138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

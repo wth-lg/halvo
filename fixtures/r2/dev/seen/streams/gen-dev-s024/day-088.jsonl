@@ -1,0 +1,14 @@
+{"v":1,"id":"019d38ee-15b3-737c-a1a0-d78802b80114","at":1774776620467000000,"seq":1081,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d38ee-15b3-7419-b65e-1af426b09739","at":1774776620467000000,"seq":1082,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d38ee-5a30-706d-9b37-3aa0fcb19831","at":1774776638000000000,"seq":1083,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ee-98b0-751f-b527-fb4a17921755","at":1774776654000000000,"seq":1084,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ee-ac38-72b6-827a-1274062b4c9d","at":1774776659000000000,"seq":1085,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d3900-bf63-7959-b304-f51438fe5106","at":1774777843555000000,"seq":1086,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3900-bf63-791a-8018-37d1a8b14251","at":1774777843555000000,"seq":1087,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d3900-ec18-7acd-acf3-22481a9f180f","at":1774777855000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3901-4208-7096-a89a-7855d5bf923e","at":1774777877000000000,"seq":1089,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3901-6785-7024-ae37-0e682852af68","at":1774777886597000000,"seq":1090,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019d3901-8470-7eeb-a27f-b1ca8ff3f807","at":1774777894000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d3902-3ff0-7c7a-a6f8-ccb861bfa701","at":1774777942000000000,"seq":1092,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d390f-6403-782f-b195-5b183dd0e662","at":1774778803203000000,"seq":1093,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3910-3628-7522-9098-8a4a8829bb3c","at":1774778857000000000,"seq":1094,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

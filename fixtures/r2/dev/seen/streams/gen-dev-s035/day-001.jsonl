@@ -1,0 +1,23 @@
+{"v":1,"id":"019b7879-d951-73bd-805c-9e36dc8a23e8","at":1767252810065000000,"seq":0,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7879-d951-7502-a8e5-f1fcff816598","at":1767252810065000000,"seq":1,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b787a-2b18-7b47-ae6d-53cf0967b9de","at":1767252831000000000,"seq":2,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b787a-6998-7661-9f56-275d19d8cecf","at":1767252847000000000,"seq":3,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019b787a-a818-79f4-b5f7-cc5fd20e29a6","at":1767252863000000000,"seq":4,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b787a-cf28-7b93-9d25-1b9568e0676f","at":1767252873000000000,"seq":5,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b787a-d6f8-7b20-a88c-b62f08284f15","at":1767252875000000000,"seq":6,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b787a-e328-72a0-a622-4882e5e879cf","at":1767252878120000000,"seq":7,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b788a-7a3c-7103-942c-dad14f3eadee","at":1767253899836000000,"seq":8,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b788a-a9c0-7865-88fa-196c2da621c9","at":1767253912000000000,"seq":9,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b788a-b960-7b6b-9d0b-8bbaf4823f7c","at":1767253916000000000,"seq":10,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b788a-dc88-7e3a-9533-7c9096c45eee","at":1767253925000000000,"seq":11,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b788b-2e90-7f14-9a41-534ef82cced8","at":1767253946000000000,"seq":12,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b789d-2065-7c5c-a53a-ef00b8e5a9cb","at":1767255122021000000,"seq":13,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b789d-2820-7a52-aeb6-36d596d01761","at":1767255124000000000,"seq":14,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b789d-37c0-75b7-8990-15cc5da3c140","at":1767255128000000000,"seq":15,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b789d-9198-7aff-8526-fdcfd0608e36","at":1767255151000000000,"seq":16,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b78a0-75de-79a1-9102-1dc36b8574b2","at":1767255340510000000,"seq":17,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b78a0-75de-71bb-8935-2b104964b3b8","at":1767255340510000000,"seq":18,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b78a0-7bb0-71ce-ae64-e9b7ec39f1f4","at":1767255342000000000,"seq":19,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b78a0-aa90-7c0d-a103-d0e0b41a57f5","at":1767255354000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b78a0-e140-79b3-b6af-89da8ef0704e","at":1767255368000000000,"seq":21,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b78a1-23a8-741e-af8f-d0de383a5dd1","at":1767255385000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

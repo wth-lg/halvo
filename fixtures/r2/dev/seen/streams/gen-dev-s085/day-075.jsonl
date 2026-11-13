@@ -1,0 +1,14 @@
+{"v":1,"id":"019cf5b2-b3f7-7f7b-8f05-5ce0eaecb8b4","at":1773648655351000000,"seq":993,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf5b2-b3f7-7938-9060-546edbda7a5b","at":1773648655351000000,"seq":994,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf5b2-b680-7f19-b650-d00c66afd2fc","at":1773648656000000000,"seq":995,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cf5b2-ba68-7c52-901c-9c693886be40","at":1773648657000000000,"seq":996,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cf5b3-2bb0-7b71-bc74-4b79aceceb0b","at":1773648686000000000,"seq":997,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cc-2893-77f1-a3d2-e234d979a399","at":1773650323603000000,"seq":998,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5cc-2893-745d-b997-6896dc2645c3","at":1773650323603000000,"seq":999,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cd-0a96-7e5f-a9ed-bf839c2c0b04","at":1773650381462000000,"seq":1000,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cd-1480-733d-89ed-30fb92c7b40b","at":1773650384000000000,"seq":1001,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cd-56e8-71f3-be3e-e66ca4600168","at":1773650401000000000,"seq":1002,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf5cd-6e58-7ed6-b51e-8ae068c9547a","at":1773650407000000000,"seq":1003,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf5cd-d33b-73ad-a7ef-14d50008567c","at":1773650432827000000,"seq":1004,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cd-dfa0-7225-a656-bfb75df01511","at":1773650436000000000,"seq":1005,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf5cd-dfa0-7dde-8330-3fc78670f21f","at":1773650436000000000,"seq":1006,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

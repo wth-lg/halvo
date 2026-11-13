@@ -1,0 +1,38 @@
+{"v":1,"id":"019b7dc6-aca3-7970-a4e0-d595662c1220","at":1767341730979000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7dc6-aca3-7d3f-81dd-1cf56d945fd3","at":1767341730979000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7dc7-1c93-7ca9-a7ab-889de65da8ab","at":1767341759635000000,"seq":2,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7dc7-2da0-7615-95d1-2d4c031d2ab6","at":1767341764000000000,"seq":3,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7dc7-7fa8-7aef-b639-bb42568986f3","at":1767341785000000000,"seq":4,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7dc7-7fa8-7ae0-8e0e-514c39a3a1bd","at":1767341785000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b7dc7-aaa0-7755-a394-06d7b48b5101","at":1767341796000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dc7-ac2f-7040-a2be-b5e885f51d4d","at":1767341796399000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7dc7-ba40-7ab3-b1d0-492724e59063","at":1767341800000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dc8-6620-7e1f-9174-e11a120543e5","at":1767341844000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b7dc8-ba2b-7367-8ad3-8810c9620300","at":1767341865515000000,"seq":10,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7dc8-d768-7465-9525-50aa26071a30","at":1767341873000000000,"seq":11,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7dc9-0a30-76a3-9363-f044b94a9429","at":1767341886000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dc9-5468-7dff-a960-b810f95c373f","at":1767341905000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b7dc9-67f0-762b-884c-02ecb1b1b5df","at":1767341910000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dc9-73a8-7e80-8bf9-ef57dd2c36c8","at":1767341913000000000,"seq":15,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7dc9-b8d8-76f4-b637-863adddd966c","at":1767341930712000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7dc9-d168-716d-9df1-90d47276ba67","at":1767341937000000000,"seq":17,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7dc9-dd20-75f2-9822-23c9d97597e5","at":1767341940000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b7dc9-f3aa-7f18-b6f8-7af5df96d28b","at":1767341945770000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b7dca-0c00-788d-bf06-08abb92c3608","at":1767341952000000000,"seq":20,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dca-2b40-738c-a1e4-3d9a5dfb5058","at":1767341960000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b7dca-4e68-77b2-a073-b1f41bb32f5c","at":1767341969000000000,"seq":22,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7dca-5250-7ddf-9011-b2f1ec3a111c","at":1767341970000000000,"seq":23,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7ddb-bd76-75c0-b4a2-2a396c61dea0","at":1767343111542000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b7ddb-c328-7f4d-ba6f-1c855720814a","at":1767343113000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b7ddc-c858-76df-935d-338b8ee90dac","at":1767343179864000000,"seq":26,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b7ddc-d880-75fe-93c0-cb658d5f2483","at":1767343184000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7ddd-1ae8-78d1-a84a-e499eb325cd9","at":1767343201000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7ddd-1ae8-7539-b052-d4a65e9d0024","at":1767343201000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7ddd-5580-7c9b-89c3-9b5d3b2030c6","at":1767343216000000000,"seq":30,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7ddd-6399-71ce-8b8e-ee41a3210141","at":1767343219609000000,"seq":31,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b7ddd-6520-7a38-825e-905919bed16e","at":1767343220000000000,"seq":32,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7ddd-74c0-718f-a53e-63d2acac7348","at":1767343224000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7ddd-8460-7641-b72f-d210c0c60ea4","at":1767343228000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b7ddd-9fb8-7721-8610-5dca5582cbb4","at":1767343235000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7ddd-a110-72c7-be8d-3e630ef38e93","at":1767343235344000000,"seq":36,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019b7dde-2870-7a5d-be92-b52090148423","at":1767343270000000000,"seq":37,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

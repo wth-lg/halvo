@@ -1,0 +1,15 @@
+{"v":1,"id":"019c2ce3-4082-7347-b305-5a587d4f1041","at":1770279616642000000,"seq":503,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2ce3-4082-7842-a4e9-7d5a5f1accf2","at":1770279616642000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2ce3-5570-77b5-a56b-016dd6cdea30","at":1770279622000000000,"seq":505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2ce3-5d40-76d3-8623-c2a03782c1e8","at":1770279624000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2ce3-68f8-7cb0-a59c-ac5b119ce0d2","at":1770279627000000000,"seq":507,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2ce3-74b0-70db-bc46-5a67132b246f","at":1770279630000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c2ce3-9bc0-7b26-9896-73331cf10db9","at":1770279640000000000,"seq":509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cf7-7549-765e-a796-f8fc5612ba4f","at":1770280940873000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c2cf7-79b0-794f-bceb-c832b85cbca4","at":1770280942000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2cf7-8950-7685-8da0-87ae3de60565","at":1770280946000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c2cfd-a95f-7c5b-b9e5-c34d9d027a80","at":1770281347423000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2d0b-12e0-7e1a-b33c-c76e98ad70f7","at":1770282226400000000,"seq":514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c2d0c-2194-76d0-951d-7d900eac1da0","at":1770282295700000000,"seq":515,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c2d0c-74c8-77bf-9abe-7af6f0ef00b6","at":1770282317000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d0c-bb18-7ba6-a6f6-145410ae1a8f","at":1770282335000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

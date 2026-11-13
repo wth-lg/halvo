@@ -1,0 +1,23 @@
+{"v":1,"id":"019b9796-20f8-7f77-9320-84e7e42532a1","at":1767774757112000000,"seq":87,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9796-20f8-77af-8a8d-569aa1865f6a","at":1767774757112000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9796-b8e0-73b5-82cc-5b5d11bf903c","at":1767774796000000000,"seq":89,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9796-bc9c-7668-a5ed-b1cb2a65c615","at":1767774796956000000,"seq":90,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9796-c498-7cb0-88bb-29af7b517ee6","at":1767774799000000000,"seq":91,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9796-cc68-7183-87c8-7e5ba8747eff","at":1767774801000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9797-0700-7fdd-97c4-51c63921755e","at":1767774816000000000,"seq":93,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97af-a6c0-72ef-825f-4055084219de","at":1767776429760000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b97b0-18f8-7b85-8a00-5cccc680bcea","at":1767776459000000000,"seq":95,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b97b0-24b0-7fe5-9f3f-da0cca7c6718","at":1767776462000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97b0-5f48-7fd2-961a-c0486dbadf7e","at":1767776477000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c2-0c84-7f8a-8e4e-132654cf74be","at":1767777635460000000,"seq":98,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b97c2-0c84-7b43-9294-680316864759","at":1767777635460000000,"seq":99,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b97c2-0ea0-75b7-8fdf-477741d23b3a","at":1767777636000000000,"seq":100,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b97c2-5108-73ea-b519-49a1b5f8a69e","at":1767777653000000000,"seq":101,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c2-ce08-7244-8f26-3a1fca3692d5","at":1767777685000000000,"seq":102,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c5-ad58-771f-872a-10e8dcc0933b","at":1767777873240000000,"seq":103,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b97c5-e700-75d0-97a0-67d76766464e","at":1767777888000000000,"seq":104,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c6-3d15-7ced-a744-26d2eb5ce9f3","at":1767777910037000000,"seq":105,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b97c6-4c90-7c89-b138-b896c822a44b","at":1767777914000000000,"seq":106,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b97c6-5460-73ce-9666-b40ceb3db83b","at":1767777916000000000,"seq":107,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b97c6-8ef8-7977-a652-055d51bb1c8a","at":1767777931000000000,"seq":108,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b97c6-a280-7544-b9a9-3e737b8e8e90","at":1767777936000000000,"seq":109,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

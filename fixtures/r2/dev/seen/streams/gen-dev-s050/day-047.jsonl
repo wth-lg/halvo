@@ -1,0 +1,32 @@
+{"v":1,"id":"019c65d2-c9da-73b5-9822-94398345fae3","at":1771234839002000000,"seq":502,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65d2-c9da-7356-b60d-fe392b886fa8","at":1771234839002000000,"seq":503,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c65e1-6a86-789b-a53a-76dd2e1aa7c4","at":1771235797638000000,"seq":504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65e1-6bf0-77d2-ac69-239d1b4b3f56","at":1771235798000000000,"seq":505,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e1-6fd8-7114-a21f-fc8f349932ad","at":1771235799000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c65e1-dc49-7b94-9ff8-f3124ab8c816","at":1771235826761000000,"seq":507,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65e2-65f0-7706-9b0e-740027a60da4","at":1771235862000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e2-8530-71c0-bc91-ae1fabc8a021","at":1771235870000000000,"seq":509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c65e2-8d00-7cd7-ad2c-25aa02a25f73","at":1771235872000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e2-90e8-778e-a11a-48f76090f6db","at":1771235873000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c65e2-965a-73fd-8e18-e5f302cb4b64","at":1771235874394000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65e2-c798-746b-b451-6eb587e58515","at":1771235887000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c65e2-eac0-7b72-90db-5ba146e74460","at":1771235896000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c65e3-0261-78e8-a8fc-640337973e9a","at":1771235902049000000,"seq":515,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65e3-5050-748e-a971-bc9bbae2b741","at":1771235922000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c65e3-e8a8-73f2-834a-e9afee04294c","at":1771235961000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e3-fb74-7ed0-8eea-7ee6c7284492","at":1771235965812000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65e4-5dd8-7e7e-94a3-90c8e0fa6292","at":1771235991000000000,"seq":519,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c65e4-fa4d-7ccd-89dd-094fa0f9ea8a","at":1771236031053000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c65e5-34b0-7cae-88b0-4df21cd2c434","at":1771236046000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e5-5fa8-7077-8785-55461527107f","at":1771236057000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65e5-9e28-7d02-9cb3-e1686e846de4","at":1771236073000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c65f7-35df-7e43-92ea-82168989d03e","at":1771237225951000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c65f7-c698-7fb6-a275-93b34974e792","at":1771237263000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c65f8-46e5-76b6-8e39-d238a0d9ddf3","at":1771237295845000000,"seq":526,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c65f8-4780-7a60-abe0-f814564c4da4","at":1771237296000000000,"seq":527,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c65f8-5338-7e33-8312-9173093c4222","at":1771237299000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c65f8-6e90-7006-910c-b81f09b04661","at":1771237306000000000,"seq":529,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65f8-7278-77fb-b550-47a7c539e24b","at":1771237307000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65f8-7660-737b-af87-d2b671a8ef7e","at":1771237308000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65f8-958e-78df-9fce-672a8f9d2c21","at":1771237315982000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c65f8-dbf0-756a-b8a3-b47aa9a00c12","at":1771237334000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

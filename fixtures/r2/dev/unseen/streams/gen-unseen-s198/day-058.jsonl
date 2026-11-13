@@ -1,0 +1,18 @@
+{"v":1,"id":"019c9e72-67e7-7a53-90a3-26f51b33a373","at":1772184823783000000,"seq":894,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e72-67e7-75ee-aa5d-9465d91bdeed","at":1772184823783000000,"seq":895,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c9e72-e5c0-7045-bfae-c0d16d814aaa","at":1772184856000000000,"seq":896,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e72-f948-7b8a-adca-add0f09247d1","at":1772184861000000000,"seq":897,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e73-75ef-74f6-9ec3-bfe6f2b8a0e7","at":1772184892911000000,"seq":898,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c9e73-91a0-765d-8042-5879073b2377","at":1772184900000000000,"seq":899,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9e74-3d80-701f-98b6-ff18f86f51ac","at":1772184944000000000,"seq":900,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e74-4550-7b14-a126-0d03e445d396","at":1772184946000000000,"seq":901,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e74-6490-7bf0-afd0-8033c0d8a379","at":1772184954000000000,"seq":902,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c9e74-8129-7011-aaca-0ebf6abde405","at":1772184961321000000,"seq":903,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c9e74-83d0-7690-81e1-fcbc6c752d13","at":1772184962000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e75-444d-75ec-bd94-6e29caf10d2c","at":1772185011277000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c9e75-7218-74b5-a008-d9b1b79a43ec","at":1772185023000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c9e75-9540-7e6c-a5fe-ef4f0d9fc11d","at":1772185032000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e75-b480-77c0-8b92-077bdb3137d1","at":1772185040000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e8f-64cb-774c-a3b2-720119926e51","at":1772186723531000000,"seq":909,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9e8f-64cb-7bac-a4bd-9870e5ca0017","at":1772186723531000000,"seq":910,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9e8f-d7e8-7a9b-96e7-b46145778f37","at":1772186753000000000,"seq":911,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

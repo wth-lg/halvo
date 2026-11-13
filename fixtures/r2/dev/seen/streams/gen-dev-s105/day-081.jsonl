@@ -1,0 +1,29 @@
+{"v":1,"id":"019d14aa-2a1c-76bb-8218-dbc3fb82a7cb","at":1774168189468000000,"seq":1026,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d14aa-2a1c-7e01-97c9-6c4c4f7abf09","at":1774168189468000000,"seq":1027,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d14aa-66c8-7283-83bd-dfb0a76ff160","at":1774168205000000000,"seq":1028,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d14aa-9d78-7bb2-9dda-c0be07f50836","at":1774168219000000000,"seq":1029,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14aa-c488-7c2f-abe2-51c12babe002","at":1774168229000000000,"seq":1030,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d14ad-4fa4-7526-9ac6-3112156e0e98","at":1774168395684000000,"seq":1031,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14ad-4fa4-7954-81b9-3701df0aa854","at":1774168395684000000,"seq":1032,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d14ad-54c8-7349-a492-da9704f7d2da","at":1774168397000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14b7-1f82-71fa-bf79-404ebe75f6bb","at":1774169038722000000,"seq":1034,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d14b7-1f82-746e-ad45-c9cc158905aa","at":1774169038722000000,"seq":1035,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d14b7-3808-716d-9f44-bc848ed37bd4","at":1774169045000000000,"seq":1036,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d14b7-6ad0-7752-a927-f08f5824f5ec","at":1774169058000000000,"seq":1037,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14b7-6eb8-7778-9e38-db8943fc6297","at":1774169059000000000,"seq":1038,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14d0-3513-7d9e-808a-73b7a62c10fe","at":1774170682643000000,"seq":1039,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14d0-3513-7df7-9554-3d2791b7c2e1","at":1774170682643000000,"seq":1040,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d14d0-5d88-7ccd-9b5a-09ca56d813af","at":1774170693000000000,"seq":1041,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d14d0-b605-7a9a-82b5-47ca85d533fe","at":1774170715653000000,"seq":1042,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d14d0-bf30-7adc-bc75-e8ff82bac519","at":1774170718000000000,"seq":1043,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14d0-c318-76fb-9be5-b40463b45400","at":1774170719000000000,"seq":1044,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d14d1-4018-7b3e-b126-d176a117dd83","at":1774170751000000000,"seq":1045,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d14d1-4485-7ca1-a61c-942ece89cf22","at":1774170752133000000,"seq":1046,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d14d1-4485-7256-8cbb-7ea3eaa4b13c","at":1774170752133000000,"seq":1047,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d14d1-47e8-76f4-8975-b6e4bbb418a9","at":1774170753000000000,"seq":1048,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d14d1-5788-7832-8b28-965341dbbfbe","at":1774170757000000000,"seq":1049,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14d1-5b70-7ccd-8a37-108850cb0b20","at":1774170758000000000,"seq":1050,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d14d1-5f58-7af6-8118-e17f8487048b","at":1774170759000000000,"seq":1051,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d14d1-7cc1-7153-8f6c-51d4001c5d4e","at":1774170766529000000,"seq":1052,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14d1-7cc1-7a3c-b2ec-739eb2ac61f1","at":1774170766529000000,"seq":1053,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d14d1-8e38-70a2-86f0-884eb42137ae","at":1774170771000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

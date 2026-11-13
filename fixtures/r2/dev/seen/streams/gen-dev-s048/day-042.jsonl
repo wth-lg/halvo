@@ -1,0 +1,35 @@
+{"v":1,"id":"019c4bc1-0eb7-7091-8d22-91e5497acf82","at":1770797469367000000,"seq":373,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4bc1-0eb7-74b6-93f4-e31f4e4f77a5","at":1770797469367000000,"seq":374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bc1-4010-7d8e-9dd1-d3ba5cdb2883","at":1770797482000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c4bc1-6b08-71cb-a303-1aeac9ffd404","at":1770797493000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc1-9ba1-7fbc-ae59-18d76ee45443","at":1770797505441000000,"seq":377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bc1-9dd0-731c-a07f-35463f54a295","at":1770797506000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc1-c4e0-7386-9dc1-21ea628c303a","at":1770797516000000000,"seq":379,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc1-e61d-7d04-9aa6-d2434aa79691","at":1770797524509000000,"seq":380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bc1-efd8-71ef-998c-0b402798852a","at":1770797527000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc1-ff78-703d-83da-312f0febe5ee","at":1770797531000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4bc2-6120-736c-874f-aaadacf503dc","at":1770797556000000000,"seq":383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4bc2-9289-732c-b77c-14175413cddb","at":1770797568649000000,"seq":384,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bc2-af40-7e34-8f49-138276d673b3","at":1770797576000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc2-ce80-70ef-8570-e953ab31db2d","at":1770797584000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4bc2-e5f0-79bd-9a51-241db51c351a","at":1770797590000000000,"seq":387,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4bc2-f978-79a6-8160-3afc10d3c867","at":1770797595000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc3-1acf-740e-844a-71fcb2dc092f","at":1770797603535000000,"seq":389,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bc3-37f8-770a-acca-47ec3d4ca1b1","at":1770797611000000000,"seq":390,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4bc3-a558-75e4-89f7-1683a728c922","at":1770797639000000000,"seq":391,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4bc3-e239-7f95-93ce-38d646bfedf8","at":1770797654585000000,"seq":392,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c4bc4-31f8-7061-97fb-925ddf156c75","at":1770797675000000000,"seq":393,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4bc4-5908-7b45-afef-508785638ad6","at":1770797685000000000,"seq":394,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc4-8018-7171-896c-0e3dc6b4ca68","at":1770797695000000000,"seq":395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bc4-93a0-70eb-a022-3b100b55296c","at":1770797700000000000,"seq":396,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4bd4-871d-7068-b98f-907d3f2bda1d","at":1770798745373000000,"seq":397,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd5-4ce0-7a08-b285-a0ae0f4b69df","at":1770798796000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd5-8390-74a0-bf66-d05d54327e94","at":1770798810000000000,"seq":399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c4bd5-97f4-7139-827e-157172119cbc","at":1770798815220000000,"seq":400,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd6-3b28-7bd3-8cc7-2568ed41ca19","at":1770798857000000000,"seq":401,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd6-42f8-7901-a5db-3c95ead39b20","at":1770798859000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd6-9dd6-7854-9c7f-4c447e64275b","at":1770798882262000000,"seq":403,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd6-b058-78d8-a1a7-305b65382fc6","at":1770798887000000000,"seq":404,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd7-3e08-703e-b6ab-a2684660b0bd","at":1770798923272000000,"seq":405,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c4bd7-a670-7adf-af73-af47ac8d88e9","at":1770798950000000000,"seq":406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bd7-b9f8-71e4-b97e-5fdd00a5ce8d","at":1770798955000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

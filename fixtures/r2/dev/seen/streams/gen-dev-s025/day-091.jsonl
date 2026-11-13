@@ -1,0 +1,11 @@
+{"v":1,"id":"019d47de-0e05-7c31-80a8-683f1ad015ab","at":1775027228165000000,"seq":1386,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d47de-0e05-70d0-bd07-f9ee654a9709","at":1775027228165000000,"seq":1387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d47de-5f68-78e0-84ae-2a799ec5b513","at":1775027249000000000,"seq":1388,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d47f8-3095-763f-82a4-b86058a9a8b3","at":1775028940949000000,"seq":1389,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d47f8-82d0-74b3-aeee-ef12cfa635be","at":1775028962000000000,"seq":1390,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d47f8-c538-7373-86f6-bfe985c3c046","at":1775028979000000000,"seq":1391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47f9-0241-72f9-aa1a-fa3e668f8b60","at":1775028994625000000,"seq":1392,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d47f9-4df0-794c-814a-642507eaa66b","at":1775029014000000000,"seq":1393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47f9-84a0-7d0b-a631-43e490259494","at":1775029028000000000,"seq":1394,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d47f9-abb0-7a14-a97a-44c4428f3875","at":1775029038000000000,"seq":1395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d47f9-b768-7f83-ad09-23d3154e26be","at":1775029041000000000,"seq":1396,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

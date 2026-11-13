@@ -1,0 +1,12 @@
+{"v":1,"id":"019ce163-dd6b-7836-95dc-ff6fc2067f78","at":1773307944299000000,"seq":1050,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce163-dd6b-76ae-9b69-0d2de7398915","at":1773307944299000000,"seq":1051,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ce163-e7f8-74b2-85ee-afa5b175ae0d","at":1773307947000000000,"seq":1052,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce164-2290-7fc6-b126-816beeaad6cf","at":1773307962000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce164-3618-75e4-8b25-7aaf5a2f6751","at":1773307967000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce164-6464-7d5d-97ee-f14a4c19be37","at":1773307978852000000,"seq":1055,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ce164-a378-7318-b8e9-d2594142fc16","at":1773307995000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce164-da28-7a18-b7e4-27cd3936937f","at":1773308009000000000,"seq":1057,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce164-f159-74c2-958f-c4d9904085d6","at":1773308014937000000,"seq":1058,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019ce165-3fb8-7450-8e74-c3c4cbe2b039","at":1773308035000000000,"seq":1059,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce165-4f58-77c2-9dbc-21d79a41313c","at":1773308039000000000,"seq":1060,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce165-5728-7509-ae86-406f6adfdf9a","at":1773308041000000000,"seq":1061,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

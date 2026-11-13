@@ -1,0 +1,24 @@
+{"v":1,"id":"019c5660-ceeb-7e8b-8f50-dc924f03b8aa","at":1770975710955000000,"seq":605,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5660-ceeb-717a-853a-ae1f76778c12","at":1770975710955000000,"seq":606,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5660-d6e8-7cd4-a406-74a8a3f37cf3","at":1770975713000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5660-f628-7d4c-b62f-69541361bde6","at":1770975721000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5661-738c-7cc6-ba16-31e4a5351b54","at":1770975753100000000,"seq":609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5661-c918-7262-9748-7b318cdeb7d1","at":1770975775000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5661-f410-7822-87a5-4fc533e7f7eb","at":1770975786000000000,"seq":611,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5662-26e7-79c8-af19-c7da5386e3fd","at":1770975799015000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5662-2ea8-7d66-9bfd-5acd9058d223","at":1770975801000000000,"seq":613,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5662-6940-7645-9823-69f1b1a8bfa1","at":1770975816000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5662-78e0-72cd-b184-d961adc740db","at":1770975820000000000,"seq":615,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5662-8a1b-7876-ba1d-d9039ee94b9f","at":1770975824411000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c5662-cae8-722b-acd9-1b3993ab6214","at":1770975841000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c5662-ee10-7e91-89c8-f69ddbb21104","at":1770975850000000000,"seq":618,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5677-73bb-77ca-a1f1-5ec8f0d743a5","at":1770977194939000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c5677-77e0-7e1a-8903-4d295a12da03","at":1770977196000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5677-7bc8-75ba-9ee5-390e60d5ab01","at":1770977197000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c5677-8398-7da4-bc3c-eaad90c7d6e0","at":1770977199000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5677-a2d8-7d81-8883-e44c96ad5e58","at":1770977207000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5682-d2b5-76ac-ac54-7a23e044ac82","at":1770977940149000000,"seq":624,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5682-d2b5-79b7-b1da-552b689956c4","at":1770977940149000000,"seq":625,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5683-2428-77e2-83b3-0c5c5ae60003","at":1770977961000000000,"seq":626,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c569b-4e7d-7634-8022-0b6a1eb1b1fb","at":1770979544701000000,"seq":627,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c569b-7aa0-7b2e-82ae-3add8fc234cf","at":1770979556000000000,"seq":628,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}

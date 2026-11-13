@@ -1,0 +1,58 @@
+{"v":1,"id":"019c7a1d-433c-7e04-a7a1-04f123cfff01","at":1771575264060000000,"seq":604,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a1d-433c-7d3d-860f-aa658e74f090","at":1771575264060000000,"seq":605,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a1d-4eb8-7952-ba04-3df77e09bd1a","at":1771575267000000000,"seq":606,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a1d-8568-74bb-91cc-90ec6e625750","at":1771575281000000000,"seq":607,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a22-5a45-7d4d-8f62-bf104c1437a9","at":1771575597637000000,"seq":608,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a22-5a45-7962-9434-2e83c15ef679","at":1771575597637000000,"seq":609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c7a22-6f38-7b34-8df3-1930e56356a8","at":1771575603000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c7a22-e5e5-70ae-b4f0-7a945ee6d006","at":1771575633381000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c7a22-f020-79a9-94be-d2aaf0d70c00","at":1771575636000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a23-2ab8-73fb-9d74-d02607ef44a5","at":1771575651000000000,"seq":613,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a23-9fe8-7ec1-9bb1-87b8574ef538","at":1771575681000000000,"seq":614,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7a2a-29a0-7435-a7ab-90298fe20f61","at":1771576109472000000,"seq":615,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a2a-29a0-703a-9e6d-84847be780eb","at":1771576109472000000,"seq":616,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a2a-6648-7f38-a462-d0fa5c144481","at":1771576125000000000,"seq":617,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a2a-a0e0-77e0-b9d5-55d760ed7dc5","at":1771576140000000000,"seq":618,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a35-1acd-75a6-8e1b-a90b83783273","at":1771576826573000000,"seq":619,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a35-1acd-7744-8b08-6168b46912b3","at":1771576826573000000,"seq":620,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7a35-2c18-74cd-99dc-3b8762f32c94","at":1771576831000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7a35-91a8-7c8e-afe5-c8289b9cb21a","at":1771576857000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a35-9d60-79a5-aff4-424147471dd6","at":1771576860000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a4b-9a87-7e19-a858-803460ae7f5e","at":1771578301063000000,"seq":624,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c7a4b-f038-78a0-a01a-fd584b9cabe3","at":1771578323000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7a4b-f420-7763-8389-f2c657d7de18","at":1771578324000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a4c-3688-78e3-ab1c-926010972ae3","at":1771578341000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a4c-4038-7eaf-8f31-b01abe976e21","at":1771578343480000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c7a4c-80c0-73d5-b889-79a358c7c8f1","at":1771578360000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a4c-e650-7f7d-a7b0-50d8e5a378f9","at":1771578386000000000,"seq":630,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a4d-364b-738b-a11e-4766c778e184","at":1771578406475000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c7a4d-4028-7341-a472-e011bfc95384","at":1771578409000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a4d-76d8-79b2-9bc1-16eb9c9d01bf","at":1771578423000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a50-0dea-7aa7-a741-2bf4787d40ba","at":1771578592746000000,"seq":634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c7a50-2658-72be-a06f-4280b781bf0d","at":1771578599000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a50-35f8-706d-ba95-f50b7900e89e","at":1771578603000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a50-7b67-7fdd-8f49-6c4227e26893","at":1771578620775000000,"seq":637,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c7a50-8fd0-7b4b-b430-3f6e2037c266","at":1771578626000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7a50-b81c-74a0-884c-d7d6d7516cd3","at":1771578636316000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c7a51-7648-7cca-984f-6097b663eb3a","at":1771578685000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a51-7e18-7ba3-8705-7ba0c16387ac","at":1771578687000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a51-802c-7937-ac10-60d6e73ab5a4","at":1771578687532000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c7a51-85e8-73ec-b1ea-e921bbaa9b4d","at":1771578689000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a51-9970-71b8-b896-46ca7ac47590","at":1771578694000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c7a51-c850-7188-a9f7-453730b690bc","at":1771578706000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a51-f8e7-72da-b69f-3152bb628395","at":1771578718439000000,"seq":646,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c7a52-7430-7dfa-8811-fe57545607dd","at":1771578750000000000,"seq":647,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7a52-87b8-76c3-ab9b-0b979cab3406","at":1771578755000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c7a52-f130-770e-8dd0-603bfbe05797","at":1771578782000000000,"seq":649,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a52-f900-7ccc-944f-89f9a6086b09","at":1771578784000000000,"seq":650,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a52-fd8b-7148-81bd-8f3e0902d8d8","at":1771578785163000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c7a53-1840-71b4-ad2f-d864bbb93b7c","at":1771578792000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a53-3780-7c28-82a5-35acdddcdd40","at":1771578800000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7a53-7157-7898-9f1f-82e69a9afe0c","at":1771578814807000000,"seq":654,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c7a53-a8c8-754c-8531-fb44b8ad2a2f","at":1771578829000000000,"seq":655,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a53-c038-7597-8473-0c0af8fe896c","at":1771578835000000000,"seq":656,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a53-cf2f-7867-bafa-c6ccd58f310a","at":1771578838831000000,"seq":657,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c7a53-f300-77ac-8cc6-910300e30cff","at":1771578848000000000,"seq":658,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a54-0688-7836-8237-9324e5de6da2","at":1771578853000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a54-0e58-715a-abc6-ccbf3a131cb4","at":1771578855000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c7a54-48f0-7dcb-a63b-44fdc6ddc939","at":1771578870000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

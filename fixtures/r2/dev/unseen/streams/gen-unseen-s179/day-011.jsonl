@@ -1,0 +1,12 @@
+{"v":1,"id":"019bac75-06ad-7154-a10f-6e09ea39d2cb","at":1768124909229000000,"seq":107,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac75-06ad-7468-8736-fc4115680756","at":1768124909229000000,"seq":108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bac75-0d98-7f13-bf1c-b298dbcb34b1","at":1768124911000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac75-f598-7b04-80ff-b3aa716f1859","at":1768124970392000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bac76-74f8-7385-a755-ca9664def754","at":1768125003000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac76-78e0-77b9-bd2d-7511ca332d0e","at":1768125004000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bac76-afd5-73a7-a0f1-29a9354ab977","at":1768125018069000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bac76-cae8-76ab-ab84-77a0a6010ea4","at":1768125025000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac76-e640-77db-9b0a-3e138d10e1c9","at":1768125032000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac76-ef10-7835-a347-001095782646","at":1768125034256000000,"seq":116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bac77-4018-7744-9bd0-83e7d0bba897","at":1768125055000000000,"seq":117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bac77-6340-774f-b2b2-57843f0cea6d","at":1768125064000000000,"seq":118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

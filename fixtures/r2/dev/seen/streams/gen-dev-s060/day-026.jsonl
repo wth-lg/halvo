@@ -1,0 +1,9 @@
+{"v":1,"id":"019bf9ac-2ecb-7a8b-bc09-b4f68ad3bea0","at":1769420369611000000,"seq":366,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf9ac-2ecb-7eff-bcde-182681b43086","at":1769420369611000000,"seq":367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ac-8e10-7a6e-96ff-8e12cdf3fe7c","at":1769420394000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ac-a968-7d91-b667-ad3907f5d9b4","at":1769420401000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bf9ac-b908-7194-81b6-34986aed2c4b","at":1769420405000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ac-cfc2-7f0e-8c5b-3c702245ca75","at":1769420410818000000,"seq":371,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ad-64e8-75d7-9c06-8092c770c8a6","at":1769420449000000000,"seq":372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf9ad-6cb8-7107-9cae-9117beac906f","at":1769420451000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ad-ab38-7f11-ab45-072dbe00bc77","at":1769420467000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

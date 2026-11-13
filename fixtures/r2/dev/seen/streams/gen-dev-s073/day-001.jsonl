@@ -1,0 +1,19 @@
+{"v":1,"id":"019b7929-8e89-7033-aefe-0dc02f4ba0f2","at":1767264325257000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7929-8e89-7065-b322-d2cf419bae44","at":1767264325257000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b7929-9170-71c0-810c-07ed3e4dc3d1","at":1767264326000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7929-9940-78fa-9af2-31df3a105871","at":1767264328000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7929-d3d8-7c07-9805-d99609d632c4","at":1767264343000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b792a-4592-7818-be1a-45265273beef","at":1767264372114000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019b792a-a6c8-774f-87e3-cda207719128","at":1767264397000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b792a-d5a8-7e00-97a3-6f918c47ecaa","at":1767264409000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b792b-3368-7691-aa5b-34625c00b346","at":1767264433000000000,"seq":8,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7938-92e7-7f21-aa74-ba79c4bb2ba4","at":1767265309415000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7938-bc40-7687-8451-45c23612ab29","at":1767265320000000000,"seq":10,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7938-cfc8-70a1-883f-e0b7a879b45c","at":1767265325000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b794a-0eff-79e7-835e-40f23fe94d72","at":1767266455295000000,"seq":12,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b794a-4488-71d4-b764-73025046593c","at":1767266469000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b794a-d510-74fb-95c1-f44a584abeed","at":1767266506000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7953-fef9-7e0e-8f02-93e0ea6297ae","at":1767267106553000000,"seq":15,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7954-04a0-701e-8487-aab955ef5be3","at":1767267108000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7954-b850-7479-9636-a6db64a31ba4","at":1767267154000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7954-c020-7470-80cb-a89301c7fa3f","at":1767267156000000000,"seq":18,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

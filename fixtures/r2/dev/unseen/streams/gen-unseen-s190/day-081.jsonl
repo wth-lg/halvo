@@ -1,0 +1,25 @@
+{"v":1,"id":"019d1516-4571-7ed7-9232-e9932977817c","at":1774175274353000000,"seq":1131,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1516-4571-7f95-bfdb-3b5de0454dd0","at":1774175274353000000,"seq":1132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d1516-5798-7b95-a660-407adb77df22","at":1774175279000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d1516-7ea8-7184-887e-5d03f6bc636c","at":1774175289000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1516-9d95-775d-bb43-eb24145e384c","at":1774175296917000000,"seq":1135,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d1516-b940-7b10-ab5d-3ff6bedce2db","at":1774175304000000000,"seq":1136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d1516-efff-751f-9dc0-d725b2aedb17","at":1774175318015000000,"seq":1137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d1517-3258-790d-a8db-950b7d2a8b2b","at":1774175335000000000,"seq":1138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d1517-636e-7f62-84a8-30288d5d7fa7","at":1774175347566000000,"seq":1139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d1517-8848-7777-a8a7-4c0d1edb9fc8","at":1774175357000000000,"seq":1140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1517-bd24-7f32-8c35-51b193b4cfd8","at":1774175370532000000,"seq":1141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d1518-0160-7eb6-83ee-5fad91fe441d","at":1774175388000000000,"seq":1142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1518-3bf8-7b6a-91ca-17744aeac54e","at":1774175403000000000,"seq":1143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1518-7a78-7812-b279-b63db2ccc3ca","at":1774175419000000000,"seq":1144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d1518-834d-7626-9d7d-a6d7fa7564f0","at":1774175421261000000,"seq":1145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d1518-a958-708f-8e3b-50cc54093e78","at":1774175431000000000,"seq":1146,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1518-c898-7e7e-818c-8daab400378b","at":1774175439000000000,"seq":1147,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1524-c1ac-78e2-9cfd-492b44f9281f","at":1774176223660000000,"seq":1148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1524-edf8-79c9-91dc-51f81bd1f7b8","at":1774176235000000000,"seq":1149,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d1524-f9b0-794c-b9bc-96359d108336","at":1774176238000000000,"seq":1150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d1525-18f0-70fa-87eb-ee21f30b84b6","at":1774176246000000000,"seq":1151,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1525-2c78-76bc-8c71-0532595ee017","at":1774176251000000000,"seq":1152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1529-5157-7ec3-93ec-7b973faf229d","at":1774176522583000000,"seq":1153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1529-6298-7f10-8f0c-a84867a039f9","at":1774176527000000000,"seq":1154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1529-7a08-78b9-8d45-dae0a1e70e76","at":1774176533000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

@@ -1,0 +1,19 @@
+{"v":1,"id":"019d4370-ceb5-7590-b1b9-cccaade058de","at":1774952959669000000,"seq":1189,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4370-ceb5-7c8f-b894-64937dec83d6","at":1774952959669000000,"seq":1190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4371-3d60-76a1-b766-935010b56a6d","at":1774952988000000000,"seq":1191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d437d-2e04-74ef-9694-2a51c6dda2b3","at":1774953770500000000,"seq":1192,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d437d-2e04-72df-90a5-0dcaecece062","at":1774953770500000000,"seq":1193,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d437d-37c8-7ea3-934c-fdc2c4ca76d7","at":1774953773000000000,"seq":1194,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d437d-5708-78f9-8796-faf6b9acabab","at":1774953781000000000,"seq":1195,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d437d-d7f0-7039-af2e-76467a179045","at":1774953814000000000,"seq":1196,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d437e-0c0c-7611-a28b-720987ed39dd","at":1774953827340000000,"seq":1197,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d437e-29f8-7e89-9350-e78a8b5860e0","at":1774953835000000000,"seq":1198,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d437e-b698-7d21-87fc-76689a6a598f","at":1774953871000000000,"seq":1199,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4386-84da-72e7-9894-da3cfbee6d56","at":1774954382554000000,"seq":1200,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4386-84da-7824-b6bd-4c065fd0a68d","at":1774954382554000000,"seq":1201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4386-b578-7b7d-b735-3891de69e770","at":1774954395000000000,"seq":1202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d439a-50f9-74e5-b4d6-aa7f114901b5","at":1774955679993000000,"seq":1203,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d439a-50f9-7f81-a19f-dec1723d19d4","at":1774955679993000000,"seq":1204,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d439a-6c58-76ca-b63c-a10f49bd83f0","at":1774955687000000000,"seq":1205,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d439a-7810-75b4-9fd6-f08b78c86922","at":1774955690000000000,"seq":1206,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d439a-a6f0-73ef-bec2-78298d18b6cd","at":1774955702000000000,"seq":1207,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

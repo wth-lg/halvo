@@ -1,0 +1,12 @@
+{"v":1,"id":"019c5164-b9a7-7dc0-b710-7891d43f2138","at":1770892081575000000,"seq":648,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5164-b9a7-7e8c-9760-652dfcdedd25","at":1770892081575000000,"seq":649,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c5165-76d0-7715-9b47-4808c51dae4d","at":1770892130000000000,"seq":650,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5165-796f-7ccb-a15f-8a20688a4546","at":1770892130671000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c5165-d0a8-7aee-8a68-2b656c14440a","at":1770892153000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5165-dc60-7eb9-991b-df043b8ae7f8","at":1770892156000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5166-70d0-7391-9a91-86e0340386d7","at":1770892194000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c5173-b00d-7aed-8def-b0205bd8ade6","at":1770893062157000000,"seq":655,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5173-b00d-7987-8c99-b0e22fa8652b","at":1770893062157000000,"seq":656,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5173-d680-7cfb-8dc9-50462413bdbf","at":1770893072000000000,"seq":657,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c5174-3c10-7c8f-b42f-2f17bdc260fe","at":1770893098000000000,"seq":658,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5174-4bb0-7737-a251-e4f7e70d0ff7","at":1770893102000000000,"seq":659,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,29 @@
+{"v":1,"id":"019c27cb-356f-788b-a298-cb564704130e","at":1770194154863000000,"seq":455,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c27cb-356f-7f25-a50e-6abc205def68","at":1770194154863000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c27cb-bac8-71ae-878e-3077bc25121d","at":1770194189000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27cb-ddf0-72dd-b133-a5d2c3ffc060","at":1770194198000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c27cb-e9a8-7217-a965-0d2c5f1fe1ac","at":1770194201000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27cb-eda4-7beb-8336-e7cde16a9515","at":1770194202020000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c27cc-0118-77cb-9562-5146478e2ed5","at":1770194207000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27cc-969a-78d2-a87b-61d734aa7432","at":1770194245274000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c27cc-ef60-7dcf-9ab9-4e87ece1b553","at":1770194268000000000,"seq":463,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c27cd-a4e4-73db-8ce4-6057bbcc1d43","at":1770194314468000000,"seq":464,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c27cd-ba80-7304-be65-648f3859a8d7","at":1770194320000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c27ce-0c88-730c-8d41-0716832c083e","at":1770194341000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ce-1bff-7dcd-9fc4-05a76348d8be","at":1770194344959000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c27ce-3b68-7c7d-aa2a-ed60b0abb2f2","at":1770194353000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ce-9076-78eb-a7b9-d36a06eb2077","at":1770194374774000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c27ce-9928-7898-9750-2ec10762d096","at":1770194377000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c27cf-36bc-7677-9538-94060b9a6755","at":1770194417340000000,"seq":471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c27cf-50c0-73ff-a218-e168cc1b70b5","at":1770194424000000000,"seq":472,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c27cf-7000-757f-8c01-e5aaa31593d8","at":1770194432000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c27cf-9af8-7e07-b2c8-64a89cf97e4b","at":1770194443000000000,"seq":474,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c27cf-a6b0-7dea-b1b4-7be2b1021b57","at":1770194446000000000,"seq":475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27cf-b650-7c8f-a18c-c9a11c191316","at":1770194450000000000,"seq":476,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27cf-d642-77b2-841f-2ccd1dc7c15a","at":1770194458178000000,"seq":477,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c27cf-dd60-7dcd-b388-d0d4fd25af04","at":1770194460000000000,"seq":478,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c27d0-3b20-761e-a301-40e8f3ff8a2d","at":1770194484000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c27d0-6a00-7503-bc30-b452226ecb98","at":1770194496000000000,"seq":480,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c27d4-28f9-7b0d-9c91-fa9d9987b580","at":1770194741497000000,"seq":481,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c27d4-28f9-7d8f-bb17-8d761881c80b","at":1770194741497000000,"seq":482,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c27d5-05b0-790f-aee1-c13ed1c259f2","at":1770194798000000000,"seq":483,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

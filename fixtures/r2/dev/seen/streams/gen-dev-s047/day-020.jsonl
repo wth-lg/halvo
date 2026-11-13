@@ -1,0 +1,9 @@
+{"v":1,"id":"019bda99-d578-7b0f-bfd7-539fe0c24b55","at":1768899073400000000,"seq":189,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bda99-d578-7fb5-adce-5a26ade7b4e5","at":1768899073400000000,"seq":190,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bda9a-50e8-7d1d-b8e3-cf8ffdb2b1e5","at":1768899105000000000,"seq":191,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaa1-0021-7e96-adab-0db8f32eba10","at":1768899543073000000,"seq":192,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdaa1-0021-7dfb-8bc4-7133ee68c4cb","at":1768899543073000000,"seq":193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bdaa1-1748-7bfd-b413-6be05b01b143","at":1768899549000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bdaa1-e3c2-7731-8567-534496a2e593","at":1768899601346000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bdaa2-4028-7077-92af-ca488d9de128","at":1768899625000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaa2-5798-7ede-94fa-c41632c01779","at":1768899631000000000,"seq":197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

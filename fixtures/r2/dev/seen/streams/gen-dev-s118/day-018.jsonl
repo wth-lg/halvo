@@ -1,0 +1,11 @@
+{"v":1,"id":"019bd08f-49f8-75c9-ac39-bbcb772e8646","at":1768730610168000000,"seq":271,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd08f-49f8-7c6b-9bfd-f2a54629133a","at":1768730610168000000,"seq":272,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bd08f-d9d8-75b0-8633-9e9a62b0a51b","at":1768730647000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd090-0ebc-77b2-9b31-c714164ae6a1","at":1768730660540000000,"seq":274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bd090-1c40-7dab-8a58-9207fdb17d1f","at":1768730664000000000,"seq":275,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd090-d3d8-7c6d-a60b-9724648d11e7","at":1768730711000000000,"seq":276,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd091-0b90-76ac-bd3d-02d40e0c3f59","at":1768730725264000000,"seq":277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bd091-9b10-781a-ae67-718f8514630a","at":1768730762000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd091-e72d-756b-ba5b-2f8a53ae9605","at":1768730781485000000,"seq":279,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bd091-ed18-7829-95a6-9db0ced7ccd7","at":1768730783000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd092-1040-70b7-8b89-f3326e26d060","at":1768730792000000000,"seq":281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

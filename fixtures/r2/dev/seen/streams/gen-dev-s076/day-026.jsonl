@@ -1,0 +1,18 @@
+{"v":1,"id":"019bf99a-7eeb-75b1-8d9c-769981d87fd2","at":1769419210475000000,"seq":431,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf99a-7eeb-77dc-a2de-6681f3c89868","at":1769419210475000000,"seq":432,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf99a-a420-7ca9-8c4a-ad9e9d80478e","at":1769419220000000000,"seq":433,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bf99a-cf18-794f-93e9-b274e337a7b3","at":1769419231000000000,"seq":434,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf99a-ee58-7d5a-ace7-8e23cc57f89d","at":1769419239000000000,"seq":435,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf99c-0bee-7075-8fe4-03369ddff21e","at":1769419312110000000,"seq":436,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf99c-0bee-7aba-9d99-70c05b03d12e","at":1769419312110000000,"seq":437,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bf99c-8498-7cb6-be29-e8d8677db533","at":1769419343000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bf99d-1a77-7105-a562-12c0fc2f3acf","at":1769419381367000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bf99d-4400-7228-b267-d5395059263e","at":1769419392000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf99d-b5f3-70cb-85a3-1264a5170b44","at":1769419421171000000,"seq":441,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bf99d-c8d0-7c43-867c-e940ad0f486a","at":1769419426000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf99d-d488-7056-ae60-de98e67aa2e5","at":1769419429000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bf99d-ebf8-7f64-ae7a-dad2dab6f3ef","at":1769419435000000000,"seq":444,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf99d-efe0-7b1d-aa69-83bb42e0d050","at":1769419436000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf99e-2540-75b7-aa6f-a6e14b3c47cb","at":1769419449664000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bf99e-c2d0-7b2e-84c1-7f8af9ccc5f3","at":1769419490000000000,"seq":447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf99e-c6b8-77b7-9cfd-6e829cc0f0dc","at":1769419491000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

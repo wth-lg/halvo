@@ -1,0 +1,23 @@
+{"v":1,"id":"019cbd06-9125-7d75-9778-fe726f558e0e","at":1772697850149000000,"seq":1073,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd06-9125-70f2-9938-d57c349de2e4","at":1772697850149000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cbd06-9c48-715a-9c9a-69fab5837de9","at":1772697853000000000,"seq":1075,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cbd06-bf70-761a-b0aa-2f9b490acde5","at":1772697862000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd06-fdf0-79ad-8d86-358358aa5799","at":1772697878000000000,"seq":1077,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cbd07-1d30-780e-8b78-9384f926a32f","at":1772697886000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd07-2118-7656-b081-89003bf3f91c","at":1772697887000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cbd21-fd6f-714e-b5b2-3ce41583fa8b","at":1772699647343000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cbd22-2328-77a7-935c-bcd290da82ea","at":1772699657000000000,"seq":1081,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cbd28-479b-7dce-89f3-9fe070706e68","at":1772700059547000000,"seq":1082,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd28-479b-7926-a45c-28396a2c8bea","at":1772700059547000000,"seq":1083,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd28-7c28-7d05-81ca-3091a16eeb7b","at":1772700073000000000,"seq":1084,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cbd29-1c50-7340-aff4-87406c1b5104","at":1772700114000000000,"seq":1085,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd29-3853-7e78-bdce-79eaa9ad1cdb","at":1772700121171000000,"seq":1086,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd29-4b30-76cd-8e21-13f0e7ed9e47","at":1772700126000000000,"seq":1087,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cbd29-6688-7b5a-9374-cf09722d276c","at":1772700133000000000,"seq":1088,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd29-85c8-7274-a2b5-08f1371cc498","at":1772700141000000000,"seq":1089,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cbd2b-fa69-79f5-9c4b-283fed7acaf6","at":1772700301929000000,"seq":1090,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd2c-25a8-7e29-b076-1d76e9b4d75a","at":1772700313000000000,"seq":1091,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cbd2c-3930-7f85-9429-db8740625420","at":1772700318000000000,"seq":1092,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2c-4100-716a-89fb-483110793231","at":1772700320000000000,"seq":1093,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cbd2c-6040-72bd-9a24-5ae15a437610","at":1772700328000000000,"seq":1094,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2c-7b98-76ad-84e2-0e0684de5925","at":1772700335000000000,"seq":1095,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}

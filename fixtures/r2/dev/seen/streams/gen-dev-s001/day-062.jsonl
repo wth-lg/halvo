@@ -1,0 +1,13 @@
+{"v":1,"id":"019cb341-b443-7cee-9da8-9ccedf1260c0","at":1772533953603000000,"seq":1000,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb341-b443-71c0-8740-2d6060c11848","at":1772533953603000000,"seq":1001,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cb342-2330-7443-bfc5-78ba9104ac67","at":1772533982000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cb342-a144-7321-aa0b-a4336de50c19","at":1772534014276000000,"seq":1003,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cb342-deb0-7787-8556-00018b667bfc","at":1772534030000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb343-4058-7ad9-b259-a3c11d13259a","at":1772534055000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb343-428d-788f-9ad7-06b863e7f89d","at":1772534055565000000,"seq":1006,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cb343-c910-75e0-b815-30007a71b0e5","at":1772534090000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cb344-03a8-7bd8-b53d-07f5f56fae8f","at":1772534105000000000,"seq":1008,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb344-476f-7fef-a6e3-915d81b4fd6f","at":1772534122351000000,"seq":1009,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019cb344-74f0-7136-9759-53f59cf2a0db","at":1772534134000000000,"seq":1010,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb344-78d8-7756-9f21-12de5e6a05c1","at":1772534135000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb344-80a8-7061-8eb9-478432891e02","at":1772534137000000000,"seq":1012,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

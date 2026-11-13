@@ -1,0 +1,9 @@
+{"v":1,"id":"019c3c51-7ca7-7e5f-9283-e068f05590ee","at":1770538499239000000,"seq":438,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c51-7ca7-7448-aa35-e31ec0a40f87","at":1770538499239000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3c51-8f40-7b3d-870b-a415475e0e33","at":1770538504000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c3c51-9af8-79ff-9f24-f37c4a96969f","at":1770538507000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c51-aa98-7bd8-a225-9241142ec7aa","at":1770538511000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c51-c208-7343-9ed4-7cf038e0097b","at":1770538517000000000,"seq":443,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3c51-d978-7d3c-bb8e-eb3ce6eee8fb","at":1770538523000000000,"seq":444,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3c51-f969-7e28-b42a-d14445df8cee","at":1770538531177000000,"seq":445,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3c52-8558-70b6-bab5-e4f21316bde3","at":1770538567000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}

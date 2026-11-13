@@ -1,0 +1,21 @@
+{"v":1,"id":"019b9cfc-ade2-7c6b-aad1-db0b69649aab","at":1767865363938000000,"seq":141,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9cfc-ade2-7559-a5c5-0d55c58f762c","at":1767865363938000000,"seq":142,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9cfc-b208-7f86-bde4-ee9ab72ac09f","at":1767865365000000000,"seq":143,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b9d08-8967-7602-bb23-e8aa9849d880","at":1767866141031000000,"seq":144,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b9d08-9cd0-7615-8acc-c5797fe14062","at":1767866146000000000,"seq":145,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d08-a888-73bb-aeb0-b3d7329dc3b8","at":1767866149000000000,"seq":146,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b9d08-ac70-717a-9be3-b7361b950fe6","at":1767866150000000000,"seq":147,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d21-0a1e-74c8-82a2-4a80f04eadd6","at":1767867746846000000,"seq":148,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9d21-0a1e-763e-9a6a-333b8c41d5bb","at":1767867746846000000,"seq":149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9d21-4938-7f81-8592-37fad8229675","at":1767867763000000000,"seq":150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d21-8ba0-7a77-901a-88661a2fa4b4","at":1767867780000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d21-a538-7ab9-b983-ae80a24052fa","at":1767867786552000000,"seq":152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9d22-7a4a-7d28-9e80-57456cc1e9a0","at":1767867841098000000,"seq":153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9d22-8988-7262-881c-7ff83b1a368e","at":1767867845000000000,"seq":154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d22-b098-7475-aab5-f382ecd6f7e6","at":1767867855000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d22-d4cc-72e4-8e55-260446fa30ee","at":1767867864268000000,"seq":156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b9d22-db90-7609-a3c0-dada46d3e8a0","at":1767867866000000000,"seq":157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d22-f6e8-74e0-a480-c14eab4f1dc7","at":1767867873000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b9d22-feb8-76eb-ad21-a63b313b87ae","at":1767867875000000000,"seq":159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9d23-02a0-7431-a9fc-e2fc7ea50d29","at":1767867876000000000,"seq":160,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9d23-0688-76a7-8aa6-f60fc392f257","at":1767867877000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

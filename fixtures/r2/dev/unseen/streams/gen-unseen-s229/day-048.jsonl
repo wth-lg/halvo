@@ -1,0 +1,33 @@
+{"v":1,"id":"019c6b2f-fce9-7737-a8f1-e847d9a05b75","at":1771324833001000000,"seq":899,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6b2f-fce9-752f-a967-20abc0f6481e","at":1771324833001000000,"seq":900,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6b30-23f8-7b73-bf7f-2371778ba33f","at":1771324843000000000,"seq":901,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b30-27e0-7ea2-8f99-dac16f1d4d3c","at":1771324844000000000,"seq":902,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c6b30-2fb0-7850-9d0f-b9fdc13a53eb","at":1771324846000000000,"seq":903,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b41-ccbb-7427-b138-e72663fda37c","at":1771326000315000000,"seq":904,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c6b41-f678-7522-b329-12cf362b946e","at":1771326011000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c6b42-d8a0-7c8b-9b7c-d0d49966c3bc","at":1771326068896000000,"seq":906,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c6b43-c886-7082-a26f-586877e31e05","at":1771326130310000000,"seq":907,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c6b43-cf20-7ff9-a9f1-85d5b961d575","at":1771326132000000000,"seq":908,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b43-d6f0-7932-88cb-6f2e310b22f5","at":1771326134000000000,"seq":909,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6b44-126f-7e97-b4e3-8e4f0998eb65","at":1771326149231000000,"seq":910,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6b44-30c8-7af3-883a-6441e6d0e619","at":1771326157000000000,"seq":911,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6b44-7ee8-7f4b-a53e-b4f29cc063c7","at":1771326177000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c6b44-8e88-735d-a788-ed2af613cb8e","at":1771326181000000000,"seq":913,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b44-9270-7e77-9405-f1c517d509cc","at":1771326182000000000,"seq":914,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6b44-b2ca-7b9a-abb2-d1cd6fed4de3","at":1771326190282000000,"seq":915,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c6b44-bd68-7079-82b4-656e331d121d","at":1771326193000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b44-e090-788b-b6f2-5b50772177a1","at":1771326202000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b44-fbe8-76ae-98c7-8cb26e1fb970","at":1771326209000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c6b45-22f8-720f-adc8-df27fb3f552f","at":1771326219000000000,"seq":919,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6b52-f685-7d5d-a3de-5d56d8071d5d","at":1771327125125000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c6b53-5b98-7c61-b631-5a6a2c99cea8","at":1771327151000000000,"seq":921,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b53-6b38-7b46-8243-3d59a4625907","at":1771327155000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b53-d0fd-7867-921c-aa25c7844f1e","at":1771327181053000000,"seq":923,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c6b54-0390-7e95-9eb8-26b025f8be76","at":1771327194000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6b54-0778-7208-bf0d-1bf66e58a794","at":1771327195000000000,"seq":925,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6b54-3270-70b6-ba77-61c506dfcccc","at":1771327206000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b54-d50d-74a4-b3e8-4fc34cda72d5","at":1771327247629000000,"seq":927,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c6b54-fd90-7ead-afaf-a15b604a40b0","at":1771327258000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b55-3440-7aec-8867-3d345c504b1a","at":1771327272000000000,"seq":929,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6b55-a588-7137-8b91-c73118ce787f","at":1771327301000000000,"seq":930,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6b55-ad58-7ccf-b014-d6751a706e99","at":1771327303000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

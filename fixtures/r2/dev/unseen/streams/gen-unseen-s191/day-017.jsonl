@@ -1,0 +1,11 @@
+{"v":1,"id":"019bcb4b-c3f9-7468-8488-7e487a9031ef","at":1768642298873000000,"seq":108,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb4b-c3f9-7f2f-ba5f-f52d36500bff","at":1768642298873000000,"seq":109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bcb4c-1a68-778b-beee-0463a6ae22bc","at":1768642321000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb4c-4de8-736f-801a-38c7b155421d","at":1768642334184000000,"seq":111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bcb4c-58e8-784b-a3d5-dca44295724c","at":1768642337000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb4c-5cd0-7daf-9059-75ae684d8fed","at":1768642338000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb4c-6c70-76f5-bff9-a64da59c06b2","at":1768642342000000000,"seq":114,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb4c-9768-778f-b989-765ccf48ef65","at":1768642353000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb4c-aaf0-77e6-8a2c-6b29c6286715","at":1768642358000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bcb4c-aed5-7200-ac95-2c1b860816cc","at":1768642358997000000,"seq":117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019bcb4c-fcf8-7fcb-91b0-eb399edcf609","at":1768642379000000000,"seq":118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

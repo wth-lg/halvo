@@ -1,0 +1,27 @@
+{"v":1,"id":"019ce150-a193-7960-9585-14b0a0e66403","at":1773306683795000000,"seq":781,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce150-a193-7c02-84f8-993afef5927c","at":1773306683795000000,"seq":782,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce150-a260-7581-ace5-01fb4ef345b7","at":1773306684000000000,"seq":783,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce168-c2e3-7a6f-9664-83e1d3e430c9","at":1773308265187000000,"seq":784,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ce168-d1c8-7714-90e5-afc4292c1990","at":1773308269000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce169-0721-78d2-8caa-ec383c6980d0","at":1773308282657000000,"seq":786,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ce169-46f8-7bc7-8d6b-1b8e69cd4408","at":1773308299000000000,"seq":787,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce169-a4b8-76ca-ba4b-54d06aa2bfe7","at":1773308323000000000,"seq":788,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ce169-c010-7b27-a7c5-5386ecce42a7","at":1773308330000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce169-fc1a-7738-8d41-212964b13cde","at":1773308345370000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ce16a-0e30-77b1-b8da-b8e5211ebdf1","at":1773308350000000000,"seq":791,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce16a-3928-7e08-9a53-659f0aa0e3ff","at":1773308361000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce16a-5480-71c2-b22e-d2f343433f63","at":1773308368000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ce16a-8a4e-76ab-aa8d-a0fd73690f48","at":1773308381774000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019ce16a-8b30-7d83-a189-189eae9058e7","at":1773308382000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce16a-a2a0-7754-9827-8fbc4e180dc5","at":1773308388000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16a-b240-7101-be5c-1690f52b0a87","at":1773308392000000000,"seq":797,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16a-ba10-7b24-9200-35dcafd02686","at":1773308394000000000,"seq":798,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce179-0643-79fc-a563-61250ee7337b","at":1773309331011000000,"seq":799,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce179-0643-70ca-9027-707436a00b0b","at":1773309331011000000,"seq":800,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce179-3518-777e-8cda-c06a6b8e2dd7","at":1773309343000000000,"seq":801,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce179-8ef0-71db-98ae-1c6066f7569a","at":1773309366000000000,"seq":802,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce182-0044-7159-ab6c-ede9c8b2b26d","at":1773309919300000000,"seq":803,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce182-0044-7508-8cb9-56e5f52d0d56","at":1773309919300000000,"seq":804,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce182-2a10-76a6-adcd-90cadfb2379d","at":1773309930000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ce182-4d38-7fb3-aa66-2e71d6ac331b","at":1773309939000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce182-9388-77c5-a889-9f4c0d45491e","at":1773309957000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

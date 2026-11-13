@@ -1,0 +1,64 @@
+{"v":1,"id":"019d0031-07e0-7b4d-8b25-86781f9e0339","at":1773824706528000000,"seq":1008,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0031-07e0-7a34-9a39-3568d0f71c49","at":1773824706528000000,"seq":1009,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0046-c8ce-79e5-bdd1-1f89811bf618","at":1773826132174000000,"seq":1010,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019d0046-d414-78fc-869b-7bb1b0095860","at":1773826135060000000,"seq":1011,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0047-25e0-7690-b8e0-f06058766fcc","at":1773826156000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0047-6c30-759f-9f84-7a5d9ff3a1c5","at":1773826174000000000,"seq":1013,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0047-c9f0-7f1f-aa8b-59e5adb694c0","at":1773826198000000000,"seq":1014,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0047-d56c-7390-a2b8-4f25e7a33d2b","at":1773826200940000000,"seq":1015,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0048-1bf8-7291-9f36-2d5c1f3c2b41","at":1773826219000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0048-1bf8-7607-85ad-d74044ec9e51","at":1773826219000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d0048-27b0-76af-b00e-8a767954c2dc","at":1773826222000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0048-3406-7543-b2c2-61d7788edfe2","at":1773826225158000000,"seq":1019,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0048-5a78-73af-9563-4bb207b59699","at":1773826235000000000,"seq":1020,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d0048-6e00-79a7-83ce-6bac0d8f6484","at":1773826240000000000,"seq":1021,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0048-986e-7a32-bfe5-b16b4c5c2e96","at":1773826250862000000,"seq":1022,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0048-a4b0-7e15-a685-39bdd62b5a6e","at":1773826254000000000,"seq":1023,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d0048-cbc0-75d1-85ce-9f3eef7bd93c","at":1773826264000000000,"seq":1024,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0048-e330-7fc9-a242-04e73c85eb7a","at":1773826270000000000,"seq":1025,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0049-0764-7be0-b5f4-3f38ad3ddfac","at":1773826279268000000,"seq":1026,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0049-15f8-757c-bc92-169701d03477","at":1773826283000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d0049-3150-7ebe-87e4-f6dab0243cab","at":1773826290000000000,"seq":1028,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0049-445a-78fb-81f8-38218855b159","at":1773826294874000000,"seq":1029,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0049-a298-7d37-9f81-19960079e597","at":1773826319000000000,"seq":1030,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d0049-a680-7767-bfe2-5e68ca8a56ef","at":1773826320000000000,"seq":1031,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d0049-d395-78b8-ae27-3793b8d7720d","at":1773826331541000000,"seq":1032,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d0049-d560-7169-a70b-1f00e2a2b21c","at":1773826332000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0049-e500-7219-82b1-c78603824bf1","at":1773826336000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d004a-5e89-7839-9584-d15a78e37358","at":1773826367113000000,"seq":1035,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d004a-7588-7c20-8773-4890b7e0437b","at":1773826373000000000,"seq":1036,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d004a-a850-798e-8973-9bd01a13ca9a","at":1773826386000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d004a-f1af-73fb-b8ab-69697449ea31","at":1773826404783000000,"seq":1038,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d004b-2938-7eef-aad4-8d97fcd47be8","at":1773826419000000000,"seq":1039,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d004b-4627-7d0a-bea1-63eea4799c0f","at":1773826426407000000,"seq":1040,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d004b-5048-770a-973b-10aab3aa82e1","at":1773826429000000000,"seq":1041,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d004b-c160-7645-950b-0302aba02e87","at":1773826457952000000,"seq":1042,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d004b-d130-7826-885d-f5d775b4c5ed","at":1773826462000000000,"seq":1043,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d004c-0bc8-7c86-ac93-6957d3105fdf","at":1773826477000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d004c-32d8-7a54-93f9-e0e8e25430c9","at":1773826487000000000,"seq":1045,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d004c-3aa8-745f-9548-e0e645eee976","at":1773826489000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d004c-5a0e-7bb1-9afb-5155d7d28753","at":1773826497038000000,"seq":1047,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d004c-7540-749a-8b76-7ce4d55a0535","at":1773826504000000000,"seq":1048,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d004c-88c8-73d7-8655-616c9ddf6781","at":1773826509000000000,"seq":1049,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d004c-a038-7602-95c3-2ba9e2515caa","at":1773826515000000000,"seq":1050,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d004d-1950-7c6e-8b1d-8c9d0e51b726","at":1773826546000000000,"seq":1051,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d004d-57b0-72c5-a15d-695f90d539dc","at":1773826561968000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d004d-7ee0-7afb-bd20-0bac99a61fc9","at":1773826572000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d004d-b1a8-7170-8a65-58b5d6d958c9","at":1773826585000000000,"seq":1054,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d004e-51dd-7f1a-9cea-5381802946d4","at":1773826626013000000,"seq":1055,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d004f-302c-765d-99c9-cccbc98a5ac9","at":1773826682924000000,"seq":1056,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d004f-e040-759c-a51e-6811129d2a34","at":1773826728000000000,"seq":1057,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d004f-e810-7139-9046-ae671b44e9ae","at":1773826730000000000,"seq":1058,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d004f-f7b0-7a1b-afc0-114a95ab2f2c","at":1773826734000000000,"seq":1059,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0050-00bb-7e1a-973b-e5d4d527c91a","at":1773826736315000000,"seq":1060,"kind":"run_mark","app":null,"p":{"edge":"end"}}
+{"v":1,"id":"019d0055-1508-7569-8b35-92246074330f","at":1773827069192000000,"seq":1061,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d0055-2000-71da-a95c-48a858e87d1a","at":1773827072000000000,"seq":1062,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d0055-4fd3-7df8-b4c7-0106fdf09a8c","at":1773827084243000000,"seq":1063,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0055-4fd3-7c08-bbde-67bfdf75ae54","at":1773827084243000000,"seq":1064,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0055-6650-79cd-9e6a-cb72b0dfeac3","at":1773827090000000000,"seq":1065,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d0055-ef08-75cb-8c7c-e8de5924b333","at":1773827125000000000,"seq":1066,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d0055-f58b-7029-99f5-227354c941ff","at":1773827126667000000,"seq":1067,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0055-f58b-721e-9333-da7de2ffa2ee","at":1773827126667000000,"seq":1068,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d0056-0290-7461-b517-981ca9247839","at":1773827130000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d0056-0678-7675-8fec-07058c840900","at":1773827131000000000,"seq":1070,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0056-5880-77fb-a6dd-8c20f0f54554","at":1773827152000000000,"seq":1071,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

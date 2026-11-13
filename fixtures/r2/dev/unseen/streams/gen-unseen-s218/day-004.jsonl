@@ -1,0 +1,22 @@
+{"v":1,"id":"019b883f-53f1-7e4c-9848-fde9c39c3664","at":1767517410289000000,"seq":38,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b883f-53f1-7100-adb0-a39d49a52ef6","at":1767517410289000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019b883f-8598-7027-9e60-32bf01a694bc","at":1767517423000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b883f-c418-734c-b3b7-2d686eb711db","at":1767517439000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b883f-d264-7b73-b9a9-f3c47cd9be78","at":1767517442660000000,"seq":42,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019b8840-0298-7c5d-b5a6-fc54d961eb95","at":1767517455000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8840-25c0-7231-8adb-3ececeaeea1a","at":1767517464000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8840-7f98-7448-8856-bf812253f1b9","at":1767517487000000000,"seq":45,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b8840-b260-7520-8bdb-8b5e11ff5648","at":1767517500000000000,"seq":46,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8848-ec78-7f18-a968-d9a53f3e3d4c","at":1767518039160000000,"seq":47,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b8848-ff60-771b-9e88-5568ff9b5a8f","at":1767518044000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8849-8fe8-7368-b7d1-ef718d694d22","at":1767518081000000000,"seq":49,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b8849-b6f8-7fce-9e17-e8ca6e2eb1e2","at":1767518091000000000,"seq":50,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8849-c70c-7d3e-9dbe-438bae535c53","at":1767518095116000000,"seq":51,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b8849-ce68-73b6-b7ff-830455b8577b","at":1767518097000000000,"seq":52,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8849-e9c0-78e6-91fe-cede23af6877","at":1767518104000000000,"seq":53,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b884a-2458-7c34-9bb5-96569b31ed4a","at":1767518119000000000,"seq":54,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b884a-28d3-71d1-b94f-35042cb8d327","at":1767518120147000000,"seq":55,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b884a-37e0-735b-89ad-b71aacf9bcaa","at":1767518124000000000,"seq":56,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b884a-f005-7e32-8ea1-2fe7d0a514fb","at":1767518171141000000,"seq":57,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b884b-be80-7f63-93c8-d02ceb057445","at":1767518224000000000,"seq":58,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b884b-ca38-7c23-a6f9-8c1796198b24","at":1767518227000000000,"seq":59,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

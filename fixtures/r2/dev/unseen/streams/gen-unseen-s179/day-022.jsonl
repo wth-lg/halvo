@@ -1,0 +1,25 @@
+{"v":1,"id":"019be50d-d7fd-7453-beb2-b2ecbde439ad","at":1769074448381000000,"seq":231,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be50d-d7fd-785d-81ee-9269adea6157","at":1769074448381000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019be50d-de50-7f3a-ad3f-a091cb0146c4","at":1769074450000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be50d-e620-7d09-a2be-02fbcb41cad4","at":1769074452000000000,"seq":234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be50e-0d30-7d3c-ab43-11dee66d7d3b","at":1769074462000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be524-5c85-7639-b9f7-9bc365604783","at":1769075924101000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019be524-a270-7be2-bc08-ec045e53cb6c","at":1769075942000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be524-b9e0-763c-a3dd-4e1b77ede1f0","at":1769075948000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019be524-d538-722f-b98d-ac214a350e25","at":1769075955000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be525-5bad-75ab-b855-115570af48ce","at":1769075989421000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019be525-a828-77f1-b80f-8983331ae618","at":1769076009000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be525-cf38-726a-9894-2cc91107ea67","at":1769076019000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be526-5643-7a60-b74b-398c9404bca0","at":1769076053571000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019be526-6b78-7a46-9dfa-56de053632e6","at":1769076059000000000,"seq":244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be526-6b78-7fe5-9c37-2fabfb139d34","at":1769076059000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019be526-6f60-7cac-b33b-bc940ef672b9","at":1769076060000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be526-9670-716e-acb2-8ada9d3f8464","at":1769076070000000000,"seq":247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be526-c550-7bea-8034-7840385d0e7d","at":1769076082000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be53b-bb75-77d4-9ed7-02779c568fd3","at":1769077455733000000,"seq":249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019be53c-7be8-756d-af22-072f274ed024","at":1769077505000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019be53c-b811-7339-8c5e-3834ca587f4d","at":1769077520401000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019be53c-e560-72d2-ab50-921ab7a8c18c","at":1769077532000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be53c-fcd0-7c68-a60a-43e1e3820bec","at":1769077538000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019be53d-04a0-7b9c-b8b8-f555d42b86d8","at":1769077540000000000,"seq":254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be53d-5e78-7979-b752-44c2988ad90c","at":1769077563000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

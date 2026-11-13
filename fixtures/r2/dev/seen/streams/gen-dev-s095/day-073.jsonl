@@ -1,0 +1,60 @@
+{"v":1,"id":"019ceb65-039c-752a-9e00-6885992a5ef4","at":1773475791772000000,"seq":1152,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb65-039c-7003-9290-51152e1068ca","at":1773475791772000000,"seq":1153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ceb65-0480-7a92-9e70-bbed835a789f","at":1773475792000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb65-4ad0-72ad-841f-aa7aa549ced6","at":1773475810000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb65-7816-79a3-9091-9e382cfa2485","at":1773475821590000000,"seq":1156,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ceb65-9120-7022-ac78-0828f704026b","at":1773475828000000000,"seq":1157,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb65-e328-7b54-9498-81a03337fb7b","at":1773475849000000000,"seq":1158,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb65-fa98-7235-9692-64bf61349b87","at":1773475855000000000,"seq":1159,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceb66-3157-73b1-b3cc-cc5515da5f2c","at":1773475869015000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ceb66-7b1e-7fc8-8d14-fc187ebcd2cf","at":1773475887902000000,"seq":1161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019ceb67-0c08-75c2-bef7-f406bb51d1ee","at":1773475925000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb67-17c0-7ff3-8901-556ceb98f8dd","at":1773475928000000000,"seq":1163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ceb82-9f00-7f20-9374-26fec16f59c9","at":1773477732096000000,"seq":1164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ceb82-b9f8-757c-8109-6c3115f7f64f","at":1773477739000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ceb83-36f8-765c-9ea2-cf4ee6b7c9ae","at":1773477771000000000,"seq":1166,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ceb83-5e08-7637-a528-533164316595","at":1773477781000000000,"seq":1167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ceb83-6da8-797b-acbe-6952423e4b57","at":1773477785000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb9b-60f8-7979-8447-368499af8cbe","at":1773479354616000000,"seq":1169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ceb9b-81b8-7996-8ae4-7bdf824a3e38","at":1773479363000000000,"seq":1170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb9b-9b13-78f8-b6e9-f5347f6821f0","at":1773479369491000000,"seq":1171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your October broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ceb9b-c038-74d8-99ec-1ba1b56a95fc","at":1773479379000000000,"seq":1172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ceb9b-e360-7ce5-8142-3dfc8a0724ce","at":1773479388000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb9c-4c71-79c0-9e9f-074afd1f090f","at":1773479414897000000,"seq":1174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ceb9c-f8dc-7ae3-a564-a3b2fd06e7ab","at":1773479459036000000,"seq":1175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ceb9d-5290-7477-8be6-a71279157176","at":1773479482000000000,"seq":1176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceb9d-6a00-71a7-8027-afbe97ea4f86","at":1773479488000000000,"seq":1177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb9d-8558-781b-bb91-965e54fbb8a3","at":1773479495000000000,"seq":1178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ceb9d-cba8-76b5-beaa-03678739cfe5","at":1773479513000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb9e-ee55-7ed8-a5c9-a410b65fe70d","at":1773479587413000000,"seq":1180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ceb9e-f0a0-703b-a994-cd0f12e1d6b5","at":1773479588000000000,"seq":1181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb9f-0fe0-7e3a-9be0-35ec89767bfd","at":1773479596000000000,"seq":1182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ceb9f-13c8-7cbd-9fb2-ad579cd02cf7","at":1773479597000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ceb9f-36f0-7148-ab18-99a8e336e0c7","at":1773479606000000000,"seq":1184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cebb4-8430-7630-ae19-56255c529120","at":1773481002032000000,"seq":1185,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cebb4-8430-7e38-ab82-dce03905383d","at":1773481002032000000,"seq":1186,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cebb4-da00-7b46-993e-a2c02a899e88","at":1773481024000000000,"seq":1187,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cebb4-f558-7e1c-9cf2-4ea32a771d71","at":1773481031000000000,"seq":1188,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cebb5-08e0-7fec-bd6a-596f41f6f14f","at":1773481036000000000,"seq":1189,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbb-607c-7007-b8c3-a529acba4787","at":1773481451644000000,"seq":1190,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cebbb-607c-70a0-9416-1c02a2b2dfae","at":1773481451644000000,"seq":1191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cebbb-61e0-73fb-99ef-8c944d17ff93","at":1773481452000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbb-c388-77ad-beed-7e5da05b82e5","at":1773481477000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cebbb-c5f6-7da0-98a7-187fd5041bfc","at":1773481477622000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cebbb-f268-7ac2-be08-77951d02aae7","at":1773481489000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cebbc-2918-7488-88f4-9a7b0c4efc99","at":1773481503000000000,"seq":1196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cebbc-38b8-773e-9e9a-38aed3133dfc","at":1773481507000000000,"seq":1197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbc-8b94-754f-9600-c2870edc11eb","at":1773481528212000000,"seq":1198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cebbc-b1d0-717a-b820-7e908da06db3","at":1773481538000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbd-07c0-79f8-a9da-3d6cce3ffa00","at":1773481560000000000,"seq":1200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cebbd-4e10-7fcf-bd6a-0a264a217bc3","at":1773481578000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbd-51f8-7333-b1a5-95fc9b0b3b77","at":1773481579000000000,"seq":1202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebbd-5440-7caf-9e67-9beac7cf84e5","at":1773481579584000000,"seq":1203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cebbd-a400-7a6f-a16f-67730825bad2","at":1773481600000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbd-cf08-765c-ae59-045b8519d30a","at":1773481611016000000,"seq":1205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cebbe-2100-7cbd-a7b1-9cedf6c60a5a","at":1773481632000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbe-4fe0-72e9-8fca-2f75c08c10cb","at":1773481644000000000,"seq":1207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbe-5ac9-7a9a-a463-b6f33ce6a46d","at":1773481646793000000,"seq":1208,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cebbe-82a8-795d-9265-214ef65a8d11","at":1773481657000000000,"seq":1209,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebbe-9248-7e5c-85f5-3ff07a03ea91","at":1773481661000000000,"seq":1210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cebbe-b958-727a-8823-86a444ff7803","at":1773481671000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

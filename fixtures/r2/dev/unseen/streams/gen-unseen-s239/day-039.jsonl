@@ -1,0 +1,12 @@
+{"v":1,"id":"019c3c6d-2966-707b-bdff-3c3addc1c3d8","at":1770540312934000000,"seq":436,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c6d-2966-759b-882d-9d08a9b8e3b4","at":1770540312934000000,"seq":437,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c3c6d-3d30-7a3d-ad17-f82871d841be","at":1770540318000000000,"seq":438,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c3c6d-4cd0-7729-9f8d-c71be86a6541","at":1770540322000000000,"seq":439,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3c6d-6058-73eb-a69e-cf09b38ce31c","at":1770540327000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c3c73-fb1d-71c4-94ac-86fb4baa8f2c","at":1770540759837000000,"seq":441,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3c74-6150-7f95-81eb-8864f0430047","at":1770540786000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c3c74-7ca8-713c-8903-f9f061aef336","at":1770540793000000000,"seq":443,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c74-9636-7fb5-962c-1f0e4d7c1bb1","at":1770540799542000000,"seq":444,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c3c74-cac8-7607-9ace-b17ef09221f5","at":1770540813000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c3c74-e620-7987-a634-b997fe74ac72","at":1770540820000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c75-24a0-748d-bbec-027abf53e293","at":1770540836000000000,"seq":447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

@@ -1,0 +1,57 @@
+{"v":1,"id":"019c7a94-7b90-7fea-8b07-4374785b3888","at":1771583077264000000,"seq":691,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a94-7b90-7e67-98df-42323dbd4173","at":1771583077264000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a94-8640-7fda-ba3c-1caa23bc4a35","at":1771583080000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a94-f3a0-77e3-a66b-480e80ffc854","at":1771583108000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c7a95-1fe1-765d-a49b-d6a8444ad3ba","at":1771583119329000000,"seq":695,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a95-45a8-7270-a8ed-475b10e18aba","at":1771583129000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a95-4d78-7c15-8538-96efc81b7d23","at":1771583131000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a95-5c36-790c-8fe5-ce9fa4a0ff04","at":1771583134774000000,"seq":698,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a95-5d18-7fcb-b028-96c63e1e26d9","at":1771583135000000000,"seq":699,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c7a95-64e8-7be4-95be-5b43acfa82c5","at":1771583137000000000,"seq":700,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a95-68d0-7ca6-9420-91041b36c7f1","at":1771583138000000000,"seq":701,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7a95-f5e7-7205-8025-f7442e16132f","at":1771583174119000000,"seq":702,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a96-08f8-7897-82af-14b78d07abe4","at":1771583179000000000,"seq":703,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a96-0ce0-7e74-a4e1-bb9ab1163374","at":1771583180000000000,"seq":704,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a96-14b0-7635-996f-67b451b4cb65","at":1771583182000000000,"seq":705,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a96-2838-751e-a2db-39fff00215a8","at":1771583187000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a96-3a92-79d1-b094-1679ae2472ef","at":1771583191698000000,"seq":707,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a96-6e88-7a7a-a710-e291d671b588","at":1771583205000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a96-8210-7b03-8470-e923f5d9cba5","at":1771583210000000000,"seq":709,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a96-8432-7ccb-aa01-ae6dcadc8d13","at":1771583210546000000,"seq":710,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c7a97-4560-7453-af80-bd5e9efb8a9b","at":1771583260000000000,"seq":711,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7a97-4948-79e8-8020-f99a1b7ea99c","at":1771583261000000000,"seq":712,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7a99-2d78-77f9-9704-7db11a82c2e4","at":1771583384952000000,"seq":713,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7a99-4ce8-7dd7-aa3c-c7131f2e03f0","at":1771583393000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c7a99-9b08-7b90-9b83-e4ab073e7b18","at":1771583413000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a99-fcb0-770c-9b65-c37e2a57cfb5","at":1771583438000000000,"seq":716,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7aa5-f38a-7d7f-a167-6a91c889aa71","at":1771584222090000000,"seq":717,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa6-d1d8-7311-928b-e92393e7f9bd","at":1771584279000000000,"seq":718,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa6-e832-7210-a03a-82bda9e9016b","at":1771584284722000000,"seq":719,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa7-5e78-76d1-a058-e9cad76b67aa","at":1771584315000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa7-cbd8-7ebe-9c0b-c40ad0bfb93f","at":1771584343000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa7-df60-77e2-9bd6-11671d92d8e0","at":1771584348000000000,"seq":722,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7aa7-e867-7fa4-88b9-886c48459529","at":1771584350311000000,"seq":723,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa8-2998-7d4c-9922-04a79ef58a98","at":1771584367000000000,"seq":724,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7aa8-8b40-7603-9331-37b82f2b3b66","at":1771584392000000000,"seq":725,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7aa8-c3fc-7291-8e91-0e2eba5b6bf6","at":1771584406524000000,"seq":726,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa9-1bc8-7084-b56a-49118a234c44","at":1771584429000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa9-42d8-7b02-94d4-439b95b805c4","at":1771584439000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa9-57e0-7e85-8171-20028a661eb0","at":1771584444384000000,"seq":729,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c7aa9-6dd0-777b-8137-64553b47646d","at":1771584450000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7aa9-71b8-7dfb-9569-2a167e00d24e","at":1771584451000000000,"seq":731,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7aa9-8540-7b31-91aa-21e9036ea90d","at":1771584456000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aa9-a868-7812-9e5e-ef5f9ed5547c","at":1771584465000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c7aaa-059d-7e87-a096-c9effebf8dde","at":1771584488861000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c7aaa-0628-76b2-8970-15ce9cb951c1","at":1771584489000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7aaa-44a8-7eb8-a671-682fd64ebacd","at":1771584505000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aaa-4890-73bf-9c20-7d2e15edbd07","at":1771584506000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c7aaa-5c18-7650-8192-f7fc5f98d583","at":1771584511000000000,"seq":738,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7aaa-60ff-793c-8d18-efb9fb82beb5","at":1771584512255000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c7aaa-b208-7638-a8e7-1a681e04da8a","at":1771584533000000000,"seq":740,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7aab-0fc8-7397-a511-366d570af727","at":1771584557000000000,"seq":741,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7aab-2e26-7d94-94d5-b20e0bb4c4c8","at":1771584564774000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c7aab-4e48-720a-b3db-567c201afa0c","at":1771584573000000000,"seq":743,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7aab-aff0-7ea1-ae72-2d461bd60b66","at":1771584598000000000,"seq":744,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7aaf-9d2f-7cc5-b198-096c25056000","at":1771584855343000000,"seq":745,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7aaf-da58-79bf-bf0e-5aed0cabe56a","at":1771584871000000000,"seq":746,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7aaf-da58-70ea-9228-49ce18ff70c7","at":1771584871000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

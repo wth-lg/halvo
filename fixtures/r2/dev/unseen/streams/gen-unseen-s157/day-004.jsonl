@@ -1,0 +1,29 @@
+{"v":1,"id":"019b87fa-5715-7a6b-b625-5f7f1192c5d7","at":1767512889109000000,"seq":94,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b87fa-5715-7765-86dc-b08a25ab9e23","at":1767512889109000000,"seq":95,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b87fa-6648-7140-b35e-052b0a0bb1b4","at":1767512893000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b87fa-fab8-7534-91f8-eb9f76e3ff33","at":1767512931000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87fb-4b1a-7462-9e4e-9d68877a95a4","at":1767512951578000000,"seq":98,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b87fb-8758-7989-85e9-c4a2917c4df3","at":1767512967000000000,"seq":99,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87fb-8f28-7d36-8c6b-2aca474dc773","at":1767512969000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87fb-d960-7403-9528-d029f6f69d71","at":1767512988000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b87fc-0c48-7e8b-bacf-4a302fe2aab9","at":1767513001032000000,"seq":102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b87fc-1fb0-7ac0-9118-e5cb8d4ee147","at":1767513006000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b87fc-3338-70ce-a35e-6b174535eec3","at":1767513011000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87fc-dd4a-7d51-95e4-99e82177c184","at":1767513054538000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b87fc-e300-788a-a15f-375a95e59845","at":1767513056000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87fd-8b90-7a2a-b9f7-428e35ab7123","at":1767513099152000000,"seq":107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b87fd-c978-7b98-9270-46f4efe946e4","at":1767513115000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87fe-0410-7f9f-8720-b1f6fc924c94","at":1767513130000000000,"seq":109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b87fe-0410-7513-9961-d7b7b27412e3","at":1767513130000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b87fe-2350-7833-8560-fd2e0015e231","at":1767513138000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87fe-6dab-7846-90b0-b40822112e67","at":1767513157035000000,"seq":112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b87fe-7d28-7e3c-b8b6-1b548de73600","at":1767513161000000000,"seq":113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b87fe-c378-76ae-9afe-bdc50114ea63","at":1767513179000000000,"seq":114,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b87fe-c760-7f77-9215-b086f3c35d02","at":1767513180000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87ff-0968-7927-88ce-d150d36231d7","at":1767513196904000000,"seq":116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the library - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b87ff-1198-72cc-82f3-a3df8f1e91c0","at":1767513199000000000,"seq":117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b87ff-2138-70b9-b1a1-c5af63a2cb8c","at":1767513203000000000,"seq":118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b87ff-57e8-7147-a43c-40697295aec2","at":1767513217000000000,"seq":119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87ff-5fb8-79e4-88c5-ec599f92cec1","at":1767513219000000000,"seq":120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b87ff-84fa-720f-9c10-5046ef99b3dd","at":1767513228538000000,"seq":121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b8800-55d0-7e12-91a0-fcff12be1d7f","at":1767513282000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

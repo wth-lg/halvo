@@ -1,0 +1,17 @@
+{"v":1,"id":"019d3875-ae87-7a21-bd8c-d53456c6f783","at":1774768729735000000,"seq":1235,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3875-ae87-7fdc-9437-5d707d19c24c","at":1774768729735000000,"seq":1236,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3875-bf30-7e5c-8d2e-39e2916fdb5c","at":1774768734000000000,"seq":1237,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d3876-20f7-74e7-a33e-2749e24e69dd","at":1774768759031000000,"seq":1238,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3876-20f7-7ecf-aad7-5915c222f130","at":1774768759031000000,"seq":1239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3876-4018-720f-9afb-9e6aa2b2d401","at":1774768767000000000,"seq":1240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3876-5788-7fa2-b6ad-c2748da1d63f","at":1774768773000000000,"seq":1241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3876-639a-7259-ac65-8d65fc819e31","at":1774768776090000000,"seq":1242,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3876-639a-7858-b3a3-0e554908d156","at":1774768776090000000,"seq":1243,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3876-9608-7426-b239-95fd43ca6df5","at":1774768789000000000,"seq":1244,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d3876-c8d0-725d-9b44-47a9cfd454c4","at":1774768802000000000,"seq":1245,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3876-dc58-70b8-a39a-1df8633ae58b","at":1774768807000000000,"seq":1246,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3877-0b38-78ed-a218-21bd993b2532","at":1774768819000000000,"seq":1247,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3890-5554-784a-9882-f1191082ecb1","at":1774770476372000000,"seq":1248,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3890-6b50-7391-93e7-15a83fb8d10a","at":1774770482000000000,"seq":1249,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d3890-7af0-73ef-b90f-2a94be2b3740","at":1774770486000000000,"seq":1250,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d3890-b588-78e6-9a35-39c7de1c5765","at":1774770501000000000,"seq":1251,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

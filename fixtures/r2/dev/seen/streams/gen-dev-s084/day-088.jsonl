@@ -1,0 +1,35 @@
+{"v":1,"id":"019d386f-dd96-7f87-b9da-2c77ee403837","at":1774768348566000000,"seq":1361,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d386f-dd96-71c9-af77-6b6d15a1891e","at":1774768348566000000,"seq":1362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3870-0658-7012-9cb1-c95db6d8a35c","at":1774768359000000000,"seq":1363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3870-3150-7e0b-858f-1bab255d020d","at":1774768370000000000,"seq":1364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3870-48c0-7044-b204-0b34efe923d3","at":1774768376000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3870-5e22-7825-90a2-7ab827619691","at":1774768381474000000,"seq":1366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3870-6800-73c2-8a8d-24d2dc66b023","at":1774768384000000000,"seq":1367,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3870-ae50-7f88-acae-af7697f36682","at":1774768402000000000,"seq":1368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3870-b620-70b0-8198-d61e654a41ca","at":1774768404000000000,"seq":1369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d3870-b7f7-7642-b511-34fe556391e1","at":1774768404471000000,"seq":1370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3870-d178-7c09-b528-8799de70485e","at":1774768411000000000,"seq":1371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3870-fc70-7d39-b681-6c753b1b3c5f","at":1774768422000000000,"seq":1372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3871-0440-70b3-8f96-73a9fbfe330b","at":1774768424000000000,"seq":1373,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3871-3ed8-7ea1-add9-13dd6e0a4e41","at":1774768439000000000,"seq":1374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3871-94f7-74ea-abfa-b01f50ebca32","at":1774768461047000000,"seq":1375,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3871-9c98-7ca6-acd0-bf3e8ed8035f","at":1774768463000000000,"seq":1376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3871-a080-7a6c-b4e2-d9d2c00f85a0","at":1774768464000000000,"seq":1377,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3871-a850-791c-978b-f9e9a77c3a31","at":1774768466000000000,"seq":1378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3871-ac38-72a1-b733-460d0354f3b6","at":1774768467000000000,"seq":1379,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3886-b04b-71c3-b09a-88c47b6591f4","at":1774769844299000000,"seq":1380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3886-e5d0-7e46-a789-c00ec17849e9","at":1774769858000000000,"seq":1381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3887-10c8-7d74-931c-f93c920dffaf","at":1774769869000000000,"seq":1382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d3887-5277-7f0d-9e06-07fade7322c0","at":1774769885815000000,"seq":1383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3887-cc48-725a-b40d-199ca7dbbde2","at":1774769917000000000,"seq":1384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3887-cff5-7ea6-8604-038246ba5aa4","at":1774769917941000000,"seq":1385,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3888-1298-7277-9210-ccc76a84adf7","at":1774769935000000000,"seq":1386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d3888-3f9b-7859-b222-aae9628365f3","at":1774769946523000000,"seq":1387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3888-7440-7f0a-a197-9a5184842dcf","at":1774769960000000000,"seq":1388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3888-fc2d-7e03-bd12-28e7cc82bf18","at":1774769994797000000,"seq":1389,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3889-5ab8-7fcf-9e40-d5f1f49951bb","at":1774770019000000000,"seq":1390,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3889-8998-793b-83c3-056e252c3707","at":1774770031000000000,"seq":1391,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3889-edcb-7477-9959-6e99186f781b","at":1774770056651000000,"seq":1392,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3889-ef28-7b03-ba4e-15949375bcbe","at":1774770057000000000,"seq":1393,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3889-f310-75eb-931f-e45041a6304d","at":1774770058000000000,"seq":1394,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d388a-0698-7f0e-9f15-0edeeb7a55c7","at":1774770063000000000,"seq":1395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019d4876-5253-792b-a96c-b5e61ec7db93","at":1775037207123000000,"seq":1286,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4876-5253-7c92-aa27-c3b0f618082e","at":1775037207123000000,"seq":1287,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4876-6178-7cdf-aad9-0fdcfe6736cd","at":1775037211000000000,"seq":1288,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d4876-b380-782e-a86f-ccde8591eb2b","at":1775037232000000000,"seq":1289,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d4877-0588-7fcf-843b-549dd1c23e47","at":1775037253000000000,"seq":1290,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d4877-0b66-79e4-b7f0-b4b7600f1e08","at":1775037254502000000,"seq":1291,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d4877-4020-785e-aa37-100c77ab9f4a","at":1775037268000000000,"seq":1292,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4877-8288-76d7-931e-2eb51c404b99","at":1775037285000000000,"seq":1293,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d487c-7988-7ae3-9ed3-1cab2d6e0cb7","at":1775037610376000000,"seq":1294,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d487c-7988-79bc-ba54-eb80790ce258","at":1775037610376000000,"seq":1295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d487c-a308-7783-830e-86f0cef8afbe","at":1775037621000000000,"seq":1296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d487d-1838-781f-866a-be5879777544","at":1775037651000000000,"seq":1297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d487d-1f67-7602-831d-1d2587cf9ba9","at":1775037652839000000,"seq":1298,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d487d-3390-71d7-98ad-e36c56e7af76","at":1775037658000000000,"seq":1299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4889-e32f-7cb4-b1cd-d7bbfa3e9c2d","at":1775038489391000000,"seq":1300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d488a-1c40-7d8f-b15e-68515fcc87eb","at":1775038504000000000,"seq":1301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d488a-9170-7619-b905-bb6ad00dd751","at":1775038534000000000,"seq":1302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d4899-e021-76b0-889f-f19bb82b9b9f","at":1775039537185000000,"seq":1303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d489a-0678-7c5f-b147-c58ee55519f9","at":1775039547000000000,"seq":1304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d489a-0e48-7eb3-8cc4-8b0e83aab7dc","at":1775039549000000000,"seq":1305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d489a-0e48-7a09-8efd-cce684eddd19","at":1775039549000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

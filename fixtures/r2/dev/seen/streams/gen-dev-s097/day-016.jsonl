@@ -1,0 +1,33 @@
+{"v":1,"id":"019bc600-12e3-7672-8026-64c87096571e","at":1768553452259000000,"seq":241,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc600-12e3-76a1-97d6-a148f8e38bc9","at":1768553452259000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc600-5448-79a8-942c-db5e622d044d","at":1768553469000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bc600-7770-7c54-994e-3f326eab6404","at":1768553478000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc600-92c8-79f0-b59f-868362c4477a","at":1768553485000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc600-9b61-7ca5-8bed-0eceaab09d87","at":1768553487201000000,"seq":246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc600-a268-7a57-8bf8-0615b137d661","at":1768553489000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc601-0410-7bed-bcd8-52d55a31857c","at":1768553514000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc601-07f8-7f2a-a496-ff0b1a0dce6b","at":1768553515000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bc601-098b-7f4e-8270-22cb251ca7d7","at":1768553515403000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc601-8b71-7d26-812c-0c6ed27313d1","at":1768553548657000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc601-a050-7973-b425-7163f8d1b04c","at":1768553554000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc601-cf30-7c48-ba97-9a95d237dfd4","at":1768553566000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc601-ded0-7c17-985f-61c16f810950","at":1768553570000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bc601-f258-7338-b667-e6cfc08d6996","at":1768553575000000000,"seq":255,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc601-f640-7186-8b50-f7ad00a664be","at":1768553576000000000,"seq":256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc602-2acc-7d74-934c-a22f9aa998d4","at":1768553589452000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc602-34c0-784e-a347-2d4cfb8f4501","at":1768553592000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc602-5bd0-78c7-903c-b66445bca85b","at":1768553602000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc602-63a0-7e92-9ef6-89ae2cc2fd5f","at":1768553604000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc602-68af-7a67-996b-29b5b2ad2b38","at":1768553605295000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bc603-1750-7699-be5e-e151d42cc9f6","at":1768553650000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bc61c-1ef4-76fb-beaa-a9fe55ae9028","at":1768555290356000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc61c-2178-77ba-bfad-a47843103a7d","at":1768555291000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc61c-2d30-7d98-9b08-f747bb254c48","at":1768555294000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bc62f-23d9-72f5-8c62-ac04e5d6f4a0","at":1768556536793000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bc62f-6328-7c97-9ca7-c65c6806a6ca","at":1768556553000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc62f-a590-7265-9e4d-3441d3e347c1","at":1768556570000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc62f-e92c-7ae1-989a-0cf785223091","at":1768556587308000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bc630-3618-774f-accf-3ee4fa1523a1","at":1768556607000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc649-6f7a-7086-b47a-009eae419cdf","at":1768558260090000000,"seq":271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bc649-9630-7183-a222-e7d7dba191c0","at":1768558270000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bc649-a9b8-79eb-b67f-45bc5a771b9e","at":1768558275000000000,"seq":273,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

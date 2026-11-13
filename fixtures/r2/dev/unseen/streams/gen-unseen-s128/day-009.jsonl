@@ -1,0 +1,23 @@
+{"v":1,"id":"019ba25f-bec0-7a46-868c-3e9bb75e35a9","at":1767955742400000000,"seq":102,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba25f-bec0-77f2-aad8-3b1a1991d638","at":1767955742400000000,"seq":103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ba25f-ff98-7a3d-bd35-29f1aaffec80","at":1767955759000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba260-1320-7cc0-90ad-3bc22d96f6d9","at":1767955764000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ba260-b348-7917-8ed6-059b8f02e197","at":1767955805000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba260-cf2f-787b-ab6f-ce2dff3de503","at":1767955812143000000,"seq":107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ba260-da58-71cd-bfda-e57ad09da739","at":1767955815000000000,"seq":108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba260-e610-7d40-ab59-6e9c8a0c62c0","at":1767955818000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba260-fd80-78b8-bc70-c92be10225d8","at":1767955824000000000,"seq":110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba261-0168-78fb-882c-27f824e133bd","at":1767955825000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba274-3c4d-7967-a88d-f3e080cbd9c8","at":1767957085261000000,"seq":112,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba274-3c4d-7e51-a67e-21c0a836c10b","at":1767957085261000000,"seq":113,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba274-79c8-7887-9025-21475ac29fd0","at":1767957101000000000,"seq":114,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ba274-d788-76ab-9559-ab160de4d384","at":1767957125000000000,"seq":115,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba274-f6c8-7abb-84a8-a94e321427b7","at":1767957133000000000,"seq":116,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba275-1df5-7a4d-8196-9a2488c97abc","at":1767957143029000000,"seq":117,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ba275-9308-7d40-b17a-76c7715ba592","at":1767957173000000000,"seq":118,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ba277-d526-78d1-908d-ff75c27e5595","at":1767957320998000000,"seq":119,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba277-d526-7a71-874d-757789f8483d","at":1767957320998000000,"seq":120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba277-e4c8-7d55-b349-d67c789ab388","at":1767957325000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba277-f850-7ba9-ac19-26e4db8915eb","at":1767957330000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ba277-fc38-776e-946e-118a8a7fe0ad","at":1767957331000000000,"seq":123,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba278-0bd8-782e-8b10-9ffb7ccef4f5","at":1767957335000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,9 @@
+{"v":1,"id":"019d14b5-afd0-7d38-90e0-766d2d95138b","at":1774168944592000000,"seq":1159,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14b5-afd0-7a7b-a9ac-c822b17a67e5","at":1774168944592000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d14b5-b938-7e57-b132-cc2f81967e63","at":1774168947000000000,"seq":1161,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d14b5-d490-7910-bd1b-a885e9e4a659","at":1774168954000000000,"seq":1162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d14c6-8e29-769f-9441-aa2e7b100890","at":1774170050089000000,"seq":1163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d14c6-91b8-7b38-a860-0a4ea4f544d7","at":1774170051000000000,"seq":1164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14c6-9988-76a2-9e59-2d7d9fb81fd9","at":1774170053000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14c7-5028-7a8e-9e69-ea517413cc57","at":1774170099752000000,"seq":1166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d14c8-3b80-717c-bb24-343aabaa624d","at":1774170160000000000,"seq":1167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

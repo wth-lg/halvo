@@ -1,0 +1,12 @@
+{"v":1,"id":"019c750b-d514-70e9-a06d-dfc0b56b3975","at":1771490235668000000,"seq":539,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c750b-d514-764d-8af1-17136f1f5848","at":1771490235668000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c750c-1cb0-7006-8b07-02eee9b09413","at":1771490254000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c750c-95c8-7512-a3c9-c5f6dac3b1a4","at":1771490285000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c750c-ad0d-7025-ab93-e813230d7c31","at":1771490290957000000,"seq":543,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c750c-ff40-7d9d-8537-2a3330d96a42","at":1771490312000000000,"seq":544,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c750d-0710-74ed-838c-2b541d632de8","at":1771490314000000000,"seq":545,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c750d-1224-73ee-9fa3-708ad2965229","at":1771490316836000000,"seq":546,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c750d-8410-7cff-8e69-40276a9179c0","at":1771490346000000000,"seq":547,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c750d-8fc8-78c3-812f-de134bfccba7","at":1771490349000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c7524-bc50-7b95-9482-e1a9715cd26a","at":1771491867728000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7525-6170-73f1-913a-7dae9a047f88","at":1771491910000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

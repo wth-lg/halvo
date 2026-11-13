@@ -1,0 +1,18 @@
+{"v":1,"id":"019c6b0e-8944-7a71-87c1-87c26a56ce31","at":1771322640708000000,"seq":628,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6b0e-8944-73a9-b0b8-ff31d952b224","at":1771322640708000000,"seq":629,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6b0e-c118-7409-bd1c-db13ff5005e5","at":1771322655000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b0e-c118-7b92-b0ae-78bc6cdfb83e","at":1771322655000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c6b0e-d0b8-7fd2-8100-a0c042b8b857","at":1771322659000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b29-ff52-7ad5-b990-f513775a43fb","at":1771324440402000000,"seq":633,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6b2a-1148-767f-bc78-87ddacfd338f","at":1771324445000000000,"seq":634,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6b2a-1918-7331-b0d5-4246af60a779","at":1771324447000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b2a-28b8-7501-b628-63f561361216","at":1771324451000000000,"seq":636,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6b2a-4028-79bc-a506-59eb143b4c07","at":1771324457000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b2a-47f8-7723-9d93-36db8f78f52c","at":1771324459000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6b43-d356-7674-915a-cf39ad7538a4","at":1771326133078000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c6b43-e690-7c43-90f2-ea240644b48c","at":1771326138000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c6b44-1570-7e33-a3df-aba229a35f0a","at":1771326150000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b44-468a-7965-afa7-87e337257102","at":1771326162570000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c6b44-4838-7866-bf50-f357b9eaff05","at":1771326163000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b44-6f48-775e-a7e8-b469528db3c6","at":1771326173000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c6b44-86b8-7e45-ab7a-bce0630b4279","at":1771326179000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019ce6a9-d660-766b-9ef7-5b6253e6651e","at":1773396416096000000,"seq":845,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce6a9-d660-74ba-bb1b-8f6b5bb243fb","at":1773396416096000000,"seq":846,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce6a9-d9e8-7e28-9707-5440dd731411","at":1773396417000000000,"seq":847,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ce6aa-2420-7d17-9857-b1e294c93eb3","at":1773396436000000000,"seq":848,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ce6b3-30bb-7bbb-b6e6-435643173fcb","at":1773397029051000000,"seq":849,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6b3-30bb-74f6-b94f-6248b96ba5c3","at":1773397029051000000,"seq":850,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b4-0782-7ece-abdc-f11f9c1b0dbf","at":1773397084034000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce6b4-1ae8-7746-aedc-b2fa0508069b","at":1773397089000000000,"seq":852,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce6b4-1ed0-729c-91f8-9c2bd86aed34","at":1773397090000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce6b4-78a8-742d-b9f5-03a75e3bad4c","at":1773397113000000000,"seq":854,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6ca-1840-7a27-9433-2b7dc5355b42","at":1773398530112000000,"seq":855,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce6ca-cf68-7d66-bc4f-e2a84d8a7440","at":1773398577000000000,"seq":856,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ce6cb-10d1-7d79-b4ba-1aa346bec35e","at":1773398593745000000,"seq":857,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce6cb-38e0-7275-8d6c-d4a3763a4c0d","at":1773398604000000000,"seq":858,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce6cb-63d8-7d3a-aed0-3c8c18452474","at":1773398615000000000,"seq":859,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6cb-7760-751a-af5b-6b2ddb9c9063","at":1773398620000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ce6cb-96a0-70d0-a999-debcf89ccc64","at":1773398628000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6cc-1e5e-78e4-9394-10a858e3c4b3","at":1773398662750000000,"seq":862,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019ce6cc-1f58-7351-b9ca-5efd598ef12c","at":1773398663000000000,"seq":863,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce6cc-36c8-72da-aa68-26b4fffb5577","at":1773398669000000000,"seq":864,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6cc-4a50-7088-aa15-0c29371bdfb1","at":1773398674000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6cc-6190-7d35-88f1-411d07733a8b","at":1773398679952000000,"seq":866,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}

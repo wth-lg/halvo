@@ -1,0 +1,22 @@
+{"v":1,"id":"019c038a-b01d-7c51-ac2f-7b8bf7a47675","at":1769585946653000000,"seq":401,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c038a-b01d-77a2-a24b-17ea02999eb1","at":1769585946653000000,"seq":402,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c038b-0768-7d5b-b3b1-2369d44eaf37","at":1769585969000000000,"seq":403,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038b-1708-70fe-8f1b-653862490c2b","at":1769585973000000000,"seq":404,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038b-5588-76cd-92a5-b7470b024145","at":1769585989000000000,"seq":405,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c038f-265b-7005-8619-26879a3dbd96","at":1769586239067000000,"seq":406,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c038f-265b-715c-9d26-63311da24bf3","at":1769586239067000000,"seq":407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c038f-3d88-7169-b039-f3625d11e4c8","at":1769586245000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038f-e580-7833-84d9-4d3c5cd430c1","at":1769586288000000000,"seq":409,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c038f-ef8e-7cce-94a5-d079241ccfcf","at":1769586290574000000,"seq":410,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c038f-f908-7e43-958b-574dab3fcb78","at":1769586293000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0390-3b70-7cf7-aafc-df9481c430a6","at":1769586310000000000,"seq":412,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0390-4728-76ec-a6d4-b6eb39520f85","at":1769586313000000000,"seq":413,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0390-5e98-763f-aaed-51f526228781","at":1769586319000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0390-5e98-7647-9cbe-d26f769bee83","at":1769586319000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c0390-73ac-71f7-a956-36f7bf3a1bf9","at":1769586324396000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c0391-29b8-7e08-94a9-9543b239c21e","at":1769586371000000000,"seq":417,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0391-5dd9-770a-b2d5-589551762fcc","at":1769586384345000000,"seq":418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c0391-8390-7ecd-bddb-a35078025ab3","at":1769586394000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c0391-8f48-7140-b433-69248c62e2c5","at":1769586397000000000,"seq":420,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0391-a2d0-7039-b884-71b55cfba8e5","at":1769586402000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0391-f0f0-7072-ba4f-075269c888fd","at":1769586422000000000,"seq":422,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

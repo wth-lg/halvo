@@ -1,0 +1,16 @@
+{"v":1,"id":"019d291b-9d23-71a6-a157-fff4b6fb00e1","at":1774511168803000000,"seq":1257,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d291b-9d23-7d57-8b4a-070f6445f695","at":1774511168803000000,"seq":1258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d291c-49c8-7cb0-9a7e-4bc342b042c8","at":1774511213000000000,"seq":1259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d291c-74c0-7ac1-a7e6-1ae33c9990a3","at":1774511224000000000,"seq":1260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d291c-8695-7bc4-8f7c-cdaa1ab47212","at":1774511228565000000,"seq":1261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d291c-9018-731f-a87d-56c03215b4c4","at":1774511231000000000,"seq":1262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d291c-97e8-71e3-bb17-a0e43c3a00ad","at":1774511233000000000,"seq":1263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d291c-ab70-7c6b-bd02-a15496f8dfb5","at":1774511238000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d291c-c2e0-7bc2-b25d-f4f62469a032","at":1774511244000000000,"seq":1265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d291c-cdb8-7011-b3dd-e86a37fed026","at":1774511246776000000,"seq":1266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d291d-0548-72cb-b897-81d89efa823f","at":1774511261000000000,"seq":1267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d291d-1cb8-7183-aca3-907245ec12e0","at":1774511267000000000,"seq":1268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d291d-554b-7fe9-b4b3-c058ac406d6c","at":1774511281483000000,"seq":1269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d291d-72a8-7c18-a16b-2a541bb05a81","at":1774511289000000000,"seq":1270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d291d-b128-7c53-972f-6b55c68678ce","at":1774511305000000000,"seq":1271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d291d-d450-7662-a977-4b673ba0c51c","at":1774511314000000000,"seq":1272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

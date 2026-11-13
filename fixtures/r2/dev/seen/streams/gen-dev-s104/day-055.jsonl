@@ -1,0 +1,31 @@
+{"v":1,"id":"019c8eb9-47a7-7885-b0f3-f91236bc10c3","at":1771921033127000000,"seq":716,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8eb9-47a7-752a-aad1-035b94a0ee7f","at":1771921033127000000,"seq":717,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c8eb9-9160-7874-82d1-0d4993131645","at":1771921052000000000,"seq":718,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eb9-c810-7e84-bdc8-d64ee02036f3","at":1771921066000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eb9-d127-78d9-a995-e0b3df3fa16b","at":1771921068327000000,"seq":720,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c8eba-48f8-7c21-b665-fcb7b2f8a22b","at":1771921099000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c8eba-c913-7730-b73d-7b2ed08a2c01","at":1771921131795000000,"seq":722,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c8eba-d598-74fd-b5ee-fe5409ccad11","at":1771921135000000000,"seq":723,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8ebb-1030-7257-bae7-89b31a277aff","at":1771921150000000000,"seq":724,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8ed5-88a6-73e4-b88e-6c9264f5c4dd","at":1771922884774000000,"seq":725,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c8ed5-acb0-7c59-83eb-2bbb06a964c3","at":1771922894000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ed5-b480-7b16-8516-4fecb0947ff3","at":1771922896000000000,"seq":727,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8ed6-1240-7f91-97fa-dce78d5a3ee5","at":1771922920000000000,"seq":728,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8ee3-bed3-799d-a4d3-2adcf193f96e","at":1771923816147000000,"seq":729,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee4-8960-7765-a1c2-f4e18a07c556","at":1771923868000000000,"seq":730,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c8ee4-9130-7d98-b261-99f5dbe13897","at":1771923870000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eea-7439-7b46-acfb-059626d1234d","at":1771924255801000000,"seq":732,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8eea-a3e0-7dad-baae-1bde6ede60cc","at":1771924268000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eea-bada-7b4f-a042-41edd9056f44","at":1771924273882000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8eea-bf38-72c5-8139-74be7debf9d4","at":1771924275000000000,"seq":735,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8eea-c708-746f-bd3a-4aff74909160","at":1771924277000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8eea-ea30-7377-a3f4-e3b67db58356","at":1771924286000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eea-fdb8-7f40-ae01-6b38013a71a2","at":1771924291000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8eeb-2f69-7578-be40-141e22058953","at":1771924303721000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8eeb-3080-71e4-9eb3-fc0edac22beb","at":1771924304000000000,"seq":740,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8eeb-7ea0-7c13-96ea-8cbe9a05dfce","at":1771924324000000000,"seq":741,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8eeb-8a60-7010-b62e-ca5ee940e10a","at":1771924327008000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c8f04-695e-77f6-b000-3c375bf5948e","at":1771925956958000000,"seq":743,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c8f04-d300-782f-b93d-a7cc8985167d","at":1771925984000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c8f04-f240-7158-89e5-e1a7f09d7086","at":1771925992000000000,"seq":745,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f05-01e0-71dd-be2f-a6c3e5de6b15","at":1771925996000000000,"seq":746,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

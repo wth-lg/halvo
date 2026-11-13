@@ -1,0 +1,22 @@
+{"v":1,"id":"019ca853-09e0-7267-a64b-93a4967a4a1f","at":1772350540256000000,"seq":981,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca853-09e0-77a1-9cac-8f0640867112","at":1772350540256000000,"seq":982,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca853-1c68-7da6-b4a2-4a914cdadf85","at":1772350545000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ca853-2820-7771-8011-6aa6cccb9f69","at":1772350548000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca853-3f90-7983-8d12-59c4217cc739","at":1772350554000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca853-4bbb-7c8f-a0d5-d41aaa74ba49","at":1772350557115000000,"seq":986,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ca853-7640-790a-8549-9722ebbcc065","at":1772350568000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca853-7a28-70fd-b6d2-da5a7921d34b","at":1772350569000000000,"seq":988,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca853-a138-7078-88af-4c75a3152f62","at":1772350579000000000,"seq":989,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ca853-ad20-7b6a-a923-ed46985682d0","at":1772350582048000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ca853-eb70-72f1-8ccb-d382863c8292","at":1772350598000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca853-f728-75bf-8897-53611a13c638","at":1772350601000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca854-4952-7ef6-b5ce-57726f8ff727","at":1772350622034000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ca854-5cb8-7598-b70d-ea49f197a34a","at":1772350627000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ca854-7810-7923-aed4-98527fa9f2dc","at":1772350634000000000,"seq":995,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca854-8f80-7f50-b53e-b862a11d84d2","at":1772350640000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca854-c035-73b2-aa64-19fcb5ef6efb","at":1772350652469000000,"seq":997,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ca855-1c70-70e7-81ed-3bd79099ca0c","at":1772350676080000000,"seq":998,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ca855-5e88-7f04-bd24-f82240851d22","at":1772350693000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca855-6270-7daa-bd2c-16abd67cd599","at":1772350694000000000,"seq":1000,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca855-9d08-70f6-ba47-911119a0c79f","at":1772350709000000000,"seq":1001,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca855-b478-741d-8f22-3a95b55477b4","at":1772350715000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

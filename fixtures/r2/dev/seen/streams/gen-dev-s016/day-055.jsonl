@@ -1,0 +1,10 @@
+{"v":1,"id":"019c8f43-d5de-7507-97be-8c657f8ad301","at":1771930113502000000,"seq":923,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8f43-d5de-7910-9916-0024c919caf1","at":1771930113502000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c8f44-1e20-77aa-8595-b9c540cc9870","at":1771930132000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f44-6088-7427-9660-99d35bc8dfce","at":1771930149000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f44-627d-7f21-b9ba-62c3db642ecd","at":1771930149501000000,"seq":927,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c8f44-9350-772b-919f-287775425e5d","at":1771930162000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c8f44-aea8-7072-aba8-4330cf18c53c","at":1771930169000000000,"seq":929,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8f44-ed3f-720b-b1ac-485781bba754","at":1771930185023000000,"seq":930,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c8f44-f110-7bc2-bce9-a12246da0308","at":1771930186000000000,"seq":931,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8f45-4318-76be-a1f2-6e8265479add","at":1771930207000000000,"seq":932,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

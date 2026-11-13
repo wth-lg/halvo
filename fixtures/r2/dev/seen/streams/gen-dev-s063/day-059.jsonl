@@ -1,0 +1,34 @@
+{"v":1,"id":"019ca3ce-507c-77f7-bd3f-80e0aa759956","at":1772274733180000000,"seq":739,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca3ce-507c-7f15-9fe3-702a3a314c5e","at":1772274733180000000,"seq":740,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ca3ce-b558-7094-99da-28c6c4fc2deb","at":1772274759000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3cf-09fa-74d3-afd4-51545b84ba17","at":1772274780666000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ca3cf-1318-7a21-adbb-af11c880817c","at":1772274783000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3cf-2a88-7291-921b-110545a3eea0","at":1772274789000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ca3cf-54aa-7e4a-8b9d-f20be96f81bc","at":1772274799786000000,"seq":745,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ca3cf-9018-73bd-a5c2-dabb31527f75","at":1772274815000000000,"seq":746,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3cf-9fb8-7fc1-8a45-edb8711a05c9","at":1772274819000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ca3cf-da50-7d4c-8228-a887c5f184be","at":1772274834000000000,"seq":748,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca3cf-f314-70f9-b17b-3688761f0ca2","at":1772274840340000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ca3d0-6ad8-7497-8c3a-5a1b64062e8d","at":1772274871000000000,"seq":750,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca3d0-b128-76f3-862b-a57d227d6983","at":1772274889000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ca3e5-2cc3-7148-b33b-9e0a338da71e","at":1772276231363000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ca3e5-6208-7de6-9559-6e731768db7f","at":1772276245000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3e6-8bcf-7793-92a6-0275dc98354b","at":1772276321231000000,"seq":754,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ca3e6-ae10-75f5-82a5-30ee33cb63e5","at":1772276330000000000,"seq":755,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca3e6-e0d8-7af2-8c69-f02a23d96792","at":1772276343000000000,"seq":756,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca3fd-e987-78fd-9356-744518e30624","at":1772277852551000000,"seq":757,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca3fd-e987-7091-9358-74f163b0973a","at":1772277852551000000,"seq":758,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca3fe-29c8-7a07-8b6f-5d7bfbc535f8","at":1772277869000000000,"seq":759,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ca3fe-4cf0-7ada-8b85-6c97914b5602","at":1772277878000000000,"seq":760,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca3fe-6460-7086-b9a1-df83811514f1","at":1772277884000000000,"seq":761,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca407-623b-7bff-9c1f-a3a415e2b6f9","at":1772278473275000000,"seq":762,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca407-623b-7653-a7bb-ca5881f6b607","at":1772278473275000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ca407-6510-7422-9143-9155b9928e89","at":1772278474000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ca407-8838-759d-b911-04ebf6b62274","at":1772278483000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca407-8c20-7dec-8f9a-c726092bc437","at":1772278484000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca407-9008-74e9-98c3-223861f2f48f","at":1772278485000000000,"seq":767,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca420-83c4-795f-aafd-d9a44227fae6","at":1772280120260000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ca420-9260-7876-a130-a3694c24b721","at":1772280124000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca420-adb8-7d66-b663-70ceee247d26","at":1772280131000000000,"seq":770,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca420-b970-70e5-8bb3-c28f4b2d1556","at":1772280134000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca420-ca32-78a0-b5c7-3e366733b4cc","at":1772280138290000000,"seq":772,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}

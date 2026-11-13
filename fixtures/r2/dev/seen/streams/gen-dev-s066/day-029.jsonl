@@ -1,0 +1,78 @@
+{"v":1,"id":"019c08bb-6dc2-72cb-8c14-9f4393a32a73","at":1769673027010000000,"seq":419,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08bb-6dc2-72cf-9d79-52cbaa510a6e","at":1769673027010000000,"seq":420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c08bb-b408-7bf4-8744-6d98548d3cce","at":1769673045000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c08bb-e8f2-7736-a08b-e4fcbd9600b3","at":1769673058546000000,"seq":422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c08bc-11c8-765f-b44d-5accf9c6e553","at":1769673069000000000,"seq":423,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c08bc-4878-7f93-8a50-c7d5057cb745","at":1769673083000000000,"seq":424,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08bc-5fe8-71ff-aa43-c1805b514074","at":1769673089000000000,"seq":425,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08bc-6251-7337-9438-e1d267085f50","at":1769673089617000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c08bc-7370-7365-8387-a1596e6af7d2","at":1769673094000000000,"seq":427,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08bc-8310-7aab-a4b5-12af10c43c33","at":1769673098000000000,"seq":428,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c08bc-86f8-770a-9512-87d97cb915cc","at":1769673099000000000,"seq":429,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08bc-8ec8-74e6-9fdd-ae90e6a4944e","at":1769673101000000000,"seq":430,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08bc-a250-7284-8b2d-87dc5d8db958","at":1769673106000000000,"seq":431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c08bc-c0da-72ae-b812-66feee570719","at":1769673113818000000,"seq":432,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c08bc-d900-7ef1-a009-e5ef67399099","at":1769673120000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08bc-ec88-7497-a77f-220fc6aa723a","at":1769673125000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c08bd-0bc8-742b-bfc1-db21530aca09","at":1769673133000000000,"seq":435,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c08bd-0fb0-7ec5-ad82-f11d25b79598","at":1769673134000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c6-982c-75da-8a40-426bbc00e61a","at":1769673758764000000,"seq":437,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c08c6-982c-7225-a683-2ceb953ee670","at":1769673758764000000,"seq":438,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c08c6-a4d0-757a-85a3-be9e1b90cdd0","at":1769673762000000000,"seq":439,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08c6-c028-7342-b05d-b1577387c83b","at":1769673769000000000,"seq":440,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c6-c7f8-7c80-a73a-d1eefb1afa19","at":1769673771000000000,"seq":441,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c08c6-f5cd-7869-8a89-ab48b7afe058","at":1769673782733000000,"seq":442,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08c6-f5cd-7a7d-9e3d-eb1950225748","at":1769673782733000000,"seq":443,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c08c7-99bf-71e7-b0e8-07934564eb9c","at":1769673824703000000,"seq":444,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c08c7-c1f8-74d5-97f6-9e1e939a275f","at":1769673835000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c7-f4c0-71bd-838b-cee0af16bc05","at":1769673848000000000,"seq":446,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c08c7-f8a8-7ff5-a5f3-b2b2d099fae7","at":1769673849000000000,"seq":447,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c8-17b6-7b79-9aec-3958f5ecc04c","at":1769673856950000000,"seq":448,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c08c8-17b6-7b08-a515-6ddc15711907","at":1769673856950000000,"seq":449,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c08c8-2b70-7705-a7d0-054e6b904023","at":1769673862000000000,"seq":450,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c08c8-3b10-7138-9976-b2eba6988b1e","at":1769673866000000000,"seq":451,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c8-7d78-7c21-8375-bf8b5e326e07","at":1769673883000000000,"seq":452,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c8-bbf8-76ef-af0d-66610b6c49dc","at":1769673899000000000,"seq":453,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c08de-58a9-7ee1-a8cd-9fa1a1c1cc14","at":1769675315369000000,"seq":454,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08de-58a9-7940-893c-7adae1f8bac6","at":1769675315369000000,"seq":455,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c08de-e7c0-78d4-9e3b-a8aef68cd94e","at":1769675352000000000,"seq":456,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08df-2258-7b06-89aa-3a3366f15093","at":1769675367000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f1-352b-7fea-a16a-2469454824e8","at":1769676551467000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c08f1-8560-7cbe-81b0-aae550011006","at":1769676572000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c08f1-a59b-7d9a-8efb-6275fb2daf90","at":1769676580251000000,"seq":460,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c08f1-ac70-7e3f-8bf7-ad723adc8775","at":1769676582000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f2-5080-73dc-8d97-3040a00cc8de","at":1769676624000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f2-a63f-7753-9109-d8dc8c161b02","at":1769676645951000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c08f2-c5b0-78bd-9369-526cd45f0ebc","at":1769676654000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f2-fc60-75e7-81f4-9fdfc91e2394","at":1769676668000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f3-0c00-748c-b3cf-808384fc33f1","at":1769676672000000000,"seq":466,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08f3-16a2-7468-8049-73d9e24cc7b2","at":1769676674722000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c08f3-5250-7ed8-a1ee-72f62c2e65f8","at":1769676690000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f3-8130-7ecc-93b0-f4056c81087f","at":1769676702000000000,"seq":469,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c08f4-2566-79fd-b3ed-3287bd920b4c","at":1769676744038000000,"seq":470,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c08f4-2928-779f-9009-4f1269d4bc04","at":1769676745000000000,"seq":471,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c08f4-4098-740d-845d-1f1b444c33b6","at":1769676751000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f4-5bf0-783d-9d5e-93f166f97176","at":1769676758000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08f4-67a8-7e6f-9e6e-816b0169940a","at":1769676761000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c08f4-7781-7d12-a847-03b54b372d4b","at":1769676765057000000,"seq":475,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c08f4-dcd8-7f2d-ab6b-a34767dc2209","at":1769676791000000000,"seq":476,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c08f5-3e80-7f49-984a-d88b5ab59404","at":1769676816000000000,"seq":477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c0908-7a6e-7d0c-b039-8cc5962a180f","at":1769678076526000000,"seq":478,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0908-8418-7a58-9a31-cf46a99c5026","at":1769678079000000000,"seq":479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c0908-d620-7162-bfb5-e909d512e29e","at":1769678100000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0909-07b8-7fb5-a1a0-040f8f3c6ac3","at":1769678112696000000,"seq":481,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0909-07b8-74ce-b8f7-2d5af1ffe403","at":1769678112696000000,"seq":482,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0909-14a0-7331-bf5b-520be95c87a4","at":1769678116000000000,"seq":483,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c0909-2828-7587-ba7d-3357921ea695","at":1769678121000000000,"seq":484,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0909-2ff8-7662-a28c-d142b1aa12df","at":1769678123000000000,"seq":485,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c0909-37c8-7901-9680-fa73a7fdd766","at":1769678125000000000,"seq":486,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c0909-4018-7a2a-90f6-b33aea9c8cb3","at":1769678127128000000,"seq":487,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0909-4018-7ee7-bdad-24eec2077f18","at":1769678127128000000,"seq":488,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c0909-4b50-7fe2-8058-8cc01bb1c182","at":1769678130000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0909-85e8-7398-b231-76112356c3ee","at":1769678145000000000,"seq":490,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0909-b4c8-7482-ae26-f33a3838eb60","at":1769678157000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0909-dbd8-7ae7-85fe-ec8b0c554a91","at":1769678167000000000,"seq":492,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c090a-1dd4-7dd2-a4a9-1182f86c59c0","at":1769678183892000000,"seq":493,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c090a-2de0-743d-9b84-a4d62c0581ea","at":1769678188000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c090a-6490-7242-a2a2-ac04540cb40d","at":1769678202000000000,"seq":495,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c090a-9f28-7df1-a4fc-b0bc308fc6a0","at":1769678217000000000,"seq":496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

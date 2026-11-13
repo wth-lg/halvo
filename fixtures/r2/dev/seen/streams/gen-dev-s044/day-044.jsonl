@@ -1,0 +1,32 @@
+{"v":1,"id":"019c55ec-efaa-7825-ab01-504e8e2c286e","at":1770968117162000000,"seq":582,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c55ec-efaa-7395-94a8-4375e0799af8","at":1770968117162000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c55ed-8b48-7a68-b4d8-d9ebe807f916","at":1770968157000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c55ed-b5a4-70be-9e61-32cd781479bf","at":1770968167844000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c55ed-c5e0-711e-a568-1b2fd4caa8f6","at":1770968172000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c55ee-0c30-728e-bf9f-2dd002d7f0fe","at":1770968190000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ee-5e38-75c7-a622-e631f8a685c8","at":1770968211000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ee-680c-7326-9035-226d72e8e457","at":1770968213516000000,"seq":589,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c55ee-98d0-7936-89b1-ad33d7596984","at":1770968226000000000,"seq":590,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c55ee-d368-7224-9e75-82768320e73d","at":1770968241000000000,"seq":591,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c55ee-db38-724d-bae8-31c5aa88be6a","at":1770968243000000000,"seq":592,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ee-e308-7555-8f2d-ff9b155303d1","at":1770968245000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c55f7-af4a-7ca9-82f4-94b0830a08f2","at":1770968821578000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c55f7-b0f0-7662-be5c-de7c52904b47","at":1770968822000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c55fb-8fa2-7d3f-9f00-515503c1d7e3","at":1770969075618000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c55fb-c000-74e8-ad87-3b78f29c3d18","at":1770969088000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55fb-c000-7c19-91a9-c852e2ca4233","at":1770969088000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c55ff-4aa4-7c6c-a350-bd30783517c3","at":1770969320100000000,"seq":599,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c55ff-61b0-77a3-a281-41ad2184c72e","at":1770969326000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ff-80f0-7163-a237-e45453575be2","at":1770969334000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c55ff-8ef1-7834-9c91-55c58c7d03d1","at":1770969337585000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c55ff-deb0-79de-8bf6-15eb1b2d1435","at":1770969358000000000,"seq":603,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5600-2cd0-7222-9e37-00c899e7a692","at":1770969378000000000,"seq":604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5600-439b-73d2-a948-cdee310ff519","at":1770969383835000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5600-57c8-728d-b6cf-c9cba7169b7f","at":1770969389000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5600-7320-75d8-a2e3-90d31106d2db","at":1770969396000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5600-9648-7fb6-998d-f7de6c542992","at":1770969405000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c5600-b64f-7b0b-bd50-22b5215630d5","at":1770969413199000000,"seq":609,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5600-f7f0-7aed-87bc-68f3838c7b3c","at":1770969430000000000,"seq":610,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5601-33f1-729d-bc04-5a09640834ae","at":1770969445361000000,"seq":611,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5601-9430-73ec-8ab5-cfd8c4284943","at":1770969470000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5601-bb40-7558-802f-875fc71a9dfe","at":1770969480000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

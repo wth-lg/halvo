@@ -1,0 +1,13 @@
+{"v":1,"id":"019c7fc7-2204-7a0d-86a3-60c37d72f6da","at":1771670282756000000,"seq":791,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7fc7-2204-7eac-9c6c-140885da8726","at":1771670282756000000,"seq":792,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7fc7-3a68-7fc1-abaf-cee77daec188","at":1771670289000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fc7-51d8-7fe1-8c4d-8ce5cd2ebabe","at":1771670295000000000,"seq":794,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fd5-d2fd-7dc8-b31e-65b89fd446d0","at":1771671245565000000,"seq":795,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7fd5-d4b0-741b-814e-d10babd270d8","at":1771671246000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fd6-0a13-7357-b89c-46e6c8cbde76","at":1771671259667000000,"seq":797,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7fd6-3658-769d-84c2-2f04334a3d56","at":1771671271000000000,"seq":798,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7fd6-4210-7b46-8857-bce08c9f2e1b","at":1771671274000000000,"seq":799,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7fd6-6538-7b2d-bfad-e6126a815e8c","at":1771671283000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fd6-7702-74c2-a2f6-fad3df68eba2","at":1771671287554000000,"seq":801,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c7fd6-8c48-7b18-b756-1f04b3e72a64","at":1771671293000000000,"seq":802,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7fd6-9030-7b65-bb88-7f802a26535c","at":1771671294000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

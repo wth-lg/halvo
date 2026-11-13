@@ -1,0 +1,20 @@
+{"v":1,"id":"019c84dd-e6bf-723b-b071-4785ce9a574c","at":1771755660991000000,"seq":1012,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c84dd-e6bf-7842-a5b2-b145038f2286","at":1771755660991000000,"seq":1013,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c84de-0220-715f-89a6-629f99d36d91","at":1771755668000000000,"seq":1014,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84de-2930-7481-918d-23fe7fa431b1","at":1771755678000000000,"seq":1015,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c84f9-760b-7dff-94cd-96ac391baa20","at":1771757467147000000,"seq":1016,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84f9-760b-7935-95d8-264ef155d8a3","at":1771757467147000000,"seq":1017,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c84f9-ac28-7733-bd48-97a154d12f06","at":1771757481000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84f9-b010-7937-97c1-faa8293a60d1","at":1771757482000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84f9-b3f8-7966-9073-6a9fc1437afb","at":1771757483000000000,"seq":1020,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c84f9-bf0e-7390-8fe3-349be61d1811","at":1771757485838000000,"seq":1021,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c84f9-e2d8-77d5-b2ab-329d450781a4","at":1771757495000000000,"seq":1022,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84fa-67a8-768d-9f5b-2c7e6749a822","at":1771757529000000000,"seq":1023,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c84fa-b49b-7037-ab08-dbb1ff641c08","at":1771757548699000000,"seq":1024,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c84fb-1f40-7c01-87ac-412dc771b0c9","at":1771757576000000000,"seq":1025,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c84fb-2710-77e1-964e-7ec3790ed9eb","at":1771757578000000000,"seq":1026,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84fb-3a98-7ff3-b74e-c9da9d8cbcbd","at":1771757583000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84fb-5fbe-77b5-8029-eb128d2166fb","at":1771757592510000000,"seq":1028,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c84fb-a410-7449-835c-abe01e6f10af","at":1771757610000000000,"seq":1029,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c84fb-a7f8-7bac-b441-215eff45ec68","at":1771757611000000000,"seq":1030,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84fb-b3b0-7b76-93f8-2e170dbb8f45","at":1771757614000000000,"seq":1031,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

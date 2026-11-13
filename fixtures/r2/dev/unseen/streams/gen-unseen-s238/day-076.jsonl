@@ -1,0 +1,38 @@
+{"v":1,"id":"019cfaad-995b-781e-b4e1-f44cc9eb57f5","at":1773732206939000000,"seq":955,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cfaad-995b-7817-b8e3-6d31f98b4d33","at":1773732206939000000,"seq":956,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cfaad-c878-783c-be4b-221a9f19eedb","at":1773732219000000000,"seq":957,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cfaad-e7b8-7817-a9af-e48b86b28160","at":1773732227000000000,"seq":958,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cfac5-faf8-76d7-9abf-370245c2f312","at":1773733804792000000,"seq":959,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfac5-faf8-77ae-9c68-8c3c2cb17f0c","at":1773733804792000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cfac6-9420-715d-8373-14a6d1f2394d","at":1773733844000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfac6-9808-7f9c-8b22-e04c32f29c14","at":1773733845000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfac6-ad94-7617-b0b1-1abe6e7853e8","at":1773733850516000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cfac6-f9b0-73dc-b34c-d26431e80725","at":1773733870000000000,"seq":964,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfac7-0180-76af-bb6e-2ff8fdfc231b","at":1773733872000000000,"seq":965,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfac9-5255-78be-8a01-1001474498cf","at":1773734023765000000,"seq":966,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cfac9-5255-72df-bfc9-cc7a8b637e2f","at":1773734023765000000,"seq":967,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cfac9-5ef8-737f-83b7-da4475ee2c01","at":1773734027000000000,"seq":968,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cfac9-7668-7512-9ef8-bc56497cf6b6","at":1773734033000000000,"seq":969,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfac9-7a50-767b-87ba-86f7f32811ce","at":1773734034000000000,"seq":970,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cfac9-8dd8-7d31-a06c-3f34934cbcb0","at":1773734039000000000,"seq":971,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfadd-5a02-7889-be3a-e45c869cd85b","at":1773735336450000000,"seq":972,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfadd-5a02-717e-9fc5-ac5f2499b371","at":1773735336450000000,"seq":973,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cfadd-67e0-743a-a52c-9e83726c7df4","at":1773735340000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfadd-7780-7b7b-a7a8-62aff38e1af4","at":1773735344000000000,"seq":975,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfadd-d540-7e0e-9456-625cab7e93a2","at":1773735368000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaea-ba56-7420-9713-717766c9e13c","at":1773736213078000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cfaea-e8e8-7c20-b140-6d97aed2377b","at":1773736225000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaea-f888-7b28-9d43-177776e4d04e","at":1773736229000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cfaeb-5260-76b3-a07b-f60fb9d8261d","at":1773736252000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaeb-796f-76b8-91f8-8d6e4a860c97","at":1773736261999000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cfaeb-7d58-79dd-8c66-2dcbb96f0e56","at":1773736263000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaeb-8528-7571-b911-5d45170a08bd","at":1773736265000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaeb-94c8-7374-9f5d-843a14037088","at":1773736269000000000,"seq":984,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfaeb-eab8-7155-8ac4-a711cb45b266","at":1773736291000000000,"seq":985,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cfaec-74c9-7d32-80cf-4b9d5466f65c","at":1773736326345000000,"seq":986,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cfaec-9e68-75aa-937c-563a3337f124","at":1773736337000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaed-5f0d-7b6b-872a-e9c9d02c93df","at":1773736386317000000,"seq":988,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019cfaed-61b8-73cd-b7ac-96396ae2b340","at":1773736387000000000,"seq":989,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfaed-88c8-7080-bcef-2615375ededf","at":1773736397000000000,"seq":990,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfaed-9098-74fb-89d4-bba5b5b27e00","at":1773736399000000000,"seq":991,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfaed-a420-7537-b61b-308f8633d106","at":1773736404000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}

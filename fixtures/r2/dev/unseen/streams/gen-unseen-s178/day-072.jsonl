@@ -1,0 +1,36 @@
+{"v":1,"id":"019ce667-39f3-7837-a075-f1aee3b5fd55","at":1773392050675000000,"seq":899,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce667-39f3-757b-ae8a-99fc7ae8cfd0","at":1773392050675000000,"seq":900,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce667-46f0-74e1-a33c-4ea8fbd376f4","at":1773392054000000000,"seq":901,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce667-6e00-7713-ac92-2f824a12fb16","at":1773392064000000000,"seq":902,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ce667-71e8-7a60-b3ea-c85a19d66062","at":1773392065000000000,"seq":903,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ce66d-5d46-73ef-bfef-eddd64a44e8b","at":1773392452934000000,"seq":904,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce66d-5d46-7352-beb9-af0995a775ee","at":1773392452934000000,"seq":905,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce66d-5d88-77d5-9861-268609830e11","at":1773392453000000000,"seq":906,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce66d-da88-733b-a49f-aac37acd94c4","at":1773392485000000000,"seq":907,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce66e-1ad1-7531-87bb-ed4b06cd9905","at":1773392501457000000,"seq":908,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce66e-3460-7064-965c-600ceea6124c","at":1773392508000000000,"seq":909,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce66e-47e8-7972-8bfe-f99717594365","at":1773392513000000000,"seq":910,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce66e-6340-7281-b19b-5e9bd7cdc93e","at":1773392520000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce66e-684a-794a-b789-798a88953fa4","at":1773392521290000000,"seq":912,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce66e-76c8-779e-ae3f-fb0fc0361558","at":1773392525000000000,"seq":913,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ce66e-9220-7589-8490-c23407937e11","at":1773392532000000000,"seq":914,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce66e-bece-7e1d-b585-7e73ff2a74fd","at":1773392543438000000,"seq":915,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce66e-d0a0-7d00-b29b-c0c11e86c282","at":1773392548000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce66f-3a18-7149-a522-1ac892a363da","at":1773392575000000000,"seq":917,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce66f-6328-7cf8-a727-8950fc5c5123","at":1773392585512000000,"seq":918,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce66f-9fa8-765d-83af-06721d7d170e","at":1773392601000000000,"seq":919,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce670-1ca8-77ee-a23a-4baf59992491","at":1773392633000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce670-47a0-7f23-b3b6-e12744f9697a","at":1773392644000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce670-5ca5-714b-b826-544ba71aeb43","at":1773392649381000000,"seq":922,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce670-7e50-71d2-85aa-ea1e72f377db","at":1773392658000000000,"seq":923,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce670-91d8-7dab-a03e-2b491f96356c","at":1773392663000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce670-a178-74c8-8fb6-3934b2280d1d","at":1773392667000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce670-dff8-75bd-a9bc-d39cc8a677e5","at":1773392683000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce670-ef98-7365-aa57-e9b5dcc4eb57","at":1773392687000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce686-4066-79d5-ba7d-9d90606efaab","at":1773394083942000000,"seq":928,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce686-4066-78d8-97f5-5a3a2bb39ec5","at":1773394083942000000,"seq":929,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce686-92a8-726b-b0bc-d52c4392d941","at":1773394105000000000,"seq":930,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ce686-ae00-78b7-a132-48ca6d3ee20f","at":1773394112000000000,"seq":931,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce686-c188-7945-a9c7-616f9af68492","at":1773394117000000000,"seq":932,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce686-cd40-76dd-bb83-71e04f3477da","at":1773394120000000000,"seq":933,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ce686-d8f8-7292-aaa5-94d83ddc1dee","at":1773394123000000000,"seq":934,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,36 @@
+{"v":1,"id":"019c41aa-6a15-7f9f-bc2f-cc1ece50cda3","at":1770628213269000000,"seq":573,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41aa-6a15-75c2-851d-c46808398afe","at":1770628213269000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c41aa-70d8-76a4-ba57-3988a0b873d4","at":1770628215000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c41aa-cab0-7823-8de2-c2caf045d035","at":1770628238000000000,"seq":576,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c41ad-00fd-7aac-99b1-1c868c1d7804","at":1770628382973000000,"seq":577,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c41ad-91a0-7d7a-854c-7dca23cca657","at":1770628420000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ad-a528-7973-81e9-a36b4ab0e853","at":1770628425000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ae-0e75-7a05-9073-f8f78b1d0a97","at":1770628451957000000,"seq":580,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c41ae-4550-76b6-94b8-520470060891","at":1770628466000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ae-4d20-786e-8bc5-0e14711f3d34","at":1770628468000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c41ae-5108-7f0c-9cc5-aa2fbe55d15d","at":1770628469000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ae-ce08-7989-b1f0-11f38c98a594","at":1770628501000000000,"seq":584,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c41ae-d9c0-7eea-a681-6abdd8e0c97f","at":1770628504000000000,"seq":585,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c41af-129d-7afb-beca-82d21321e60c","at":1770628518557000000,"seq":586,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c41af-9d10-7f51-b8e7-0d91d1ecad71","at":1770628554000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c41af-a4e0-71e6-ae0b-806b43b94115","at":1770628556000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c41b0-0181-7f11-9587-09ed075527b0","at":1770628579713000000,"seq":589,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c41b0-0a70-74d7-add1-00bb70722e94","at":1770628582000000000,"seq":590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c41b0-5890-73c2-9c25-0e87ebc280ef","at":1770628602000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41b0-6060-78aa-81ad-3a475d7b15f0","at":1770628604000000000,"seq":592,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41b0-6c18-7af0-8891-a7813c1a2870","at":1770628607000000000,"seq":593,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c41bf-de83-7d14-94ed-49ba16a843b1","at":1770629619331000000,"seq":594,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c41bf-de83-7b84-9d8c-8ad7046d6014","at":1770629619331000000,"seq":595,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c41c0-2f40-726b-ac6d-76220da889d5","at":1770629640000000000,"seq":596,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c41c0-3328-7c7a-bf4c-60eebe8e4ce9","at":1770629641000000000,"seq":597,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c0-3ee0-7882-b490-c5cdb55af1a0","at":1770629644000000000,"seq":598,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c41d7-978f-7dc9-ad90-a7118d99389e","at":1770631174031000000,"seq":599,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41d7-978f-7ee1-b287-4c0b26354fc0","at":1770631174031000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c41d7-aaf8-7b5e-b06e-a25415a657fa","at":1770631179000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d7-b6b0-7a99-ac94-28d9c2938960","at":1770631182000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c41d7-ddc0-7361-bc89-1bdd3f87c148","at":1770631192000000000,"seq":603,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d7-ef7c-7fa0-a4c2-485e02a1945b","at":1770631196540000000,"seq":604,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c41d7-f918-7434-9716-4dae06428394","at":1770631199000000000,"seq":605,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c41d8-4f08-7b27-a906-a79986988d8a","at":1770631221000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d8-7a00-750a-97af-f2028c4f26c5","at":1770631232000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d8-9558-7058-b792-8374c619afa2","at":1770631239000000000,"seq":608,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

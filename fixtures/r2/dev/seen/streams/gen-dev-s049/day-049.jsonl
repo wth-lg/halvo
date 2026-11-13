@@ -1,0 +1,15 @@
+{"v":1,"id":"019c6fcc-543e-7dec-a102-b24c2500ed5c","at":1771402187838000000,"seq":573,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fcc-543e-71c3-92a6-dd23f1b9cd78","at":1771402187838000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6fcc-7808-7444-9c84-c6675d3d1984","at":1771402197000000000,"seq":575,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6fcc-9360-787a-9393-52c47515a9e7","at":1771402204000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fcc-9b30-7de5-8e44-0ee965d77a45","at":1771402206000000000,"seq":577,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6fcc-be58-7497-8510-18777e49ef4d","at":1771402215000000000,"seq":578,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fcf-ec54-73f4-81d3-d1c68b20c220","at":1771402423380000000,"seq":579,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6fcf-ec54-70a5-ab18-3f605e449e9c","at":1771402423380000000,"seq":580,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6fd0-3128-7af2-aeab-d96a1d819ce0","at":1771402441000000000,"seq":581,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6fd0-3128-727e-ab08-689ab2a52a06","at":1771402441000000000,"seq":582,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c6fd0-3ce0-7ae6-88a4-8e6adbd0d7d5","at":1771402444000000000,"seq":583,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6fd0-4852-799e-a852-c78364209834","at":1771402446930000000,"seq":584,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6fd0-7778-79ff-a15e-3aa6dff2e4f5","at":1771402459000000000,"seq":585,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fd0-7b60-7530-8e26-9b9bc8e4f5ff","at":1771402460000000000,"seq":586,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fd0-8ee8-7093-ac6f-47e9a8136dd0","at":1771402465000000000,"seq":587,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

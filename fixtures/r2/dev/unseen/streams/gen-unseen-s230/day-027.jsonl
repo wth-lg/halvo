@@ -1,0 +1,22 @@
+{"v":1,"id":"019bfe88-27a1-7d9b-b21a-2244e69350d3","at":1769501894561000000,"seq":251,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfe88-27a1-70c5-a180-bfb893f19999","at":1769501894561000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bfe88-ac45-7c57-8209-43034ab5a285","at":1769501928517000000,"seq":253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bfe89-2b28-7f94-add8-bec50894e7de","at":1769501961000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe89-36e0-738d-9234-afedb00caf81","at":1769501964000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe89-3eb0-7613-930b-8dd2a1722e93","at":1769501966000000000,"seq":256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bfe89-7f89-74d6-b48a-8e470ea07a1d","at":1769501982601000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bfe89-fa30-7049-a857-937b21b6713b","at":1769502014000000000,"seq":258,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfe8a-0200-7409-9d99-a930a50ba939","at":1769502016000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bfe8a-38b0-78ec-961f-bf616d324baf","at":1769502030000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe8a-4850-75b3-b71e-432821502b0f","at":1769502034000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe8a-72e6-7722-8f1f-e296757c00f1","at":1769502044902000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019bfe8a-a9f8-778f-b35d-9377d2b2b0f2","at":1769502059000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bfe8a-c550-734a-9020-0d55ae5ebf22","at":1769502066000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe8a-cd20-7806-af6a-56adb295a5eb","at":1769502068000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfe8a-e490-7041-9c37-6e87551012ee","at":1769502074000000000,"seq":266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfea2-bc50-7510-bcf6-9aada26ce62e","at":1769503636560000000,"seq":267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bfea3-0c28-760f-ab8e-08a09cf0b0fe","at":1769503657000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bfea6-481a-7cc0-b98b-2ee84c1f32f2","at":1769503868954000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bfea6-4848-7cf3-9cab-7370cc069680","at":1769503869000000000,"seq":270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bfea6-7340-7f04-8d67-16a1c5d5a0b6","at":1769503880000000000,"seq":271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bfea6-c160-742b-916d-3bd14f2f4193","at":1769503900000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

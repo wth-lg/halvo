@@ -1,0 +1,33 @@
+{"v":1,"id":"019bcb1a-5d5d-7607-8070-1122c485a056","at":1768639061341000000,"seq":229,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb1a-5d5d-7ce7-aab6-2cedcce7dce7","at":1768639061341000000,"seq":230,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb1a-a258-7a06-8d62-abf254daba97","at":1768639079000000000,"seq":231,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb1a-c198-72ce-93b2-c819a70d0d6c","at":1768639087000000000,"seq":232,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bcb23-19db-7ecc-93ad-a9aca6a5e4f1","at":1768639633883000000,"seq":233,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb23-19db-7326-84fe-39eafb847d41","at":1768639633883000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bcb23-4160-78f9-b117-b8b78825c4be","at":1768639644000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb23-6870-700c-8be7-29b411e3a36c","at":1768639654000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bcb23-7040-7626-a6d0-096b1d51a0f1","at":1768639656000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb24-02fe-7b12-be75-0a9158494b62","at":1768639693566000000,"seq":238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bcb24-3778-74d1-b675-e40a6c655fae","at":1768639707000000000,"seq":239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb24-3b60-7dde-b620-75d61945ad8d","at":1768639708000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bcb24-9538-7228-973d-e20e3d093317","at":1768639731000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb24-cfd0-79db-844e-421d06c5ab94","at":1768639746000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb24-eed8-79be-a6ee-8aab5c643c6d","at":1768639753944000000,"seq":243,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bcb24-fac8-7310-9a8c-5fcee2301866","at":1768639757000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb25-26b8-7cd9-9a03-04b259eb7168","at":1768639768248000000,"seq":245,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bcb25-5c70-701f-9244-96012eafece2","at":1768639782000000000,"seq":246,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb25-9fee-75ee-b008-4712e1a954b7","at":1768639799278000000,"seq":247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bcb25-a6a8-7e39-a1d5-dfbc332325f1","at":1768639801000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bcb25-cdb8-7591-ae97-cd65340cbdda","at":1768639811000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bcb26-0a05-7611-be71-6ad150b16f81","at":1768639826437000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bcb26-1408-7d60-a5b2-74f446d0b269","at":1768639829000000000,"seq":251,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb26-17f0-758d-bba4-b1af41750839","at":1768639830000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb26-5e40-7948-ad30-b91df2229772","at":1768639848000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb26-c7b8-747a-a110-7a62338b57b7","at":1768639875000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb26-da17-7dcb-92d0-5939132c3643","at":1768639879703000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bcb26-eae0-7f0c-bf5b-ff84b5aa9cd6","at":1768639884000000000,"seq":256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb27-1da8-74aa-9e12-9b010fb561e7","at":1768639897000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb27-a238-7c96-8478-0c7b4ef4517b","at":1768639930936000000,"seq":258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bcb27-ae30-7eb5-9ad4-990497a8328a","at":1768639934000000000,"seq":259,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb28-0bf0-7f71-93c3-e105430a2aeb","at":1768639958000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb28-0fd8-7a72-ac9f-767a8639a322","at":1768639959000000000,"seq":261,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

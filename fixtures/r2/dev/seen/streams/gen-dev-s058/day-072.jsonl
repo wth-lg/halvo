@@ -1,0 +1,13 @@
+{"v":1,"id":"019ce6d7-0630-77bc-99f3-14f3a62c3ecb","at":1773399377456000000,"seq":985,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6d7-0630-7f1c-a69d-c7f7da2584d0","at":1773399377456000000,"seq":986,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ce6d7-1020-777c-b5c6-c9a931018bd7","at":1773399380000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ce6d7-23a8-7bf1-8544-7cfcc00218ec","at":1773399385000000000,"seq":988,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d7-58e2-79a7-b98a-e6492758df79","at":1773399398626000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ce6d7-71c8-7090-9211-46635dd7e58a","at":1773399405000000000,"seq":990,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6d7-7d80-7937-8cdb-1527afa8b5cb","at":1773399408000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d7-b818-7bb2-89b1-85c68cff0973","at":1773399423000000000,"seq":992,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce6d7-bb87-77ca-9a51-316e7845aebe","at":1773399423879000000,"seq":993,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ce6d8-5070-7bbd-9b85-614b22bf9057","at":1773399462000000000,"seq":994,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ce6d8-67e0-74ef-9a47-a9b926b43ba9","at":1773399468000000000,"seq":995,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce6d8-8b08-7cb3-87c4-d03a46ca8a0a","at":1773399477000000000,"seq":996,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d8-8ef0-7c19-bf4d-d88983e5ff2e","at":1773399478000000000,"seq":997,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

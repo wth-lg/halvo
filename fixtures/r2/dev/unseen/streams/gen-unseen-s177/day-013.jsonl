@@ -1,0 +1,32 @@
+{"v":1,"id":"019bb684-e74c-7d03-b36b-5d04e399504d","at":1768293721932000000,"seq":87,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb684-e74c-7e3e-a56b-d6902d62250c","at":1768293721932000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb685-4938-71fe-940e-d5c155a4ca4b","at":1768293747000000000,"seq":89,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb685-e098-75c6-a529-02fc4319dffd","at":1768293785752000000,"seq":90,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019bb686-6278-7e33-b60c-66c4f8ce45ad","at":1768293819000000000,"seq":91,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb686-8988-7853-ad5c-250253c6343d","at":1768293829000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb686-a0f8-78e3-a718-9dc618d6680c","at":1768293835000000000,"seq":93,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bb686-a7aa-7be8-9082-e1845c131761","at":1768293836714000000,"seq":94,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019bb686-a8c8-7a72-bdab-ae7e1868b43b","at":1768293837000000000,"seq":95,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bb686-b480-7639-b9e3-f42c7607d230","at":1768293840000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb686-fad0-7350-aa32-ac3f87b0620b","at":1768293858000000000,"seq":97,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb687-1a10-7e4a-9bd0-0f44c7a3aa52","at":1768293866000000000,"seq":98,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb687-21bf-7d21-8d8e-c03871187d1d","at":1768293867967000000,"seq":99,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019bb687-2d98-71ae-8683-3a88424ec100","at":1768293871000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb687-4120-726f-ba73-42744ddc6d2d","at":1768293876000000000,"seq":101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bb687-8770-7b1a-9e6c-fd8aa36a7c97","at":1768293894000000000,"seq":102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb687-9710-76e1-a592-749133a65192","at":1768293898000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb687-a3e0-7dc7-90bd-92a53cf6a283","at":1768293901280000000,"seq":104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019bb687-ae80-7673-ad90-57b733c1c9be","at":1768293904000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb688-23b0-764e-befe-c99c84b4e7e5","at":1768293934000000000,"seq":106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb688-3738-7f86-ac0a-4f365b0f250b","at":1768293939000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb688-3f08-7146-8ec3-9619fe1c24e3","at":1768293941000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb688-6a00-7c51-b85c-cab8290010f8","at":1768293952000000000,"seq":109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bb688-9950-7dd2-a95c-ffece76d0f0b","at":1768293964112000000,"seq":110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb688-b438-78e5-8236-5d50bf289287","at":1768293971000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb688-e318-78c6-a6b5-008bd21d293b","at":1768293983000000000,"seq":112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bb689-2198-7fdd-bdf6-7b94f8667b3b","at":1768293999000000000,"seq":113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb689-259d-7def-bd0e-b1ca5330a8f7","at":1768294000029000000,"seq":114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb689-6bd0-781f-9461-e09026801b1c","at":1768294018000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb689-9698-7eb8-b58a-9b15f749ac56","at":1768294028952000000,"seq":116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb689-bdd8-7a02-895d-dbf5e8f4849f","at":1768294039000000000,"seq":117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb68a-3ec0-7fd6-9709-7f7a92265739","at":1768294072000000000,"seq":118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

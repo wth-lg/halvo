@@ -1,0 +1,13 @@
+{"v":1,"id":"019c08d2-c65e-736c-a2ac-c4f9d5ea6e3d","at":1769674557022000000,"seq":313,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08d2-c65e-7993-9931-51ba44053536","at":1769674557022000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c08d2-e1a0-7b96-a9cf-b8117c239807","at":1769674564000000000,"seq":315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c08d3-04c8-743f-a941-229fa3edf678","at":1769674573000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08d3-1080-7745-9c42-e92146a79e52","at":1769674576000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c08d3-2408-7351-a3a1-ff3f479d685a","at":1769674581000000000,"seq":318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c08d3-2fc0-7e1c-b484-ea807662d1bd","at":1769674584000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08ea-9860-7660-b3eb-7060301936bd","at":1769676118112000000,"seq":320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c08ea-f998-77dc-a5fd-9b64b95081f8","at":1769676143000000000,"seq":321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08eb-0168-76b1-a481-a517afd6b764","at":1769676145000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c08eb-2f66-7c6e-af59-165651c66c64","at":1769676156774000000,"seq":323,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c08eb-6310-71b6-beb7-d7af9d2b84a8","at":1769676170000000000,"seq":324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08eb-a578-75df-8ab0-dde796fb4491","at":1769676187000000000,"seq":325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

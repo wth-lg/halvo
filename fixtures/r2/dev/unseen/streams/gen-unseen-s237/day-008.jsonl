@@ -1,0 +1,23 @@
+{"v":1,"id":"019b9c7c-30a8-7f00-b9b7-394ed27894c6","at":1767856943272000000,"seq":79,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9c7c-30a8-7731-8b6e-0a824f412f96","at":1767856943272000000,"seq":80,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9c7c-9140-765c-bd3c-bb78cb6a5cc0","at":1767856968000000000,"seq":81,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b9c7c-a4c8-7b04-9c17-711f92e702a4","at":1767856973000000000,"seq":82,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b9c95-6f51-704f-bb38-89da2733fc7e","at":1767858597713000000,"seq":83,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9c95-6f51-778c-b571-094e7ccc296f","at":1767858597713000000,"seq":84,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b9c95-f158-7979-9004-d7e0e8a2f014","at":1767858631000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b9c96-2ecc-7d56-a8ea-7682cc1bddf7","at":1767858646732000000,"seq":86,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b9c96-85c8-7311-8488-20100a858593","at":1767858669000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9c96-85c8-7ae1-b3ec-bebe2c7c6b06","at":1767858669000000000,"seq":88,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b9c96-faf8-7782-8a5f-b2022bdaf733","at":1767858699000000000,"seq":89,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9c96-fb46-7da1-abfb-fa56f2eb666a","at":1767858699078000000,"seq":90,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b9c97-25f0-743b-b9d6-078968331992","at":1767858710000000000,"seq":91,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b9c97-f214-7d62-9b62-79e60264cac5","at":1767858762260000000,"seq":92,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019b9c98-00b0-7bf6-ab4b-bd1878534c29","at":1767858766000000000,"seq":93,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9c98-0880-764c-b862-90299c6c0336","at":1767858768000000000,"seq":94,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9c98-1ff0-7df9-b5f6-29332765b20e","at":1767858774000000000,"seq":95,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9c98-71f8-72bc-ad77-170ae9518bd0","at":1767858795000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b9c9f-8bdf-7bd5-a1c1-6a3a21005542","at":1767859260383000000,"seq":97,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9c9f-8bdf-7f1e-b949-adf9ec64d1a4","at":1767859260383000000,"seq":98,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9c9f-9230-78f3-a1ac-a994f224bf65","at":1767859262000000000,"seq":99,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b9c9f-c4f8-71e8-8f9c-0b331f2b8544","at":1767859275000000000,"seq":100,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9ca0-0b48-7748-a48e-634e0ce03713","at":1767859293000000000,"seq":101,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

@@ -1,0 +1,32 @@
+{"v":1,"id":"019cfb1f-5f19-70cb-8340-1bd654f92d9c","at":1773739663129000000,"seq":1259,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfb1f-5f19-7258-8c87-32673933cb57","at":1773739663129000000,"seq":1260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cfb1f-db98-7dcf-b74b-e9fc41e6f98f","at":1773739695000000000,"seq":1261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cfb20-1630-7045-ab81-c42ab2d86422","at":1773739710000000000,"seq":1262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb20-582b-7a74-a1e2-79d12904603a","at":1773739726891000000,"seq":1263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cfb20-f4d8-734d-958a-1cca658aeaac","at":1773739767000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cfb20-fc57-7139-bad2-d6135d6b973a","at":1773739768919000000,"seq":1265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cfb21-4ac8-717f-a546-6e40968fecc3","at":1773739789000000000,"seq":1266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cfb21-5e50-7164-a439-02e33d40aa25","at":1773739794000000000,"seq":1267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfb21-6a08-71e6-91b7-962ac314f75f","at":1773739797000000000,"seq":1268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cfb21-cf98-73c9-a8f9-a6aa573c9af2","at":1773739823000000000,"seq":1269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb22-0947-757a-9b23-83df81f3d9dd","at":1773739837767000000,"seq":1270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cfb22-b622-73ec-83ad-e2c11b7b06b6","at":1773739882018000000,"seq":1271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cfb22-c1c8-7bc7-951d-5fbe55468b72","at":1773739885000000000,"seq":1272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfb22-d938-7889-9aab-9c1d3243f47a","at":1773739891000000000,"seq":1273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cfb22-e4f0-77d1-a483-e50eb24997fb","at":1773739894000000000,"seq":1274,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfb23-0048-7fab-b46e-c690f99d39b9","at":1773739901000000000,"seq":1275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb23-9930-7718-b907-1089554f0ced","at":1773739940144000000,"seq":1276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cfb23-b3f8-723f-8a29-d064bfeb4dfc","at":1773739947000000000,"seq":1277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfb24-0218-7442-b0d6-a02f575cb728","at":1773739967000000000,"seq":1278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cfb31-8b6a-736c-8dff-593792973f95","at":1773740854122000000,"seq":1279,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cfb31-8b6a-75ee-b247-04f83dba48e3","at":1773740854122000000,"seq":1280,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cfb31-dcf8-7de8-9580-050917c17f61","at":1773740875000000000,"seq":1281,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cfb31-f468-7795-be0b-31f7ca5b4e38","at":1773740881000000000,"seq":1282,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cfb41-c062-7219-a762-d6879236ce9d","at":1773741916258000000,"seq":1283,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfb41-c062-7d1b-9a45-6cdf9ac995d1","at":1773741916258000000,"seq":1284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cfb41-ee40-7f23-82b7-d10a815412f5","at":1773741928000000000,"seq":1285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cfb41-f9f8-7706-a57e-69cc46bc789c","at":1773741931000000000,"seq":1286,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfb48-2436-7c27-b890-8d6e7d1e1c6b","at":1773742335030000000,"seq":1287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cfb48-4358-7916-8673-3bf7a4e7aa3f","at":1773742343000000000,"seq":1288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cfb48-9948-7aec-932d-bb80c5d0e48e","at":1773742365000000000,"seq":1289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfb48-df98-7d18-8448-8a55279bac70","at":1773742383000000000,"seq":1290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

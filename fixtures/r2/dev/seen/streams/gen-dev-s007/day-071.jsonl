@@ -1,0 +1,11 @@
+{"v":1,"id":"019ce0e5-4a0d-758b-bba9-1280c0587e3d","at":1773299649037000000,"seq":1191,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce0e5-4a0d-7768-842d-b9f844a6ff84","at":1773299649037000000,"seq":1192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ce0e5-5d70-7b18-b53e-58063ae49cf8","at":1773299654000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce0e6-2547-7208-afba-8610fb9a7063","at":1773299705159000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ce0e6-4bb8-758b-b174-0500497ab4e4","at":1773299715000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ce0e7-09a0-7daa-a10c-2fba57de3e13","at":1773299763616000000,"seq":1196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ce0e7-5558-73ae-a2c8-6e77917cd45f","at":1773299783000000000,"seq":1197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce0e7-b318-78a9-bf53-938128cdf64c","at":1773299807000000000,"seq":1198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce0e7-ed0b-7f00-ab76-a7e6f9f15795","at":1773299821835000000,"seq":1199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019ce0e8-2c30-7675-9d8b-2fabb8168f96","at":1773299838000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce0e8-d040-7453-a6d4-48f5c6f53812","at":1773299880000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

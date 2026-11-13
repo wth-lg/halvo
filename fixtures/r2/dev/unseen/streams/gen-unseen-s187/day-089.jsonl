@@ -1,0 +1,31 @@
+{"v":1,"id":"019d3e4a-dbb8-7052-b7d7-de7e7db90bad","at":1774866586552000000,"seq":1577,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3e4a-dbb8-770f-8930-b273ad39ae26","at":1774866586552000000,"seq":1578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4a-e160-79ad-af76-7141556a39ba","at":1774866588000000000,"seq":1579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4b-0488-7b38-9f30-096933da5e34","at":1774866597000000000,"seq":1580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4b-1428-7ba1-8532-bfccac9a61ef","at":1774866601000000000,"seq":1581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d3e4b-203e-7955-8ec9-508b2fef4ef9","at":1774866604094000000,"seq":1582,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4b-3368-73e5-beac-920d23703d15","at":1774866609000000000,"seq":1583,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3e4b-e330-7403-9c2d-4a79abc43414","at":1774866654000000000,"seq":1584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4b-e718-746c-8917-8a2787f9f06e","at":1774866655000000000,"seq":1585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4b-eb00-7b94-85f6-e23931693a6d","at":1774866656000000000,"seq":1586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d3e4b-f4ff-7e5e-812a-75dbc3dcb618","at":1774866658559000000,"seq":1587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4c-2d68-7b9e-b556-8d3e1b0fc381","at":1774866673000000000,"seq":1588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d3e4c-5ae2-710a-b2db-e9b683af84da","at":1774866684642000000,"seq":1589,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4c-6800-7ad4-a759-ac0ce548f65c","at":1774866688000000000,"seq":1590,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4c-6be8-7d07-bcb5-995327f0c5fb","at":1774866689000000000,"seq":1591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4c-73b8-7280-91f3-6818970c449a","at":1774866691000000000,"seq":1592,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3e4c-95bd-706f-85ee-994a141f2536","at":1774866699709000000,"seq":1593,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4c-9ac8-7bd0-8882-b01619a7a414","at":1774866701000000000,"seq":1594,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3e4c-a680-7431-91d2-d611c77a994f","at":1774866704000000000,"seq":1595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d3e4c-b238-7274-8704-e87dd43f7ff7","at":1774866707000000000,"seq":1596,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3e4c-dd30-752f-a349-4310464a6c9c","at":1774866718000000000,"seq":1597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4c-e504-735f-95c1-f207888187e4","at":1774866720004000000,"seq":1598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4c-e8e8-77ce-be25-06c00bfed16f","at":1774866721000000000,"seq":1599,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4d-bd98-7504-87be-babd249985e3","at":1774866775448000000,"seq":1600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4e-15b0-75eb-a00d-cda361318e5b","at":1774866798000000000,"seq":1601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3e4e-32be-737e-95dc-8782d6fa43d2","at":1774866805438000000,"seq":1602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4e-a250-7373-925d-25f595f3b6a7","at":1774866834000000000,"seq":1603,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3e4e-f840-75be-9721-645ddffff010","at":1774866856000000000,"seq":1604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3e60-c363-7860-9896-0720e7d416b0","at":1774868022115000000,"seq":1605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3e60-e618-753c-92f9-c3d8014676bb","at":1774868031000000000,"seq":1606,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3e61-2c68-7188-83de-5a58a09fdf88","at":1774868049000000000,"seq":1607,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

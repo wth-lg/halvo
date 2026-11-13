@@ -1,0 +1,31 @@
+{"v":1,"id":"019b9817-d6c3-7bf1-8222-be424dd4b2b3","at":1767783257795000000,"seq":63,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9817-d6c3-703e-94f0-137cd5ba0a22","at":1767783257795000000,"seq":64,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b9818-25b0-76ae-9c43-a90624edaf93","at":1767783278000000000,"seq":65,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9818-3938-780f-97d8-982ca311cec3","at":1767783283000000000,"seq":66,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b9818-8064-7930-887a-a46c7ba78a0a","at":1767783301220000000,"seq":67,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b9818-9ae0-781b-b82f-97dc63aef447","at":1767783308000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9818-e130-7385-ba36-ed56e9febed5","at":1767783326000000000,"seq":69,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9818-f068-7107-b4f7-1682dd7a71ea","at":1767783329896000000,"seq":70,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b9819-17e0-707d-a2ac-3f74f6b634b2","at":1767783340000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9819-75a0-7496-9c2e-03c49f235906","at":1767783364000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b9819-7f34-73ff-865d-149ccef09a12","at":1767783366452000000,"seq":73,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019b9819-db30-763c-83b2-a6bd3590a0e1","at":1767783390000000000,"seq":74,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9819-df18-7c4c-81f2-d84540526dcd","at":1767783391000000000,"seq":75,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b9819-ead0-7ae8-804f-8b2515d957a9","at":1767783394000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b981a-02e6-7f59-b727-83cb929d50c9","at":1767783400166000000,"seq":77,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019b981a-3508-741c-9a61-7f53346022df","at":1767783413000000000,"seq":78,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b981a-b6e2-7b09-be19-5636afc74c02","at":1767783446242000000,"seq":79,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019b981a-d530-7513-807c-f9e785819fcb","at":1767783454000000000,"seq":80,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b981a-fc40-7d14-979c-0f00e0affcf9","at":1767783464000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b981b-0410-76e3-a3e9-190d888ae1e5","at":1767783466000000000,"seq":82,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b981b-2582-72ef-8625-5566a33781cc","at":1767783474562000000,"seq":83,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019b981b-2738-7ed4-868e-fbce2c8d7525","at":1767783475000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b981b-4678-72c4-bfec-f8c7441e1b35","at":1767783483000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b981b-5a00-77ba-b6c5-b5cb8b03a6d8","at":1767783488000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b981b-b361-77c2-9cef-600fef4084e7","at":1767783510881000000,"seq":87,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b981b-cb48-77f0-bdf0-16f5d91063f2","at":1767783517000000000,"seq":88,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b981b-ea88-7e4b-b06c-a09a5bf3f8fe","at":1767783525000000000,"seq":89,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b981b-fa28-7c87-b718-601351323407","at":1767783529000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b981c-01f8-7e0a-bfb8-377db25db7bb","at":1767783531000000000,"seq":91,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b981c-0db0-7463-8362-33e39c8ed0ac","at":1767783534000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b982b-bee6-7def-b72e-41dee1bd3f54","at":1767784562406000000,"seq":93,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}

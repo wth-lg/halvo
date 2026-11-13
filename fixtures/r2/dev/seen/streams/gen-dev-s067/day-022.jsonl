@@ -1,0 +1,35 @@
+{"v":1,"id":"019be4fa-3a3f-78f1-92d8-b1a4e72937b2","at":1769073162815000000,"seq":307,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be4fa-3a3f-7906-9baf-1e2038692b20","at":1769073162815000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be4fa-42c8-7032-9f0c-725edef9fd64","at":1769073165000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019be4fa-4a98-7523-9a73-399f3913a541","at":1769073167000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4fa-5a38-76aa-a060-a90cdbbb231e","at":1769073171000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4fa-7590-782f-8fc9-b0f581d58ca2","at":1769073178000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be505-6fde-7ad3-953b-07554007c7d2","at":1769073897438000000,"seq":313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019be505-8598-7349-a93c-11b84e676c73","at":1769073903000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be505-e740-798d-8026-5b4fbf102afc","at":1769073928000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be505-ed7f-73d8-8c22-29e53556efab","at":1769073929599000000,"seq":316,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent ledger - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019be505-f2f8-74b5-9c6f-ec9087933888","at":1769073931000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019be505-f6e0-748d-8d69-e8ba6a3ba0ee","at":1769073932000000000,"seq":318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be506-0a68-7332-b896-de02ef267eff","at":1769073937000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be506-0e50-7bf1-8da0-6199e39ee12d","at":1769073938000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be514-3ffb-775d-b6df-6eb77559b4ce","at":1769074868219000000,"seq":321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be514-4ad8-733d-8300-5ee74302c725","at":1769074871000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019be514-52a8-7fa2-8f00-fb75a9954280","at":1769074873000000000,"seq":323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be514-bc20-7b6d-89bb-f3a4ca4210f4","at":1769074900000000000,"seq":324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be51c-4a3c-75da-853d-88f1bc1dfd01","at":1769075395132000000,"seq":325,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be51c-4da0-73ac-9294-9870d0f6851e","at":1769075396000000000,"seq":326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be51c-9bc0-7c01-a1bf-40ad8e550fc4","at":1769075416000000000,"seq":327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be51c-9f77-75c0-be61-18eda85e7c59","at":1769075416951000000,"seq":328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be51c-c2d0-7a7a-a255-0c5179c2d044","at":1769075426000000000,"seq":329,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be51c-d658-72ad-affc-52b05086a7ad","at":1769075431000000000,"seq":330,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be51c-df5c-7b25-a080-5da048d9cb9b","at":1769075433308000000,"seq":331,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be51d-1ca8-7e65-acac-6d82e7bcf21a","at":1769075449000000000,"seq":332,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be51d-3800-700e-9deb-60e45c67a5d7","at":1769075456000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019be51d-8a08-74bc-a00a-faeb1ff5e9c4","at":1769075477000000000,"seq":334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be51d-99a8-73d8-b29d-e32c95a8ec57","at":1769075481000000000,"seq":335,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be51d-a06b-7b16-8fc1-e487c34691d1","at":1769075482731000000,"seq":336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be51d-e3e0-7ee7-b73a-20a2e88d97f0","at":1769075500000000000,"seq":337,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be51e-2648-756f-bc08-dcb22d1a0e02","at":1769075517000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be52f-2d0d-7b5a-9a11-f347aa802927","at":1769076632845000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be52f-4ce8-7d26-a51c-d85489c36117","at":1769076641000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be52f-6840-7a91-af0a-fbc39e4f0c5a","at":1769076648000000000,"seq":341,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

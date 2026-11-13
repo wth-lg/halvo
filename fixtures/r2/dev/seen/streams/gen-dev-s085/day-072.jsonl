@@ -1,0 +1,35 @@
+{"v":1,"id":"019ce6a8-8d79-7c7e-b128-a5ac05463a54","at":1773396331897000000,"seq":953,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6a8-8d79-771f-bcd9-8d8b4115b5df","at":1773396331897000000,"seq":954,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce6a8-c878-7d8d-9bd8-e31e0d652e10","at":1773396347000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6a8-e3d0-71ef-b77b-4f56dbefa13a","at":1773396354000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6a8-e7b8-759e-bb4a-19b1f179f320","at":1773396355000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce6be-4296-7b5c-8f71-6a8bfe13af99","at":1773397754518000000,"seq":958,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce6be-4296-7d61-9853-d5870b3bf0d3","at":1773397754518000000,"seq":959,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce6be-7b28-75f4-8b24-3a4f514699f0","at":1773397769000000000,"seq":960,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ce6be-9a68-730a-936b-5701ff073fd4","at":1773397777000000000,"seq":961,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce6ce-3c51-7bc6-8938-aaf782c86d91","at":1773398801489000000,"seq":962,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6ce-3c51-7ffb-868f-9a162df4167d","at":1773398801489000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ce6ce-4238-7008-a1eb-00607acdbead","at":1773398803000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6ce-59a8-779b-856a-7adb0127b6a8","at":1773398809000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6ce-ced8-7670-bc1b-7083f93f84a5","at":1773398839000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ce6ce-f1a3-7f73-867a-16c7248b026b","at":1773398847907000000,"seq":967,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ce6ce-f200-719d-be6c-a2c9f1916c71","at":1773398848000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6cf-1140-7ce2-ad10-07d56dcd81d6","at":1773398856000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6cf-3e24-75f0-b71e-b387636ae333","at":1773398867492000000,"seq":970,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ce6cf-7ab8-766e-aa39-0651b04b8055","at":1773398883000000000,"seq":971,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6cf-8288-7a04-a62e-7f7542bd807d","at":1773398885000000000,"seq":972,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce6cf-ccc0-7a69-aa1e-5dc1414a37a6","at":1773398904000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d0-20ed-7c4b-b480-8ba190d1fd62","at":1773398925549000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ce6d0-3638-7d10-a137-9e7b62a58eb2","at":1773398931000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d0-5960-7c31-9446-263e4c4d606b","at":1773398940000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d1-0afe-798c-8871-127055da5ffb","at":1773398985470000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ce6d1-3bf0-7196-9abf-89d01d74bd9a","at":1773398998000000000,"seq":978,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6d1-6eb8-7a69-81e3-128d850dfb71","at":1773399011000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce6d1-8628-79d8-937f-1e2e728259b1","at":1773399017000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d1-8a1c-7344-b240-7d382fd21bbe","at":1773399018012000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ce6d1-95c8-75e7-a9a7-73bfac884f4b","at":1773399021000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ce6d1-bcd8-7dca-9c40-060f720b6bf0","at":1773399031000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d2-4e1c-7440-a9a8-6080c77468f5","at":1773399068188000000,"seq":984,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ce6d2-8028-770d-9322-ac09c01c44a7","at":1773399081000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ce6d2-9f68-7868-b902-80b8d0b75487","at":1773399089000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d2-bea8-79c9-bf12-73a24cdc179a","at":1773399097000000000,"seq":987,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

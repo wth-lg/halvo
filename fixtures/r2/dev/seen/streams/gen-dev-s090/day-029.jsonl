@@ -1,0 +1,21 @@
+{"v":1,"id":"019c08b5-00e0-7809-9d0d-8bd3b8248e5d","at":1769672605920000000,"seq":378,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08b5-00e0-7e49-83f9-db56f56b5c41","at":1769672605920000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c08b5-0518-7989-bf34-81ade86ca08c","at":1769672607000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08b5-33f8-71ca-96d7-39d4bbfd4d65","at":1769672619000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08b5-8dd0-7974-b6a8-733a98f622a0","at":1769672642000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c08c7-5035-7b32-ad79-2ef22b682693","at":1769673805877000000,"seq":383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c08c7-ae70-7fb0-bcf3-d89ebd9cc4ce","at":1769673830000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c7-ba28-760b-956f-f158bffbf400","at":1769673833000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c7-e127-7292-8552-4347feda14ad","at":1769673842983000000,"seq":386,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c08c7-ecf0-705d-a725-547a7ebb5827","at":1769673846000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c8-2b70-7948-8d05-0e65501161ba","at":1769673862000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c8-6cbc-7a46-99ff-5476072ea391","at":1769673878716000000,"seq":389,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c08c8-8160-7bb6-856a-cd19f4d7a5ed","at":1769673884000000000,"seq":390,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08c8-a0a0-7570-99ea-079e15958c98","at":1769673892000000000,"seq":391,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08c8-a0a0-7276-937a-e9b5c5aa9537","at":1769673892000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c08c8-fa78-7d73-bffa-08f08a1d56ac","at":1769673915000000000,"seq":393,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c08c9-2f92-7dca-ace5-1c0433427b19","at":1769673928594000000,"seq":394,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c08c9-5068-7540-93a7-5596864a6de1","at":1769673937000000000,"seq":395,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c08c9-7b60-7391-957c-e3753d7fb500","at":1769673948000000000,"seq":396,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08dc-1a87-7662-9a6c-c2be23aca177","at":1769675168391000000,"seq":397,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c08dc-a988-7f44-af27-902ba52f2ea9","at":1769675205000000000,"seq":398,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

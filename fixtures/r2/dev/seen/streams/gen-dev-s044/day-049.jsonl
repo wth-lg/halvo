@@ -1,0 +1,33 @@
+{"v":1,"id":"019c7023-aa20-7a85-8e71-a441b3973e87","at":1771407911456000000,"seq":618,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7023-aa20-7c5c-8263-f6a2247d666b","at":1771407911456000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c7023-d738-7a60-b49b-0e1e799f4f21","at":1771407923000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7023-f678-7264-9916-b3b5f5a66e3f","at":1771407931000000000,"seq":621,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c7024-02e4-7b89-b1fd-587739f1a152","at":1771407934180000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c7024-2940-75a4-a367-a988d375037b","at":1771407944000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7024-2d28-7657-8a5f-2b08c6ebe7d1","at":1771407945000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7024-40b0-750f-8ce4-14d23fcff4c5","at":1771407950000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c7024-b9c8-7ee0-b048-005f63fb3250","at":1771407981000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7024-d138-7625-8eb5-fa9135229ef6","at":1771407987000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7040-1180-7335-bc54-fe937d6b6288","at":1771409772928000000,"seq":628,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7040-1180-732f-862a-5c831172bdd1","at":1771409772928000000,"seq":629,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7040-1998-7325-b07b-e2c148f549ff","at":1771409775000000000,"seq":630,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7040-5fe8-718e-a53d-bf8495d42200","at":1771409793000000000,"seq":631,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7040-7f28-7c0a-b269-6f84d1b8e9a2","at":1771409801000000000,"seq":632,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c7042-f411-7c4a-9a0a-1d6e15def65d","at":1771409962001000000,"seq":633,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c7043-55b8-7b0f-ac35-38866c1f6927","at":1771409987000000000,"seq":634,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c705d-d492-7e61-a89d-99b288a2ec1f","at":1771411723410000000,"seq":635,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c705d-d492-7250-a74d-0bdfbec6d75b","at":1771411723410000000,"seq":636,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c705e-1d30-7312-9eae-a2b3a03e9b67","at":1771411742000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c705e-2118-723d-bf9e-5de9a37039dd","at":1771411743000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c705e-e353-75d9-99cb-ded25f244ae0","at":1771411792723000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c705f-3e40-7a8e-8ca6-c48eb4740d64","at":1771411816000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c705f-653d-71a8-8bab-34bb2e27dd7e","at":1771411825981000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c705f-7cc0-71ed-af94-8a0df0ae6214","at":1771411832000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c705f-80a8-7dd1-a5d0-12e25e399885","at":1771411833000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c705f-e638-7159-abe3-46cfa7521b24","at":1771411859000000000,"seq":644,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7060-3840-78e5-9b35-310bd595e8ca","at":1771411880000000000,"seq":645,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7060-3c28-7b6a-9a1b-2bb1741e4287","at":1771411881000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7066-de71-7d3e-a45b-e1478e27c5c1","at":1771412315761000000,"seq":647,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7066-de71-74c2-939d-b22fadcbf307","at":1771412315761000000,"seq":648,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7067-25b0-71fd-8d69-6f66bcaa9a50","at":1771412334000000000,"seq":649,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c7067-48d8-7b76-b544-c0f4bf71e561","at":1771412343000000000,"seq":650,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

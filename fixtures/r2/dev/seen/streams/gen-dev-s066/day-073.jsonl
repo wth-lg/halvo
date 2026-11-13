@@ -1,0 +1,12 @@
+{"v":1,"id":"019ceb3a-2699-7b80-af0b-d1b0a8c172c2","at":1773472982681000000,"seq":1074,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb3a-2699-7372-8da1-691e13fd65ae","at":1773472982681000000,"seq":1075,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ceb3a-5aa0-7156-a474-cf6b717da154","at":1773472996000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb3a-eb28-7356-8de3-bb2c00594557","at":1773473033000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb3a-f039-7d7b-aac6-ba7f391c623d","at":1773473034297000000,"seq":1078,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ceb3b-1238-73b9-b12b-def7e6c0b2ae","at":1773473043000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ceb3b-6058-762b-9bb6-21046b364aed","at":1773473063000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb3b-9ed8-75bb-8b50-a19b1aa5f191","at":1773473079000000000,"seq":1081,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceb3b-c200-76bc-b2ce-26c015406ed5","at":1773473088000000000,"seq":1082,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceb3b-c6ba-791c-ba48-3c1f4774add3","at":1773473089210000000,"seq":1083,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019ceb3b-d970-7b03-8d88-7a86ce7acf13","at":1773473094000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb3c-0080-774b-a469-144f972ddd4f","at":1773473104000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

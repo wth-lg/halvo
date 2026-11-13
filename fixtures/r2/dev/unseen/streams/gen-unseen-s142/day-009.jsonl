@@ -1,0 +1,48 @@
+{"v":1,"id":"019ba25e-b9a1-78df-a8ce-f4c21a63b3cb","at":1767955675553000000,"seq":158,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba25e-b9a1-7518-80c3-a4fd27eff7ad","at":1767955675553000000,"seq":159,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba25e-c330-7f4f-9859-b6b16c1bb021","at":1767955678000000000,"seq":160,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba25e-d2d0-75c7-9932-f1065572c89c","at":1767955682000000000,"seq":161,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ba25f-1538-7331-aeec-75f68ed0fb72","at":1767955699000000000,"seq":162,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ba25f-6dbd-7218-bfb7-1a587d4c04a9","at":1767955721661000000,"seq":163,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ba260-1af0-7430-8c2c-a1704c8f927d","at":1767955766000000000,"seq":164,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019ba27b-874e-7ff4-ab6c-27fe1dd961d9","at":1767957563214000000,"seq":165,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba27b-874e-7600-8ca0-8759e6e521b0","at":1767957563214000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ba27c-26a0-76bb-85fd-c8762edcc34b","at":1767957604000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba27c-8fa4-74cc-b6ad-87ab2552b498","at":1767957630884000000,"seq":168,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ba27c-af58-76f5-b9d0-372861b097a7","at":1767957639000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ba27c-cab0-708d-9555-f3003fbcb420","at":1767957646000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba27c-e9f0-7b7c-a93e-8137fe39b3a0","at":1767957654000000000,"seq":171,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba27c-ec73-796a-b918-396c0e16c2d6","at":1767957654643000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ba27c-f1c0-7f1d-b8c8-6948f7440a0a","at":1767957656000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba27d-ce00-7d4f-9287-15b6beb42129","at":1767957712384000000,"seq":174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ba27d-e3f0-7689-bb5a-b239041b319f","at":1767957718000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba27e-3210-756b-81c5-2166b8c00256","at":1767957738000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ba27e-6f45-7b61-be96-fb86daf8decc","at":1767957753669000000,"seq":177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ba27e-e9a8-7404-b8df-25b9cc795448","at":1767957785000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ba27e-f178-7ed1-95b3-fafc4c67b5d8","at":1767957787000000000,"seq":179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba27e-f85d-7b72-a912-1a59d1e6ff4d","at":1767957788765000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ba27f-2440-74f9-a836-5553eafe7035","at":1767957800000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ba27f-7648-7ca0-8cf6-6bc39db7f9e5","at":1767957821000000000,"seq":182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ba27f-e50c-75b2-8a0b-06e8ee839e35","at":1767957849356000000,"seq":183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ba27f-f348-79bf-9ada-b6f1dc75f938","at":1767957853000000000,"seq":184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba280-06d0-7251-82e6-2e32e93cb018","at":1767957858000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ba280-2610-7d49-9897-0915f368ca52","at":1767957866000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba280-307e-7e61-af78-e9e7a8d5124d","at":1767957868670000000,"seq":187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ba280-4168-7e44-bd5d-bcdbe16b921a","at":1767957873000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ba280-4938-7023-9c66-550cb19102fa","at":1767957875000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba280-5cc0-78df-be71-acda28342031","at":1767957880000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba280-8f88-71eb-a9a8-0cbd36758b94","at":1767957893000000000,"seq":191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba287-88e6-7124-b09c-50689ed0a63b","at":1767958350054000000,"seq":192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba287-ea58-7211-8c4c-170a678c7d4a","at":1767958375000000000,"seq":193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ba288-1d20-745b-a86e-9342069e00a8","at":1767958388000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba288-2cc0-76a5-ab5d-894568f5863f","at":1767958392000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba288-5165-7dd3-a432-c72ecd1c2dc8","at":1767958401381000000,"seq":196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba288-f7e0-795e-8c18-7df16ee91d4a","at":1767958444000000000,"seq":197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba289-3d22-7ffa-a9a5-2588be2a38d3","at":1767958461730000000,"seq":198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba289-4600-787a-9a61-61c600a0896a","at":1767958464000000000,"seq":199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba289-4dd0-709c-9cba-4fefb92eed98","at":1767958466000000000,"seq":200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba289-78c8-763a-be2a-1d9de084fafb","at":1767958477000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba289-8c50-7a8d-baee-da9b00c8419a","at":1767958482000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ba289-8cc1-74cd-9b6f-c7e91ec71524","at":1767958482113000000,"seq":203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba289-ab90-7586-a4d5-89db2786a7dd","at":1767958490000000000,"seq":204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba289-fd98-7201-9e8a-562d23ec041f","at":1767958511000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,24 @@
+{"v":1,"id":"019d38d9-c12b-7478-bd10-ef11af02571f","at":1774775288107000000,"seq":1493,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d38d9-c12b-745b-8f45-2d908b347233","at":1774775288107000000,"seq":1494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d38d9-c890-77e2-afd1-d05d50adfe63","at":1774775290000000000,"seq":1495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38d9-c890-7f2a-be6d-debc7471f6ea","at":1774775290000000000,"seq":1496,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d38ef-3c99-74fb-8e82-95c8cd4da7a6","at":1774776695961000000,"seq":1497,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d38ef-5818-7c04-9c9f-e46d1b7c5d0b","at":1774776703000000000,"seq":1498,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38ef-c960-7731-9dd5-db794fea3732","at":1774776732000000000,"seq":1499,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d38ef-dce8-79fe-8f6e-4cee20f05850","at":1774776737000000000,"seq":1500,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d38f1-307a-7bea-832a-180513f2d2df","at":1774776823930000000,"seq":1501,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d38f1-d8b8-777b-9bc2-c8702a20e65b","at":1774776867000000000,"seq":1502,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38f1-e088-73f9-a210-e6550366ec31","at":1774776869000000000,"seq":1503,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38f2-3848-7793-a3df-cc2e6432a941","at":1774776891464000000,"seq":1504,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"April rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d38f2-3a60-7be3-84ea-bcb60bfc03af","at":1774776892000000000,"seq":1505,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d38f2-4230-7851-a000-a0e7c92a5ec1","at":1774776894000000000,"seq":1506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38f2-7110-7055-8249-0c5f8dcb62ec","at":1774776906000000000,"seq":1507,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d38f2-de75-7ac1-a022-975e09c065a7","at":1774776934005000000,"seq":1508,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d38f2-f9c8-7a9b-a7b9-de09284681c0","at":1774776941000000000,"seq":1509,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d38f3-0198-7391-90e1-477ca71d4e25","at":1774776943000000000,"seq":1510,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d38f3-3f4a-7575-a5d8-2cad660787d4","at":1774776958794000000,"seq":1511,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d38f3-76c8-7154-a154-af0014b7dd5b","at":1774776973000000000,"seq":1512,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d38f3-8280-76cb-b87a-a1f995bcf08c","at":1774776976000000000,"seq":1513,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d390b-278b-7670-baeb-2ae25d872d20","at":1774778525579000000,"seq":1514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d390b-7750-7d6d-8f21-bd1b6ec08d5a","at":1774778546000000000,"seq":1515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d390b-c188-764f-a305-d10e861dfd85","at":1774778565000000000,"seq":1516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

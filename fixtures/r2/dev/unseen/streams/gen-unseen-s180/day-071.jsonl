@@ -1,0 +1,21 @@
+{"v":1,"id":"019ce1a1-2d1b-7532-9ea1-14066f5161c5","at":1773311962395000000,"seq":929,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce1a1-2d1b-7dee-8865-ecc63f33925f","at":1773311962395000000,"seq":930,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce1a1-6240-71b3-864b-f6bacd279971","at":1773311976000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1a1-eaf8-7f91-b710-3fd30b66c030","at":1773312011000000000,"seq":932,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1a1-ed78-7234-8490-6441436e228f","at":1773312011640000000,"seq":933,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce1a1-eee0-7334-84c6-19f68ce462f8","at":1773312012000000000,"seq":934,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce1a1-fa98-77ff-95f5-53e4e6a67d11","at":1773312015000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1a2-0e20-79d3-8167-560a463ced3d","at":1773312020000000000,"seq":936,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1a2-2590-75a7-8a54-b889e54b6fcd","at":1773312026000000000,"seq":937,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ce1a2-3d00-7418-ac0a-b39ae063a85d","at":1773312032000000000,"seq":938,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce1a2-4be9-788b-8d3f-d6e5b87ef456","at":1773312035817000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce1a2-5c40-7fe2-8074-9e5966271198","at":1773312040000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce1a2-6410-70ea-bc39-1a1e9483e2a8","at":1773312042000000000,"seq":941,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce1a2-ae48-76ac-9358-ed7b3c787e7c","at":1773312061000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce1a2-b42e-7022-8cda-04ad6f91eee2","at":1773312062510000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce1a2-ecc8-7410-bc8a-9a7c9e2358ff","at":1773312077000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ce1a2-f0b0-7a55-be73-f015f1479606","at":1773312078000000000,"seq":945,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce1a2-f44a-7ec6-8bb7-85e846818de2","at":1773312078922000000,"seq":946,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce1a3-17c0-7c1d-8248-8ab521a753de","at":1773312088000000000,"seq":947,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce1a3-5171-7d74-9200-f261a411c630","at":1773312102769000000,"seq":948,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ce1a3-def8-7143-88ed-dcb6e9ddcc73","at":1773312139000000000,"seq":949,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

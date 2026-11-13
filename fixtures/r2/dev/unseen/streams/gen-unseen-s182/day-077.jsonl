@@ -1,0 +1,22 @@
+{"v":1,"id":"019cffd3-4a61-72fd-82be-6d6789bf0398","at":1773818563169000000,"seq":1100,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cffd3-4a61-7849-85ab-3be3b33888d4","at":1773818563169000000,"seq":1101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cffd3-a390-7e5e-baa5-447173747640","at":1773818586000000000,"seq":1102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cffd3-b330-747f-856b-e2b1a5af3a6b","at":1773818590000000000,"seq":1103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffd3-caa0-7561-a0ca-0b6789ea8278","at":1773818596000000000,"seq":1104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cffd7-4b63-7f32-9c6a-81c186940972","at":1773818825571000000,"seq":1105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cffd7-50f8-7cec-ab26-36f885be5699","at":1773818827000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffd7-7038-77e4-9405-14c41b187490","at":1773818835000000000,"seq":1107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffd8-d506-70cb-a472-962049eb3c34","at":1773818926342000000,"seq":1108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cffd9-0e48-7fd9-9d83-2d39f87260fd","at":1773818941000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cffd9-7f90-7eec-b9fd-7de4658e759a","at":1773818970000000000,"seq":1110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffd9-d45f-7eaa-96fa-1c66cc2e3e7a","at":1773818991711000000,"seq":1111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cffda-b040-7200-9a95-d7d71737bc9b","at":1773819048000000000,"seq":1112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cffda-cebb-7ec1-a8e6-e8260ffc9ac6","at":1773819055803000000,"seq":1113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cffdb-0a18-7f71-8dbf-f85fde04577a","at":1773819071000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdb-1da0-75f5-9ed7-4a55bd190256","at":1773819076000000000,"seq":1115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cffdb-2570-71f1-9da6-bfebd0d2178d","at":1773819078000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdb-25e1-7fa6-bb16-3c5c28618f14","at":1773819078113000000,"seq":1117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cffdb-8330-7d95-af50-ba7749339e14","at":1773819102000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffdb-9e88-73d7-8b66-9a850827e665","at":1773819109000000000,"seq":1119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cffdb-9e88-7d2a-ad15-803902030a48","at":1773819109000000000,"seq":1120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cffdb-f478-78cd-a95c-c04254b284fc","at":1773819131000000000,"seq":1121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

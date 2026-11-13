@@ -1,0 +1,28 @@
+{"v":1,"id":"019ce6a9-387b-79d8-a007-8f1c63eb95e6","at":1773396375675000000,"seq":1055,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce6a9-387b-76b8-ab5f-2d77c9521a34","at":1773396375675000000,"seq":1056,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce6a9-5ce8-786e-8da7-7e001081c1ce","at":1773396385000000000,"seq":1057,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce6a9-60d0-72fd-87e5-9c0cafce2388","at":1773396386000000000,"seq":1058,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6a9-83f8-798e-89f8-2ba43db31f41","at":1773396395000000000,"seq":1059,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019ce6ab-9cae-774b-a672-8fb990862a8e","at":1773396532398000000,"seq":1060,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ce6ab-a6d8-7125-8c6c-ecd78caceb43","at":1773396535000000000,"seq":1061,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6ab-aac0-7d22-a1d3-9d57ebd2c10b","at":1773396536000000000,"seq":1062,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ce6ac-0880-7992-b103-506a03dc760a","at":1773396560000000000,"seq":1063,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6c3-b2b4-7aa6-abd6-2058f6f9e3f9","at":1773398110900000000,"seq":1064,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6c3-b2b4-75a4-8997-8e61d34bee2e","at":1773398110900000000,"seq":1065,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ce6c3-bed0-76be-b9ba-b43170ff29bf","at":1773398114000000000,"seq":1066,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6c4-3400-7467-9c3c-c8a8f9683731","at":1773398144000000000,"seq":1067,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ce6c4-9d78-7abc-82a4-b411824d4b82","at":1773398171000000000,"seq":1068,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6c4-b140-7a37-8b3b-3959260bdf5f","at":1773398176064000000,"seq":1069,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ce6c4-e7b0-781b-bee6-9c5f2a1f38ee","at":1773398190000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ce6c5-3da0-7820-9b51-3fc6adee1777","at":1773398212000000000,"seq":1071,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6c5-413f-74e7-bd0e-d73a145add99","at":1773398212927000000,"seq":1072,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ce6c5-a330-71a4-900e-70cfa3449ab8","at":1773398238000000000,"seq":1073,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ce6c6-2d1c-779d-b3d1-9a4d807de0d0","at":1773398273308000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ce6c6-33b8-7e93-9df3-2fbc8c9942be","at":1773398275000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6c6-4740-710f-b3e4-a8b5052b8dfd","at":1773398280000000000,"seq":1076,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce6c6-4740-7242-aacb-e4061ec95b47","at":1773398280000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ce6c6-6e50-7025-8926-dda9f6e21160","at":1773398290000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6dc-4930-784d-be12-2156140b26c8","at":1773399722288000000,"seq":1079,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce6dc-6b38-7924-a2f1-39a187234d47","at":1773399731000000000,"seq":1080,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce6dc-7ad8-7546-a118-5bea2c70b0d9","at":1773399735000000000,"seq":1081,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce6dc-9a18-7266-b94a-cc4035c9be34","at":1773399743000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

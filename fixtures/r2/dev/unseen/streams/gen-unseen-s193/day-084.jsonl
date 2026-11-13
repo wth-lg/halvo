@@ -1,0 +1,15 @@
+{"v":1,"id":"019d23f1-b255-7bf8-a619-5fb6117c74dc","at":1774424535637000000,"seq":1018,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d23f1-b255-7f68-9da0-098428db8419","at":1774424535637000000,"seq":1019,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d23f1-dad0-7152-ac3b-77154974a138","at":1774424546000000000,"seq":1020,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d23f2-30c0-7c30-8b04-2c08e4608df0","at":1774424568000000000,"seq":1021,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d23f2-57d0-7164-8862-4eaf26e6effc","at":1774424578000000000,"seq":1022,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2406-eda2-777c-837e-6c2fb7da2f68","at":1774425927074000000,"seq":1023,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2406-eda2-720c-868a-942ffe022344","at":1774425927074000000,"seq":1024,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d2407-2bd8-759c-bd32-9ddc118912d0","at":1774425943000000000,"seq":1025,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2407-6288-7dfb-b37b-2ecd47268bc9","at":1774425957000000000,"seq":1026,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d240d-b6ca-7f5d-9995-dfde6479d367","at":1774426371786000000,"seq":1027,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d240e-450b-74f9-b2ff-f47cd00ca58b","at":1774426408203000000,"seq":1028,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Spending categories - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019d240e-53e0-735a-a52d-7ed5293749b3","at":1774426412000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d240e-5bb0-7ad6-944f-7774507eab1c","at":1774426414000000000,"seq":1030,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240e-9260-7077-87ea-e4506c8652ec","at":1774426428000000000,"seq":1031,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d240e-a200-79ab-b219-299093fe7400","at":1774426432000000000,"seq":1032,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

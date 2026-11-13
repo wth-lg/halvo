@@ -1,0 +1,29 @@
+{"v":1,"id":"019b7de8-e445-79b4-b11d-6066bfd123e6","at":1767343973445000000,"seq":20,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7de8-e445-7fc0-83bb-9cc0c82cea03","at":1767343973445000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7de9-7ae0-74c5-b3c4-b31fdc073d04","at":1767344012000000000,"seq":22,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e04-098e-7470-866c-4ac8b377bf5e","at":1767345752462000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7e04-51f8-7d32-8656-ffdaaf5878d5","at":1767345771000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b7e04-ea90-7ef7-af0e-c38abb7bfb04","at":1767345810064000000,"seq":25,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7e05-4810-741c-9182-ede5ad7fad38","at":1767345834000000000,"seq":26,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e05-ea9e-7ed2-a3a8-34fdd5af0901","at":1767345875614000000,"seq":27,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7e06-1330-7703-84db-d99f246cabfa","at":1767345886000000000,"seq":28,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e06-1718-7b5e-b169-47653d45eb68","at":1767345887000000000,"seq":29,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e06-49e0-7a43-9386-e4192e4f5fe0","at":1767345900000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b7e06-4f64-754d-8cbc-e865ba0650c0","at":1767345901412000000,"seq":31,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7e06-74d8-7036-82f1-f70daf75ab72","at":1767345911000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b7e06-9fd0-7eb3-88fa-74edd1c626ce","at":1767345922000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e06-ab88-725d-ad74-334a37c7edf5","at":1767345925000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e06-ceb0-7504-a9b5-001c23cf4d0b","at":1767345934000000000,"seq":35,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e20-d621-7ad9-a393-5d8a7de3c6fe","at":1767347639841000000,"seq":36,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b7e20-e278-7d74-8d3f-9b9de0bb077b","at":1767347643000000000,"seq":37,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b7e21-c22a-73f0-9989-bb28771c2996","at":1767347700266000000,"seq":38,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b7e21-c8f0-7fda-815a-ed19d94b0b14","at":1767347702000000000,"seq":39,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e21-f000-7d73-863d-f9e565a82c44","at":1767347712000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e21-fba8-7c4e-996f-bab761680cf9","at":1767347714984000000,"seq":41,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b7e22-0388-7762-8a15-5d5aca11630c","at":1767347717000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e22-6148-75ed-84e3-50ad4308c1cb","at":1767347741000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e22-a3b0-776e-a3ed-92e78b27a187","at":1767347758000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b7e22-aba7-7434-8fbb-e56fc809cc38","at":1767347760039000000,"seq":45,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019b7e22-da60-7d4d-8f03-3c539f6550aa","at":1767347772000000000,"seq":46,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e22-de48-72db-8752-8ab602bdf727","at":1767347773000000000,"seq":47,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e22-ede8-7749-9962-5c3a1e6acce6","at":1767347777000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

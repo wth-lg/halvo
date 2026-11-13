@@ -1,0 +1,48 @@
+{"v":1,"id":"019ba264-12b0-7e46-ac34-ef0ed92bb76c","at":1767956026032000000,"seq":196,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba264-12b0-7d34-bf7a-6288a2a91699","at":1767956026032000000,"seq":197,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba264-7050-7331-aa4f-5678f156fcd1","at":1767956050000000000,"seq":198,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ba264-83d8-75b6-aa14-dd4b9c3b4b4f","at":1767956055000000000,"seq":199,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ba274-04b7-777d-bd6e-8a4028b5c590","at":1767957071031000000,"seq":200,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba274-04b7-766a-95d3-070925ca0a91","at":1767957071031000000,"seq":201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019ba274-8d50-79f4-920e-7504697ba718","at":1767957106000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba274-953a-7845-9d01-c6c100146511","at":1767957108026000000,"seq":203,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019ba275-2fd4-7376-891c-e90af3b1b14d","at":1767957147604000000,"seq":204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019ba275-8750-7767-8d9f-d9edf9fb5456","at":1767957170000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba275-da01-7e81-af36-d4d0459f2cd2","at":1767957191169000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019ba276-2390-79d0-9407-c214fa7bfe27","at":1767957210000000000,"seq":207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba276-3718-7353-8499-48c8b4822263","at":1767957215000000000,"seq":208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba276-5a40-7870-83dd-454c1427f556","at":1767957224000000000,"seq":209,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba276-b418-786b-a173-4a59f98fa903","at":1767957247000000000,"seq":210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba280-e2d4-774b-b4a9-06de12123650","at":1767957914324000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ba281-1c28-768d-bb20-d88e35cc35e7","at":1767957929000000000,"seq":212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba281-27e0-7e04-aafd-8fb880329e08","at":1767957932000000000,"seq":213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba281-2fb0-777b-9dc6-16c904e28ccf","at":1767957934000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba29a-77bb-78af-af03-0ce2b8bbbf51","at":1767959590843000000,"seq":215,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba29a-77bb-7073-a2ef-d8f5faec5d18","at":1767959590843000000,"seq":216,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba29a-9b80-79da-9ebe-b432b9350ecb","at":1767959600000000000,"seq":217,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba29a-f940-7152-91dc-251041e3a19b","at":1767959624000000000,"seq":218,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ba2b3-f380-7a25-ba37-53b632b50fea","at":1767961260928000000,"seq":219,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba2b3-f380-75c9-8dcf-ca32de6f6168","at":1767961260928000000,"seq":220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba2b3-fb98-73a8-b841-d77988c30a7b","at":1767961263000000000,"seq":221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ba2b4-70c8-769a-8b4d-1a84237297a8","at":1767961293000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba2b4-93f0-7217-96d9-7f638a11aea2","at":1767961302000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba2b4-a808-73ba-8726-1c2cde04540d","at":1767961307144000000,"seq":224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba2b4-da40-737f-9fe4-1eca74433ecf","at":1767961320000000000,"seq":225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba2b4-de28-7e4e-9574-6cb9b15d0e34","at":1767961321000000000,"seq":226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba2b5-0538-754e-acc7-c98a36ec29a6","at":1767961331000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba2b5-2860-7b6d-bfbb-6d98cdd72b61","at":1767961340000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ba2b5-491f-7fc0-972c-8931f7ff87ff","at":1767961348383000000,"seq":229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba2b5-5358-7689-aab2-bb52a5b19078","at":1767961351000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba2b5-5f10-7a48-8db6-631d4be65c71","at":1767961354000000000,"seq":231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba2b5-d4c5-7b01-b733-a21c1c9c9bab","at":1767961384133000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba2b5-ebb0-7133-9e59-9390594b4abc","at":1767961390000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba2b5-f380-7603-aaa5-a75f5a151eeb","at":1767961392000000000,"seq":234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba2b5-fb50-7824-8633-6973083f21f1","at":1767961394000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba2b6-0320-7e4a-bf06-3b10c9ea9ebe","at":1767961396000000000,"seq":236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ba2b6-1a03-77a4-bf80-076451b78ee5","at":1767961401859000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba2b6-2a30-73be-834c-e227818adb57","at":1767961406000000000,"seq":238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba2b6-3200-7837-ab59-872c8f9370fb","at":1767961408000000000,"seq":239,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba2b6-f63a-763e-9eed-21cfccab73c0","at":1767961458234000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019ba2b7-62b0-70cf-8683-2e3f1e7fd068","at":1767961486000000000,"seq":241,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba2b7-7e08-76aa-833f-a34fcd5fdccb","at":1767961493000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ba2b7-bc88-7730-a23a-9ec7b194e5fe","at":1767961509000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

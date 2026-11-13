@@ -1,0 +1,44 @@
+{"v":1,"id":"019bf94b-dd48-792f-ab60-cb5c9cf2e8ab","at":1769414057288000000,"seq":303,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf94b-dd48-7b01-a039-e666592212dd","at":1769414057288000000,"seq":304,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf94b-f398-7efe-82b8-7b315829b732","at":1769414063000000000,"seq":305,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf94c-0338-7823-95f2-78c6083045a9","at":1769414067000000000,"seq":306,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf94c-16c0-7a9e-80db-a58116026aa7","at":1769414072000000000,"seq":307,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bf94c-1c09-725b-8549-2fcf9ab1023f","at":1769414073353000000,"seq":308,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bf94c-60f8-76ee-be8d-04b49ae98b85","at":1769414091000000000,"seq":309,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bf94c-af18-701d-abe2-a933dbfbfd21","at":1769414111000000000,"seq":310,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bf95e-b37d-7b70-898f-0c106e792dd7","at":1769415291773000000,"seq":311,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf95e-b37d-7195-9bde-8b464a202f58","at":1769415291773000000,"seq":312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf95f-8e13-7fd5-b90a-12f3f7f391af","at":1769415347731000000,"seq":313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf95f-d0ad-7d19-ad2f-2d86c1b4b41a","at":1769415364781000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf95f-d958-7f0e-896c-184427c5b7d6","at":1769415367000000000,"seq":315,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf960-1008-7eb7-8537-0d041031097a","at":1769415381000000000,"seq":316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf960-17d8-7ac6-9214-2ce9538babe2","at":1769415383000000000,"seq":317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf960-2390-778d-a1bf-7c5f918d2696","at":1769415386000000000,"seq":318,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf960-5473-7c40-b350-b16267b11fc2","at":1769415398515000000,"seq":319,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bf960-b800-7f47-98aa-c8d175f1921f","at":1769415424000000000,"seq":320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bf960-e6e0-757c-bad4-b26447b52012","at":1769415436000000000,"seq":321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf960-f680-7caa-8588-afbf3034e36b","at":1769415440000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf961-38e8-76f8-814e-5a5bf849fce8","at":1769415457000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf968-a605-7d60-9819-e0acd279d0cc","at":1769415943685000000,"seq":324,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf968-e9a8-73be-9bdb-03f02fa4c51a","at":1769415961000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf969-5ed8-72f8-84dc-5c130f5ab820","at":1769415991000000000,"seq":326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf969-9fc3-785b-8fa2-81dff2080798","at":1769416007619000000,"seq":327,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf969-d408-700d-b180-6407682f7334","at":1769416021000000000,"seq":328,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf96a-4168-71e2-aaec-e618a94c9765","at":1769416049000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf96a-a4eb-708d-a2bf-92b0557aceab","at":1769416074475000000,"seq":330,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf96b-3780-7805-883d-3e39a75386b7","at":1769416112000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf96b-7976-7768-abb0-1f9766f9b358","at":1769416128886000000,"seq":332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf96b-9158-7bf8-b3c4-7f2dedf5c2ef","at":1769416135000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bf96c-1628-709e-9d37-e7b7b08ec3dd","at":1769416169000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf96c-3718-72f0-aa82-67ffaef6bb9e","at":1769416177432000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bf96c-7000-71ce-86d7-7fdacf509273","at":1769416192000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf96c-c9d8-7ef4-a925-4e92df4b0471","at":1769416215000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf96c-dd60-7041-b9b6-ea965170ba83","at":1769416220000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bf983-22c7-7f57-87bb-3f3a07322f36","at":1769417679559000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf983-2c50-78a6-a5ef-9c9bc0e02df4","at":1769417682000000000,"seq":340,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf983-4f78-72bb-a2a0-1cc95cb621f8","at":1769417691000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf983-5748-74f2-9d5f-052591330a47","at":1769417693000000000,"seq":342,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf983-6300-78d5-a127-d99cb9897214","at":1769417696000000000,"seq":343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bf983-6c09-7554-b4c5-32f04101a3bc","at":1769417698313000000,"seq":344,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf983-e7d0-7630-adda-356cc28b8cca","at":1769417730000000000,"seq":345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf984-0328-7081-9647-c9b5b02ddd15","at":1769417737000000000,"seq":346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

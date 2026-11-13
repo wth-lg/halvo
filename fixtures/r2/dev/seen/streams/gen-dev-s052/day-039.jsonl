@@ -1,0 +1,14 @@
+{"v":1,"id":"019c3c4f-e8e3-7652-b559-5c6e3f612849","at":1770538395875000000,"seq":463,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c4f-e8e3-75dd-8ce1-be227f68177f","at":1770538395875000000,"seq":464,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3c50-08a0-7e3f-8fb9-352f30ca90c8","at":1770538404000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c50-1070-7a92-9b41-df207e44835a","at":1770538406000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c50-1c28-7a3f-a116-e906d0e3069d","at":1770538409000000000,"seq":467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3c5a-81fa-7a8a-a311-cf6a292787d2","at":1770539090426000000,"seq":468,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3c5a-81fa-73ad-8bcc-ce454a6898bc","at":1770539090426000000,"seq":469,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3c5a-b700-79d3-92a4-d90bbf185502","at":1770539104000000000,"seq":470,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c3c5b-5340-72d8-b0d3-d3d43460e706","at":1770539144000000000,"seq":471,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3c5b-84f9-72e4-b41d-8f03fdfe5683","at":1770539156729000000,"seq":472,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c3c5b-b100-75d9-8679-60ea140724bb","at":1770539168000000000,"seq":473,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c5b-b4e8-7009-b372-0c9d078ca822","at":1770539169000000000,"seq":474,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c3c5b-c0a0-71a5-994a-d9a1a79ad453","at":1770539172000000000,"seq":475,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c5b-e7b0-7af6-9f30-d324b4fe1b9d","at":1770539182000000000,"seq":476,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

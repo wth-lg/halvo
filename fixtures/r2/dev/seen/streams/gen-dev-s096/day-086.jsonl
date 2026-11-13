@@ -1,0 +1,32 @@
+{"v":1,"id":"019d2e2b-505c-7a92-9957-1d80afb6504b","at":1774596083804000000,"seq":1240,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2e2b-505c-7ac5-b132-9455dd5fb10f","at":1774596083804000000,"seq":1241,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d2e2b-64a8-7536-9410-96faf67140ce","at":1774596089000000000,"seq":1242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e2b-83e8-7a4c-b8ad-0db64187605a","at":1774596097000000000,"seq":1243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e2b-c167-75b1-b3a9-20fb3ccd8560","at":1774596112743000000,"seq":1244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d2e2c-27f8-7a52-b6ed-9419e85cf856","at":1774596139000000000,"seq":1245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e2c-4b20-7494-8128-fa49ad059504","at":1774596148000000000,"seq":1246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e32-dc88-745b-ae81-cbca756f2c3d","at":1774596578440000000,"seq":1247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d2e33-1180-740e-86e5-a39eb9e6d6f7","at":1774596592000000000,"seq":1248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e33-8ae8-7e4e-be6c-7c87efe2363c","at":1774596623080000000,"seq":1249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d2e33-8e80-7875-97c3-19df1ef03257","at":1774596624000000000,"seq":1250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2e33-adc0-751b-8f2c-b2c40aec6176","at":1774596632000000000,"seq":1251,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2e33-db0d-7b12-93d1-4e367dcf318c","at":1774596643597000000,"seq":1252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d2e33-fbe0-7d7b-8ad8-333d654f9cdd","at":1774596652000000000,"seq":1253,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2e34-0798-7900-bfbc-692c8b21e62b","at":1774596655000000000,"seq":1254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2e34-55b8-76b4-89e3-e2c7b5753342","at":1774596675000000000,"seq":1255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e38-cda6-7d24-b469-3b50594217fd","at":1774596967846000000,"seq":1256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2e39-37b8-743a-bfb0-1175d470c374","at":1774596995000000000,"seq":1257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d2e39-4f28-725f-8149-99b8e232781c","at":1774597001000000000,"seq":1258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e39-5f25-7288-85b7-68405e486f1d","at":1774597005093000000,"seq":1259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2e39-7250-736d-889d-e39966e25fb4","at":1774597010000000000,"seq":1260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d2e39-eb68-7f5a-9554-de51885b8dbf","at":1774597041000000000,"seq":1261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e3a-1e30-7122-bd7a-f291fec1888b","at":1774597054000000000,"seq":1262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2e3a-2218-7f6e-9c6a-457f91600a10","at":1774597055000000000,"seq":1263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2e3a-6571-7a95-a73a-465aa917b576","at":1774597072241000000,"seq":1264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2e3a-8b90-773a-949e-93f46ab24920","at":1774597082000000000,"seq":1265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2e3a-c240-7034-811e-0b59050afd96","at":1774597096000000000,"seq":1266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2e3a-dd98-71af-b4c0-b052c7b6f177","at":1774597103000000000,"seq":1267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d2e3b-2019-7d0c-b13b-c584cd04344f","at":1774597120025000000,"seq":1268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2e3b-4328-7229-9986-3136c3e47a74","at":1774597129000000000,"seq":1269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2e4c-0d20-7ad0-9727-41b6fb864951","at":1774598229280000000,"seq":1270,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2e4c-65e0-7350-8450-0ebb31edd15f","at":1774598252000000000,"seq":1271,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

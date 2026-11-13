@@ -1,0 +1,26 @@
+{"v":1,"id":"019bb1d7-4eb4-7dec-bdc1-04e16228e9fd","at":1768215236276000000,"seq":183,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1d7-4eb4-77a2-affe-0bcc66a26ce7","at":1768215236276000000,"seq":184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb1d7-ab60-7a73-90c3-8dcddc93ef19","at":1768215260000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1d7-ce88-7eda-8abd-de4448f201f3","at":1768215269000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1d7-d143-7ef3-ae92-17dabc7ec2eb","at":1768215269699000000,"seq":187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb1d7-e5f8-76c9-8bf3-bd4dff107f71","at":1768215275000000000,"seq":188,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb1d8-0538-7244-9aac-ec247e757f08","at":1768215283000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1e4-a67b-7164-b952-c83ae25090d7","at":1768216110715000000,"seq":190,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb1e4-a67b-7886-86b6-326becc73fab","at":1768216110715000000,"seq":191,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb1e4-cac0-78f8-a5e1-41b208fd41bf","at":1768216120000000000,"seq":192,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1e4-fd88-7820-8490-1b78aee0a5d3","at":1768216133000000000,"seq":193,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bb1e5-0558-786e-9be6-d5037a893430","at":1768216135000000000,"seq":194,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1e5-3438-7f1b-97a0-5060695999e7","at":1768216147000000000,"seq":195,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb1f3-6c03-7b4d-aae7-bd626cfb3bd2","at":1768217078787000000,"seq":196,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1f3-6c03-7314-bfca-429c95cc6d35","at":1768217078787000000,"seq":197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bb1f3-74a8-7167-86e4-34550c4203c1","at":1768217081000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1f3-fc7f-7b9a-b0e4-07452377f741","at":1768217115775000000,"seq":199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bb1f4-0148-7ad7-a063-ec9e789e7699","at":1768217117000000000,"seq":200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1f4-3410-7e83-b40b-e8aad2e2f08e","at":1768217130000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1f4-4b80-7a20-a666-b6f37a66a84c","at":1768217136000000000,"seq":202,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb1f4-7678-7db4-8089-1aa83a7d694d","at":1768217147000000000,"seq":203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bb1f4-e615-7f66-9cb9-258b3392fb66","at":1768217175573000000,"seq":204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bb1f4-f760-7a54-b45e-414865d9a4e9","at":1768217180000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1f5-e5a0-7a54-9cbc-8f0aee309d08","at":1768217240992000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bb1f6-1c58-7729-b118-d651bf310121","at":1768217255000000000,"seq":207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb1f6-2bf8-717a-9159-0f7ab80f3009","at":1768217259000000000,"seq":208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

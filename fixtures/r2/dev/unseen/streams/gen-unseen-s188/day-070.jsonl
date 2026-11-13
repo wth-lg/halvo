@@ -1,0 +1,13 @@
+{"v":1,"id":"019cdc32-db89-78be-a089-e08c4be09e9d","at":1773220846473000000,"seq":999,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc32-db89-73ac-a48d-e13b5ae07f93","at":1773220846473000000,"seq":1000,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cdc32-dd98-763d-8d2c-d9f90a90c97f","at":1773220847000000000,"seq":1001,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc32-e568-7bd6-8ced-e5957e75bf12","at":1773220849000000000,"seq":1002,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdc33-2000-7afc-a3a9-56733cef25f3","at":1773220864000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc33-4328-7121-a6c5-c37f1619b9b2","at":1773220873000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc33-4af8-754b-8fe4-f4c12bd28be1","at":1773220875000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cdc33-53fb-7196-8073-8c13d132c97e","at":1773220877307000000,"seq":1006,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cdc33-6e20-745e-8913-af3604c6c675","at":1773220884000000000,"seq":1007,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc33-b470-7174-bdf0-3da79d9f4128","at":1773220902000000000,"seq":1008,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cdc33-eb20-7bb0-a233-8f37c267e40d","at":1773220916000000000,"seq":1009,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdc33-fac0-7a23-aa5d-4fe74aa60c83","at":1773220920000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc33-fea8-7b08-aa1e-5afcb10588a2","at":1773220921000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

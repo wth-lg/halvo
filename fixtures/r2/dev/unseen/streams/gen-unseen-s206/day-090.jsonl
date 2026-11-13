@@ -1,0 +1,8 @@
+{"v":1,"id":"019d4340-e0a6-7f98-9ac1-5ce96fe7b37f","at":1774949818534000000,"seq":1236,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4340-e0a6-7cec-8758-8d92312a2a25","at":1774949818534000000,"seq":1237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d4341-d3d9-743b-87e2-87d95211e1c1","at":1774949880793000000,"seq":1238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d4341-e448-77af-8d05-ace72c544783","at":1774949885000000000,"seq":1239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d4341-e830-7572-9b80-01b0f52fac21","at":1774949886000000000,"seq":1240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4341-ec18-756e-9548-94423916f83d","at":1774949887000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4342-0770-71c3-99f7-3b8d65df6938","at":1774949894000000000,"seq":1242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4342-1328-76b3-a16c-6f46f49b8184","at":1774949897000000000,"seq":1243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

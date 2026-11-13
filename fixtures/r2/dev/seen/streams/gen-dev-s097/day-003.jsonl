@@ -1,0 +1,19 @@
+{"v":1,"id":"019b8369-2c58-7a23-beaa-03d00848da76","at":1767436266584000000,"seq":36,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8369-2c58-729b-8cd2-fbb207282be7","at":1767436266584000000,"seq":37,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b8369-58f0-7291-a46d-88d84d9112fd","at":1767436278000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b8374-340d-7090-aac1-ca6251766a6a","at":1767436989453000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8374-77d0-784d-bbc5-9c9e51a76b9f","at":1767437006800000000,"seq":40,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8374-8450-78d8-9dad-e1639c3535bd","at":1767437010000000000,"seq":41,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8374-93f0-763b-871e-00e871bab88c","at":1767437014000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8374-dc0a-7b5a-a089-5e631115c884","at":1767437032458000000,"seq":43,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Oak Square - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8374-f980-7c81-a674-f671d664ddd0","at":1767437040000000000,"seq":44,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8375-2860-7943-b732-225c6033084c","at":1767437052000000000,"seq":45,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8375-47a0-7768-b5f1-be0dd96ff95d","at":1767437060000000000,"seq":46,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b8375-4ce6-7107-baf6-623dcb20806d","at":1767437061350000000,"seq":47,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8375-6eb0-7985-b52a-26393e759877","at":1767437070000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b8375-a948-763e-a2de-1e0f2a279f76","at":1767437085000000000,"seq":49,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8375-b118-7890-a3bf-75914e2f8a69","at":1767437087000000000,"seq":50,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8375-c0b8-745f-9907-99ac242cfe77","at":1767437091000000000,"seq":51,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b837b-7cde-7330-acdd-decdcbe97fb0","at":1767437466846000000,"seq":52,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b837b-a0a0-7613-b3f8-8f40488ee632","at":1767437476000000000,"seq":53,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b837b-a488-752d-b969-9e63f1e4d0d3","at":1767437477000000000,"seq":54,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,73 @@
+{"v":1,"id":"019cbcec-4776-7ee6-bf00-5354d39c71ec","at":1772696127350000000,"seq":647,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbcec-4776-7381-a6ed-f7e1f1ea1be9","at":1772696127350000000,"seq":648,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cbcec-aba8-7eba-9063-d4859672ad8c","at":1772696153000000000,"seq":649,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbcec-bf30-7398-8bb0-1cb82fe30292","at":1772696158000000000,"seq":650,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cbd00-4c78-73ee-bce8-e3584a8588bf","at":1772697439352000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cbd00-eb40-7a6d-b129-a8e73af0d233","at":1772697480000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cbd01-0089-7d26-b7f0-3d8dffb6fe28","at":1772697485449000000,"seq":653,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cbd01-50d0-787e-869f-bdead281af6e","at":1772697506000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd01-54b8-7196-ab1a-7ab7ba2b6d27","at":1772697507000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd01-63a0-716b-9dd9-e13410220b9b","at":1772697510816000000,"seq":656,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cbd01-f4e0-7750-b8b4-cdc3e66c541f","at":1772697548000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd02-27a8-7905-bb14-ed20b859a03d","at":1772697561000000000,"seq":658,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd15-b0e4-736c-8aec-68c51c07edd9","at":1772698841316000000,"seq":659,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd16-3478-7a28-a855-a599f3b4430f","at":1772698875000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cbd16-5ab0-7c78-bcd0-18b3d2bc91e1","at":1772698884784000000,"seq":661,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd16-5b88-7cc5-8995-813c5002ea85","at":1772698885000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cbd16-ff98-78d6-a79d-b5f521e2adc7","at":1772698927000000000,"seq":663,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cbd17-224c-7147-b3e2-6e4acfe2ae6e","at":1772698935884000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd17-3260-7eec-82c6-65638654fd6e","at":1772698940000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cbd17-4200-76d7-b07d-4dbf7a1ae6ce","at":1772698944000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd17-5588-7fcd-b28d-c3f5354eea85","at":1772698949000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cbd17-9851-7750-8c33-6c217fbe0290","at":1772698966097000000,"seq":668,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd17-b348-7727-a9fa-a14aee03f116","at":1772698973000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cbd17-e610-7ef3-b701-d7d49737551e","at":1772698986000000000,"seq":670,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd18-402f-7fda-82b8-1cee451eb41d","at":1772699009071000000,"seq":671,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd18-5758-74d4-8ce5-419081d98e35","at":1772699015000000000,"seq":672,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd19-01f0-7b27-a19d-153612af9ef4","at":1772699058672000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd19-0b08-7c63-81ec-6f939391dd80","at":1772699061000000000,"seq":674,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd19-1e90-7a3e-8949-8a89f009917b","at":1772699066000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cbd19-3600-72b9-9b53-74ae48bb5f55","at":1772699072000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd21-e51c-731d-b75e-57d5f98538ba","at":1772699641116000000,"seq":677,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cbd22-1388-7fc7-a177-4d04b5039a5c","at":1772699653000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cbd22-2ee0-7fa1-ac92-bfaa3c629dc7","at":1772699660000000000,"seq":679,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd22-7148-7631-8bbe-6b0ea57d411c","at":1772699677000000000,"seq":680,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd28-dbd2-7f5a-aac4-6eeec48fc246","at":1772700097490000000,"seq":681,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019cbd28-ebb1-7885-838f-aa30ca75a54b","at":1772700101553000000,"seq":682,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd28-ebb1-7c4b-9fc5-b5231b03feb6","at":1772700101553000000,"seq":683,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd28-f158-7475-b873-789d052cbf3c","at":1772700103000000000,"seq":684,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cbd28-fd10-7378-83ac-833d4ebabee1","at":1772700106000000000,"seq":685,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd29-1098-7fa9-b985-17b92c804e48","at":1772700111000000000,"seq":686,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cbd29-2038-7afa-96b4-bf19ae3f5ee6","at":1772700115000000000,"seq":687,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd29-2e54-74cf-83c3-41fe5b52eade","at":1772700118612000000,"seq":688,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd29-4b30-7c9c-b836-f486cc59a39b","at":1772700126000000000,"seq":689,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cbd29-9568-7f2b-9869-c9008b9e379e","at":1772700145000000000,"seq":690,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cbd29-a919-749c-b7ad-96fe53ca919f","at":1772700150041000000,"seq":691,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd29-c448-7320-90c1-ac60392fdcd8","at":1772700157000000000,"seq":692,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd29-d3e8-7d82-a12d-a3fd6a70bc42","at":1772700161000000000,"seq":693,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cbd29-d7d0-7321-a5e9-5c5d16277e01","at":1772700162000000000,"seq":694,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd29-dfa0-722d-ba45-12df9937e981","at":1772700164000000000,"seq":695,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cbd29-e355-7816-8875-6feb2510f61f","at":1772700164949000000,"seq":696,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd29-f710-773a-82b9-02679da03c89","at":1772700170000000000,"seq":697,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cbd2a-1650-7cb5-8f0f-3440be476979","at":1772700178000000000,"seq":698,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2a-4918-79fd-80f5-c58a2a7bfa18","at":1772700191000000000,"seq":699,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2a-7be0-75ad-827d-0e80bd38f486","at":1772700204000000000,"seq":700,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd2a-9c12-71a7-a6d7-37d44077eb7a","at":1772700212242000000,"seq":701,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd2a-a6d8-7b72-8536-4894029e6098","at":1772700215000000000,"seq":702,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2a-d1d0-7ddc-a926-e9370b748abc","at":1772700226000000000,"seq":703,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2a-d5a8-77db-8404-12cabd597e33","at":1772700226984000000,"seq":704,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd2a-f110-7821-8b3c-be646992c0e5","at":1772700234000000000,"seq":705,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cbd2b-1050-78b6-830d-936b09717caa","at":1772700242000000000,"seq":706,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2b-710c-7a34-baca-f6089c69e298","at":1772700266764000000,"seq":707,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd2b-71f8-724f-af2a-a14af4151ebc","at":1772700267000000000,"seq":708,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2b-9138-7b30-b0c6-557edbec8770","at":1772700275000000000,"seq":709,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2b-db70-7363-a8e2-71db5043267a","at":1772700294000000000,"seq":710,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cbd2c-0a50-720f-a34b-03145e63fb5e","at":1772700306000000000,"seq":711,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cbd2c-1018-7f95-b7ee-ddb1c7c13c4f","at":1772700307480000000,"seq":712,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd2c-8b38-71a9-bda9-e901fa6ce148","at":1772700339000000000,"seq":713,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cbd2c-9ad8-75c7-a0aa-1288ba2a374c","at":1772700343000000000,"seq":714,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cbd2c-b790-709c-8bee-bc4bc3a9f7fc","at":1772700350352000000,"seq":715,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd2d-69e0-7c65-93fe-ec6daace9b06","at":1772700396000000000,"seq":716,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd2d-69e0-7358-ac93-1fb51171a6a3","at":1772700396000000000,"seq":717,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cbd2d-9dbd-70bc-ac30-55de90706695","at":1772700409277000000,"seq":718,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cbd2d-de24-7309-8b6c-9a568d13bcf1","at":1772700425764000000,"seq":719,"kind":"run_mark","app":null,"p":{"edge":"end"}}

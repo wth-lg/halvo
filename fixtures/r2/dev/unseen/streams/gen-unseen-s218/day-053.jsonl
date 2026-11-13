@@ -1,0 +1,7 @@
+{"v":1,"id":"019c8439-3798-742b-b62b-96ed0a5ead8a","at":1771744868248000000,"seq":807,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8439-3798-7952-9ef9-3ab0769d22e0","at":1771744868248000000,"seq":808,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c8439-3a88-79e6-b6ec-16465b209bd8","at":1771744869000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8439-59c8-7b22-b53f-f64d183ad278","at":1771744877000000000,"seq":810,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8439-a6f5-7675-b212-85f35c7a8bd1","at":1771744896757000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c843c-2b73-718c-b8ac-c1a9fa925d33","at":1771745061747000000,"seq":812,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c843c-8260-7f5a-8ec6-776b145f0339","at":1771745084000000000,"seq":813,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

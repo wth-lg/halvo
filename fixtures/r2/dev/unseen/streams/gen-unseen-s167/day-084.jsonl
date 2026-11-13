@@ -1,0 +1,20 @@
+{"v":1,"id":"019d2432-fc74-7d1c-86c0-fc2204b63b3f","at":1774428814452000000,"seq":1263,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2432-fc74-794b-af71-7868952fc9cb","at":1774428814452000000,"seq":1264,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2433-4cb8-7817-b004-c5cc724265fd","at":1774428835000000000,"seq":1265,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d2433-8368-73e3-a6f2-ed52e2989a26","at":1774428849000000000,"seq":1266,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d2433-be00-789c-a337-a0b31a9248ae","at":1774428864000000000,"seq":1267,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2437-d11e-740c-8474-6ea7bc328c1d","at":1774429131038000000,"seq":1268,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2437-d11e-783e-8db5-875199b26d27","at":1774429131038000000,"seq":1269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d2437-dcb0-7d81-acbb-e483ef8d0f90","at":1774429134000000000,"seq":1270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2437-e480-7772-8035-78dba1bdd5b7","at":1774429136000000000,"seq":1271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2438-4a10-75a5-986b-19f304e6d5fe","at":1774429162000000000,"seq":1272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d2438-cc36-736c-bd8e-bcff5893d402","at":1774429195318000000,"seq":1273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d2438-fdc0-78b7-9da6-6c2178743476","at":1774429208000000000,"seq":1274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d2439-3043-78cf-99cd-dc001a3b6877","at":1774429220931000000,"seq":1275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d2439-6738-7ab8-ad7a-386a8301016c","at":1774429235000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2439-9a00-70ab-be9d-6719080c2934","at":1774429248000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2439-d498-7a8d-b871-0dbb7e3259bb","at":1774429263000000000,"seq":1278,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d243e-e93a-7535-a4db-1c19313971b7","at":1774429595962000000,"seq":1279,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d243e-e93a-799b-9c7d-46e5d61f4943","at":1774429595962000000,"seq":1280,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d243f-a4e0-7f63-b870-3ec9622b03a8","at":1774429644000000000,"seq":1281,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d243f-b868-7f9f-904a-b2964c631e10","at":1774429649000000000,"seq":1282,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

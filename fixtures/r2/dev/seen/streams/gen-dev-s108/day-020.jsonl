@@ -1,0 +1,7 @@
+{"v":1,"id":"019bdad4-07de-78c3-97ae-c9116eb0e841","at":1768902887390000000,"seq":432,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdad4-07de-7b9d-961d-9cc9986d2117","at":1768902887390000000,"seq":433,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bdad4-7302-7e1b-86d2-3ee7ac086523","at":1768902914818000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bdaed-9132-73f2-9e89-010951018ef8","at":1768904560946000000,"seq":435,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdaed-9132-7a2d-a745-bad2e6288bd7","at":1768904560946000000,"seq":436,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdaed-a4f0-7f98-aae0-f6e83cf6b0ad","at":1768904566000000000,"seq":437,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bdaee-5c88-7e44-82fb-d97a8383c97d","at":1768904613000000000,"seq":438,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

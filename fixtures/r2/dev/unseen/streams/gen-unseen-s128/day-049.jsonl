@@ -1,0 +1,16 @@
+{"v":1,"id":"019c6ff4-7b61-70b5-95c5-09ff7d92db77","at":1771404819297000000,"seq":685,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ff4-7b61-73cd-bf13-7adbc6ae7e95","at":1771404819297000000,"seq":686,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c6ff5-2de8-7a8f-a09d-efd2d1da26b9","at":1771404865000000000,"seq":687,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ff5-2f9d-7d4c-9a3f-d3695be5ced6","at":1771404865437000000,"seq":688,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c6ff5-35b8-7b6e-8eae-8f4024db5e5f","at":1771404867000000000,"seq":689,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6ff5-39a0-7421-8aff-39a059bad87e","at":1771404868000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c6ff5-3d88-7efe-9795-582a15c5453e","at":1771404869000000000,"seq":691,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6ff5-5110-72e5-a903-66a6d61903e9","at":1771404874000000000,"seq":692,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7010-e0a4-7384-b3dc-943b029bee80","at":1771406680228000000,"seq":693,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c7010-e790-78f2-bb7f-146a50400c66","at":1771406682000000000,"seq":694,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7011-0ea0-74bc-951f-a614ea5af3d2","at":1771406692000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c7011-3998-7f0b-be2b-1c7a3f6556df","at":1771406703000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7011-54f0-7223-9828-198aa57600df","at":1771406710000000000,"seq":697,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7016-99e2-7e91-a690-bc9e6165a73f","at":1771407055330000000,"seq":698,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7016-99e2-7aa1-ac9c-f99222d49820","at":1771407055330000000,"seq":699,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7016-b7d8-7fb2-a472-e796611139f5","at":1771407063000000000,"seq":700,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

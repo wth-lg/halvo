@@ -1,0 +1,17 @@
+{"v":1,"id":"019d054c-3b37-7eea-a66d-20507c3d5c41","at":1773910375223000000,"seq":1129,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d054c-3b37-72d5-940b-3cfd4baf7474","at":1773910375223000000,"seq":1130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d054c-4610-7eed-aabb-745cadde3707","at":1773910378000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d054c-aba0-757e-b6dc-70dfe49180c6","at":1773910404000000000,"seq":1132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d054c-c8c2-7b0f-adbf-a5b7f6438d87","at":1773910411458000000,"seq":1133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d054c-ea20-7b60-add1-e5a9af853864","at":1773910420000000000,"seq":1134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d054d-0d48-7b8c-ae57-0472b8e45722","at":1773910429000000000,"seq":1135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d054d-76c0-7d8c-8163-2be508e83f25","at":1773910456000000000,"seq":1136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d054d-7aa8-7f70-bf64-1c60c9d4a44d","at":1773910457000000000,"seq":1137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d054d-7c25-75df-864c-b751df01f396","at":1773910457381000000,"seq":1138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d054e-4d98-705c-b54f-320e07f69b34","at":1773910511000000000,"seq":1139,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0552-453c-75c3-b24e-baccfbebaf89","at":1773910771004000000,"seq":1140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d0552-6478-7a04-a146-7565bcd866d4","at":1773910779000000000,"seq":1141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0552-6860-7345-993f-378f25580650","at":1773910780000000000,"seq":1142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0552-93e0-7567-b51c-33e3ddf6ff08","at":1773910791136000000,"seq":1143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d0552-c620-78e0-9158-4740d23b37b2","at":1773910804000000000,"seq":1144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d0552-f8e8-7ba5-adb5-20409002f445","at":1773910817000000000,"seq":1145,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

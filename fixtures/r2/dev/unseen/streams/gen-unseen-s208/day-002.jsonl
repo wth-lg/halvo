@@ -1,0 +1,31 @@
+{"v":1,"id":"019b7e14-78b8-7f28-88e1-0e6180eeaaa6","at":1767346829496000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e14-78b8-78ac-bfce-d8151d239f64","at":1767346829496000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7e14-e436-786b-955d-888613b224f4","at":1767346857014000000,"seq":2,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7e15-ef58-77a2-af78-9f1b0473991e","at":1767346925400000000,"seq":3,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7e15-f598-7bc7-93bc-20d6e74579a0","at":1767346927000000000,"seq":4,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e15-f980-74db-889e-ac1a3779c366","at":1767346928000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b7e15-fd68-7e0e-9e28-7ba62eae351b","at":1767346929000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e16-3418-7eb3-b7ad-fbd531264425","at":1767346943000000000,"seq":7,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e16-3800-72da-860c-c943ccf1c6b1","at":1767346944000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e16-3b2f-72de-99a8-3ab9409e0414","at":1767346944815000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b7e16-47a0-76d2-8f59-2242c287fb4f","at":1767346948000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e16-5740-7bb7-a3ac-1bdc64b9e9f1","at":1767346952000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e16-66e0-7d70-bfaf-4affad8a818f","at":1767346956000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b7e29-add8-7d58-a518-6d0d94f1f89a","at":1767348219352000000,"seq":13,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7e29-add8-73cb-81bb-75d6170cfbcb","at":1767348219352000000,"seq":14,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7e34-caab-7232-9adf-24cc2f707f81","at":1767348947627000000,"seq":15,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e34-caab-72b9-9ffa-3e9d3f8c433a","at":1767348947627000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7e34-d7d8-7d8a-8d48-3c0af3ab67d5","at":1767348951000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e34-ef48-7067-abfa-d0df01eb8d71","at":1767348957000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b7e35-02d0-7341-9736-38d5b81f93a9","at":1767348962000000000,"seq":19,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e35-0514-7cdf-a71c-fc1e137c984b","at":1767348962580000000,"seq":20,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7e35-7030-7262-9b65-047a4c7e1a19","at":1767348990000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e35-aac8-7f3e-8c9e-71006c803d4a","at":1767349005000000000,"seq":22,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b7e35-d5c0-7545-9cbf-b0c0ffbabf6c","at":1767349016000000000,"seq":23,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e35-db28-707b-9a98-555a6b5bc2a9","at":1767349017384000000,"seq":24,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7e36-52c0-7e58-b270-c80029b26e47","at":1767349048000000000,"seq":25,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b7e36-8970-75c5-bb60-d52277d5b6f3","at":1767349062000000000,"seq":26,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e36-ac98-7e6a-a157-636d17329373","at":1767349071000000000,"seq":27,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e36-bac1-7dad-a88a-615a39d003aa","at":1767349074625000000,"seq":28,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019b7e36-c020-7e2b-82f7-623b98bad2b1","at":1767349076000000000,"seq":29,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b7e36-c408-783c-8c11-a40a0bc7c9b2","at":1767349077000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

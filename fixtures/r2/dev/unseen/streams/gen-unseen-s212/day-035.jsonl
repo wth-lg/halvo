@@ -1,0 +1,29 @@
+{"v":1,"id":"019c27d2-bb61-72d1-9890-8056ac21b574","at":1770194647905000000,"seq":328,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c27d2-bb61-7dc4-89e4-1897c2a8477d","at":1770194647905000000,"seq":329,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c27d3-6b88-76bc-a0be-97916cdc2eb0","at":1770194693000000000,"seq":330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c27d3-bb75-7ce6-a184-9721ca322289","at":1770194713461000000,"seq":331,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c27d3-e0b8-72ad-bf4c-bbc10c999fa3","at":1770194723000000000,"seq":332,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c27d4-03e0-792f-9ef6-1414bf1c36ad","at":1770194732000000000,"seq":333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27d4-5200-7f18-bc0b-f4f46576ba6f","at":1770194752000000000,"seq":334,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c27d4-62a8-78a3-bc99-2329bfd0363e","at":1770194756264000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c27d4-b790-7fb0-b349-00a4ac17381d","at":1770194778000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27d4-bb78-7aa8-9ec5-6eeb4bcfd603","at":1770194779000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27d4-dab8-74c0-9f37-0a76a2d0f490","at":1770194787000000000,"seq":338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c27d4-f684-7814-988d-c21fdb2afe7a","at":1770194794116000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c27d4-fde0-7f06-979f-18c66e59ac35","at":1770194796000000000,"seq":340,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c27d5-30a8-72cd-a67d-89e8db50feb4","at":1770194809000000000,"seq":341,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c27e3-0ed5-77fd-bb3a-d7e6813ed213","at":1770195717845000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c27e3-aabe-793b-be6f-c67d96cbc4f9","at":1770195757758000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c27e3-c320-789d-99c0-2ae604c65f20","at":1770195764000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c27e3-ee18-7bd1-8064-6ddc9cfe8187","at":1770195775000000000,"seq":345,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c27e4-4fc0-7eb7-9896-5ccc0ad204b9","at":1770195800000000000,"seq":346,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27e4-5790-7bc1-b200-fab5e93ed7f0","at":1770195802000000000,"seq":347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c27ed-21a4-75b2-9c4a-9acb9864707c","at":1770196378020000000,"seq":348,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c27ed-96c0-7978-8417-50c578308e57","at":1770196408000000000,"seq":349,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c27ed-aa48-7aad-88af-755a836320c4","at":1770196413000000000,"seq":350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c2802-86be-7b91-8a42-9ca6e9f5cbf3","at":1770197780158000000,"seq":351,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c2802-ef98-7b73-bbd5-3b5b6fd72602","at":1770197807000000000,"seq":352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2802-fb50-7702-9682-fe73eec795f6","at":1770197810000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2803-39d0-72d8-8e22-ab5fa656a3c2","at":1770197826000000000,"seq":354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c280b-d78a-7344-8ca1-ffc9a784183c","at":1770198390666000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c280c-3e68-7bb5-9b27-cd78869fcbd3","at":1770198417000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

@@ -1,0 +1,16 @@
+{"v":1,"id":"019c0dc9-1dfa-72de-9026-83301eff7bfb","at":1769757810170000000,"seq":592,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0dc9-1dfa-7db9-9787-c56b47c48f1d","at":1769757810170000000,"seq":593,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c0dc9-63a0-7601-8bc2-419cce7e2b20","at":1769757828000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dc9-f810-7107-bd73-04431a57f3a4","at":1769757866000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dca-27a3-75ac-9515-c60f22c38e16","at":1769757878179000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c0dca-6188-77a0-9e09-dd0f46d3b89c","at":1769757893000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c0dca-c718-797c-878f-849dba305148","at":1769757919000000000,"seq":598,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0dca-de88-7ce4-9d9e-df284d41b62c","at":1769757925000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0dde-75ab-7922-bf69-ed31416a7c43","at":1769759208875000000,"seq":600,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c0dde-a508-7df0-8e7e-3b717e193d1f","at":1769759221000000000,"seq":601,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0ddf-3b57-7a83-9e62-fb1c113c5e98","at":1769759259479000000,"seq":602,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c0ddf-7410-700d-83c7-c20d820a54f3","at":1769759274000000000,"seq":603,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0ddf-8f68-7725-92fb-ce336b9608ac","at":1769759281000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0ddf-a2f0-764d-b826-a4007b98e222","at":1769759286000000000,"seq":605,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c0ddf-fcc8-7f4e-9c73-9f8841b5e938","at":1769759309000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0de0-23d8-7b1d-be62-b8553896679e","at":1769759319000000000,"seq":607,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

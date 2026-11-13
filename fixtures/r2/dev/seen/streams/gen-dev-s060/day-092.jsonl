@@ -1,0 +1,19 @@
+{"v":1,"id":"019d4d0b-34ad-7b7a-bb94-385def89d14a","at":1775114073261000000,"seq":1169,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d0b-34ad-71be-a528-044f47e632ba","at":1775114073261000000,"seq":1170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4d0b-6a58-7ff6-9e2b-991c6f50b6be","at":1775114087000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d4d0b-81c8-7355-bfa4-b377a65d5df0","at":1775114093000000000,"seq":1172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d0b-afa6-7782-a039-7f3014a37245","at":1775114104742000000,"seq":1173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4d0b-c818-7662-96a1-2d9b0e3b8059","at":1775114111000000000,"seq":1174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4d0b-ef28-7a74-9fba-b929fd86feaa","at":1775114121000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d0c-1e08-7057-bdbe-979e3df60578","at":1775114133000000000,"seq":1176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d4d0c-3960-714d-9ba3-d7e54067a559","at":1775114140000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4d0c-563d-7e7b-8f67-e47cba59480b","at":1775114147389000000,"seq":1178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4d0c-9ef0-7c44-9a86-7857949d448c","at":1775114166000000000,"seq":1179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d0c-cdd0-791f-b5f9-c6f7130863d2","at":1775114178000000000,"seq":1180,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4d0c-d5a0-7f58-b86f-eaa6c964dd57","at":1775114180000000000,"seq":1181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d0d-0098-70b7-8517-332ff1363983","at":1775114191000000000,"seq":1182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4d0d-1fd8-7bd6-b140-a6ba64ce5300","at":1775114199000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d4d0d-42aa-7c8f-bbc0-064385c0da20","at":1775114207914000000,"seq":1184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d4d0d-46e8-7126-bced-5a5fa546e8df","at":1775114209000000000,"seq":1185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4d0d-4ad0-72c0-8bed-fecd35ca3cf4","at":1775114210000000000,"seq":1186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d0d-6240-70f2-aaf6-981cd594ab60","at":1775114216000000000,"seq":1187,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,0 +1,32 @@
+{"v":1,"id":"019ca396-7c34-7484-97fe-447333631812","at":1772271074356000000,"seq":713,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca396-7c34-722d-89dc-295ac07ee026","at":1772271074356000000,"seq":714,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ca396-c2c3-7d10-8b42-af709ca6f37d","at":1772271092419000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ca396-ec18-7e5c-bc14-55e0f72185a7","at":1772271103000000000,"seq":716,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca396-fbb8-7c18-89dc-0829ebd6f1f8","at":1772271107000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca397-261a-72c3-8655-4beb38a128ec","at":1772271117850000000,"seq":718,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ca397-c31c-7669-ba8e-0127194bcaf2","at":1772271158044000000,"seq":719,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ca397-d678-7b61-b56b-14508cc84cd7","at":1772271163000000000,"seq":720,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca397-fd88-7b80-962a-fbf6b06116c3","at":1772271173000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca398-14f8-7495-ac3a-c42898637cc1","at":1772271179000000000,"seq":722,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca398-2880-7eb6-b06d-5a5420922749","at":1772271184000000000,"seq":723,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3ad-66a4-761c-beea-320b10b1427b","at":1772272576164000000,"seq":724,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca3ad-a868-7ce0-a778-cbe8232b9f63","at":1772272593000000000,"seq":725,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3ad-bfd8-7777-9f3f-1a69708cfd04","at":1772272599000000000,"seq":726,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ca3c2-d359-7713-b41f-c9ca3616dda2","at":1772273980249000000,"seq":727,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ca3c2-f1a0-70af-9a4a-a4da11f24382","at":1772273988000000000,"seq":728,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3c3-9d80-7b1f-84c0-762473f1cd1c","at":1772274032000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3c3-a12d-7b57-8a6b-5ddec4a45bb8","at":1772274032941000000,"seq":730,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ca3c3-d430-76ec-8542-ee964dacc822","at":1772274046000000000,"seq":731,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3c3-d818-7242-8451-d97322aafa4e","at":1772274047000000000,"seq":732,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca3c3-eba0-7d2d-b99f-7feee654c07a","at":1772274052000000000,"seq":733,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca3c4-1d2c-7a2b-ac64-063011078da0","at":1772274064684000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019ca3c4-4578-701c-a5d7-3823643a0a16","at":1772274075000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019ca3c4-5900-723c-8786-95332239ec28","at":1772274080000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3c4-5ce8-7aec-8636-4ab7df7441b0","at":1772274081000000000,"seq":737,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3c4-a720-745a-beab-8805a3040dcb","at":1772274100000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca3c4-be90-7c92-9440-2d16a3d23944","at":1772274106000000000,"seq":739,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca3ca-837d-7dce-b02e-b71c8ec51904","at":1772274484093000000,"seq":740,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca3ca-837d-7b30-9849-492d033695fc","at":1772274484093000000,"seq":741,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca3ca-92c0-741b-a2c1-ea5b0cac4816","at":1772274488000000000,"seq":742,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ca3ca-e8b0-75e7-ae4b-016c1930b52a","at":1772274510000000000,"seq":743,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ca3ca-f080-7741-a693-f8ee1a2bb064","at":1772274512000000000,"seq":744,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

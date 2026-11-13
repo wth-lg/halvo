@@ -1,0 +1,4 @@
+{"v":1,"id":"019ca35c-1ebd-700a-85c1-2c14efb59cf9","at":1772267249341000000,"seq":656,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca35c-1ebd-795c-a6ea-28599159ae55","at":1772267249341000000,"seq":657,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ca35c-d9a4-7650-b5c2-9ed7ee7d79e7","at":1772267297188000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride passes - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019ca35c-f440-7a97-a322-151bd0954206","at":1772267304000000000,"seq":659,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

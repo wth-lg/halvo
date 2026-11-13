@@ -1,0 +1,22 @@
+{"v":1,"id":"019d3908-a640-7044-93e1-6476edde8863","at":1774778361408000000,"seq":1163,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3908-a640-757f-99d6-cbbd38c882ad","at":1774778361408000000,"seq":1164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d3908-df40-7ff3-8396-8242262a5530","at":1774778376000000000,"seq":1165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d3908-eaf8-77f9-a931-d87619cb4fcc","at":1774778379000000000,"seq":1166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d391f-259a-7c28-ac89-35045cc0e633","at":1774779835802000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d391f-ce58-782e-bebd-9774d0aaa110","at":1774779879000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d391f-dd68-781d-b980-fb20c45b9410","at":1774779882856000000,"seq":1169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d391f-f568-78cd-a299-037600290c50","at":1774779889000000000,"seq":1170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3920-0cd8-7a1b-ad4a-1d80d7caf0e2","at":1774779895000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3920-10c0-7a1f-91c2-c22b845ffe85","at":1774779896000000000,"seq":1172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d3921-780d-7eb2-9153-beb2f93827d1","at":1774779987981000000,"seq":1173,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3921-780d-7fcf-a6fb-4db410138626","at":1774779987981000000,"seq":1174,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3921-fcf0-763a-9ab6-2a9e0a99df64","at":1774780022000000000,"seq":1175,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3922-0c90-757e-abab-7b9d75f2597d","at":1774780026000000000,"seq":1176,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3924-a2c3-7ead-877c-9fdc11f914b8","at":1774780195523000000,"seq":1177,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d3924-eed8-72d4-9fcb-7f7be8f63633","at":1774780215000000000,"seq":1178,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3925-5080-78c8-9fe9-c07abbfe52b0","at":1774780240000000000,"seq":1179,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3925-6fc0-7f0a-b574-959eecdaa2cd","at":1774780248000000000,"seq":1180,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d392d-53a2-7e94-a740-01bf484f9e18","at":1774780765090000000,"seq":1181,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d392d-53a2-71ae-8dc7-32e2c15a914d","at":1774780765090000000,"seq":1182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d392d-d048-7e07-af75-838ef784267e","at":1774780797000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d392e-06f8-7180-a0b6-7e83abab1601","at":1774780811000000000,"seq":1184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

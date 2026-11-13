@@ -1,0 +1,26 @@
+{"v":1,"id":"019c5ba3-51b5-72f6-b88e-35c4f89f565e","at":1771063955893000000,"seq":561,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5ba3-51b5-789a-823c-91db787d23ec","at":1771063955893000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba3-88d0-7988-af7f-e853d8f2b6a8","at":1771063970000000000,"seq":563,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5ba3-90a0-70ff-8008-056cc2ce18ef","at":1771063972000000000,"seq":564,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c5bb6-5244-7e70-aaf5-daf0ae929ccc","at":1771065201220000000,"seq":565,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb6-8fe8-73d6-9b5b-59d02fb00aab","at":1771065217000000000,"seq":566,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5bb6-f578-7dee-a78b-a303ae72cd98","at":1771065243000000000,"seq":567,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb7-0518-752c-b088-f73adfdbdef8","at":1771065247000000000,"seq":568,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb7-1351-7f19-9c22-34ed28598292","at":1771065250641000000,"seq":569,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb7-8dd0-72ef-a5ef-a3afd1e3fe4f","at":1771065282000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb7-d420-7313-918f-2bf3bc699df4","at":1771065300000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb7-ee18-71ac-95f5-ed183362d626","at":1771065306648000000,"seq":572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb8-4950-7056-a134-8f45662c8793","at":1771065330000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb8-dff1-7394-8616-9eed9c9bb760","at":1771065368561000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb9-2fc8-7e7b-9f13-0f98844892d2","at":1771065389000000000,"seq":575,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c5bb9-5ea8-78a2-909d-2a7f12d41c58","at":1771065401000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb9-9d28-7a70-a6b8-c84cb5060ca0","at":1771065417000000000,"seq":577,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5bb9-a613-706c-943e-44487f56a391","at":1771065419283000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb9-acc8-7e49-9f00-a459d33d58f0","at":1771065421000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bba-0e70-7387-9d55-17f6c2c37b7b","at":1771065446000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bba-64c8-720a-8ab1-ecbce2f7c4a6","at":1771065468104000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c5bba-a2e0-7e75-bfee-5db168d28e9f","at":1771065484000000000,"seq":582,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5bba-ccb8-7dfe-a78d-4c2571b7704e","at":1771065494712000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c5bbb-1428-7a8c-8330-2857c02f8a00","at":1771065513000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bbb-9510-7001-aa70-823bdce45935","at":1771065546000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bbb-ac80-73dc-8ce5-b6b128482614","at":1771065552000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

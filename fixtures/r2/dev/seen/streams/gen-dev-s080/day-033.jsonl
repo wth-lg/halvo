@@ -1,0 +1,14 @@
+{"v":1,"id":"019c1dc6-5e72-7181-a80c-9ca8a0cd6464","at":1770026065522000000,"seq":409,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1dc6-5e72-7311-b61f-be3ae11de483","at":1770026065522000000,"seq":410,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1dc6-a6a0-7050-aa4a-ea99f96c3250","at":1770026084000000000,"seq":411,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c1ddf-6713-7fe9-9c87-0720a3f9c809","at":1770027706131000000,"seq":412,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1ddf-6713-73db-ba3d-5d36d02e2401","at":1770027706131000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c1ddf-f330-7a42-8b25-18bc7ddd6b56","at":1770027742000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c1de0-31b0-7686-bf75-cfd9d6b830d4","at":1770027758000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1de0-6fca-7031-98b0-e04809c4a46e","at":1770027773898000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c1de0-7800-7095-8308-e5c7fe66c626","at":1770027776000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1de0-9358-7e6c-8a2b-6ad5764e0855","at":1770027783000000000,"seq":418,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c1de0-cdf0-714c-95f9-e1e4d2f5643f","at":1770027798000000000,"seq":419,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1de0-d1d8-76dc-b41d-f483112d9a6a","at":1770027799000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1de1-2ff5-7f3b-b90a-c896b5ab60ce","at":1770027823093000000,"seq":421,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c1de1-4af0-7a78-abd4-8dee1830f24f","at":1770027830000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

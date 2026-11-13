@@ -1,0 +1,47 @@
+{"v":1,"id":"019cfb46-9ca7-7190-8cec-eac40a3e2514","at":1773742234791000000,"seq":1210,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfb46-9ca7-7c69-b049-8a3509cd9030","at":1773742234791000000,"seq":1211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cfb46-cc58-78f8-9da2-5634e7dd061a","at":1773742247000000000,"seq":1212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb47-9398-7230-8ba3-d6635d9e7b66","at":1773742298008000000,"seq":1213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cfb47-9b60-7251-80e9-0d7aadee95bd","at":1773742300000000000,"seq":1214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfb47-c270-732f-af1d-7581d6197e69","at":1773742310000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb47-c658-722f-8a0d-1ad9f592b886","at":1773742311000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb47-ca40-7eab-a4c5-19626bbb6ca9","at":1773742312000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cfb47-dcea-762e-9ff9-b0fb7830aa2e","at":1773742316778000000,"seq":1218,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cfb47-dcea-7950-9180-d41217152df4","at":1773742316778000000,"seq":1219,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cfb47-e980-7466-8d21-7ff3e8406674","at":1773742320000000000,"seq":1220,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfb47-fd08-7b8e-bd43-87172e79d832","at":1773742325000000000,"seq":1221,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb48-1a8f-71a5-9e05-184f65ea388f","at":1773742332559000000,"seq":1222,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfb48-1a8f-797a-93a0-d8e2053a2c96","at":1773742332559000000,"seq":1223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cfb48-2800-71a0-aad4-74bef76fe3c9","at":1773742336000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb48-7df0-778d-be88-af8cec6a2ed9","at":1773742358000000000,"seq":1225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfb48-d46e-75b4-8fd2-4784e4ad8bdb","at":1773742380142000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cfb49-1e18-7b0e-a97d-92c126bea9dc","at":1773742399000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb49-4cf8-72e0-b236-b6f7ba151b69","at":1773742411000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb49-6080-75a6-ba03-1968138dd42f","at":1773742416000000000,"seq":1229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cfb49-6080-7b52-9629-9e203c60b527","at":1773742416000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cfb4d-0846-7d68-9cc3-77ec9c7c7794","at":1773742655558000000,"seq":1231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfb4d-2170-732b-99c9-c1dcb4c93d10","at":1773742662000000000,"seq":1232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb4d-6ba8-7d0c-bd5f-d783155a7395","at":1773742681000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb4d-e657-7f97-a9c9-1ccfe3f6723e","at":1773742712407000000,"seq":1234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfb4e-4a50-70f8-b7c6-c190643a5bb4","at":1773742738000000000,"seq":1235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cfb4e-dad8-7a09-a2e0-af7472012001","at":1773742775000000000,"seq":1236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb4e-e01a-76bd-842b-1fee247826aa","at":1773742776346000000,"seq":1237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfb4f-1188-7381-9599-6b0a75868914","at":1773742789000000000,"seq":1238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cfb4f-3898-7947-ace1-38ac16a305df","at":1773742799000000000,"seq":1239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb4f-4450-7138-8f3f-7c7d329e8564","at":1773742802000000000,"seq":1240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cfb4f-9658-7d26-ace8-17cb57d4f3f8","at":1773742823000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb4f-e795-7d29-82c7-03a78c0ab8aa","at":1773742843797000000,"seq":1242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cfb50-af98-7ffb-b23b-4febb9d57c54","at":1773742895000000000,"seq":1243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cfb62-ae72-75a2-9350-04610dd18232","at":1773744074354000000,"seq":1244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cfb62-c480-7c93-833f-316535186d03","at":1773744080000000000,"seq":1245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfb62-cc50-7aa3-99dd-bc26e867154f","at":1773744082000000000,"seq":1246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb62-e3c0-7281-a04c-5d9b8023b618","at":1773744088000000000,"seq":1247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cfb62-e7a8-76bd-84b7-a76353b379fc","at":1773744089000000000,"seq":1248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb75-3f16-73db-87fa-85ece04e23dc","at":1773745291030000000,"seq":1249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cfb75-4e98-7daa-b70e-6aae3edda794","at":1773745295000000000,"seq":1250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cfb75-8930-7787-9d59-9a2534f34d63","at":1773745310000000000,"seq":1251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb75-9158-7ffa-a1bd-79ae39d5c7d4","at":1773745312088000000,"seq":1252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cfb75-b428-753b-9188-2b56c4c56229","at":1773745321000000000,"seq":1253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb75-e6f0-7e59-8d2f-ec7578aa1916","at":1773745334000000000,"seq":1254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfb76-2188-771f-9997-fcd7eb3b2d5d","at":1773745349000000000,"seq":1255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb76-7390-70d5-91fa-b20c3e31f2a6","at":1773745370000000000,"seq":1256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

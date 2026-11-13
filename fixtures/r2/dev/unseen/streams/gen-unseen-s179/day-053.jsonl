@@ -1,0 +1,13 @@
+{"v":1,"id":"019c84d9-0c50-74c5-a4aa-0dcc5bb1ef51","at":1771755342928000000,"seq":693,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84d9-0c50-7675-aa12-9dbae137f035","at":1771755342928000000,"seq":694,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c84d9-2fc0-7196-a92e-5299abee6aa6","at":1771755352000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c84d9-e758-7f4f-817a-0c3902ef83a9","at":1771755399000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84d9-f7db-7386-821b-bbaa2202c1b3","at":1771755403227000000,"seq":697,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c84d9-f7db-79f4-bef7-7de380210fd6","at":1771755403227000000,"seq":698,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c84da-1250-7a5e-b262-d0148bdea390","at":1771755410000000000,"seq":699,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c84da-3190-7f7d-8148-e3904a42a50c","at":1771755418000000000,"seq":700,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84da-7fb0-7867-99bc-c1dbd6406430","at":1771755438000000000,"seq":701,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84da-c093-73d5-8799-3f39427a1d63","at":1771755454611000000,"seq":702,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c84da-c093-7f03-9284-2ffcc921b7bd","at":1771755454611000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c84da-e158-7270-9032-f7e16c7a8837","at":1771755463000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c84da-fcb0-75cd-9bb7-cfabcdcf2153","at":1771755470000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

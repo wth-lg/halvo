@@ -1,0 +1,12 @@
+{"v":1,"id":"019d0aa5-2ed9-7894-8354-e77dc0e68d82","at":1774000090841000000,"seq":967,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0aa5-2ed9-7633-abba-4899192f9468","at":1774000090841000000,"seq":968,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0aa5-3748-7f8d-b20b-fa8a869bd383","at":1774000093000000000,"seq":969,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d0aa5-52a0-783d-9330-48c6638561e8","at":1774000100000000000,"seq":970,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d0aa5-6a10-79a5-9493-c6d2b12fac0d","at":1774000106000000000,"seq":971,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aa5-7d98-7256-a2af-98499d2f7eb4","at":1774000111000000000,"seq":972,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d0aa5-821e-7c5f-8d87-e1b8862ebf64","at":1774000112158000000,"seq":973,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d0aa5-98f0-786f-afca-0d5e62077edf","at":1774000118000000000,"seq":974,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d0aa5-9cd8-74cb-aac3-0d1082935012","at":1774000119000000000,"seq":975,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0aa5-d388-7fc3-aa80-f45e58cdccfd","at":1774000133000000000,"seq":976,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0aa5-eee0-72f9-9eb6-2857c4bd023c","at":1774000140000000000,"seq":977,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d0aa6-0268-7297-9085-531f6bb81fb8","at":1774000145000000000,"seq":978,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

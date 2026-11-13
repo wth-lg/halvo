@@ -1,0 +1,20 @@
+{"v":1,"id":"019c1806-921f-7737-ad4d-02b1d540bac5","at":1769929609759000000,"seq":509,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1806-921f-756b-a4ea-afe8929537ff","at":1769929609759000000,"seq":510,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1806-b250-71b8-a91b-e6a63f7d86b1","at":1769929618000000000,"seq":511,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c1806-b638-7298-8b89-157b01a9e653","at":1769929619000000000,"seq":512,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c1806-c9c0-71a4-a961-b73649afacca","at":1769929624000000000,"seq":513,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c180b-6d2e-7c48-a6aa-52a46aedbc9a","at":1769929927982000000,"seq":514,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c180b-6d2e-767a-9751-1cd242239c22","at":1769929927982000000,"seq":515,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c180b-f5f8-7371-ba4f-af79cfdb3e71","at":1769929963000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c180c-4fd0-7ae6-b078-4d33028cba32","at":1769929986000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c180c-56ae-7ef3-93b2-7afb2f371c82","at":1769929987758000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c180c-76e0-7c00-9877-ee84d9363be5","at":1769929996000000000,"seq":519,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c180c-8a68-738c-b04f-c21b31ea4842","at":1769930001000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c180d-334c-710c-9ce6-b4691d1cdb58","at":1769930044236000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c180d-de40-7641-be3d-f796d17c993d","at":1769930088000000000,"seq":522,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c180e-14f0-75fe-849a-1f9d9ff55f95","at":1769930102000000000,"seq":523,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c180e-2702-7935-8a7e-1d4ad64f25f2","at":1769930106626000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c180e-3c00-726c-a4ff-be6f2743f26b","at":1769930112000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c180e-3c00-7d15-9af0-8dc659dae124","at":1769930112000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c180e-4f88-707b-b915-0f03d4e1909f","at":1769930117000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c180e-6ec8-7fb2-af2e-7ef349fe9653","at":1769930125000000000,"seq":528,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

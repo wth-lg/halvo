@@ -1,0 +1,17 @@
+{"v":1,"id":"019c419d-41e7-7c27-bb60-cc9468820546","at":1770627351015000000,"seq":629,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c419d-41e7-79a2-95a1-cacb8868e819","at":1770627351015000000,"seq":630,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c419d-45c0-7290-83d4-b25bb242b420","at":1770627352000000000,"seq":631,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c419d-9f98-7c3b-956b-8bbeba07b2a4","at":1770627375000000000,"seq":632,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c419d-c6a8-72dd-888d-8b617db91a39","at":1770627385000000000,"seq":633,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c41ab-9cd4-7e2e-a8e1-804c2b351bb1","at":1770628291796000000,"seq":634,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41ab-9cd4-7408-a04e-c3cde621c406","at":1770628291796000000,"seq":635,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c41ab-a958-7b12-9b0e-72f12375cc26","at":1770628295000000000,"seq":636,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c41ab-b128-769a-b065-9697319a907f","at":1770628297000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c41ab-bce0-7805-915e-afeb6ac74df9","at":1770628300000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ab-c898-788a-92d1-4b495283cc55","at":1770628303000000000,"seq":639,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41ab-ebc0-7e71-b931-b63817eae4b8","at":1770628312000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ac-01e1-7d57-aab8-cd3c72143bc7","at":1770628317665000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c41ac-3dc8-7222-9317-8fd8ece442fe","at":1770628333000000000,"seq":642,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c41c6-9cd3-71e3-ac1e-565a5761809a","at":1770630061267000000,"seq":643,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c41c6-9fb0-70be-85e0-5876d32aa19e","at":1770630062000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c6-c6c0-7fc6-b570-13cea73615ba","at":1770630072000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

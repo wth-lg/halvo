@@ -1,0 +1,43 @@
+{"v":1,"id":"019ce114-06e1-7a28-a898-27123989b9d2","at":1773302712033000000,"seq":1004,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce114-06e1-7528-b1b5-52a6e9b4231f","at":1773302712033000000,"seq":1005,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce114-1a48-7eb9-b982-8456598e6391","at":1773302717000000000,"seq":1006,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ce114-54e0-79ec-8704-c22862dd3f3d","at":1773302732000000000,"seq":1007,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ce121-3ddf-7296-bb90-1e49ac71ba03","at":1773303578079000000,"seq":1008,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce121-3ddf-7007-8f46-850a38d2a363","at":1773303578079000000,"seq":1009,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce121-5500-7a21-a9be-5dfc6cd354db","at":1773303584000000000,"seq":1010,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ce121-c648-7063-ba8e-52285ebfb676","at":1773303613000000000,"seq":1011,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce121-f528-743a-9466-200d0cfe61a8","at":1773303625000000000,"seq":1012,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce124-6e15-7510-994b-b393e1b3754b","at":1773303787029000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce124-71e0-7d20-ad46-020a18fa2366","at":1773303788000000000,"seq":1014,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce124-e328-720f-9832-34fdc1fc8515","at":1773303817000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ce12d-4d06-751b-94f5-3181d68ff52e","at":1773304368390000000,"seq":1016,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce12d-4d06-77f4-8b75-486ceac7ac38","at":1773304368390000000,"seq":1017,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce12d-6ea8-7818-bfbb-06121d385558","at":1773304377000000000,"seq":1018,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce12d-8230-79b1-bb5f-19c0d9cc197b","at":1773304382000000000,"seq":1019,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ce12d-8de8-7c08-95ac-e8634925e136","at":1773304385000000000,"seq":1020,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ce12d-b47f-7a98-a54c-7e50a239db24","at":1773304394879000000,"seq":1021,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ce12d-d820-7f85-88f0-d339c5d921d3","at":1773304404000000000,"seq":1022,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce12d-f760-72b2-b67c-d3d845d00e7f","at":1773304412000000000,"seq":1023,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019ce12d-fb48-770f-9099-f3610080e70b","at":1773304413000000000,"seq":1024,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce12f-e33c-70bf-b342-68b5d95fad84","at":1773304537916000000,"seq":1025,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce12f-e33c-7ec4-8880-c5c0d1d17467","at":1773304537916000000,"seq":1026,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce130-1658-7094-9422-8070be4b9b9a","at":1773304551000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce130-31b0-7992-b49e-3a8730c1e654","at":1773304558000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce130-5b34-78f4-9eed-9e9bb910ad9d","at":1773304568628000000,"seq":1029,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce130-83b8-7df7-9f04-af74bcbe698a","at":1773304579000000000,"seq":1030,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce130-e560-7478-b9ba-aa89ed40b852","at":1773304604000000000,"seq":1031,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce130-f500-75ec-89b0-319036a8e52e","at":1773304608000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce131-0a75-7b5e-a18a-ace323707196","at":1773304613493000000,"seq":1033,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce131-673f-7e1d-85cb-b02780cff758","at":1773304637247000000,"seq":1034,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce131-b080-7186-b9aa-2a2ee69ef25f","at":1773304656000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ce131-c7f0-730b-9977-de31a969bb72","at":1773304662000000000,"seq":1036,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce131-e730-7cbc-883c-587f618fb634","at":1773304670000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce132-4108-79c5-b724-b12f6fd7d67a","at":1773304693000000000,"seq":1038,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ce132-4f9a-7968-828a-f61fef20da65","at":1773304696730000000,"seq":1039,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce132-a2b0-73c4-b6a5-6241f624ca43","at":1773304718000000000,"seq":1040,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce132-e518-759a-9398-ef52f69437c6","at":1773304735000000000,"seq":1041,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ce133-2863-70c2-89a6-49d06063e1be","at":1773304752227000000,"seq":1042,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ce133-3720-7195-9a66-a60a7f689006","at":1773304756000000000,"seq":1043,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce133-5278-77e5-9c58-afd5c37451cd","at":1773304763000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ce133-8928-71fb-828e-590c3e9aef54","at":1773304777000000000,"seq":1045,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce133-90f8-7981-b69c-4db8c64eef43","at":1773304779000000000,"seq":1046,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

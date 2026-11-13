@@ -1,0 +1,22 @@
+{"v":1,"id":"019c6aa9-93d8-7ad8-9ba0-4c1eb849ba77","at":1771316024280000000,"seq":654,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6aa9-93d8-7c84-a48c-1b43428e697e","at":1771316024280000000,"seq":655,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6aa9-96a8-7699-8dcb-c02df5902d78","at":1771316025000000000,"seq":656,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c6aaa-88d8-7d1e-86f7-78fdf7c5c005","at":1771316087000000000,"seq":657,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c6ac5-ebec-7951-9404-872f571266fc","at":1771317881836000000,"seq":658,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ac5-ebec-79da-b6ad-85561e058c2a","at":1771317881836000000,"seq":659,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6ac6-0fb8-7a50-b21a-44fd3cb78cf9","at":1771317891000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac6-4280-7777-9db5-ae62d09326fe","at":1771317904000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c6ac6-7160-7227-92b4-9f5e7e4b071c","at":1771317916000000000,"seq":662,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6ac6-9c58-7bcc-9a4f-1a2bd8c2e2b9","at":1771317927000000000,"seq":663,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6ac6-a040-7232-9073-091c5a9d54f9","at":1771317928000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac8-a800-70b4-b19a-94446319f908","at":1771318061056000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c6ac9-16e1-72c1-8d53-ea9373c92189","at":1771318089441000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement May - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c6ac9-3c38-7cf2-8fff-736eab87abc1","at":1771318099000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac9-4020-75d1-ac5a-dd462a8d86bf","at":1771318100000000000,"seq":668,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6ac9-d878-7003-99e0-1b7f1e67830e","at":1771318139000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac9-db21-754d-90d6-7076b0588122","at":1771318139681000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c6aca-0758-7e95-a717-b625d9327c36","at":1771318151000000000,"seq":671,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6aca-49c0-7742-8b4b-0d90cf4a88ce","at":1771318168000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aca-c0bf-77f0-bf63-e951b27efe8f","at":1771318198463000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c6aca-c6c0-7e08-9a9b-22c240502280","at":1771318200000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aca-d660-78f8-a3aa-572a07d182ac","at":1771318204000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

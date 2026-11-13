@@ -1,0 +1,10 @@
+{"v":1,"id":"019bc13d-4142-7abf-bc48-02f035d8a2ec","at":1768473575746000000,"seq":274,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc13d-4142-70f8-a716-1a59a4d61a09","at":1768473575746000000,"seq":275,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc13d-84a8-7f09-9842-d544e51f63f0","at":1768473593000000000,"seq":276,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bc13d-bb58-7aba-b6c4-fd3ba76ca150","at":1768473607000000000,"seq":277,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13d-dae7-7dfe-9e79-7933ccb49de0","at":1768473615079000000,"seq":278,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bc13e-0978-7065-bfdb-b5253937a5d1","at":1768473627000000000,"seq":279,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bc13e-1530-7ea4-9f4a-8e4dda4bc915","at":1768473630000000000,"seq":280,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bc13e-2ca0-750a-80aa-40f53d51b58d","at":1768473636000000000,"seq":281,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13e-5f68-7bb1-9d32-3dbd767629b5","at":1768473649000000000,"seq":282,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13e-9230-7785-aaf4-90a9547a5f41","at":1768473662000000000,"seq":283,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

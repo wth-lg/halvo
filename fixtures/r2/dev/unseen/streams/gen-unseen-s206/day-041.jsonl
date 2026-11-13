@@ -1,0 +1,23 @@
+{"v":1,"id":"019c4701-c2a7-7a58-811d-1622ac88bd5d","at":1770717823655000000,"seq":615,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4701-c2a7-78c0-b260-105ccc709f0a","at":1770717823655000000,"seq":616,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c4701-e728-7ebc-a7ab-43c656f5f916","at":1770717833000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c4702-44e8-704a-96d6-fe065ff04885","at":1770717857000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4702-c20f-7ad3-a796-3dac5bfe1b23","at":1770717889039000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c4702-c5d0-78f8-ba61-c9db00658505","at":1770717890000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4702-c9b8-7af6-9c5c-e30622eb990c","at":1770717891000000000,"seq":621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4703-2778-7120-9450-6c1f7514cee6","at":1770717915000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c4703-a818-750e-b0fd-0ed3ec2b1ee7","at":1770717947928000000,"seq":623,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c4703-db28-7d1a-8dfb-60c8b24060d6","at":1770717961000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4704-19a8-7be2-86cd-7dbebafe35f6","at":1770717977000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4704-19a8-7234-a60a-13ee3ea205e2","at":1770717977000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c4704-2178-7d55-bdc3-0dac14528966","at":1770717979000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4704-6414-75e5-9227-3595387918fd","at":1770717996052000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c4704-8708-7dd4-bac1-1c45599f33b2","at":1770718005000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4704-c1a0-79e4-a090-10d03a5e8046","at":1770718020000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c470f-e668-7ba3-b830-f56fbefe0147","at":1770718750312000000,"seq":631,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c470f-f8b8-7f24-be89-d954d94f4b3f","at":1770718755000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4710-8170-76a4-9f2c-4903dd6dd315","at":1770718790000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4710-9017-7605-8dc9-c74eef978ebd","at":1770718793751000000,"seq":634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c4710-94f8-7139-a8d8-46867fbb4290","at":1770718795000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4710-a498-76f7-9035-990c44ee37a3","at":1770718799000000000,"seq":636,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4710-b438-7d89-a847-d2dd661e909f","at":1770718803000000000,"seq":637,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

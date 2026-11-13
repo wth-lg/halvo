@@ -1,0 +1,31 @@
+{"v":1,"id":"019bb1a0-321b-73c9-9a20-6010ad18145c","at":1768211624475000000,"seq":175,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1a0-321b-7095-beaf-4445324b7a31","at":1768211624475000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a0-91e8-788a-8a65-882984ead1d5","at":1768211649000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bb1a0-a958-7543-8180-48432adc4f54","at":1768211655000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a1-12d0-7a45-8e44-1a162465d9ca","at":1768211682000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a1-16db-77a3-bbdb-d42fb662df65","at":1768211683035000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement April - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a1-1aa0-7713-9a2a-9ddab685a237","at":1768211684000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a1-5538-7478-9958-fc86c4e02d62","at":1768211699000000000,"seq":182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb1a1-c680-79f4-a4bb-f7ed7485ed94","at":1768211728000000000,"seq":183,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb1a2-15e0-764a-bcc3-137ea0bdef99","at":1768211748320000000,"seq":184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a2-2058-735a-9df3-d8e74da647a5","at":1768211751000000000,"seq":185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb1a2-2828-788a-822e-ffbca8b41ec3","at":1768211753000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a2-8200-7f8a-8dff-e15d361c153a","at":1768211776000000000,"seq":187,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb1a2-91e5-76fb-a75b-908173b72b6d","at":1768211780069000000,"seq":188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a3-35b0-781f-95ce-3a4c3fbf85cd","at":1768211822000000000,"seq":189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bb1a3-4938-7a97-9e4a-21f8ab676f5f","at":1768211827000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a3-54f0-7924-ad7b-60076e050c80","at":1768211830000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a3-965e-7d5f-87d3-8f696525450e","at":1768211846750000000,"seq":192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a3-9b40-7c10-bef9-4973bbfc7502","at":1768211848000000000,"seq":193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a3-ce08-71f7-a987-f129f07e1f09","at":1768211861000000000,"seq":194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb1a3-f900-7c46-8441-d282c5e1406e","at":1768211872000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bb1a4-3689-7978-84fd-9470161597b3","at":1768211887753000000,"seq":196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a4-5aa8-7795-9ccb-544b4c54733f","at":1768211897000000000,"seq":197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a4-df78-79a9-93cb-03e50f9e7037","at":1768211931000000000,"seq":198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb1a4-f6e8-713f-a5e0-ca3c9b51ebc9","at":1768211937000000000,"seq":199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb1a5-06d1-7619-80d0-bee74ef63cb8","at":1768211941073000000,"seq":200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a5-21e0-76d2-9234-814bb7572d92","at":1768211948000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1a5-8f40-78e8-9460-ce08b940b393","at":1768211976000000000,"seq":202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bb1a5-ba38-74bb-9dbd-63f4a360dca4","at":1768211987000000000,"seq":203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bb1a6-054a-7c87-a88a-872f1cc11577","at":1768212006218000000,"seq":204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bb1a6-5a60-71fc-bfff-19a69669d777","at":1768212028000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

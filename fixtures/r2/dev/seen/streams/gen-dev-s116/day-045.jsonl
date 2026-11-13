@@ -1,0 +1,16 @@
+{"v":1,"id":"019c5b98-0721-7be0-90ed-3a14f65c5bdb","at":1771063215905000000,"seq":600,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5b98-0721-79ea-a4fc-9f1c99ac43e1","at":1771063215905000000,"seq":601,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c5b98-2aa8-7b7d-b55c-753440292eec","at":1771063225000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b98-c35d-7dd9-9d9a-e0cc0fb54061","at":1771063264093000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c5b98-d688-740f-b43f-25b58dda8f55","at":1771063269000000000,"seq":604,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5b99-0568-7be8-bbaf-f6fa059fdcc2","at":1771063281000000000,"seq":605,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5b99-2c78-74c6-87e5-d2feed2e2628","at":1771063291000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5b99-8650-702f-9a77-cbccb190af07","at":1771063314000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5bb1-7933-7f8d-b751-f2675a027cea","at":1771064883507000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb1-9e48-7475-a29b-3f9fee434993","at":1771064893000000000,"seq":609,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb1-b9a0-77b6-a477-756c04c9c938","at":1771064900000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c5bc7-0ae4-7218-ab88-e46f3204a8c2","at":1771066297060000000,"seq":611,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5bc7-0ae4-701c-b5f5-86fc02bb3380","at":1771066297060000000,"seq":612,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5bc7-2218-7f08-9b81-c22b428dbeb3","at":1771066303000000000,"seq":613,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bc7-35a0-7d97-a1f7-31126a46d756","at":1771066308000000000,"seq":614,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c5bc7-9748-7e84-b853-5f159d272ebf","at":1771066333000000000,"seq":615,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

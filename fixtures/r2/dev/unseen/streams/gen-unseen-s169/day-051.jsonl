@@ -1,0 +1,32 @@
+{"v":1,"id":"019c7a6c-faee-71e0-9244-620015d20ba6","at":1771580488430000000,"seq":852,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7a6c-faee-7d8f-8f2d-f531685e297e","at":1771580488430000000,"seq":853,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7a6d-08e0-7d7a-8355-bcc5ddecc2ec","at":1771580492000000000,"seq":854,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6d-5318-7458-85a4-2c91fb8a9317","at":1771580511000000000,"seq":855,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c7a6d-66a0-7e46-afa7-02ef15f67b84","at":1771580516000000000,"seq":856,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c7a6d-9198-75a6-ab4f-6f22e0404630","at":1771580527000000000,"seq":857,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a6d-a520-7f05-80ba-f6b51b6a1ec8","at":1771580532000000000,"seq":858,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c7a7a-be83-7661-9b18-912de9c0b4cc","at":1771581390467000000,"seq":859,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7a7a-be83-7efb-9856-054cf28f5f48","at":1771581390467000000,"seq":860,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c7a7a-c098-722e-9d28-32e993c40814","at":1771581391000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c7a7b-4568-77b9-80f8-182ba9797880","at":1771581425000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a7b-5cd8-7334-8d9f-747eca655451","at":1771581431000000000,"seq":863,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a7b-6df1-7e61-b1bd-a731c4213225","at":1771581435377000000,"seq":864,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"February water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c7a7b-9f40-7c0c-9a2f-0f673cb903e1","at":1771581448000000000,"seq":865,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c7a7b-f148-70fc-8e26-2a5a2a2e1be4","at":1771581469000000000,"seq":866,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a7c-176d-7ff1-a472-8074aa96c72d","at":1771581478765000000,"seq":867,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c7a7c-3798-795a-905c-ad725291e9be","at":1771581487000000000,"seq":868,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a7c-9940-70da-af4f-093291f0123a","at":1771581512000000000,"seq":869,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7a7c-c050-7e3b-9b30-899ccfcc944a","at":1771581522000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a7c-cbb8-734d-a4a3-f7202d7e88b3","at":1771581524920000000,"seq":871,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7a7c-d3d8-759e-bb55-4b5babd6218d","at":1771581527000000000,"seq":872,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7a7c-eb48-79a9-a9c1-b93f021befcf","at":1771581533000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a7d-7400-7dc9-bd80-6ad3f9da9718","at":1771581568000000000,"seq":874,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a7d-886c-7222-8038-20fc7a8cc294","at":1771581573228000000,"seq":875,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c7a7d-8f58-7d8e-8e2e-917c6bf42422","at":1771581575000000000,"seq":876,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a7d-be38-7aea-a71b-43a6928d418e","at":1771581587000000000,"seq":877,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c7a7d-c220-7d9a-a907-65abcf09978c","at":1771581588000000000,"seq":878,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7a7d-c9f0-7a75-85fb-9bdee67f545c","at":1771581590000000000,"seq":879,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c7a7d-e160-76c5-abc7-a9798ed554f5","at":1771581596000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7a8f-5401-7e34-9769-f60b14ebd64a","at":1771582739457000000,"seq":881,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c7a8f-aff8-7345-baa0-801d5dacbe0c","at":1771582763000000000,"seq":882,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7a8f-bbb0-742e-be8b-4019c39a09ea","at":1771582766000000000,"seq":883,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

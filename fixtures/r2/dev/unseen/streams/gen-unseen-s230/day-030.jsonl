@@ -1,0 +1,19 @@
+{"v":1,"id":"019c0e33-918b-7247-bc9e-9d812759f127","at":1769764786571000000,"seq":317,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e33-918b-73a0-9004-7aa4675ab067","at":1769764786571000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c0e33-be30-7873-ad5c-b6f3a9b6a0a9","at":1769764798000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e33-ed10-71b3-9280-82f94b3f340e","at":1769764810000000000,"seq":320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e33-ed4b-71f4-be50-f7e5e24da2af","at":1769764810059000000,"seq":321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c0e34-0480-783c-be3f-8d86b009b22b","at":1769764816000000000,"seq":322,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e34-1bf0-7d44-9e22-5bc79f6a4b22","at":1769764822000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c0e34-3748-713d-9c9a-f242b11c1708","at":1769764829000000000,"seq":324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e34-4e65-7be4-838c-4940e79af643","at":1769764834917000000,"seq":325,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c0e34-6628-71d6-958f-3b9a49ce88c6","at":1769764841000000000,"seq":326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e34-8180-7f2b-9b4a-6c45d4377cfd","at":1769764848000000000,"seq":327,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0e34-b448-70c3-a0e3-78d82e1e02a2","at":1769764861000000000,"seq":328,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0e34-fe80-7fbf-998c-e406bd4dffa8","at":1769764880000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e34-fe80-72b9-9293-5d3fbc6a573c","at":1769764880000000000,"seq":330,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c0e3c-0fe7-7cd2-99d2-4461b0a51114","at":1769765343207000000,"seq":331,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e3c-0fe7-77d9-adcc-ce1bff141c71","at":1769765343207000000,"seq":332,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e3c-8830-7649-96ef-3a4f13f3580d","at":1769765374000000000,"seq":333,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e3c-8c18-7072-b01a-a249d05ea289","at":1769765375000000000,"seq":334,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c0e3c-ce80-7cc6-acf0-ec7b618286c3","at":1769765392000000000,"seq":335,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

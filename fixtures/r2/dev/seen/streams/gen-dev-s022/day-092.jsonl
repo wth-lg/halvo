@@ -1,0 +1,34 @@
+{"v":1,"id":"019d4d4c-2d38-7a7f-954e-b112c2097e92","at":1775118331192000000,"seq":1434,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d4c-2d38-7527-bc1f-6f8638868a05","at":1775118331192000000,"seq":1435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d4d4c-3830-78e4-b81a-69717e0bf6cc","at":1775118334000000000,"seq":1436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d4c-7e80-7395-a92e-afd825aeacaf","at":1775118352000000000,"seq":1437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d4d4c-ad94-732f-84d3-243b18847b6c","at":1775118364052000000,"seq":1438,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d4d4c-b148-702f-ba0f-45a0f1bcb5b9","at":1775118365000000000,"seq":1439,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4d4c-b530-718a-8713-fe5abc77bf23","at":1775118366000000000,"seq":1440,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4d4c-b530-74d9-9c67-7731c48fe0c1","at":1775118366000000000,"seq":1441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d4d4c-d858-7d57-992a-f832a8b1740d","at":1775118375000000000,"seq":1442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d4c-fc81-7b55-830e-509d5779336f","at":1775118384257000000,"seq":1443,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d4d4d-0b20-7737-9024-b03a7771286b","at":1775118388000000000,"seq":1444,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4d4d-12f0-77b3-9897-f9eb90daa50e","at":1775118390000000000,"seq":1445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d4d-2678-7b93-bfca-b63f68d01bbc","at":1775118395000000000,"seq":1446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d4d-45b8-71ad-8934-a0c2c3e2c5b7","at":1775118403000000000,"seq":1447,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4d4d-45b8-7e96-945a-2edb3886f805","at":1775118403000000000,"seq":1448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d4d4d-5434-7d6e-80ba-5bd56c96c839","at":1775118406708000000,"seq":1449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d4d4e-5f08-7143-bb70-645cb3c990dd","at":1775118475016000000,"seq":1450,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d4d4e-9990-720c-8ceb-d8227bb816e6","at":1775118490000000000,"seq":1451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d4d55-502f-70ee-b5f0-5557bdeea5ec","at":1775118929967000000,"seq":1452,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4d55-502f-7341-b914-81290b10e615","at":1775118929967000000,"seq":1453,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4d55-5c08-7a8e-a901-4e8ab058a328","at":1775118933000000000,"seq":1454,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d4d55-8318-73f2-8738-da2364c01e21","at":1775118943000000000,"seq":1455,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d4d55-9e70-73ee-b6f1-6daa4dd74f84","at":1775118950000000000,"seq":1456,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d5c-6dd7-7687-8bc1-f71e3ad16409","at":1775119396311000000,"seq":1457,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d5c-6dd7-751c-8a7e-c2b78f53ab60","at":1775119396311000000,"seq":1458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4d5c-8fc8-7832-94c7-89a4438aafb8","at":1775119405000000000,"seq":1459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d4d5c-b2f0-7b22-bebf-8588a0e69d5d","at":1775119414000000000,"seq":1460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d5d-04f8-7edf-b601-5fb910fe9811","at":1775119435000000000,"seq":1461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d5d-1c68-7482-b872-837244ce1d3b","at":1775119441000000000,"seq":1462,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4d5e-9414-76a0-99d9-3646653e3dad","at":1775119537172000000,"seq":1463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d4d5e-9b38-7c7c-981c-61d446dc43d7","at":1775119539000000000,"seq":1464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d4d5e-9f20-718f-841c-fe508ce4a024","at":1775119540000000000,"seq":1465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d5e-a308-7822-bcea-97a73bc60ed5","at":1775119541000000000,"seq":1466,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4d5e-aec0-765c-96d9-7b52c2cd4efc","at":1775119544000000000,"seq":1467,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

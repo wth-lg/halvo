@@ -1,0 +1,13 @@
+{"v":1,"id":"019cdbeb-a529-7c81-b698-7f3f138cfc40","at":1773216179497000000,"seq":715,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdbeb-a529-7cdc-94a4-0bde8f59ed50","at":1773216179497000000,"seq":716,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdbeb-baa8-76ff-9317-eee0309a0e03","at":1773216185000000000,"seq":717,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbeb-ce30-757d-9c70-03649e431277","at":1773216190000000000,"seq":718,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbeb-e48a-7eed-8341-7ae79c757da2","at":1773216195722000000,"seq":719,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cdbec-4360-711b-a50b-ff8ad17517a8","at":1773216220000000000,"seq":720,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cdbec-5ad0-739a-97a5-bcad9e77c5cd","at":1773216226000000000,"seq":721,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbec-81e0-7c5a-ae70-6d3a03106c00","at":1773216236000000000,"seq":722,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cdc06-2602-72ee-827e-4844008dd9a0","at":1773217916418000000,"seq":723,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc06-2602-7a68-b6c5-1739ee1fd6e6","at":1773217916418000000,"seq":724,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cdc06-2c30-7d1b-b95f-d82c6e02c760","at":1773217918000000000,"seq":725,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc06-3fb8-7491-b012-fc225b3ada23","at":1773217923000000000,"seq":726,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdc06-4f58-7ea8-ae95-79329d2a5b9b","at":1773217927000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019bea2d-ab73-79f0-b461-32a0b088b8e1","at":1769160420211000000,"seq":263,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bea2d-ab73-765b-8bdb-869d486f4659","at":1769160420211000000,"seq":264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bea2d-be28-74d9-b15e-ea29c1ba99c6","at":1769160425000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea33-4e6c-736b-bcc1-b3edb9f244f4","at":1769160789612000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bea33-6760-7706-b959-0698ba4ea2e1","at":1769160796000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bea33-7ed0-7d77-807d-215fa30a471c","at":1769160802000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea4d-6774-72be-b87a-bd34b10ccd18","at":1769162499956000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bea4e-0bb0-7238-af1e-4cbf6c69b3b3","at":1769162542000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea56-c06d-7940-95f7-985e57abb955","at":1769163112557000000,"seq":271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bea57-00a8-7ebf-b3ab-57dcc558893b","at":1769163129000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bea57-6cfb-761b-b262-9443b93cdd1a","at":1769163156731000000,"seq":273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bea57-71f0-7e65-9dc4-7bd41b22d60b","at":1769163158000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea57-7da8-7d17-a99d-b54349a3a63c","at":1769163161000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bea57-8d48-7c6d-ba8e-d52a16346034","at":1769163165000000000,"seq":276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea57-afba-7aee-ae73-ffcfb76166b7","at":1769163173818000000,"seq":277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bea57-c3f8-7184-889a-46b4d6b2dd45","at":1769163179000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea57-eb08-7e0b-9669-d15e0c2cd676","at":1769163189000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea58-73c0-7c94-a94c-ebe53bc6a17c","at":1769163224000000000,"seq":280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bea58-b7cc-70b5-ba53-a878c072e962","at":1769163241420000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bea58-f890-7642-b282-fb1ba602ecda","at":1769163258000000000,"seq":282,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea59-2770-7442-b272-08cd18bc9a0c","at":1769163270000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

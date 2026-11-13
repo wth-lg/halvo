@@ -1,0 +1,22 @@
+{"v":1,"id":"019bef10-f4fe-7b79-97ec-c744cf7afc88","at":1769242424574000000,"seq":325,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef10-f4fe-7edb-900c-49198a193fdf","at":1769242424574000000,"seq":326,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bef11-5468-79d2-b60c-fd05003378e5","at":1769242449000000000,"seq":327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef11-6020-790e-a704-b459953a9296","at":1769242452000000000,"seq":328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bef2c-436a-72d3-9853-83d4fa5fa5da","at":1769244214122000000,"seq":329,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef2c-436a-799e-bf13-8534b1439165","at":1769244214122000000,"seq":330,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef2c-6618-750c-a56b-da356e5e0a03","at":1769244223000000000,"seq":331,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bef2c-8170-7e9b-b9b9-cf76d384fd3b","at":1769244230000000000,"seq":332,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef2c-8940-787b-bb7f-8d6ae2736144","at":1769244232000000000,"seq":333,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef32-1a19-7c8b-8b97-403ae3c37442","at":1769244596761000000,"seq":334,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bef32-1a19-70c9-b6db-541554a5a8ee","at":1769244596761000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bef32-70f8-705b-8d0f-e7cfb49f442b","at":1769244619000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef32-8098-744a-8ffb-28054503dc4c","at":1769244623000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef32-b360-7126-b4ad-b48d8070d42c","at":1769244636000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bef32-d76a-7aeb-97da-07cb239c12d3","at":1769244645226000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bef32-de58-7872-a9d4-e64f19bfb76f","at":1769244647000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef33-20c0-7ba4-a47a-98a374aaa1d4","at":1769244664000000000,"seq":341,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bef33-3060-734e-a861-db5acfa50d5e","at":1769244668000000000,"seq":342,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bef33-4013-75d4-bcf1-4d61fb040e39","at":1769244672019000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bef33-6ee0-7492-aaa4-e81e8f02f2d2","at":1769244684000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bef33-72c8-7bea-b31a-d482d35085ff","at":1769244685000000000,"seq":345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef33-8650-7b5e-8e59-5820f240f0f4","at":1769244690000000000,"seq":346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

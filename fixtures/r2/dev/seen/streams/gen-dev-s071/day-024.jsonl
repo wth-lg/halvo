@@ -1,0 +1,11 @@
+{"v":1,"id":"019bef6b-15c6-7e31-8630-035a1153e699","at":1769248331206000000,"seq":290,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bef6b-15c6-7103-8e3b-0d98782aeff6","at":1769248331206000000,"seq":291,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bef6b-2498-73d4-9428-f9225924f1c1","at":1769248335000000000,"seq":292,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef6b-99c8-7594-856b-39efefb1ed40","at":1769248365000000000,"seq":293,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bef6b-bcf0-7472-8616-02c720f2fc35","at":1769248374000000000,"seq":294,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef6b-c8a8-7cfd-a587-f806dfabfbe2","at":1769248377000000000,"seq":295,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019bef6d-468a-7e23-b134-7c157732b39e","at":1769248474762000000,"seq":296,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bef6d-9598-7d1d-b212-8f4372f59d3b","at":1769248495000000000,"seq":297,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef7f-f8a9-7b15-8a22-bad37c08259a","at":1769249700009000000,"seq":298,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bef80-71b8-71be-88cf-78fcf64c7582","at":1769249731000000000,"seq":299,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bef80-a868-7cff-a4ca-6be9ec39e617","at":1769249745000000000,"seq":300,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

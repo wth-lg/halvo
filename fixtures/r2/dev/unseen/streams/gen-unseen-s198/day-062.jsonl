@@ -1,0 +1,11 @@
+{"v":1,"id":"019cb2f4-9c48-7758-b0ed-550c1b51a1e6","at":1772528901192000000,"seq":976,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2f4-9c48-76a7-a0f1-5b4b9458d01a","at":1772528901192000000,"seq":977,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f4-c298-75a0-bc52-3bae7e15e0ca","at":1772528911000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2f6-9195-73a1-a01f-7acba697c95d","at":1772529029525000000,"seq":979,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f7-4b08-7068-9f36-8c1953b92ecf","at":1772529077000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cb2f7-7d3b-70a5-b78e-3157bb560b4b","at":1772529089851000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f7-c420-712a-a0a1-6007cfb9579a","at":1772529108000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cb30c-4800-761d-b985-2c477ce2f114","at":1772530452480000000,"seq":983,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cb30c-4a08-7789-ab09-d5c6587e95d8","at":1772530453000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb30c-55c0-770c-8e9b-0b419644cc39","at":1772530456000000000,"seq":985,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb30c-78e8-768f-90b5-4d2296370bd9","at":1772530465000000000,"seq":986,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

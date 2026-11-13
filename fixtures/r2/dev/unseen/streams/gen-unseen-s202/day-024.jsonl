@@ -1,0 +1,22 @@
+{"v":1,"id":"019befa3-5fc6-7ec1-803a-f4dd4a7e9a32","at":1769252020166000000,"seq":343,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019befa3-5fc6-73fd-ac2e-da43392830d0","at":1769252020166000000,"seq":344,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019befa3-7e60-7179-abd6-b228ed41b699","at":1769252028000000000,"seq":345,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019befa3-ad40-7400-9fe1-140890d4961c","at":1769252040000000000,"seq":346,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befa3-b510-7326-b02d-8d430a3fb434","at":1769252042000000000,"seq":347,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019befab-4945-75d0-91ee-40c557783802","at":1769252538693000000,"seq":348,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019befab-4945-7748-b47d-afca1ff0b47c","at":1769252538693000000,"seq":349,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019befab-d40e-7d4a-9558-c75a0281be92","at":1769252574222000000,"seq":350,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019befab-dee8-78f5-a8f1-7dc00c6f425d","at":1769252577000000000,"seq":351,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019befac-4478-75a9-94ad-8aa68e71f9e3","at":1769252603000000000,"seq":352,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befac-5030-7696-99fe-4b95c7f7e097","at":1769252606000000000,"seq":353,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befac-5418-763c-ac76-838b76955eb1","at":1769252607000000000,"seq":354,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019befac-5acb-77d6-97ed-af151cbdf325","at":1769252608715000000,"seq":355,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019befad-0bb0-7747-b6b4-399b70f8d33b","at":1769252654000000000,"seq":356,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019befad-1e27-7478-8744-75d65da1b20c","at":1769252658727000000,"seq":357,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019befad-1e27-739e-ae71-7353b10a7ddf","at":1769252658727000000,"seq":358,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019befad-afc0-757d-aeca-67a277dd747f","at":1769252696000000000,"seq":359,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befad-e288-7c6b-8d14-006f486946dd","at":1769252709000000000,"seq":360,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019befad-e480-74e2-9a1f-c0b6be221b15","at":1769252709504000000,"seq":361,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019befad-e480-7d0f-8b60-239fc775f737","at":1769252709504000000,"seq":362,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019befae-3490-7fa9-8d89-dff755f33a92","at":1769252730000000000,"seq":363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019befae-3c60-7aef-8fa9-1c7ec9005f0f","at":1769252732000000000,"seq":364,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

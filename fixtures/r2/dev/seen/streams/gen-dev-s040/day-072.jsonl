@@ -1,0 +1,36 @@
+{"v":1,"id":"019ce5ff-0f24-725a-9455-77f924eff6a5","at":1773385223972000000,"seq":956,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce5ff-0f24-736c-9186-be9fcdc8ea06","at":1773385223972000000,"seq":957,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce5ff-1af8-7864-bbcd-0437367285c2","at":1773385227000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ce5ff-4208-7b34-b9d2-5a9b143d79c1","at":1773385237000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce5ff-6530-7e78-a535-d68ac33e30bb","at":1773385246000000000,"seq":960,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce5ff-9028-767e-ba7b-3f99106c73c8","at":1773385257000000000,"seq":961,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce619-1d57-72cd-9a3f-ffb544af845f","at":1773386931543000000,"seq":962,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce619-ccd5-775a-bed6-35f5d8b615a1","at":1773386976469000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for August - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce61a-0980-7937-a38a-d789c4719f65","at":1773386992000000000,"seq":964,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce61a-53b8-7cf8-b827-66d1a064ca2c","at":1773387011000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce61a-9238-753d-9011-78ac6c6632e2","at":1773387027000000000,"seq":966,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce61a-95e9-7e7d-9288-91e0889cd2d4","at":1773387027945000000,"seq":967,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce61a-d4a0-7f68-99e9-77fbb33ea260","at":1773387044000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce61b-0380-78f1-a8eb-80cea1d09e3f","at":1773387056000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce61b-1af0-761c-8151-2aefba7b2cea","at":1773387062000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce61b-5556-7f26-a6ed-97041203e050","at":1773387076950000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce61b-8c38-7d8b-99d3-1fd6df76118f","at":1773387091000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce61b-9408-7609-9b02-e86d78144957","at":1773387093000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce61b-a3a8-782e-9a06-e05594812ed8","at":1773387097000000000,"seq":974,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce61b-ab78-73b0-98d4-1e3119994141","at":1773387099000000000,"seq":975,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce635-9933-7eda-a00d-808e37e651a2","at":1773388798259000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ce635-afa0-7767-a5ab-742b1013c81b","at":1773388804000000000,"seq":977,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce635-d2c8-7d67-9fea-e873589f07c7","at":1773388813000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce635-f208-7a82-8966-8ed9073a97ec","at":1773388821000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce643-1ce0-7f11-bd23-4db624a35430","at":1773389683936000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ce644-09c4-7eb6-bca0-eae51eb9dcec","at":1773389744580000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ce644-8098-7c43-90cc-289b00f08d54","at":1773389775000000000,"seq":982,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce644-a3c0-7ad5-a7aa-222ffbb4c474","at":1773389784000000000,"seq":983,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce644-de58-7525-a1c0-2ba38fe8676a","at":1773389799000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ce644-fd29-7787-8076-b3493cfdc137","at":1773389806889000000,"seq":985,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ce645-6710-7404-b53f-b22381e9101d","at":1773389834000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce645-6ee0-7315-a1f2-ee20651380d5","at":1773389836000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce645-c6ec-785b-b7aa-a757d04c6d42","at":1773389858540000000,"seq":988,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019ce646-3618-7a91-bc0e-50d457ab1d99","at":1773389887000000000,"seq":989,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ce646-9f90-772d-ab54-abac60f1fd0c","at":1773389914000000000,"seq":990,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce646-a2d9-75ac-b32b-0fc679cb7fcf","at":1773389914841000000,"seq":991,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}

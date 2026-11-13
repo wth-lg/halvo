@@ -1,0 +1,12 @@
+{"v":1,"id":"019c2d6e-5371-7a21-96ce-b8a56c497092","at":1770288730993000000,"seq":506,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2d6e-5371-72d8-83f1-dea02e28b141","at":1770288730993000000,"seq":507,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2d6e-b520-70f5-8e16-5ca4ef82ce0f","at":1770288756000000000,"seq":508,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c2d6e-d848-77dc-b799-dbc91283e51b","at":1770288765000000000,"seq":509,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d6f-0ef8-78f0-95b5-8b267e1a7464","at":1770288779000000000,"seq":510,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c2d6f-3220-7aa6-8ef4-7edbefc89a87","at":1770288788000000000,"seq":511,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d6f-3608-7e77-9674-f2ba052893b6","at":1770288789000000000,"seq":512,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c2d6f-3795-790c-bd32-653c73933c19","at":1770288789397000000,"seq":513,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c2d6f-8040-7d56-a29b-311ed2948c5e","at":1770288808000000000,"seq":514,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c2d6f-97b0-7099-a123-a8a2b9afb07f","at":1770288814000000000,"seq":515,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c2d6f-9b98-76f7-8d3f-a953a88fb7f8","at":1770288815000000000,"seq":516,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d6f-a750-74b9-a0eb-aeb624120dcf","at":1770288818000000000,"seq":517,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

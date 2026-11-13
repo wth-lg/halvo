@@ -1,0 +1,21 @@
+{"v":1,"id":"019cc1ff-3158-7d97-8e9d-d9b3645d054c","at":1772781252952000000,"seq":1097,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc1ff-3158-75f9-9477-e51db2af2a80","at":1772781252952000000,"seq":1098,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cc1ff-e519-7aa5-b774-c2d74db8da5e","at":1772781298969000000,"seq":1099,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cc200-0478-7504-b84f-e2c03554d822","at":1772781307000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc200-3740-7fd4-9c4b-913b93dc3fe6","at":1772781320000000000,"seq":1101,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc200-5a68-7a7c-ba4b-a3a1a4ccf9a3","at":1772781329000000000,"seq":1102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc200-5e50-7952-b20a-e82f9fed08d1","at":1772781330000000000,"seq":1103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc200-6583-739a-b309-1bd1d8a74774","at":1772781331843000000,"seq":1104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cc200-8948-7012-8425-beca83802efa","at":1772781341000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc200-b440-7cd8-bb34-3aec3f6a6de7","at":1772781352000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc200-e708-7d7c-b788-a08cd5c7bbc4","at":1772781365000000000,"seq":1107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc201-5080-7345-a794-9accc23fd6a6","at":1772781392000000000,"seq":1108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc201-67e6-7d21-a966-3c71e5a73c98","at":1772781397990000000,"seq":1109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019cc201-67f0-7251-9dbe-c0f0dffa9e12","at":1772781398000000000,"seq":1110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cc201-7790-7430-a767-d4ea5fa3700b","at":1772781402000000000,"seq":1111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cc201-8348-7bef-af98-e9f34a0403f8","at":1772781405000000000,"seq":1112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cc201-a288-79c2-ba1d-606b0c54c6be","at":1772781413000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc210-3ceb-7911-a6b5-23924c455f88","at":1772782370027000000,"seq":1114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc210-67c8-71c8-8b7f-0c95344ad353","at":1772782381000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc210-6f98-7906-badd-c9d8d2de93a4","at":1772782383000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc210-8708-7157-b12c-edc73fa624cf","at":1772782389000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

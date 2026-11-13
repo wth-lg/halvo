@@ -1,0 +1,16 @@
+{"v":1,"id":"019b9229-f473-760c-b11a-8ad4a6dd818b","at":1767683781747000000,"seq":42,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9229-f473-75bd-ba03-1020dc4796ce","at":1767683781747000000,"seq":43,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9229-f958-7532-8a65-f915898890a5","at":1767683783000000000,"seq":44,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9229-fd40-7ebe-bcee-0d798eda38a8","at":1767683784000000000,"seq":45,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b922a-2838-77e6-9fd2-f31aca9e96c6","at":1767683795000000000,"seq":46,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b922a-2be5-7b2c-ab61-767256270b8b","at":1767683795941000000,"seq":47,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b922a-2c20-7b86-9938-18f919e5fa1e","at":1767683796000000000,"seq":48,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b922a-33f0-7f2c-9413-c26deedf0856","at":1767683798000000000,"seq":49,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b922a-5b00-7481-ae7b-95e2ffcb1e86","at":1767683808000000000,"seq":50,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b922a-5ee8-707f-ae40-2cef6b46f527","at":1767683809000000000,"seq":51,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b922e-d8e2-70da-aacb-6295a59f5848","at":1767684102370000000,"seq":52,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b922e-d8e2-762c-97eb-afdde50b5f27","at":1767684102370000000,"seq":53,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b922f-2590-7142-8e4c-7187c282f2d1","at":1767684122000000000,"seq":54,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b922f-7b80-711f-a5ba-163adf31a939","at":1767684144000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b922f-9849-718c-9daf-ab249e6d6bb3","at":1767684151369000000,"seq":56,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019b9230-13d8-7686-85e0-f4c0de2bfeae","at":1767684183000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

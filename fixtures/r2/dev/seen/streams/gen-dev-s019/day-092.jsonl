@@ -1,0 +1,21 @@
+{"v":1,"id":"019d4d5e-a23a-73c0-b5c7-bdd9dff82461","at":1775119540794000000,"seq":1262,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d5e-a23a-7c4f-aeb8-f69e50ccd1e7","at":1775119540794000000,"seq":1263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4d5e-ca18-7b27-a24a-9a5f11faf42a","at":1775119551000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d5e-f128-7cd0-9dea-25ffe91568af","at":1775119561000000000,"seq":1265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d4d5f-1c20-751e-9dd1-dfc7ea1d57a0","at":1775119572000000000,"seq":1266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4d5f-23f0-7151-9476-5676255cf24b","at":1775119574000000000,"seq":1267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4d5f-3423-77ce-9d89-3192ebc907ec","at":1775119578147000000,"seq":1268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4d5f-7dc8-7333-9989-9f591e712bf6","at":1775119597000000000,"seq":1269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d4d5f-bc48-7d09-8ab6-81cce15c3800","at":1775119613000000000,"seq":1270,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4d5f-c030-782a-a67e-f67473a2d7da","at":1775119614000000000,"seq":1271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d5f-e358-7e29-a503-7896923cb650","at":1775119623000000000,"seq":1272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4d78-5847-72d0-87f5-c0d7daf72908","at":1775121225799000000,"seq":1273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d4d78-8408-7126-b84c-2c91644d58f9","at":1775121237000000000,"seq":1274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d4d78-8bd8-7776-83a0-53d6adc2dc0f","at":1775121239000000000,"seq":1275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4d79-1de7-786e-aa4d-8027d8b029db","at":1775121276391000000,"seq":1276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d4d79-2fe8-7e72-ab1b-3f177d5d36d5","at":1775121281000000000,"seq":1277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4d79-f803-7365-ac5a-9a41448d430b","at":1775121332227000000,"seq":1278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d4d7a-4158-7644-a8c6-4b59d4522bfb","at":1775121351000000000,"seq":1279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d4d7a-c408-761e-b469-6f34526efffb","at":1775121384456000000,"seq":1280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d4d7a-f508-72f0-be7e-c2776fee5f84","at":1775121397000000000,"seq":1281,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4d7b-1448-74c1-99e5-84d10a7c1feb","at":1775121405000000000,"seq":1282,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

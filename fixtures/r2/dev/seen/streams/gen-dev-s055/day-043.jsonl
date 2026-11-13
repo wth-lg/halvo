@@ -1,0 +1,28 @@
+{"v":1,"id":"019c510f-fe9d-7e3f-9e11-3267e2d46db2","at":1770886528669000000,"seq":796,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c510f-fe9d-7f18-8570-f85e398c93ee","at":1770886528669000000,"seq":797,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5110-6190-7c4b-96dd-484e92305225","at":1770886554000000000,"seq":798,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5122-3651-70d5-a361-20edb78596df","at":1770887722577000000,"seq":799,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c5122-3be0-7c03-acba-46a98b6af405","at":1770887724000000000,"seq":800,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5122-6ac0-7a14-a005-6dc3db9b026e","at":1770887736000000000,"seq":801,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5124-fd61-72d5-9361-d6602145b306","at":1770887904609000000,"seq":802,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5124-fd61-7f2d-b3d0-53bbbe26cefd","at":1770887904609000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c5125-7030-7ee5-be75-0d576a3a492c","at":1770887934000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c5125-ad4f-7482-8313-3054cc5438cf","at":1770887949647000000,"seq":805,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c5126-3f38-70a0-a4e4-6619e6d4f60d","at":1770887987000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5126-5e78-79d6-b077-f41fa80d7f05","at":1770887995000000000,"seq":807,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5126-8cf7-7281-a943-f07aea904087","at":1770888006903000000,"seq":808,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c5126-9cf8-7782-8cfc-49cdaf92004c","at":1770888011000000000,"seq":809,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5127-0a58-7b91-bbe1-8566adc01753","at":1770888039000000000,"seq":810,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5127-22df-7002-a086-43757aa8cc4b","at":1770888045279000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019c5127-2998-7f6d-a263-07cf830bf52f","at":1770888047000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5127-6c00-7aa9-aea1-451af0d786be","at":1770888064000000000,"seq":813,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5127-7f88-7d7e-b4af-cc3502c8e248","at":1770888069000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c5127-be08-7cc2-901b-149565078765","at":1770888085000000000,"seq":815,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5127-f4b8-79ab-b082-21a76b4e350d","at":1770888099000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5129-2b45-773c-95a6-88ea4d4f1bac","at":1770888178501000000,"seq":817,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5129-3cd8-70cb-8c70-a4bfbc1111ea","at":1770888183000000000,"seq":818,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c5129-9280-75e3-8d43-c045375305fa","at":1770888204928000000,"seq":819,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5129-d558-7e48-a0f7-83620ea5de98","at":1770888222040000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5129-f858-7d34-b622-50b891c1d82f","at":1770888231000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5129-fc40-75cc-a57d-aac15f02e0a7","at":1770888232000000000,"seq":822,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c512a-32f0-7a07-b48d-53055926efff","at":1770888246000000000,"seq":823,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

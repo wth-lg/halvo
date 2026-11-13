@@ -1,0 +1,19 @@
+{"v":1,"id":"019c939f-ee1f-7ee9-815c-f8381eb83f54","at":1772003257887000000,"seq":960,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c939f-ee1f-74be-8bd4-b79b1bdd7205","at":1772003257887000000,"seq":961,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c939f-ee90-73fc-a512-60e5eff55bce","at":1772003258000000000,"seq":962,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93a0-3cb0-7afb-a652-b678eab0b143","at":1772003278000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93a0-ab3d-7672-b87f-ebede83b88a7","at":1772003306301000000,"seq":964,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c93a0-cd38-7758-9980-b81a0d1131c6","at":1772003315000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93a0-e0c0-76e6-afab-a72f7a3067f6","at":1772003320000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93a1-2ee0-7a05-8590-0af4dd6be3e8","at":1772003340000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c93a1-4268-7b5b-a614-62dd830ee5fd","at":1772003345000000000,"seq":968,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c93a1-88b8-77d7-b6c9-f7a043dfc5c5","at":1772003363000000000,"seq":969,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c93a1-b746-7cf7-b789-3b6ecdd47649","at":1772003374918000000,"seq":970,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c93a1-ea60-7ba2-b3ce-0eb80f7717f1","at":1772003388000000000,"seq":971,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c93a2-1170-729a-ab04-27cdcc52ed18","at":1772003398000000000,"seq":972,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c93a2-1b7d-7653-a4e4-38dc8d350e88","at":1772003400573000000,"seq":973,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c93a2-4820-724c-ae47-4d209a539205","at":1772003412000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c93a2-6b48-7228-a467-ca875215b194","at":1772003421000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c93ba-5842-79f1-851b-a9c5aff004b2","at":1772004988994000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c93ba-5c30-7df9-9eef-20464e20b2a5","at":1772004990000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93ba-8b10-70a1-99ab-fe37e2492d5a","at":1772005002000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

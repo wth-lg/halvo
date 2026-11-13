@@ -1,0 +1,19 @@
+{"v":1,"id":"019cd702-138f-7594-a900-41af21142105","at":1773133763471000000,"seq":987,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd702-138f-7853-a24b-c8bf55c7d823","at":1773133763471000000,"seq":988,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cd702-ccca-7799-b9e2-d82ca078f1f0","at":1773133810890000000,"seq":989,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd702-ccca-7f38-a18d-88b5c07fd961","at":1773133810890000000,"seq":990,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd702-cd38-79d8-9fe5-89c928001517","at":1773133811000000000,"seq":991,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd703-03e8-724b-b3a8-3cc75a19ce7c","at":1773133825000000000,"seq":992,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cd703-5f9f-73d6-94b0-91062d75c452","at":1773133848479000000,"seq":993,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd703-5f9f-7a27-8e5f-2447de4b8f13","at":1773133848479000000,"seq":994,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019cd703-a7f8-7804-bde9-110d7c477b9f","at":1773133867000000000,"seq":995,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd70a-c630-7638-bc74-4fde2c4d3a46","at":1773134333488000000,"seq":996,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cd70b-2dc0-7dd0-b615-3c2ac865c1f6","at":1773134360000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cd70b-50e8-7841-a7a3-b235830213ae","at":1773134369000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd70b-6470-7d2c-8b0a-6d3d2205b78b","at":1773134374000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd70b-6558-7fd0-8ee3-81da29b943af","at":1773134374232000000,"seq":1000,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cd70b-77f8-7ec4-b2a6-60ca6352f629","at":1773134379000000000,"seq":1001,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd70b-b678-740a-bdee-7e723827bbf7","at":1773134395000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd70b-b679-7ac9-a9d2-61391050d817","at":1773134395001000000,"seq":1003,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cd70b-cde8-747f-8947-79af0595e7d6","at":1773134401000000000,"seq":1004,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cd70c-1c08-7e71-9c8e-e3b97af721a7","at":1773134421000000000,"seq":1005,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,11 @@
+{"v":1,"id":"019c9e21-2a92-7c56-b52c-45691c115551","at":1772179499666000000,"seq":921,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e21-2a92-725f-86bf-fbba2fcafff8","at":1772179499666000000,"seq":922,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c9e21-6290-74cb-8be9-5a00ca6fb09d","at":1772179514000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c9e22-06af-7d01-b284-015d1beb460c","at":1772179556015000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c9e22-3d50-73be-a666-a11877a4db0f","at":1772179570000000000,"seq":925,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e22-4138-78e1-ae2c-4aff650545f4","at":1772179571000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e22-4138-79f0-967d-44e23785b09b","at":1772179571000000000,"seq":927,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c9e22-4908-7eab-889c-281f8ef3733b","at":1772179573000000000,"seq":928,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9e22-5a15-7941-aff7-048af5c846ee","at":1772179577365000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c9e22-7fb8-7be7-aec9-4aa0fe21348e","at":1772179587000000000,"seq":930,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e22-aab0-71c8-a8da-a4225b9b8662","at":1772179598000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

@@ -1,0 +1,14 @@
+{"v":1,"id":"019d3871-376d-76d8-ae25-0048d0d2a860","at":1774768437101000000,"seq":1231,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3871-376d-7d8e-8836-ae1ce0f12678","at":1774768437101000000,"seq":1232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3871-71a0-741a-b773-dbee7ac1a282","at":1774768452000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3871-9c98-7ddb-83c4-e42acec4c3fb","at":1774768463000000000,"seq":1234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3872-1ae3-7ee2-8c0c-3c77123136f6","at":1774768495331000000,"seq":1235,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3872-2550-70aa-8316-ea24336a1ac8","at":1774768498000000000,"seq":1236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3872-2d20-7d5f-9311-b05bd983937c","at":1774768500000000000,"seq":1237,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3872-4878-72ef-a471-e31922337df6","at":1774768507000000000,"seq":1238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3872-5430-7f67-9fd4-e2b302456c43","at":1774768510000000000,"seq":1239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d3872-57af-7dfa-a512-fee8a0456460","at":1774768510895000000,"seq":1240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3872-7b40-7b13-b48e-3a5b842e19f6","at":1774768520000000000,"seq":1241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3872-8ae0-750c-80fe-dd8bcfb9f298","at":1774768524000000000,"seq":1242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d3872-d900-7493-9bb3-2f2bf5d8a98b","at":1774768544000000000,"seq":1243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3873-5218-70be-a311-7dd355f6278f","at":1774768575000000000,"seq":1244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

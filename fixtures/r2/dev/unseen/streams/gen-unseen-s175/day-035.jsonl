@@ -1,0 +1,22 @@
+{"v":1,"id":"019c2844-365a-72ad-b3fc-6eb86437bc1f","at":1770202084954000000,"seq":562,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c2844-365a-7919-84ef-6ee8cdbb9824","at":1770202084954000000,"seq":563,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c2844-4240-748a-a41f-1fe17c07a24c","at":1770202088000000000,"seq":564,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c2844-59b0-7b17-921e-9f0641b52bb8","at":1770202094000000000,"seq":565,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c2844-6d38-74ae-9407-6a5f53218f32","at":1770202099000000000,"seq":566,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2856-adf1-75df-813a-9228a76e1497","at":1770203295217000000,"seq":567,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2856-adf1-707f-92e4-b49312aa2e9e","at":1770203295217000000,"seq":568,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c2857-0ec0-7dcb-bb1c-b37423cdb297","at":1770203320000000000,"seq":569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2857-31e8-7b66-918c-5e140187db96","at":1770203329000000000,"seq":570,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2857-5510-7adc-85c8-65c4b9a8c144","at":1770203338000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c2857-7318-72fb-b2ec-8118efb2deb5","at":1770203345688000000,"seq":572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this month - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c2857-7838-73c1-9eb3-a850bff321cf","at":1770203347000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c2857-9778-7c9b-a850-fd5775a69592","at":1770203355000000000,"seq":574,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2857-ab00-772a-94e0-885f7682018f","at":1770203360000000000,"seq":575,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2857-ba3c-78f4-97f0-bf0e55d64515","at":1770203363900000000,"seq":576,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c2857-e980-7aec-900e-c9e7cb59db57","at":1770203376000000000,"seq":577,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c2858-2be8-7668-b69b-b2f09d4eec05","at":1770203393000000000,"seq":578,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2858-7620-7358-b186-f4d9ef908101","at":1770203412000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2858-a498-75a8-a306-a1ccf70e7181","at":1770203423896000000,"seq":580,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c2858-b888-75f5-9038-8c3399e9889b","at":1770203429000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2872-a44d-7f42-b367-3ed84496f437","at":1770205127757000000,"seq":582,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c2872-b8c8-7689-8925-444230d9f51d","at":1770205133000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

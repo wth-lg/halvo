@@ -1,0 +1,20 @@
+{"v":1,"id":"019d340e-8aca-75fe-96e8-5cbb0026e53f","at":1774694861514000000,"seq":1214,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d340e-8aca-776e-888f-a861cae6eeec","at":1774694861514000000,"seq":1215,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d340e-a038-7e05-a987-d36e32a2e63e","at":1774694867000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d340e-a808-7597-b256-26f0f96a56d9","at":1774694869000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d340e-afd8-7815-bf23-ace0df71aff0","at":1774694871000000000,"seq":1218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d340e-bf78-7074-8e4d-a82eaf27d189","at":1774694875000000000,"seq":1219,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d340e-d300-74d5-9663-f47532e26e25","at":1774694880000000000,"seq":1220,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3414-6040-7a2b-bb24-e17db9dab37c","at":1774695243840000000,"seq":1221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d3414-64c8-79d7-9acd-4638d0065d5a","at":1774695245000000000,"seq":1222,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3414-8020-7fca-b8ff-7746ea1f62da","at":1774695252000000000,"seq":1223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d3414-8408-72f6-8eb7-058389fce6eb","at":1774695253000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3414-9790-74c7-81d2-a68856ba1502","at":1774695258000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3426-e43f-70f6-88c9-8f3c6a1d2a3e","at":1774696457279000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3427-b163-7620-90eb-1e8d3ba25bc6","at":1774696509795000000,"seq":1227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3427-ba00-717c-864a-bc3ea530d07e","at":1774696512000000000,"seq":1228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3428-0438-7f01-ab21-3cc93b7b3feb","at":1774696531000000000,"seq":1229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3428-2e3b-7d00-adfc-6c571b3f5014","at":1774696541755000000,"seq":1230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019d3428-42b8-7336-986e-a1614a9077fb","at":1774696547000000000,"seq":1231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3428-7198-7f84-a93e-11e135bd21d0","at":1774696559000000000,"seq":1232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3428-bfb8-70c2-87ca-bc39edda4df6","at":1774696579000000000,"seq":1233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

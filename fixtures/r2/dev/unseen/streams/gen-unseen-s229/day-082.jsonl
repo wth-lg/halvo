@@ -1,0 +1,23 @@
+{"v":1,"id":"019d19d0-561d-7c58-8cbe-c548dfb3c44a","at":1774254577181000000,"seq":1213,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d19d0-561d-7d7c-9a8d-dc2b74e2b8b0","at":1774254577181000000,"seq":1214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d19d0-7c78-7aff-b18f-fd0e44430286","at":1774254587000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19d0-97d0-7af7-bd94-6f3e72943a98","at":1774254594000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d19d0-d7cf-71d7-add8-bad60f29e4a5","at":1774254610383000000,"seq":1217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d19d1-3410-7d88-8303-8d9b7019b1fd","at":1774254634000000000,"seq":1218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d19d1-3fc8-7d47-8cef-ebc5ed553edd","at":1774254637000000000,"seq":1219,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d19d1-5350-74ba-baca-944155f61c4a","at":1774254642000000000,"seq":1220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19d1-62f0-7560-bb64-d11b2c16b87a","at":1774254646000000000,"seq":1221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d19d1-b951-7956-ba34-d8af67a81a6e","at":1774254668113000000,"seq":1222,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d19d1-dff0-70bb-b31c-7e2a1dcc5c67","at":1774254678000000000,"seq":1223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d19d1-ff30-7ba1-bdd1-c48371b00ddc","at":1774254686000000000,"seq":1224,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d19d2-9fe6-7de3-a920-780b106c6142","at":1774254727142000000,"seq":1225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019d19d2-d220-7d37-8f21-7916db89d359","at":1774254740000000000,"seq":1226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d19d3-08d0-7b32-a79f-e3000c99fab3","at":1774254754000000000,"seq":1227,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d19d7-79fb-7643-88d4-998693525526","at":1774255045115000000,"seq":1228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d19d7-94e0-76bb-bcad-31f41395b2ae","at":1774255052000000000,"seq":1229,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d19d7-e300-7051-9525-8a381de20a3e","at":1774255072000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d19d8-3508-7604-ba85-18bea58cf6a6","at":1774255093000000000,"seq":1231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d19d8-4890-707f-b44d-234470250c32","at":1774255098000000000,"seq":1232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d19e5-88c4-7b8f-8419-2dcfb71c25ee","at":1774255966404000000,"seq":1233,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d19e5-88c4-7d13-a16c-3c9ae80229ba","at":1774255966404000000,"seq":1234,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d19e6-6da8-7948-88e6-632a866fe76f","at":1774256025000000000,"seq":1235,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}

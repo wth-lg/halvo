@@ -1,0 +1,19 @@
+{"v":1,"id":"019be4b9-d3f2-768e-ad6d-3c7505f27197","at":1769068942322000000,"seq":280,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be4b9-d3f2-7eaa-baa7-e65e059e2706","at":1769068942322000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be4ba-a5a0-7270-8f4c-cff021be6456","at":1769068996000000000,"seq":282,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be4ba-a5a0-7ed0-92bb-f45d8dc520a2","at":1769068996000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019be4c4-ca7e-7caa-8800-fcbd966c77ec","at":1769069660798000000,"seq":284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be4c4-dae8-7e65-834e-fee2813ec2cc","at":1769069665000000000,"seq":285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c5-4848-76e7-b2a6-6a073e0557bb","at":1769069693000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019be4c5-5018-7b3c-a5e0-8898bf5de1ad","at":1769069695000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4c5-6788-7553-be53-5ec687903700","at":1769069701000000000,"seq":288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be4df-6bb6-7a9c-8a66-564ad82b995b","at":1769071406006000000,"seq":289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019be4df-8ed8-73cf-87b0-b64da87131fc","at":1769071415000000000,"seq":290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4e0-6d80-76fd-a215-9822b9dd9eb7","at":1769071472000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4e0-71cf-7b1b-9f05-476d6e00133c","at":1769071473103000000,"seq":292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be4e0-ea80-7d72-9fe3-f382a4e9dfe9","at":1769071504000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019be4e1-4458-7d4d-afef-8983d4b33f7d","at":1769071527000000000,"seq":294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4e1-4c28-74be-8ab0-58effae8fcfe","at":1769071529000000000,"seq":295,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be4e1-625f-73b9-af22-bcb5dbe4c5af","at":1769071534687000000,"seq":296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019be4e1-7b08-758a-9453-faae097e9109","at":1769071541000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4e1-a218-7966-b7ba-c3b9f3a53e42","at":1769071551000000000,"seq":298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

@@ -1,0 +1,22 @@
+{"v":1,"id":"019b9cf9-5947-79e3-8533-fce53e0c2c43","at":1767865145671000000,"seq":174,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9cf9-5947-7ae3-8d56-ec0f30aaeb68","at":1767865145671000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b9cf9-8d58-71fc-b205-14b4edf6f4ed","at":1767865159000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b9cf9-db78-76b4-9af4-3c3fc03ac8ec","at":1767865179000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfa-0a58-797a-b2c7-f0a9c55600b5","at":1767865191000000000,"seq":178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9cfa-3168-7549-ad95-b3affdbffd30","at":1767865201000000000,"seq":179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9cfa-3938-75e8-9920-3e904221047e","at":1767865203000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d08-fd6a-71c1-8c55-1d452df9427c","at":1767866170730000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9d09-0648-7c45-98f1-809bcb7d7c33","at":1767866173000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d09-40e0-7bdf-a923-e699aab4d654","at":1767866188000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d09-5a85-7b9a-af7c-d14911d2438d","at":1767866194565000000,"seq":184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9d09-6408-7a70-a56f-897c31c9ec25","at":1767866197000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d09-7790-787c-871b-b403d93570ed","at":1767866202000000000,"seq":186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b9d09-c5b0-753b-907d-749cd37938b5","at":1767866222000000000,"seq":187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d09-d168-798e-9a04-558cdefc5efb","at":1767866225000000000,"seq":188,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9d0a-043c-7d59-9efe-bfc60dfd9288","at":1767866238012000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9d0a-1ba0-7c89-9e43-7d9db81419d6","at":1767866244000000000,"seq":190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b9d0a-2f28-766f-b066-6b2f2a39b6fd","at":1767866249000000000,"seq":191,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b9d0a-36f8-7ac1-af89-9807c987a7e2","at":1767866251000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b9d0a-3dff-7592-8b05-5af0bf918e8f","at":1767866252799000000,"seq":193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019b9d0a-8900-77d9-b0f1-f68984cfafdd","at":1767866272000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d0a-b010-748b-9963-4089eb33ec29","at":1767866282000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

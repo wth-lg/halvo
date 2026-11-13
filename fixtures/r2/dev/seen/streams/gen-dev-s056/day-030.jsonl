@@ -1,0 +1,24 @@
+{"v":1,"id":"019c0ddd-6081-76ab-ab88-ef66ef566905","at":1769759137921000000,"seq":188,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0ddd-6081-73f0-8fa7-512b34e8d1a6","at":1769759137921000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0ddd-9b68-78cf-be2d-4f71d9dc3946","at":1769759153000000000,"seq":190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0ddd-ab08-7f6c-9c6c-6d548d756202","at":1769759157000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c0ddd-ce30-76e5-a048-a1dbfc62171e","at":1769759166000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dde-3813-79b4-9929-1692ec0fe0d4","at":1769759193107000000,"seq":193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c0dde-9d38-71c3-93e8-61d18fa53ff2","at":1769759219000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0dfa-5364-7722-a335-a63a17596ea1","at":1769761035108000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0dfa-c058-7809-a053-bbeefffcdd01","at":1769761063000000000,"seq":196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e01-3298-7a59-ab80-26b9b65471a5","at":1769761485464000000,"seq":197,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e01-3298-79d6-9096-b49496e1e549","at":1769761485464000000,"seq":198,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e01-4068-7cbf-9b54-5f451b5e099b","at":1769761489000000000,"seq":199,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e01-d8c0-70ab-be02-73424f2cec26","at":1769761528000000000,"seq":200,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c0e0f-cf34-7a3c-a82d-3e8581b6462e","at":1769762443060000000,"seq":201,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e0f-cf34-7664-bd4e-cdfb946d06c2","at":1769762443060000000,"seq":202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c0e10-1548-7cd7-ae58-a10f624e77ca","at":1769762461000000000,"seq":203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c0e10-3488-754a-b16d-c368e7f63d44","at":1769762469000000000,"seq":204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e10-484b-76a4-b5f2-789c6c92d646","at":1769762474059000000,"seq":205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c0e10-8a78-768e-9e39-2b5ba5102115","at":1769762491000000000,"seq":206,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0e10-9630-7827-9f6e-1376aa408ed3","at":1769762494000000000,"seq":207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e11-165f-7536-84b9-f116aa707392","at":1769762526815000000,"seq":208,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c0e11-2aa0-7f7d-9475-f3e03f93b9f2","at":1769762532000000000,"seq":209,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0e11-45f8-770e-aa2e-e6b211400fd9","at":1769762539000000000,"seq":210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c0e11-682b-70e1-9482-1977da137fb0","at":1769762547755000000,"seq":211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}

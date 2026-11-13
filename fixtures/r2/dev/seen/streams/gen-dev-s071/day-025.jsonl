@@ -1,0 +1,22 @@
+{"v":1,"id":"019bf49c-964d-7f2b-bf8e-96f9e8062441","at":1769335461453000000,"seq":301,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf49c-964d-740f-8315-adf361ec4d77","at":1769335461453000000,"seq":302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bf49c-cf20-7e3f-9d8b-2241f37854f2","at":1769335476000000000,"seq":303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf49c-f248-7582-8757-349fe682e11c","at":1769335485000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf49d-0da0-739a-b4c7-3ec5a887fae6","at":1769335492000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf49d-2ce0-7c0b-8232-67175fd8448e","at":1769335500000000000,"seq":306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf4b2-19ec-7372-bf64-33f3ec8972b4","at":1769336871404000000,"seq":307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf4b2-e760-794e-99b7-216a85b51d93","at":1769336924000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bf4b2-e953-7c03-931b-f235b2faacc3","at":1769336924499000000,"seq":309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf4b3-50d8-7172-86a5-18b544e28873","at":1769336951000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4b3-6071-76fa-b57a-a5bfe4dbaadd","at":1769336954993000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf4b3-6078-77c3-b0d4-78ef7c8f8877","at":1769336955000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4b3-77e8-7e85-be54-29c39cdfbdb2","at":1769336961000000000,"seq":313,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf4b3-7bd0-7c25-8c89-1b11f4a7317a","at":1769336962000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4b3-9ef8-78aa-a3e3-e2723ffb3a51","at":1769336971000000000,"seq":315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf4c5-8cc8-710b-ba06-f205e9ae9171","at":1769338145992000000,"seq":316,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf4c5-f648-7bc0-80ee-3a877173c5e3","at":1769338173000000000,"seq":317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf4c6-2cf8-75ed-8f07-d2c267bbd7b0","at":1769338187000000000,"seq":318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf4c6-4468-7dea-a83c-1d85c2f8ae92","at":1769338193000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bf4d0-7a2b-7221-99fd-2b6655b732c3","at":1769338862123000000,"seq":320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf4d0-cbb8-75a7-9380-02259cb9d656","at":1769338883000000000,"seq":321,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bf4d1-21a8-7667-a26d-61df31ce485a","at":1769338905000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

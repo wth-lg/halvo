@@ -1,0 +1,27 @@
+{"v":1,"id":"019b8d65-29c7-753b-9545-b13c87c9f7a9","at":1767603775943000000,"seq":90,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d65-29c7-7e04-ae38-cba2f34fac0b","at":1767603775943000000,"seq":91,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b8d65-3d88-7098-b869-89d414488a3c","at":1767603781000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b8d65-d629-7aa5-9e74-0925f61e1e28","at":1767603820073000000,"seq":93,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your November broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b8d66-1c30-7bfc-8a41-ac772d4d900a","at":1767603838000000000,"seq":94,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d66-2018-7369-943e-7ea3db8fa529","at":1767603839000000000,"seq":95,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d66-33a0-7106-bc3a-a8d637bd919d","at":1767603844000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d66-6280-7ac3-8db4-7d042471c61a","at":1767603856000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d66-6ad4-7157-8dbc-ad177c4166f2","at":1767603858132000000,"seq":98,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b8d66-81c0-78ff-bf24-f30e692b8eff","at":1767603864000000000,"seq":99,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b8d66-9d18-7dd9-aa30-da129b462ecc","at":1767603871000000000,"seq":100,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8d66-dbe4-7511-86bc-c43f45a06486","at":1767603887076000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019b8d66-eb38-7aed-8fa7-77adcc8920e7","at":1767603891000000000,"seq":102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b8d66-f308-77a7-aa5a-ba81e7a441c6","at":1767603893000000000,"seq":103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b8d67-0a78-7197-8231-296b2f1a153e","at":1767603899000000000,"seq":104,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8d70-a036-7538-8096-e8a3346f3462","at":1767604527158000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b8d70-ce78-7530-9ba4-fcaaaada58f9","at":1767604539000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d71-66d0-7fe6-ab18-affd0702e653","at":1767604578000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b8d71-7f61-79c3-bd8a-a724384c2ecc","at":1767604584289000000,"seq":108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b8d72-65bb-779b-a71b-631b132e9a5b","at":1767604643259000000,"seq":109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b8d72-68a0-79b3-a2b6-226ff2e85ffc","at":1767604644000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d72-8fb0-7151-85fe-7993fa5f6d75","at":1767604654000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d72-a720-7110-ac16-525b01775c1b","at":1767604660000000000,"seq":112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d72-e7a2-759c-8fa3-6b0b4aed3f05","at":1767604676514000000,"seq":113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019b8d73-00f8-78e2-b06d-d24e555b8dc3","at":1767604683000000000,"seq":114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b8d73-a508-7ab1-9fc9-5792a4f784e3","at":1767604725000000000,"seq":115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d73-acd8-7e7a-b63c-728a804ea78c","at":1767604727000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

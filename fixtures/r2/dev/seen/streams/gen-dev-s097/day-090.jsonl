@@ -1,0 +1,41 @@
+{"v":1,"id":"019d436c-a48b-7d3a-98d6-0696121f1eee","at":1774952686731000000,"seq":1317,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d436c-a48b-7540-bdd6-4b154ebd09e6","at":1774952686731000000,"seq":1318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d436d-1ac8-7fcb-9ead-c74dcfb49b27","at":1774952717000000000,"seq":1319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d436d-87c2-7ce6-b9f4-0238a1e225de","at":1774952744898000000,"seq":1320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d436e-8d3d-75b1-b499-ef71d00c4e75","at":1774952811837000000,"seq":1321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d436f-0ec8-7985-961c-9c406dcd4bde","at":1774952845000000000,"seq":1322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d436f-1698-7437-a0cc-1bba2c3779dc","at":1774952847000000000,"seq":1323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d436f-3da8-7b66-9d4a-82a3b0d2bfff","at":1774952857000000000,"seq":1324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d436f-4578-731f-af61-d3ee3752373a","at":1774952859000000000,"seq":1325,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4387-4e08-7876-b441-8f9c3ade6e47","at":1774954434056000000,"seq":1326,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4387-4e08-7370-ac07-7749595d7812","at":1774954434056000000,"seq":1327,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4387-70f8-7665-9407-c903de643e37","at":1774954443000000000,"seq":1328,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d4387-9420-781d-9c02-520c5f245a77","at":1774954452000000000,"seq":1329,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d4387-bf18-7f12-9296-8c110780cc9f","at":1774954463000000000,"seq":1330,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d4397-7a23-7e2a-bb5e-5242d56764d1","at":1774955493923000000,"seq":1331,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4397-7a23-757e-9caa-e712acacef80","at":1774955493923000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d4397-8240-7f73-bf0e-9c3698791e17","at":1774955496000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4397-a568-79e4-acc9-360530ff9aa4","at":1774955505000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4397-de56-7ab3-a8f3-694325a2a844","at":1774955519574000000,"seq":1335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d4398-5918-764b-994e-779230f84c39","at":1774955551000000000,"seq":1336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4398-7470-7f49-b4f9-ce45807b8c29","at":1774955558000000000,"seq":1337,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d4398-b55c-72d5-aa4e-3449ec032b9e","at":1774955574620000000,"seq":1338,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d4398-e1d0-7a50-af09-d440acafca34","at":1774955586000000000,"seq":1339,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4398-ed88-7fed-9b03-ff8f337c7944","at":1774955589000000000,"seq":1340,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4398-f170-7713-98c3-2fee772e5415","at":1774955590000000000,"seq":1341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d4398-f940-76d5-ab9b-3fd70f2e5781","at":1774955592000000000,"seq":1342,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4399-2ff0-710a-9215-3c2be5ba44ad","at":1774955606000000000,"seq":1343,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4399-7313-7c1a-bd6a-88793c3652fe","at":1774955623187000000,"seq":1344,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d4399-8db0-7de3-b4a2-f485b4c3d9c1","at":1774955630000000000,"seq":1345,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4399-9198-7ca9-a4a7-40bb4d508062","at":1774955631000000000,"seq":1346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d4399-9d50-7a1a-88d5-44bd5aa74efa","at":1774955634000000000,"seq":1347,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4399-a908-7b42-ba10-2b39c8dd61de","at":1774955637000000000,"seq":1348,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d43b0-d858-7bed-9c97-6018561eadc7","at":1774957156440000000,"seq":1349,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d43b0-e258-7ab3-99ee-684a94e6499a","at":1774957159000000000,"seq":1350,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d43b1-8280-7ddf-8e3d-fc8927040fe3","at":1774957200000000000,"seq":1351,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d43b1-d870-77c0-b9a4-0cecae2fc34d","at":1774957222000000000,"seq":1352,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d43bb-25f7-7d39-8ae1-fc8308b37efb","at":1774957831671000000,"seq":1353,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d43bb-25f7-7af7-a345-a5ead18ec64e","at":1774957831671000000,"seq":1354,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d43bb-2740-75f4-9109-e6c456657a53","at":1774957832000000000,"seq":1355,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d43bb-4e50-792b-8202-12b7c5938932","at":1774957842000000000,"seq":1356,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d43bb-8cd0-7e6a-8683-8c73f0eede7e","at":1774957858000000000,"seq":1357,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

@@ -1,0 +1,26 @@
+{"v":1,"id":"019d52e5-6cc2-78d7-9fbd-b05cf858e32c","at":1775212260546000000,"seq":1558,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52e5-6cc2-7cef-95f7-793156dd55e2","at":1775212260546000000,"seq":1559,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d52e5-9d68-7919-87ca-f3e27cae700d","at":1775212273000000000,"seq":1560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e6-2591-784f-a1c2-1f63e2ad43e0","at":1775212307857000000,"seq":1561,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52e6-2591-7056-9cb6-a8e1d2683d9d","at":1775212307857000000,"seq":1562,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52e6-2a08-7ea9-b242-81ea44e9b637","at":1775212309000000000,"seq":1563,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d52e6-4948-7593-b342-6e955b076e2d","at":1775212317000000000,"seq":1564,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e6-4948-7046-809d-a9d30cd1759b","at":1775212317000000000,"seq":1565,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d52e6-5cd0-7bc7-ba33-3e566ec2ef10","at":1775212322000000000,"seq":1566,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52e6-935f-7619-b605-28a8d65842b1","at":1775212335967000000,"seq":1567,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52e6-935f-7eae-8464-a9d2bf54c49e","at":1775212335967000000,"seq":1568,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d52e6-c648-7155-abdf-6929ed1a617d","at":1775212349000000000,"seq":1569,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e6-f910-7087-820e-1da0cefd75f3","at":1775212362000000000,"seq":1570,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52e7-08b0-7ab9-84c2-955089963bcd","at":1775212366000000000,"seq":1571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d52e7-3136-7c8c-bdb2-ddc5003eff56","at":1775212376374000000,"seq":1572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d52e7-79f8-7619-9c24-2461e7dcf2ee","at":1775212395000000000,"seq":1573,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d52e7-8d80-7355-a0da-bf498c44a612","at":1775212400000000000,"seq":1574,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e7-b878-7a9d-8bdc-baf1fdca1135","at":1775212411000000000,"seq":1575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d52ed-7807-7534-81f2-122d36923564","at":1775212787719000000,"seq":1576,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52ed-7807-78d1-a74c-83efd61a3bb9","at":1775212787719000000,"seq":1577,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52ed-80f0-7a73-bdb8-9176d4560b61","at":1775212790000000000,"seq":1578,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d52ed-c740-711b-a1f1-54db1d01b355","at":1775212808000000000,"seq":1579,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d52ee-6b50-7f27-b6d7-4439971ccad9","at":1775212850000000000,"seq":1580,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d52ee-7c8f-7f54-b908-100eb178fca1","at":1775212854415000000,"seq":1581,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d52ee-b970-7b8d-97ae-0d1e7016009d","at":1775212870000000000,"seq":1582,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52ee-bd58-7bf5-bf96-149e0b881a36","at":1775212871000000000,"seq":1583,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

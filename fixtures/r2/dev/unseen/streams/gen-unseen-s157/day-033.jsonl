@@ -1,0 +1,11 @@
+{"v":1,"id":"019c1da4-cb8f-706e-b212-ae0daebe46c2","at":1770023865231000000,"seq":458,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1da4-cb8f-7a03-9208-dad3c8893b5c","at":1770023865231000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1da4-e218-7500-b226-09f12949bda9","at":1770023871000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c1da5-7a70-7bbb-97ce-351932cb2e41","at":1770023910000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1da5-96eb-7f6b-bf42-105ce2c06edf","at":1770023917291000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1da5-a950-7939-86f6-db92b9ed9d4d","at":1770023922000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c1da5-b120-7e7a-81f4-d739936c804e","at":1770023924000000000,"seq":464,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1da5-d872-7296-aee0-37c010bd9e65","at":1770023934066000000,"seq":465,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1da6-6ad2-758e-8f96-37e29a904423","at":1770023971538000000,"seq":466,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1da6-87f8-723a-a14e-a08419e1908f","at":1770023979000000000,"seq":467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1da6-9b80-71fe-8a2e-5ab10e836508","at":1770023984000000000,"seq":468,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

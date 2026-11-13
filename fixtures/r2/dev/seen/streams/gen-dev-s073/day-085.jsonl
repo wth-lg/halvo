@@ -1,0 +1,29 @@
+{"v":1,"id":"019d2954-d4d5-714d-8f0f-64cf245544da","at":1774514918613000000,"seq":1288,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2954-d4d5-70f2-a3ed-dfd177b73df2","at":1774514918613000000,"seq":1289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d2954-d658-7a07-89e7-7edc1b47143f","at":1774514919000000000,"seq":1290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2954-f598-75bf-a74a-2be5bec5e902","at":1774514927000000000,"seq":1291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2955-5f10-7c97-9613-e89580cd3d90","at":1774514954000000000,"seq":1292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d2955-b438-71ba-afe0-3f274e68a7c7","at":1774514975800000000,"seq":1293,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2955-d828-7757-8dc8-2fc9c6f01c65","at":1774514985000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2956-5140-7d19-94d4-5303e105ded2","at":1774515016000000000,"seq":1295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d2956-b8ee-7b0f-8ffd-645099bff2e5","at":1774515042542000000,"seq":1296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Bills - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2956-d9f8-739e-9058-af8b9cce8f60","at":1774515051000000000,"seq":1297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2957-0108-7f97-987b-49f9e87a667b","at":1774515061000000000,"seq":1298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2957-492c-7c59-9a13-49e0df683d03","at":1774515079468000000,"seq":1299,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2957-4b40-7ed8-b64d-4a7cdd2cb89f","at":1774515080000000000,"seq":1300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2957-6e68-7990-9a61-41b8776b566b","at":1774515089000000000,"seq":1301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2957-9044-715a-b26b-c2efd948ed01","at":1774515097668000000,"seq":1302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019d2957-a518-711e-ad94-0bd722eec48b","at":1774515103000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2957-b0d0-70f1-909a-cd67c8e91862","at":1774515106000000000,"seq":1304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2957-d7e0-7104-98f5-f0defd6dfaa3","at":1774515116000000000,"seq":1305,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2957-ef50-7068-8251-810b1ac2a3ad","at":1774515122000000000,"seq":1306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2958-0aa8-7a3f-9bd1-de1126ed1dd3","at":1774515129000000000,"seq":1307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d2958-1735-7ff5-9809-8a18f42e5274","at":1774515132213000000,"seq":1308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d2958-3988-75cd-a2dd-13b80d12101f","at":1774515141000000000,"seq":1309,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2958-5bbc-75c9-a420-895df0e70dce","at":1774515149756000000,"seq":1310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Oak Square - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d2958-6098-797a-9eb5-2ebdd6f6fd14","at":1774515151000000000,"seq":1311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2958-ca10-7226-a77e-019bfc94d6db","at":1774515178000000000,"seq":1312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d2958-d3dd-7af2-87a9-9d0395df7196","at":1774515180509000000,"seq":1313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d2959-1448-76c8-9663-e42358e7f371","at":1774515197000000000,"seq":1314,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2959-2000-7996-ac6c-f992430ca77d","at":1774515200000000000,"seq":1315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2959-8d60-7466-ac2e-0cd71de8ec3a","at":1774515228000000000,"seq":1316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,14 @@
+{"v":1,"id":"019cd6e3-d593-70e4-9f76-e09a7c7235f2","at":1773131781523000000,"seq":1056,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd6e3-d593-7285-b065-949b212db014","at":1773131781523000000,"seq":1057,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cd6e4-0268-7fc5-be17-40472dc8677c","at":1773131793000000000,"seq":1058,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd6e4-5c40-738b-aa7f-0cd691bd9eb4","at":1773131816000000000,"seq":1059,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6e4-7b80-7eff-bd6c-d2a2bcb0c996","at":1773131824000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f0-7e5d-7909-ba82-e672de4c5025","at":1773132611165000000,"seq":1061,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f0-a0e0-78f6-9b86-fc7f86368194","at":1773132620000000000,"seq":1062,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f0-a8b0-7e69-9cd7-36712e11432d","at":1773132622000000000,"seq":1063,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f7-59b0-7773-87b2-67f7d962a3de","at":1773133060528000000,"seq":1064,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f7-6358-7c87-b027-815ba278cb1d","at":1773133063000000000,"seq":1065,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cd6f7-c500-76a8-a7c6-e2149b2287bc","at":1773133088000000000,"seq":1066,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f7-d888-7872-b1d1-41ce1f6d26a2","at":1773133093000000000,"seq":1067,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6f7-e2f6-7ea1-87a1-73385a759537","at":1773133095670000000,"seq":1068,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cd6f8-1708-7a72-b6d4-801e0116ff01","at":1773133109000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

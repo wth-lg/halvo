@@ -1,0 +1,22 @@
+{"v":1,"id":"019d2417-7f66-73a9-b116-d2a5db1951d2","at":1774427012966000000,"seq":1201,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2417-7f66-7f35-8588-86302d74ab7d","at":1774427012966000000,"seq":1202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d2418-2780-7d38-a712-36b66b50f744","at":1774427056000000000,"seq":1203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2429-943b-7633-9e5e-ccc37339c630","at":1774428197947000000,"seq":1204,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d242a-30b0-7df9-8fe3-6deb8e3dc183","at":1774428238000000000,"seq":1205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d242a-33da-7a98-858e-a3bac03bf06c","at":1774428238810000000,"seq":1206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d242a-4c08-7cce-9f43-55ce6f890352","at":1774428245000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d242a-6b48-73c0-a591-5a01a342e0e9","at":1774428253000000000,"seq":1208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d242a-7ae8-725c-bd41-f39f37f1919f","at":1774428257000000000,"seq":1209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d242a-8004-7010-b20d-8ad4d90915c8","at":1774428258308000000,"seq":1210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d242a-9a28-76bf-ada1-4ca6dae4de5f","at":1774428265000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d242a-b968-7452-bca4-633f9cc91b9a","at":1774428273000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d242b-147f-73e2-af8a-afb858af9419","at":1774428296319000000,"seq":1213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d242b-22e0-7596-9309-2ad13c8d116f","at":1774428300000000000,"seq":1214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d242b-3a50-7a66-8e25-a2d3f9df8eca","at":1774428306000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d242b-8072-7d48-8663-a43d9f83d607","at":1774428323954000000,"seq":1216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d242b-af80-7967-ac4e-66e7b9b800c3","at":1774428336000000000,"seq":1217,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d242b-b750-76cc-8f83-cb55adc741b8","at":1774428338000000000,"seq":1218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d242b-c308-71ba-be43-7a81ebe869e4","at":1774428341000000000,"seq":1219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d242c-0381-7f46-b28b-3bee97088fd0","at":1774428357505000000,"seq":1220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d242c-0d40-7a2c-ab05-df8b8ec80b55","at":1774428360000000000,"seq":1221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d242c-8658-731e-b521-5cf6cc4d0c7d","at":1774428391000000000,"seq":1222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

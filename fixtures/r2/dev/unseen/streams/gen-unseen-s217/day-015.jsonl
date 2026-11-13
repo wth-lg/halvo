@@ -1,0 +1,31 @@
+{"v":1,"id":"019bc116-98ec-7013-b8d0-9f369d015652","at":1768471042284000000,"seq":212,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc116-98ec-7d40-8536-0b9fbb551898","at":1768471042284000000,"seq":213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bc116-9bb8-7529-af90-6393717a942d","at":1768471043000000000,"seq":214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc116-cff0-7cba-a6ef-81b2510c023a","at":1768471056368000000,"seq":215,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc116-cff0-71c8-9e6c-8dde9aac0fc6","at":1768471056368000000,"seq":216,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc116-e9d8-75ea-98d5-19704f2cf6ed","at":1768471063000000000,"seq":217,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bc116-e9d8-7685-a7a8-88a8740c2a0e","at":1768471063000000000,"seq":218,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bc117-1143-7840-8ece-a6ce32d31d37","at":1768471073091000000,"seq":219,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc117-1143-7040-9b1d-900361bf2284","at":1768471073091000000,"seq":220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this month - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bc118-104c-7453-bc96-de14bb1e8d28","at":1768471138380000000,"seq":221,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bc118-39c8-703a-b28f-c64ff3c1b973","at":1768471149000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bc118-8400-77f1-80de-ceabf02c5112","at":1768471168000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc118-a728-772c-8057-db7ef97786e0","at":1768471177000000000,"seq":224,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bc118-dffc-7a7e-be7d-c8bc30a66d22","at":1768471191548000000,"seq":225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bc118-ed78-75db-ad76-8a554ee14e22","at":1768471195000000000,"seq":226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc11e-5afa-7645-b5bf-49042651b678","at":1768471550714000000,"seq":227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bc11e-6bb8-7c74-9b1d-0ed6b7e66640","at":1768471555000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc11e-7b58-718a-b96e-b030d22fe563","at":1768471559000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bc11e-c978-781c-8210-47788e6065d0","at":1768471579000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc11e-d62b-7e0f-9ab2-7727aa30151e","at":1768471582251000000,"seq":231,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bc11f-2f08-71f8-8310-7d13572ee659","at":1768471605000000000,"seq":232,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc11f-3ac0-79de-aa92-d34efd63d371","at":1768471608000000000,"seq":233,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bc127-9d65-7483-9ef9-d81f46e3a351","at":1768472157541000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc127-e580-77ea-85a2-835b8e5bc585","at":1768472176000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bc128-3b70-771e-934b-3311039f405d","at":1768472198000000000,"seq":236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc128-4b10-77e8-9155-f47380f0840c","at":1768472202000000000,"seq":237,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc128-4ee5-7abf-820f-6b845f4bcf42","at":1768472202981000000,"seq":238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc128-7dd8-79d4-8d61-904d8489a669","at":1768472215000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc128-9160-71c4-aa80-b0206c1285c2","at":1768472220000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc128-9930-7293-acc7-933383d51d4b","at":1768472222000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc128-db98-7cc0-b0fd-89918fe7a96b","at":1768472239000000000,"seq":242,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

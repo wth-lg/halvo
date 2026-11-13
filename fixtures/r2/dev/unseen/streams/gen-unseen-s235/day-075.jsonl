@@ -1,0 +1,17 @@
+{"v":1,"id":"019cf5ca-5b86-71d3-89ba-85bc7f6de768","at":1773650205574000000,"seq":969,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5ca-5b86-7ef4-9952-1bd69873b0e2","at":1773650205574000000,"seq":970,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ca-e5e8-7c28-b3c4-0db02f79eb99","at":1773650241000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ca-edb8-7453-bad3-3ad74065bc56","at":1773650243000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cf5cb-14c8-79bf-8d27-3f9eb3ed1f5e","at":1773650253000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cb-4a28-7494-b0cc-f93484b3d420","at":1773650266664000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cb-5730-7db4-9687-4d3e26c573f6","at":1773650270000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cb-c878-7e9b-9a9d-f76983003d76","at":1773650299000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cb-f370-72ce-85e9-e100423b9d36","at":1773650310000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cf5cc-0ae0-73cd-84ab-adb6e6b93eb2","at":1773650316000000000,"seq":978,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf5cc-4578-7d7e-9438-9025151e24a9","at":1773650331000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf5cc-589d-7048-9a4d-d399a20984df","at":1773650335901000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cf5cc-6c88-73b1-9b74-280b167ed68b","at":1773650341000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cc-9780-7f8f-a5c5-9fd53105caa0","at":1773650352000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cf5cc-9f50-7711-8e22-152ca0772d41","at":1773650354000000000,"seq":983,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf5cc-a720-75b7-9d24-be9f4a5c4305","at":1773650356000000000,"seq":984,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5cc-f540-71d8-becc-d004267a15d8","at":1773650376000000000,"seq":985,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

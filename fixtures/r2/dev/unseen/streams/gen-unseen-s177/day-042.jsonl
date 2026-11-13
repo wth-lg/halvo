@@ -1,0 +1,25 @@
+{"v":1,"id":"019c4bfa-bdf5-76b6-b76b-093c64e9a735","at":1770801249781000000,"seq":573,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4bfa-bdf5-7bb3-9a03-ad2d786e3b5b","at":1770801249781000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c4bfa-f198-7b34-8702-e47a7aa9a412","at":1770801263000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bfb-4788-73bb-ac01-7c5f634f5461","at":1770801285000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4bfb-4b70-7525-802c-d8e08c787e91","at":1770801286000000000,"seq":577,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c10-6f70-77a1-8210-6ac2748fc061","at":1770802671472000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c4c10-c770-797f-92b5-4552c4d0ee87","at":1770802694000000000,"seq":579,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4c11-11a8-741d-85b6-e70848b28ba7","at":1770802713000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c11-2d00-7831-9f77-16b18fa9ed3e","at":1770802720000000000,"seq":581,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c27-7109-7182-ad2e-28e5967fa48f","at":1770804179209000000,"seq":582,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c27-d9b0-7084-98e5-7d5fda13890a","at":1770804206000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c4c28-0890-7dd0-86f1-a08bb20f243d","at":1770804218000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c28-23e8-7ace-a823-2e620fae7dcf","at":1770804225000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4c28-3bd5-77a7-915b-3b6b621585bd","at":1770804231125000000,"seq":586,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c28-4ee0-7d45-8b20-5c6843e996a8","at":1770804236000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4c28-6a38-7edf-906d-cb73e0e04eec","at":1770804243000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c4c29-0519-77d9-9c3c-c55574709370","at":1770804282649000000,"seq":589,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c29-b258-703e-9a0a-c222577e4a61","at":1770804327000000000,"seq":590,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4c29-f3ff-7f50-b613-b061845e788c","at":1770804343807000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c2a-3728-7365-aff5-0fae124b7568","at":1770804361000000000,"seq":592,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c4c2a-f41b-7912-aedc-a75a94e553e9","at":1770804409371000000,"seq":593,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c2b-d0bb-7918-9fc1-a793e279a483","at":1770804465851000000,"seq":594,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c4c32-8c6c-71a4-80aa-506102ae5544","at":1770804907116000000,"seq":595,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4c32-8c6c-7e89-8cc0-c38dbea82f3a","at":1770804907116000000,"seq":596,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4c33-7658-73e5-8719-7a0009fdb2b5","at":1770804967000000000,"seq":597,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

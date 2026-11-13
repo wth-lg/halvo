@@ -1,0 +1,21 @@
+{"v":1,"id":"019bcb19-6bf1-754d-b532-01475cbe63c6","at":1768638999537000000,"seq":251,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb19-6bf1-79c5-b0de-c20be5f92724","at":1768638999537000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bcb19-7d60-7415-875d-7451ee143726","at":1768639004000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb19-8d00-72a8-af53-fe8295eb0c2c","at":1768639008000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb19-c1a4-7c7a-9e26-efb8a1571763","at":1768639021476000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bcb19-e6d8-72e0-a147-040a4272f1f3","at":1768639031000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb19-f290-74ea-afec-7a28e69a68c7","at":1768639034000000000,"seq":257,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb19-fa60-7c5e-9d29-d2aaa545796d","at":1768639036000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb19-fa60-796d-8a96-637bf31e15cd","at":1768639036000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bcb1a-2170-766e-9d30-f6d5219ce77c","at":1768639046000000000,"seq":260,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb1a-27d0-7c40-8a40-c09a6dc5cba6","at":1768639047632000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bcb1a-6f90-73f4-b692-6fa0c46ca671","at":1768639066000000000,"seq":262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bcb1b-2340-718f-85f0-b408d5c6915f","at":1768639112000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcb1b-28ca-7dba-9929-134e1710f65a","at":1768639113418000000,"seq":264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019bcb1b-61c0-7c52-9c56-a0b90bbfc51e","at":1768639128000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bcb1b-65a8-74b2-9a63-7a28893e26af","at":1768639129000000000,"seq":266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcb1b-88d0-71f3-90ce-3e32164175b9","at":1768639138000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb1b-afe0-7c90-b056-b38118199add","at":1768639148000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bcb2b-d534-7b98-af13-60dd7e5ead95","at":1768640206132000000,"seq":269,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bcb2c-5d68-752c-9ed8-e14fe5f65f44","at":1768640241000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb2c-6d08-73ec-8680-d32d383ac196","at":1768640245000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

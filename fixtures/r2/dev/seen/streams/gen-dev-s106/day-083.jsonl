@@ -1,0 +1,17 @@
+{"v":1,"id":"019d1f6c-8c73-7458-8ab5-2545b348c22b","at":1774348700787000000,"seq":1182,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1f6c-8c73-7b5f-99c9-65731586d9ac","at":1774348700787000000,"seq":1183,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1f6c-d780-73be-9365-91c6a6d636d3","at":1774348720000000000,"seq":1184,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1f6c-eef0-7f48-add2-d68bcd614947","at":1774348726000000000,"seq":1185,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1f73-f0a5-7150-a674-7ac5562bd0d9","at":1774349185189000000,"seq":1186,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1f73-f0a5-71a7-9850-75ff3d9ca993","at":1774349185189000000,"seq":1187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d1f73-f3d0-7850-aed5-645afbae91a7","at":1774349186000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f7f-0578-707f-b60c-88aceb52d2d4","at":1774349911416000000,"seq":1189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d1f80-01c0-7321-a7af-54480ae8dd90","at":1774349976000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d1f80-12a3-71c9-a52f-a4a987ec5d78","at":1774349980323000000,"seq":1191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d1f80-7ad8-71b8-a1ee-d4e7f6e57cfd","at":1774350007000000000,"seq":1192,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1f80-9887-7cc0-b847-3a97cc5b472b","at":1774350014599000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d1f80-a5d0-7026-adb0-2ce8e42ef675","at":1774350018000000000,"seq":1194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d1f82-9a32-7b21-9177-9cd5ae897e98","at":1774350146098000000,"seq":1195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d1f82-fb78-70fe-a7e5-41bc0ec19ffa","at":1774350171000000000,"seq":1196,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1f83-4d80-7b16-93b3-a550b5ac515d","at":1774350192000000000,"seq":1197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1f83-5168-723c-84c4-78572a46591e","at":1774350193000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

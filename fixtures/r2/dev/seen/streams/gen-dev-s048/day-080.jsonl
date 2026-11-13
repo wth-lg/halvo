@@ -1,0 +1,33 @@
+{"v":1,"id":"019d0fe8-772b-7a53-bd38-84d3649e69d4","at":1774088386347000000,"seq":973,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fe8-772b-77a0-b129-9075235e6f7c","at":1774088386347000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0fe8-79b8-7ffa-bbf5-393d1a418460","at":1774088387000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d0fe8-7da0-73aa-b0a6-63576e8d7e78","at":1774088388000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fe9-21b0-7db2-bdd7-08efb10bfb4d","at":1774088430000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fe9-3538-7670-8089-c786d971806f","at":1774088435000000000,"seq":978,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0ffb-0431-7569-9abd-fea72a703377","at":1774089602097000000,"seq":979,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0ffb-1370-7f9b-b263-c153ab4bf4ad","at":1774089606000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ffb-7518-7969-8356-0c29aac66b81","at":1774089631000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1008-9fdd-7fe7-82aa-de2543b2f4aa","at":1774090493917000000,"seq":982,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d1008-deb0-7c27-bc92-b6f56472657b","at":1774090510000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d1009-4f49-77e6-b9ed-33b6692463de","at":1774090538825000000,"seq":984,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d1009-adb8-7789-a45e-7b1964ceb58d","at":1774090563000000000,"seq":985,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1009-da0e-7f8f-b5af-3c0e466b7939","at":1774090574350000000,"seq":986,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d100a-1730-75bd-90e1-aaa361fc2a7e","at":1774090590000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d100a-3322-772e-972f-a9786abf474e","at":1774090597154000000,"seq":988,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d100a-4610-7276-adcd-a03f817a0799","at":1774090602000000000,"seq":989,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d100a-5998-70a9-9969-0ba8ff4f092b","at":1774090607000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d100a-80a8-7650-bdc9-4136cad21b13","at":1774090617000000000,"seq":991,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d100a-87b9-7124-be50-61bc665cbffb","at":1774090618809000000,"seq":992,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d100a-8878-713a-b1a1-4925bbabb37a","at":1774090619000000000,"seq":993,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d100a-a3d0-7c12-9703-869bb06c5f17","at":1774090626000000000,"seq":994,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d100a-cec8-757b-8452-310b488c7e4d","at":1774090637000000000,"seq":995,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d100b-402c-7bd2-a8d8-0f0ca4d167e2","at":1774090666028000000,"seq":996,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d100b-6b08-726d-bdb4-653a39ba7917","at":1774090677000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d100b-b540-757d-97c7-902ed7b06131","at":1774090696000000000,"seq":998,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d100b-d480-7045-86ab-e79396572dfd","at":1774090704000000000,"seq":999,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d100b-e038-7639-9633-5f691a13427d","at":1774090707000000000,"seq":1000,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d100c-0360-7579-b737-6b6cf588b863","at":1774090716000000000,"seq":1001,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1023-abef-729d-83e8-c868ce60e2dc","at":1774092266479000000,"seq":1002,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1023-abef-7ae8-ba66-c5104061c561","at":1774092266479000000,"seq":1003,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1023-c950-75bb-b00e-c947a0a796bf","at":1774092274000000000,"seq":1004,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1024-4a38-79fe-a41e-5dfe2b7c8779","at":1774092307000000000,"seq":1005,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,26 @@
+{"v":1,"id":"019d3dcc-b6d6-7366-a47a-1ceb8fdec02a","at":1774858319574000000,"seq":1068,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3dcc-b6d6-7eb0-a6be-291d3c658027","at":1774858319574000000,"seq":1069,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3dcc-e760-7f44-ab3f-52fc598dfda2","at":1774858332000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dcd-0d60-7fb0-9be7-8a456805381b","at":1774858341728000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3dcd-1258-7aef-9904-4bf5c440e652","at":1774858343000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dcd-8788-7bda-bdc9-e3e5f6410371","at":1774858373000000000,"seq":1073,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d3dcd-c608-7694-9c6d-cd357bcb8bb0","at":1774858389000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dcd-d40d-7c3a-a90b-04ba4c79a347","at":1774858392589000000,"seq":1075,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d3dce-2b98-7138-a114-2d96c069b09c","at":1774858415000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dce-3b38-77cd-83ee-8a20f2b96f0c","at":1774858419000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d3dce-6c88-7918-8661-2750c309be23","at":1774858431624000000,"seq":1078,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019d3dce-a4b0-7406-a208-af5a68b262d9","at":1774858446000000000,"seq":1079,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3dce-f2d0-70f8-b605-44809725d532","at":1774858466000000000,"seq":1080,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3dcf-0223-77d8-a8d1-45d93bd2437d","at":1774858469923000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3dcf-3920-7a81-8343-bf4f15179122","at":1774858484000000000,"seq":1082,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3dcf-ae50-78a5-abf7-929c6afd0f54","at":1774858514000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dcf-b620-752a-8ccd-7ef16af0ef7c","at":1774858516000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dcf-ccfe-714c-8b09-844f0b82c9ec","at":1774858521854000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3dcf-cd90-7a9c-9aa3-f1f5d7e11afa","at":1774858522000000000,"seq":1086,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dd0-42c0-7bb5-b941-70a447c5b046","at":1774858552000000000,"seq":1087,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dd0-9bd3-7534-8064-7bd985f58b95","at":1774858574803000000,"seq":1088,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3dd0-c790-7b6b-bac1-bf6fa134c05f","at":1774858586000000000,"seq":1089,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dd0-cf60-79d9-b5fa-069e8a15ec87","at":1774858588000000000,"seq":1090,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3dd0-dc67-7ae3-bf62-b6faf2e63839","at":1774858591335000000,"seq":1091,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d3dd1-9a80-72b1-a75f-e9d04efd66af","at":1774858640000000000,"seq":1092,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3dd1-b5d8-7480-8deb-767a0b063d1e","at":1774858647000000000,"seq":1093,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

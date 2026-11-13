@@ -1,0 +1,21 @@
+{"v":1,"id":"019bd0ac-4a39-775d-864b-30ff33d46635","at":1768732510777000000,"seq":267,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd0ac-4a39-7037-968b-29f91c3824ac","at":1768732510777000000,"seq":268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bd0ac-4b18-7845-acce-fcf752c515b5","at":1768732511000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bd0ac-81c8-7aac-9f26-a6521e2d7bd1","at":1768732525000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0ac-d7b8-72a9-8b7c-adaf1f14c2a5","at":1768732547000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0ad-344c-79da-98ed-e8a5a0060e41","at":1768732570700000000,"seq":272,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bd0ad-3d48-7204-90f4-3e44aff55f59","at":1768732573000000000,"seq":273,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd0ad-6840-7081-a449-5370ee5a685e","at":1768732584000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0ad-b660-7315-8f58-6310c7ca0638","at":1768732604000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0ad-cf2d-77de-b2a3-9d665ce08927","at":1768732610349000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bd0ae-0c50-7951-88ee-6b3e962d6e3e","at":1768732626000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0ae-2a45-7ea7-9642-6da3a558a36c","at":1768732633669000000,"seq":278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bd0ae-c3e8-77c7-953e-03629902e408","at":1768732673000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd0ae-e328-79b2-b761-dd9b481bc03f","at":1768732681000000000,"seq":280,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd0af-38c6-7b12-bb8e-0742b827be8c","at":1768732702918000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bd0af-4ca0-7aca-a556-431f056a1ca0","at":1768732708000000000,"seq":282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bd0af-7798-7597-b17d-03d35c04f3c0","at":1768732719000000000,"seq":283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd0af-92f0-7369-8cdb-524772502661","at":1768732726000000000,"seq":284,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd0b4-b74e-7edc-875f-67483394a4b9","at":1768733062990000000,"seq":285,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd0b4-b74e-7ab0-ae67-decb43d4244f","at":1768733062990000000,"seq":286,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd0b5-4010-7f82-9ff7-cb2d6f418ba6","at":1768733098000000000,"seq":287,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}

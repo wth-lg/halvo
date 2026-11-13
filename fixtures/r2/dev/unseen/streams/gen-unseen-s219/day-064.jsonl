@@ -1,0 +1,16 @@
+{"v":1,"id":"019cbd9d-f6da-7a42-b065-ad07b4e3d8a1","at":1772707772122000000,"seq":902,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd9d-f6da-782f-a183-93d5f35bcbf6","at":1772707772122000000,"seq":903,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cbd9e-09e8-792c-a39d-24237e8ba072","at":1772707777000000000,"seq":904,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cbd9e-15a0-75a9-9da5-629d8269ccbd","at":1772707780000000000,"seq":905,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd9e-3a39-7314-9380-2a7d387be6ab","at":1772707789369000000,"seq":906,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd9e-3a39-7939-9c43-11fb185162bf","at":1772707789369000000,"seq":907,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd9e-9688-7c48-b7e9-8052e5c8001c","at":1772707813000000000,"seq":908,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cbd9e-a16c-7637-b42a-13791da946d6","at":1772707815788000000,"seq":909,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd9e-a16c-7feb-9638-cd045805d3c6","at":1772707815788000000,"seq":910,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cbd9f-3e80-77fb-acac-52f8b23e4f49","at":1772707856000000000,"seq":911,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd9f-4650-7f24-aa38-59ad4acd5812","at":1772707858000000000,"seq":912,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd9f-5981-77ae-bafd-d754a458ea45","at":1772707862913000000,"seq":913,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cbd9f-6d60-71e9-8373-7ff11353cf03","at":1772707868000000000,"seq":914,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd9f-9088-7a74-a98f-134c48bb0a88","at":1772707877000000000,"seq":915,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd9f-9470-7d47-914c-96361058a60c","at":1772707878000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd9f-9c40-7b84-aaa4-a5e7ab8fe6d8","at":1772707880000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

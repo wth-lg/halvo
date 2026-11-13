@@ -1,0 +1,29 @@
+{"v":1,"id":"019d05b3-da76-7db5-833e-a35c67e65b29","at":1773917166198000000,"seq":1012,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d05b3-da76-756a-90ba-662b0a8c80f4","at":1773917166198000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d05b4-b141-702d-ad89-4c738d7305dd","at":1773917221185000000,"seq":1014,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d05b4-c028-7d94-9899-6ee310dd8578","at":1773917225000000000,"seq":1015,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b4-f6d8-75c1-8900-1d05e74c7b07","at":1773917239000000000,"seq":1016,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d05b5-25b8-7595-abd1-15dacee1caf5","at":1773917251000000000,"seq":1017,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d05b5-63a3-7d76-9935-81fa47bae449","at":1773917266851000000,"seq":1018,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d05b5-8b48-7a22-9e91-e874cff95a0d","at":1773917277000000000,"seq":1019,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b5-b258-73bc-b52a-28eee4b9d109","at":1773917287000000000,"seq":1020,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05b5-e908-78ec-93ae-d49c54b31b17","at":1773917301000000000,"seq":1021,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d05c7-6966-786f-85ca-5ac89979fda6","at":1773918447974000000,"seq":1022,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05c7-9478-79d6-a306-04c6c18e5c5a","at":1773918459000000000,"seq":1023,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05c7-abe8-7bc1-b298-a90f909dc0b2","at":1773918465000000000,"seq":1024,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05c7-b31e-79f6-a3fa-37e06a4220d3","at":1773918466846000000,"seq":1025,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05c7-bf70-74a9-99f2-12f164359605","at":1773918470000000000,"seq":1026,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d05c7-d2f8-7237-bd41-2bb6812c2c2e","at":1773918475000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d05c7-f238-7d99-b26a-2bdec62c8e7e","at":1773918483000000000,"seq":1028,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05c8-30b8-79ea-a583-66df5850baeb","at":1773918499000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05c8-4058-73dc-8cba-64a9c7059441","at":1773918503000000000,"seq":1030,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d05c8-496f-7ba6-8fe1-f397211273a0","at":1773918505327000000,"seq":1031,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019d05c8-7ed8-70cb-8996-db1ece81490b","at":1773918519000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05cc-27df-7ecd-91b4-8c318d58c294","at":1773918758879000000,"seq":1033,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d05cc-5f08-725f-9e88-36af8e3e86a9","at":1773918773000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d05da-92e4-7c30-966a-f2807ab90af6","at":1773919703780000000,"seq":1035,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d05da-92e4-72d3-8cf6-4b50d9ff7bc6","at":1773919703780000000,"seq":1036,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d05da-da10-7aab-9fd0-5105b4039738","at":1773919722000000000,"seq":1037,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d05db-4388-7851-aae8-335f17f13e2a","at":1773919749000000000,"seq":1038,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d05db-5710-73e3-9299-7e063ea6fbf2","at":1773919754000000000,"seq":1039,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d05db-8208-75d7-a32b-b8a418a57923","at":1773919765000000000,"seq":1040,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}

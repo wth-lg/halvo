@@ -1,0 +1,32 @@
+{"v":1,"id":"019bc121-6f24-7d7b-9887-10d455169d45","at":1768471752484000000,"seq":235,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc121-6f24-7059-9359-7533432a56e3","at":1768471752484000000,"seq":236,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc121-8c80-7957-96ff-da7b8bf344db","at":1768471760000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc121-b390-712f-8356-ecce8bac328b","at":1768471770000000000,"seq":238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc121-d2d0-7f06-b58d-65c1345f3f01","at":1768471778000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc136-3fa9-7b4d-b2e6-364a165882a4","at":1768473116585000000,"seq":240,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc136-9350-7bea-a960-7d529bcddbc0","at":1768473138000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bc136-a16a-770b-b3bb-2e1f1e2eb5e0","at":1768473141610000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc136-b290-7f7a-b38c-0a78bac149be","at":1768473146000000000,"seq":243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc136-f110-7eca-8b6f-d1ba060bd7c9","at":1768473162000000000,"seq":244,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc137-8d50-7a9c-9292-ada0431ff77c","at":1768473202000000000,"seq":245,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc137-8f89-7a09-885a-41266a87d72f","at":1768473202569000000,"seq":246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc137-a0d8-7047-8c9d-289507d47b4f","at":1768473207000000000,"seq":247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc137-a4c0-76bc-a6a0-9dfb36cc7d85","at":1768473208000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc137-d788-722b-9701-f64d5161aa35","at":1768473221000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc137-ef0c-7248-b8b1-c04289cdb49e","at":1768473227020000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019bc138-21c0-7b20-9a27-db95271d8e09","at":1768473240000000000,"seq":251,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc138-5c58-7ef5-b620-aed798a7bf55","at":1768473255000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc138-6428-7cb4-80ba-ecdac5c7d0a7","at":1768473257000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13d-ce00-742a-ac7b-3bbd33473ad3","at":1768473611776000000,"seq":254,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc13d-ce00-7f50-b50b-30726f1e7593","at":1768473611776000000,"seq":255,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc13e-1918-76cc-b43e-028df205ba48","at":1768473631000000000,"seq":256,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc13e-5f68-7940-ac40-9470cc2db52d","at":1768473649000000000,"seq":257,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bc13e-76d8-71ee-8a09-90589c07b835","at":1768473655000000000,"seq":258,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bc13e-b170-78f4-8aea-554c74cfa77a","at":1768473670000000000,"seq":259,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc15a-0bc8-7671-9a69-a756ffc03445","at":1768475462600000000,"seq":260,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc15a-0bc8-7a6f-a15e-cf6dd1c54279","at":1768475462600000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bc15a-6348-793c-bfd7-8b45163ebb57","at":1768475485000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bc15a-ec72-767c-a7d7-8d3c656c4224","at":1768475520114000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bc15a-f7b8-7521-897f-bf76f50e6b56","at":1768475523000000000,"seq":264,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bc15b-2698-7758-8254-17e974bd5539","at":1768475535000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc15b-2e68-7766-891b-4ad17ce18bab","at":1768475537000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

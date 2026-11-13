@@ -1,0 +1,26 @@
+{"v":1,"id":"019cb2ba-9998-7aac-857d-2eb0785dbd60","at":1772525099416000000,"seq":948,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2ba-9998-7ef1-9aec-fbcf4d418f1c","at":1772525099416000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ba-a798-7fbc-ac59-df5183d836ee","at":1772525103000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d3-fd01-734e-87f5-e478308e09cc","at":1772526763265000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d4-03c8-731f-891c-509518d15d6c","at":1772526765000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d4-7412-75c4-9737-face29218a88","at":1772526793746000000,"seq":953,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d4-84b0-75fa-b0de-38cc36ec636c","at":1772526798000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cb2d4-cee8-7a38-bd5d-b5403943704d","at":1772526817000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb2d5-1094-7a14-bcf3-e08eb12a0787","at":1772526833812000000,"seq":956,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d5-1538-75b0-a979-7d94b7d27557","at":1772526835000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d5-76e0-7fe8-a575-efafd200eb9e","at":1772526860000000000,"seq":958,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d5-9238-7fcd-9552-8e3e5c8a9628","at":1772526867000000000,"seq":959,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb2e7-6553-72aa-8a37-ef464991b0b7","at":1772528035155000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cb2e7-a338-795d-bb3f-5dc43f875390","at":1772528051000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e7-a9e9-7f47-8210-4a83c242dd87","at":1772528052713000000,"seq":962,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cb2e7-ab08-7723-9afb-46b2a0b3c379","at":1772528053000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e7-ddd0-7669-ba28-2df2e2b155d5","at":1772528066000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e8-8826-746d-9a3c-408f8e36ca6c","at":1772528109606000000,"seq":965,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cb2e8-8d98-79f1-b418-2986221843b6","at":1772528111000000000,"seq":966,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2e8-9d38-79df-bd6c-dda0e5f7999b","at":1772528115000000000,"seq":967,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb2e8-a8f0-7ac0-b849-bd046829cef5","at":1772528118000000000,"seq":968,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cb2e8-e71c-7575-b881-9f262325146c","at":1772528133916000000,"seq":969,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cb2e9-2208-7240-87cb-47367d364257","at":1772528149000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cb2e9-4d00-7e9d-baaf-ac35fe63d05a","at":1772528160000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2e9-54d0-7c9e-967e-6e8c606ad6a5","at":1772528162000000000,"seq":972,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb2e9-9f08-7dfc-b216-8e6272229f9a","at":1772528181000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

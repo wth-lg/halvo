@@ -1,0 +1,10 @@
+{"v":1,"id":"019c8f20-6aec-7503-bf73-6bbfa9407a91","at":1771927792364000000,"seq":818,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8f20-6aec-7710-9ca8-83e724c1391b","at":1771927792364000000,"seq":819,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c8f20-b3b8-7883-958a-b5c1e8c1d2cf","at":1771927811000000000,"seq":820,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c8f20-d2d9-7a9a-be34-3d515b30abe1","at":1771927818969000000,"seq":821,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c8f20-f238-7955-86f6-c08c2dcabaf3","at":1771927827000000000,"seq":822,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8f21-4828-7c1b-9297-777c0f8c269d","at":1771927849000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c8f21-629d-77e0-b868-21c339e92766","at":1771927855773000000,"seq":824,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c8f21-82c0-77d9-ae41-61a09b04b3ff","at":1771927864000000000,"seq":825,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c8f21-adb8-7d1a-a6e4-9bb4c39e785e","at":1771927875000000000,"seq":826,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8f22-0f60-7a0d-8a18-c0fdd477d4a2","at":1771927900000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

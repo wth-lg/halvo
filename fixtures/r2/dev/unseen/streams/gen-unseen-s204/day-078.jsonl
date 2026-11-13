@@ -1,0 +1,42 @@
+{"v":1,"id":"019d056f-c919-73d3-a610-793d90265c97","at":1773912705305000000,"seq":1139,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d056f-c919-7fdd-a4db-31f751425abe","at":1773912705305000000,"seq":1140,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d056f-df58-7d87-9ab6-f218070f31be","at":1773912711000000000,"seq":1141,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d056f-f2e0-7a9d-8555-cd3261dedae8","at":1773912716000000000,"seq":1142,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0570-4100-7eeb-aea4-9dd9b19459fa","at":1773912736000000000,"seq":1143,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0570-44e8-7591-9eb4-32d13a74bec9","at":1773912737000000000,"seq":1144,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d0570-5c58-7ab5-bf63-a8f98279b41c","at":1773912743000000000,"seq":1145,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d0586-9e1c-7034-bdad-82eea15c0815","at":1773914201628000000,"seq":1146,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d0586-d640-7d3a-9ab9-e7f8ceeae931","at":1773914216000000000,"seq":1147,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d058d-a31e-7274-b9de-ef7ae4a64c9a","at":1773914661662000000,"seq":1148,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d058d-a31e-7769-8daf-e229d0089e38","at":1773914661662000000,"seq":1149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d058d-d738-70c8-83b1-64dd9fd537f6","at":1773914675000000000,"seq":1150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d058d-e4aa-7556-993a-109aed45afe3","at":1773914678442000000,"seq":1151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement May - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d058e-4880-71a5-bf4f-cdb27b352252","at":1773914704000000000,"seq":1152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d058e-5438-77ca-8a6f-4053f5894acd","at":1773914707000000000,"seq":1153,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d058e-c198-710d-aa1e-7e9dd6693ced","at":1773914735000000000,"seq":1154,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d058e-dcf0-757e-9839-ffd622ca7df2","at":1773914742000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d058e-ea47-7f9e-a79a-3ea83e0bad1f","at":1773914745415000000,"seq":1156,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d058e-ea47-7214-b901-fe1a86d25d19","at":1773914745415000000,"seq":1157,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d058e-f078-7753-84c5-7a8d6b552db1","at":1773914747000000000,"seq":1158,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d058f-3e98-75ba-b958-7f7f8f06b06d","at":1773914767000000000,"seq":1159,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d058f-6d78-731a-b500-b29d1feedafc","at":1773914779000000000,"seq":1160,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d058f-90a0-77a7-9962-192f71d6edde","at":1773914788000000000,"seq":1161,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d058f-c125-7987-860b-188d5f08238a","at":1773914800421000000,"seq":1162,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d058f-c125-700c-baf1-a5d0c16061cc","at":1773914800421000000,"seq":1163,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d058f-cf20-7781-98bb-fe4e05f73c7a","at":1773914804000000000,"seq":1164,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d058f-fe00-7444-86bc-6c22c95f8dd8","at":1773914816000000000,"seq":1165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0590-2199-7bbe-b305-5c2afeb00316","at":1773914825113000000,"seq":1166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019d0590-30c8-722a-9fad-35fe6d93a54c","at":1773914829000000000,"seq":1167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0590-4c20-76fc-8c82-e25da401bc3d","at":1773914836000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0590-d4d8-7dd9-9c7a-266bef3672c6","at":1773914871000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d0599-f2fb-7fee-bd21-658402b592e5","at":1773915468539000000,"seq":1170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d059a-4ea0-775e-949c-6347c52a48c0","at":1773915492000000000,"seq":1171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d059a-78ef-7d82-9ad5-ced97481811d","at":1773915502831000000,"seq":1172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d059a-8938-7c60-9710-6f97330b7c8c","at":1773915507000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d059a-b431-71e2-ae87-c97ebc3d05ce","at":1773915518001000000,"seq":1174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d059a-e310-77ba-9f18-50b5d7f180ad","at":1773915530000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d059b-0a20-7f9e-8fa0-965373855514","at":1773915540000000000,"seq":1176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d059b-1883-7cf0-853e-3bc4b92dc2ff","at":1773915543683000000,"seq":1177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook rent roll synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d059b-2190-7679-8aaf-b011a96babc3","at":1773915546000000000,"seq":1178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d059b-3ce8-7d50-b677-97ecafbd2842","at":1773915553000000000,"seq":1179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d059b-40d0-7c07-a953-fd23d551a9c7","at":1773915554000000000,"seq":1180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

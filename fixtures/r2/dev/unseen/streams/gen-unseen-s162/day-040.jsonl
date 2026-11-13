@@ -1,0 +1,34 @@
+{"v":1,"id":"019c41c1-b74b-7640-8303-73f711849a8b","at":1770629740363000000,"seq":428,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41c1-b74b-7c4e-bbbc-77a6e9e5cdf4","at":1770629740363000000,"seq":429,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c41c1-bdb0-70fb-9b8e-2d4d5c5d4ee2","at":1770629742000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c2-3ab0-7079-ad69-53e6f6c082e1","at":1770629774000000000,"seq":431,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c41c2-9a5d-7118-8b73-7618d2228255","at":1770629798493000000,"seq":432,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for August - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c41c2-f248-7d67-94e7-82385b7e2f27","at":1770629821000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c41c3-7330-7f94-9ad7-1ce365049d8c","at":1770629854000000000,"seq":434,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c3-9616-7603-8bf3-0d4ad0634fd9","at":1770629862934000000,"seq":435,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c41c3-9e28-78c6-a98e-cd2ee2e2fceb","at":1770629865000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c3-b1b0-7346-91ca-0701fbc18dbf","at":1770629870000000000,"seq":437,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c3-d8c0-7217-a695-ddf370747d3f","at":1770629880000000000,"seq":438,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c41c3-e47c-7a13-90f5-1a430c3795b1","at":1770629883004000000,"seq":439,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c41c3-e860-755e-a55b-a3ed29458487","at":1770629884000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c4-0b88-7373-8aec-b5ab1042cae9","at":1770629893000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41c4-26e0-7e66-8414-dc6b106301c3","at":1770629900000000000,"seq":442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c41d0-032d-7b70-8180-c9fdc33445c6","at":1770630677293000000,"seq":443,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c41d0-032d-7716-8feb-e0e5c935fed1","at":1770630677293000000,"seq":444,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c41d0-0dc0-7207-adf4-1d48ddf7bd77","at":1770630680000000000,"seq":445,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c41d0-6f68-7945-badb-b4af175e66a3","at":1770630705000000000,"seq":446,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d0-7f08-76ec-8596-72f37a9afca6","at":1770630709000000000,"seq":447,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c41d6-b32c-7cd5-8bc2-e830b1095aca","at":1770631115564000000,"seq":448,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41d6-b32c-7ea6-b91b-e113ab2c3f38","at":1770631115564000000,"seq":449,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c41d6-c868-78c5-817f-1d350e6d286b","at":1770631121000000000,"seq":450,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d6-eebe-7e41-ba12-5034b1ff9fd1","at":1770631130814000000,"seq":451,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c41d6-f360-7fe2-bc36-326490ab0735","at":1770631132000000000,"seq":452,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c41d7-1e58-77d1-b2c9-fc852fabd217","at":1770631143000000000,"seq":453,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c41d7-4d38-73af-ae55-fd68d59beddb","at":1770631155000000000,"seq":454,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c41d7-50fa-74a1-bfc9-1c2a4f600cfa","at":1770631155962000000,"seq":455,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c41d7-6c78-7a63-a7d7-f1bcddae7c54","at":1770631163000000000,"seq":456,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c41d7-7060-7ab8-a615-0c6010d4ebac","at":1770631164000000000,"seq":457,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d7-f31c-718b-b02c-b67324c032ae","at":1770631197468000000,"seq":458,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c41d8-7618-7763-bbb6-b21d13189f25","at":1770631231000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d8-9558-7fdb-9711-85d6c5b5d41a","at":1770631239000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d8-9558-7c6e-994c-80d0ae663239","at":1770631239000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

@@ -1,0 +1,38 @@
+{"v":1,"id":"019bdb00-cf0b-7466-88fa-2fa956a88c1e","at":1768905821963000000,"seq":284,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdb00-cf0b-7371-9ad3-31c2683182ac","at":1768905821963000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bdb01-1580-7730-b1b4-f0179c2ab1dc","at":1768905840000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb01-4323-7e66-93ac-ff44e070a00e","at":1768905851683000000,"seq":287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement May - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bdb01-4c30-7d38-ba7f-f329ab023071","at":1768905854000000000,"seq":288,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdb01-7728-7091-9e62-3fb02bab9bc3","at":1768905865000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb01-876c-7797-851a-4d45da5b6aad","at":1768905869164000000,"seq":290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bdb01-9668-73de-be48-195b962d851f","at":1768905873000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019bdb01-e488-7860-b429-dc087b76a403","at":1768905893000000000,"seq":292,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb02-55d0-7227-95af-ebe2b7c7a535","at":1768905922000000000,"seq":293,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bdb02-874e-74c4-b3d5-408ffb77da93","at":1768905934670000000,"seq":294,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019bdb02-8c80-7542-a473-fd45ec1fb014","at":1768905936000000000,"seq":295,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdb02-de88-7e4e-bb79-7cb52c9df36b","at":1768905957000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb02-e658-70d1-b401-fdf433ed33de","at":1768905959000000000,"seq":297,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdb03-24d8-71cd-b6e8-582e7f92af6d","at":1768905975000000000,"seq":298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb11-e285-7176-91ce-cf2eb11bdff1","at":1768906941061000000,"seq":299,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bdb11-e285-7766-bfba-227ed09b0228","at":1768906941061000000,"seq":300,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bdb11-f5d0-70bd-af2b-424453c78596","at":1768906946000000000,"seq":301,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bdb12-1128-757d-b197-0e7b710d3314","at":1768906953000000000,"seq":302,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bdb12-5778-7413-b69b-f1444993de5b","at":1768906971000000000,"seq":303,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bdb27-80f8-7a1b-a6c5-6ed14c7b80c3","at":1768908357880000000,"seq":304,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdb27-80f8-77e8-ad74-02d532aeff0c","at":1768908357880000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bdb27-cba8-75b6-83c9-fef7493dc43c","at":1768908377000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb28-2d50-71df-bdf0-2658684a3310","at":1768908402000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bdb35-3c54-7d42-aaa0-4d7741a72840","at":1768909257812000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdb36-048f-7766-953f-adf80153abe5","at":1768909309071000000,"seq":309,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdb36-0c18-718d-87c1-cae0e01cc901","at":1768909311000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bdb36-3ee0-76bd-8463-77b4f9ca38d6","at":1768909324000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb36-7d60-768a-b83c-bca41a367815","at":1768909340000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bdb36-8530-714f-8ab0-ec36991671d0","at":1768909342000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb36-a415-78d2-a337-7305cd429177","at":1768909349909000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdb36-cf68-7740-84e4-98250e23610b","at":1768909361000000000,"seq":315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bdb36-d738-7934-a77d-75c2d5d0880d","at":1768909363000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bdb36-fa60-7db8-aa44-07595ea02d9b","at":1768909372000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb37-449c-7d51-ba05-cdb5946c70cf","at":1768909391004000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019bdb37-63d8-73a9-bcb7-3e84b30f2797","at":1768909399000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb37-d520-7294-be81-850c150eaf72","at":1768909428000000000,"seq":320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb38-0018-74d5-9277-9be427e19e63","at":1768909439000000000,"seq":321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

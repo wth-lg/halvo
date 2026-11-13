@@ -1,0 +1,22 @@
+{"v":1,"id":"019c4b9b-25dc-7e0c-8f7e-6a5c3a725412","at":1770794984924000000,"seq":621,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4b9b-25dc-770b-a2e9-7698c0126c02","at":1770794984924000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c4b9b-2628-7e67-b330-26428f5d8414","at":1770794985000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c4b9b-4568-7a96-8192-5ebc210f5fb7","at":1770794993000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b9c-16c9-7024-b172-eaa95a32be00","at":1770795046601000000,"seq":625,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance December - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c4b9c-2be0-759a-a087-4fd0de1977f9","at":1770795052000000000,"seq":626,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b9c-3b80-7009-b658-72a0ddc59d8e","at":1770795056000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4b9c-68b3-7725-9e1c-6fb3a72b0669","at":1770795067571000000,"seq":628,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c4b9c-7de8-7d05-a21d-7be850e0abd5","at":1770795073000000000,"seq":629,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4b9c-c050-7560-91df-8ef44f010ec8","at":1770795090000000000,"seq":630,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b9c-cff0-7157-8a7a-e8c7df537982","at":1770795094000000000,"seq":631,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b9c-e760-78e9-94c0-a5a8e9699ecd","at":1770795100000000000,"seq":632,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c4b9c-f318-7fd2-9c61-1d9ed894fc27","at":1770795103000000000,"seq":633,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4b9d-29c2-7d50-92b0-580038fd7ddd","at":1770795116994000000,"seq":634,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4b9d-29c2-7a04-9699-5270dc192d0e","at":1770795116994000000,"seq":635,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4b9d-7018-7253-b5ee-595afd956ac2","at":1770795135000000000,"seq":636,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c4b9d-7018-778c-976d-cfd09f73378e","at":1770795135000000000,"seq":637,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c4b9d-c608-770b-9c93-5a274e230839","at":1770795157000000000,"seq":638,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b9d-e68c-77cf-96d7-81ec24abf081","at":1770795165324000000,"seq":639,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4b9d-e68c-7364-9432-932e64806a79","at":1770795165324000000,"seq":640,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c4b9e-0870-73e8-bb32-e17d950b78ae","at":1770795174000000000,"seq":641,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4b9e-0c58-7f9c-ac0c-37ce0822da0a","at":1770795175000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

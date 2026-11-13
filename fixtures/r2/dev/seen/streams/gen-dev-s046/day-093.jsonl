@@ -1,0 +1,38 @@
+{"v":1,"id":"019d52af-633f-7193-8b52-75fe4f271134","at":1775208719167000000,"seq":1115,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52af-633f-770b-9c1e-3f0e81bcd840","at":1775208719167000000,"seq":1116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d52af-9948-775d-8504-f6c8c1c28305","at":1775208733000000000,"seq":1117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d52af-b0b8-7759-9825-06f17cc85567","at":1775208739000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52af-c828-76ff-9187-e985d57f4551","at":1775208745000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52b8-8eba-7937-b7f0-ceba749d38cf","at":1775209320122000000,"seq":1120,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52b8-8eba-707c-bd06-1baa696e7b04","at":1775209320122000000,"seq":1121,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52b9-3a20-7cdc-b78f-e7237d1120ca","at":1775209364000000000,"seq":1122,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52c4-2a76-79a8-8dd2-04349bb83257","at":1775210080886000000,"seq":1123,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52c4-2a76-70d6-af85-65cc2a474eaf","at":1775210080886000000,"seq":1124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d52c4-4640-73ca-98fd-eaa82e650a36","at":1775210088000000000,"seq":1125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52c4-9c30-7d3a-80d8-8ce48cd2ab75","at":1775210110000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52c4-afb8-7f96-9b00-cbaf3e8c876e","at":1775210115000000000,"seq":1127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d52c4-c7d1-7cae-ae30-99392a3c6ce3","at":1775210121169000000,"seq":1128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Inbox - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d52c5-6b38-7863-afd5-d4815c49062d","at":1775210163000000000,"seq":1129,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52c5-b188-7f5b-8818-d395cc52ec6d","at":1775210181000000000,"seq":1130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d52c5-c81a-7464-8347-7595ae3c5404","at":1775210186778000000,"seq":1131,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d52c5-cce0-781d-958e-a857db1de015","at":1775210188000000000,"seq":1132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52c5-d0c8-7099-952e-a828f91fb315","at":1775210189000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d52c5-fbc0-713d-9764-e5e7cffd52e7","at":1775210200000000000,"seq":1134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d52c6-0390-735d-b951-7d58abe4b6c5","at":1775210202000000000,"seq":1135,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d52c6-09c8-7d6f-92ce-2a08338761ce","at":1775210203592000000,"seq":1136,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d52cb-b89f-79e6-9065-614c9fc28129","at":1775210576031000000,"seq":1137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d52cb-c050-7e7c-ac02-8c1832504412","at":1775210578000000000,"seq":1138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d52cc-4520-70e4-97ad-a90d81946fd0","at":1775210612000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52cc-6078-7b7d-a387-7fee631524cd","at":1775210619000000000,"seq":1140,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d52cc-9728-7190-aeb0-4c0f0565764c","at":1775210633000000000,"seq":1141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52de-34c9-7fb6-ab54-4041d9e9ac59","at":1775211787465000000,"seq":1142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d52de-4298-7603-b6ad-372b5c8cef51","at":1775211791000000000,"seq":1143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d52de-7b3c-7ea0-9fea-e84f0b508c24","at":1775211805500000000,"seq":1144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d52df-11a0-7d24-acfd-e3950bc1d52b","at":1775211844000000000,"seq":1145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d52df-548f-7782-bfba-267f6a681d7e","at":1775211861135000000,"seq":1146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d52df-7b18-7591-9012-7510655aec2e","at":1775211871000000000,"seq":1147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d52df-9670-7c74-a9d1-86879151c046","at":1775211878000000000,"seq":1148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52df-d108-7371-a0c6-b84027b805c1","at":1775211893000000000,"seq":1149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52df-db8b-7d7b-b543-3d4a2995038a","at":1775211895691000000,"seq":1150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d52e0-4a20-77de-85eb-945835c827bd","at":1775211924000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e0-4e08-79b1-acbd-da917cf9a732","at":1775211925000000000,"seq":1152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

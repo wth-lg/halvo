@@ -1,0 +1,24 @@
+{"v":1,"id":"019c089b-c666-7f63-aa23-a510b2abdc5f","at":1769670952550000000,"seq":164,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c089b-c666-7e0b-9707-e0804ea6be34","at":1769670952550000000,"seq":165,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c089b-ef38-78f0-95b3-f0ec3a26fc12","at":1769670963000000000,"seq":166,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c089c-3970-7981-9099-812ba3fda42b","at":1769670982000000000,"seq":167,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c089c-adc9-7603-a570-c5c9a1455aff","at":1769671011785000000,"seq":168,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c089c-b288-7b27-9297-ea61da2df552","at":1769671013000000000,"seq":169,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c089c-b670-7c12-b67e-13942188985d","at":1769671014000000000,"seq":170,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c089d-1048-71ba-b640-477d1a3edf24","at":1769671037000000000,"seq":171,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c08a1-27b8-72bf-b8ba-18ef7bf20634","at":1769671305144000000,"seq":172,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c08a1-27b8-7432-ac40-ffc624c1c38b","at":1769671305144000000,"seq":173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c08a2-30f7-7725-b356-67cbb114d4b6","at":1769671373047000000,"seq":174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c08a2-5bc0-77ca-9590-defc13ab53ea","at":1769671384000000000,"seq":175,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c08a2-c82b-7b4c-a365-8d209b577219","at":1769671411755000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c08a3-1f10-72b7-9b71-2a3ad9bfae26","at":1769671434000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c08a3-8888-7ae8-aab4-d50493289e97","at":1769671461000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08a3-9058-7822-8a32-957646c5aec0","at":1769671463000000000,"seq":179,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08a3-d915-7f46-94a9-cd32bd660b82","at":1769671481621000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019c08a3-e260-74f3-8a2c-aec04ce7305f","at":1769671484000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08a4-3468-74aa-b45c-72430ab5b76e","at":1769671505000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08b1-3b7b-7f25-be66-2aca89f10e2b","at":1769672358779000000,"seq":183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c08b1-4fe0-73b8-a8cb-bd4f1c9f4967","at":1769672364000000000,"seq":184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c08b1-5b98-7837-88ba-cc34d4c997c6","at":1769672367000000000,"seq":185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c08b1-76f0-7002-99b5-c5f0441a95a2","at":1769672374000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08b1-9248-7c9e-b02d-ef5198207be0","at":1769672381000000000,"seq":187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

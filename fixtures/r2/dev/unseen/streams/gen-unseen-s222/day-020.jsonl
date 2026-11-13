@@ -1,0 +1,17 @@
+{"v":1,"id":"019bdaea-af52-7018-8863-f0fd78f6194a","at":1768904372050000000,"seq":292,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdaea-af52-7f33-9c4e-05ac32d4e5f1","at":1768904372050000000,"seq":293,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdaea-b6f0-758d-94b5-702b78c32044","at":1768904374000000000,"seq":294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaea-d248-7ce2-941a-504a5ebdaf87","at":1768904381000000000,"seq":295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaeb-1c70-7b93-bee7-11a6c31b1c5c","at":1768904399984000000,"seq":296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdaeb-85f8-70e3-b1cc-d1590f5b8fdf","at":1768904427000000000,"seq":297,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bdaeb-a313-797b-978e-9fd955912dc4","at":1768904434451000000,"seq":298,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019bdaeb-cc48-7be7-9329-ece3cd34432b","at":1768904445000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaec-0ac8-7e2b-943d-bfb9038923b0","at":1768904461000000000,"seq":300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaec-2620-7289-b027-a87545775a42","at":1768904468000000000,"seq":301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdaec-2a08-74be-a2ee-de735ebb9259","at":1768904469000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bdaf0-e557-7953-afa3-5eef0b6a5f82","at":1768904779095000000,"seq":303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bdaf1-5640-74a1-b9d4-b35175f41324","at":1768904808000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdaf1-8908-73d5-8be8-a863bf417d2f","at":1768904821000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdb05-884f-7886-b0cb-f3aa6d50a48c","at":1768906131535000000,"seq":306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bdb05-d840-74c7-898e-68c5f0132733","at":1768906152000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bdb05-f780-79bb-8362-bd0ecf517d76","at":1768906160000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

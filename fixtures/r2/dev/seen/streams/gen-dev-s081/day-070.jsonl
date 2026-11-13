@@ -1,0 +1,13 @@
+{"v":1,"id":"019cdc02-48b9-71df-8cd7-f46a5201227a","at":1773217663161000000,"seq":1137,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc02-48b9-71e9-bce5-3a4b1b0fef9e","at":1773217663161000000,"seq":1138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cdc02-7ec8-7d90-be85-0fc523459fc6","at":1773217677000000000,"seq":1139,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdc02-8a80-749a-9474-764db78b4c61","at":1773217680000000000,"seq":1140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cdc0e-8667-7112-99a6-be9df5c50ea8","at":1773218465383000000,"seq":1141,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc0e-8667-7acd-a357-fb6b1f21209e","at":1773218465383000000,"seq":1142,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc0e-afe0-7a5f-8db7-951105cc0b97","at":1773218476000000000,"seq":1143,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc0f-05d0-70c9-86ae-e87652d93f1b","at":1773218498000000000,"seq":1144,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc0f-4c20-7743-a912-ab6a13df7b02","at":1773218516000000000,"seq":1145,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cdc0f-5d4e-7364-b28a-5201be92d512","at":1773218520398000000,"seq":1146,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cdc0f-7b00-7c45-99a5-1c0890c940c7","at":1773218528000000000,"seq":1147,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cdc0f-9270-73fa-9f10-e901683078d0","at":1773218534000000000,"seq":1148,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc0f-bd68-7db1-ba84-3d11dde88597","at":1773218545000000000,"seq":1149,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

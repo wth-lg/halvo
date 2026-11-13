@@ -1,0 +1,20 @@
+{"v":1,"id":"019cf057-ee3c-7427-a1f6-7a2a8bec7cbc","at":1773558820412000000,"seq":1104,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf057-ee3c-7712-a532-7061f1182a86","at":1773558820412000000,"seq":1105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf058-13b0-7721-b5ce-9aae2fd5033f","at":1773558830000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cf058-6d2b-79a6-8df3-a17fd6a21637","at":1773558852907000000,"seq":1107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf058-7558-7933-a667-cc64115126b2","at":1773558855000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cf059-3c90-75a5-a555-4ca37f4857d7","at":1773558906000000000,"seq":1109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf059-4d70-7e8f-abf4-d913b61ba228","at":1773558910320000000,"seq":1110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf059-5fb8-7b32-99d5-1276485941eb","at":1773558915000000000,"seq":1111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf059-86c8-7f0d-a39c-ea36c9fca0ed","at":1773558925000000000,"seq":1112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cf059-a608-730f-8c47-3ea1c483a07e","at":1773558933000000000,"seq":1113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf059-add8-7091-a3df-f263bf39a03c","at":1773558935000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf059-ba19-7285-b48a-7a0a27bd6ada","at":1773558938137000000,"seq":1115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf059-ec58-717d-bfa4-e86340b272e0","at":1773558951000000000,"seq":1116,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf059-f428-7cb8-a60c-c4119c02c280","at":1773558953000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf05a-84b0-7240-9517-814cc2a59243","at":1773558990000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf05a-9cff-7820-a129-632080b97853","at":1773558996223000000,"seq":1119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf05a-bb60-77e6-9e4e-e4389b7b578b","at":1773559004000000000,"seq":1120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf05a-de88-7287-9903-181e3b6b52ce","at":1773559013000000000,"seq":1121,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf05b-4259-77ea-8cd5-b4c37b9daf63","at":1773559038553000000,"seq":1122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cf05b-a9a8-7a31-9623-4d4b4e6ca637","at":1773559065000000000,"seq":1123,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

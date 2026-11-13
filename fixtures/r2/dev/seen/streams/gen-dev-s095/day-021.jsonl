@@ -1,0 +1,23 @@
+{"v":1,"id":"019be013-b4d6-7c4c-be64-33e633d5e371","at":1768990946518000000,"seq":405,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be013-b4d6-7bff-96a9-9a8834d6a08a","at":1768990946518000000,"seq":406,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be013-f150-70b2-b25b-a204606629fc","at":1768990962000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be014-0ca8-7820-a448-9c06f08b3783","at":1768990969000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be014-33b8-75bf-91dd-17aaf84f493c","at":1768990979000000000,"seq":409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be029-3072-7ec5-b489-1a3cde9fb1f7","at":1768992354418000000,"seq":410,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be029-3072-7b2e-a7e9-6e4862339ea4","at":1768992354418000000,"seq":411,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be029-3a88-748e-8978-ac9d36e4d4ed","at":1768992357000000000,"seq":412,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be029-51f8-7ff3-8257-994adc7b3271","at":1768992363000000000,"seq":413,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019be02a-05a8-7074-bdd0-c9efda459138","at":1768992409000000000,"seq":414,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be03f-cc9c-7f50-87c6-4badeb75333c","at":1768993836188000000,"seq":415,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be03f-cc9c-74e2-b713-ebce7aa54048","at":1768993836188000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019be040-73d8-7b39-b09b-9c412157ca95","at":1768993879000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be040-a08b-7ea4-aeed-269f6726ac2b","at":1768993890443000000,"seq":418,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019be040-d198-793a-9750-f43db970892d","at":1768993903000000000,"seq":419,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019be040-fcbb-7490-97d3-bb56413b2f22","at":1768993914043000000,"seq":420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019be041-23a0-7142-8b15-3e9516da553e","at":1768993924000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be041-3340-7904-bca0-7f4a232d62f9","at":1768993928000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be041-47bc-7918-9243-544d0e43cada","at":1768993933244000000,"seq":423,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019be041-4e98-7879-85a5-37ae423272a4","at":1768993935000000000,"seq":424,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be041-71c0-75a7-9a8e-5baa34a81d97","at":1768993944000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be041-bfe0-74ad-90ee-0ad5a41ec353","at":1768993964000000000,"seq":426,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be041-d368-7722-88b9-52e9747026a8","at":1768993969000000000,"seq":427,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

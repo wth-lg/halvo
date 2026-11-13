@@ -1,0 +1,18 @@
+{"v":1,"id":"019bd055-c7ba-7978-9b06-e036bb128ee7","at":1768726841274000000,"seq":212,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd055-c7ba-7ac5-b28e-7a5d78b160b3","at":1768726841274000000,"seq":213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bd056-31d0-7405-9fee-07cfc7b160a5","at":1768726868432000000,"seq":214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bd056-3bd8-751d-b691-8d8164c33d7c","at":1768726871000000000,"seq":215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd056-3fc0-79b7-88d3-8e35d96271b5","at":1768726872000000000,"seq":216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd056-5348-766b-b6bd-e56f4c8dd42c","at":1768726877000000000,"seq":217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bd056-7670-7c99-ad1f-d51f77fbaac9","at":1768726886000000000,"seq":218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd056-9678-72a3-a819-0ab75993d558","at":1768726894200000000,"seq":219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bd056-c490-7570-98a1-0595c3012bf7","at":1768726906000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd056-dfe8-750f-a5da-507d3e20d432","at":1768726913000000000,"seq":221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd056-ff28-7eab-ab89-18b185e33870","at":1768726921000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bd057-0906-78c3-b119-40b18cba5e52","at":1768726923526000000,"seq":223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019bd057-1a80-74a6-9eb9-9a2ac9bb4fcf","at":1768726928000000000,"seq":224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd057-5ce8-76df-8cca-2a0d6fff43a3","at":1768726945000000000,"seq":225,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd057-60d0-70be-bc70-22a6db3fb578","at":1768726946000000000,"seq":226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd06d-2d32-76fc-b95c-fe5f005cf9d6","at":1768728374578000000,"seq":227,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd06d-2d32-7a9b-ab6e-237cf286ae2a","at":1768728374578000000,"seq":228,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd06d-88b0-77cd-bf63-05485e9c6e67","at":1768728398000000000,"seq":229,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

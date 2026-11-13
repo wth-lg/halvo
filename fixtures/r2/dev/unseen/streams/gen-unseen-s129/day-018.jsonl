@@ -1,0 +1,6 @@
+{"v":1,"id":"019bd038-6ece-7561-8f6b-0e1d66bf55b2","at":1768724917966000000,"seq":171,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd038-6ece-7032-ad32-2622d956aecc","at":1768724917966000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bd039-5a12-721f-8810-5b07a29f7778","at":1768724978194000000,"seq":173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bd039-baf8-7ae1-9461-9da6f3a0cbc8","at":1768725003000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bd039-bee0-7cef-9d98-e6fe4ed5be1b","at":1768725004000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd04d-edeb-7f78-861a-9574a1de38c6","at":1768726326763000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}

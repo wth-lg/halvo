@@ -1,0 +1,21 @@
+{"v":1,"id":"019c12f5-70bf-7d09-97da-5cd5dbbfa25a","at":1769844601023000000,"seq":508,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c12f5-70bf-789f-8d2c-d66cc6e3f09f","at":1769844601023000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c12f5-9f88-74db-882b-6676e5cb316b","at":1769844613000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c12f5-c2b0-736d-becf-6f4079da407a","at":1769844622000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c12f5-e1f0-7af9-8e27-2fe4dbc78d1f","at":1769844630000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c12f5-e98a-78ff-8225-1e1299b94f91","at":1769844631946000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c12f5-fd48-7658-96c4-39fdc2ce0a3d","at":1769844637000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c12f6-2070-7307-836d-ac5a293f348a","at":1769844646000000000,"seq":515,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c12f6-3010-7b52-8d97-90d9cc56fb32","at":1769844650000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c12f6-91b8-76ae-83e6-8497ee5b7597","at":1769844675000000000,"seq":517,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1307-29f7-797a-b2ad-caaea271ec19","at":1769845762551000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1307-81a8-72db-b1c6-9be3db70e1d9","at":1769845785000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1311-abc1-7665-8cac-ff3216fe355e","at":1769846451137000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c1311-b308-7d24-810f-d8b6a5daf0ac","at":1769846453000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c1311-fd40-704a-92b6-51ee667b227d","at":1769846472000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1312-0ce0-7c62-965b-a9fc7f8d61a0","at":1769846476000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1312-8e41-7650-ad98-3a18f5f75ac9","at":1769846509121000000,"seq":524,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c1312-b8c0-73ed-a0f0-1d7c3a75e9aa","at":1769846520000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1312-bca8-7a67-aaef-2614307b18c5","at":1769846521000000000,"seq":526,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1312-c7b6-7ad3-a1f5-8ad9cf869612","at":1769846523830000000,"seq":527,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c1312-c860-7f45-ac8e-340b0df0eef5","at":1769846524000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

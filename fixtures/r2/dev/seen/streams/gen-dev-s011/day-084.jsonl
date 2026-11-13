@@ -1,0 +1,31 @@
+{"v":1,"id":"019d2418-8d34-7c1a-b2c6-f2a6cfc5d8a4","at":1774427082036000000,"seq":1067,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2418-8d34-7ac2-8076-3ec26798ed90","at":1774427082036000000,"seq":1068,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d2418-b808-7c75-9b03-21714799d1e1","at":1774427093000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2418-cf78-7831-854b-d3acf594d9b0","at":1774427099000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d2418-d863-72d7-8dc6-2ebd0d83cc36","at":1774427101283000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d2419-3cd8-724f-a30e-c38a6bd5098f","at":1774427127000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2419-c978-7845-935d-d9427a59df4b","at":1774427163000000000,"seq":1073,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2419-d7a9-7a31-a77b-4c5e10fae750","at":1774427166633000000,"seq":1074,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d2419-e8b8-7bf3-9f85-4f3ca766e349","at":1774427171000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d241a-46f0-7b2d-8688-0238847ceea9","at":1774427195120000000,"seq":1076,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d241a-5a00-761a-9d6f-052e52209851","at":1774427200000000000,"seq":1077,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d241a-b3d8-7897-950b-173904c016b1","at":1774427223000000000,"seq":1078,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d241a-d700-7ac2-8584-179d4b72cf2e","at":1774427232000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d241b-47e1-74b5-bef5-4d9187cc3434","at":1774427260897000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d241b-f040-7ae5-86a3-21b931a63fdc","at":1774427304000000000,"seq":1081,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d241c-3602-7237-a169-ea02798ff3e4","at":1774427321858000000,"seq":1082,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d241c-6958-721c-861d-ebc0dcd88a1f","at":1774427335000000000,"seq":1083,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d241c-78f8-7f6f-bff1-d17249881eb8","at":1774427339000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d241c-b778-79fa-a236-60caf5e17aef","at":1774427355000000000,"seq":1085,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2436-280b-7579-ad5b-1b8040239bb3","at":1774429022219000000,"seq":1086,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2436-280b-73e4-a2f6-d6bb9576453f","at":1774429022219000000,"seq":1087,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2436-36d0-708f-b268-f251d2dff627","at":1774429026000000000,"seq":1088,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d2436-5de0-7203-9b3a-a3f8d30dc4a7","at":1774429036000000000,"seq":1089,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2436-8108-79bf-a8a5-9f12e27b594c","at":1774429045000000000,"seq":1090,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2436-d951-78c0-b97b-243605455831","at":1774429067601000000,"seq":1091,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d2436-ee68-755a-82a0-76ca682a878d","at":1774429073000000000,"seq":1092,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d2436-f250-7e99-b656-b1ba1e53ff33","at":1774429074000000000,"seq":1093,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2437-2ce8-70cd-9da5-e17ce7affded","at":1774429089000000000,"seq":1094,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2449-2d17-77f7-8d58-9502f3e983a2","at":1774430268695000000,"seq":1095,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2449-2d17-776a-9fda-b2aab5fd9872","at":1774430268695000000,"seq":1096,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2449-93d8-7daf-962f-04da8068b64a","at":1774430295000000000,"seq":1097,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

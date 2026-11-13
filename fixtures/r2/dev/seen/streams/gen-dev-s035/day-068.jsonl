@@ -1,0 +1,27 @@
+{"v":1,"id":"019cd1fe-d835-7064-8a6e-71d2c2c5b4d9","at":1773049665589000000,"seq":1172,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd1fe-d835-77a8-bcd1-4edcc8db0374","at":1773049665589000000,"seq":1173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cd1fe-fcf8-75f2-b38c-5353b2212148","at":1773049675000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ff-3b78-7822-81f7-9e0a88292cd8","at":1773049691000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1ff-af81-7298-a71e-4e2a8c5b313c","at":1773049720705000000,"seq":1176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cd1ff-c048-7723-b6dc-9a0f349f31f2","at":1773049725000000000,"seq":1177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cd200-1e08-7d54-9c9f-e9aeb5ccd120","at":1773049749000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd200-20ce-7c22-9683-f8c09103e2b8","at":1773049749710000000,"seq":1179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cd200-3190-727e-9068-b539f402727c","at":1773049754000000000,"seq":1180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cd200-a2f7-7229-86b1-5e248d9e9110","at":1773049783031000000,"seq":1181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019cd200-b278-746f-9d2e-9f7cffdf46a8","at":1773049787000000000,"seq":1182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd201-1808-75ff-89d8-f1114cbf7999","at":1773049813000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cd201-4300-7c8e-9d24-9156f3c1ea39","at":1773049824000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd201-46e8-75d3-bdee-2763d8fe5768","at":1773049825000000000,"seq":1185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd201-85fe-792a-bf03-93fa8d8af2ce","at":1773049841150000000,"seq":1186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cd201-98f0-74cb-9730-8abcbcdb7095","at":1773049846000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd201-c000-798e-bbd3-dc404e0d6807","at":1773049856000000000,"seq":1188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd202-01fc-7793-9100-72cfdcc1b2e5","at":1773049872892000000,"seq":1189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cd202-1dc0-728b-a60b-4dd5fd4a03dc","at":1773049880000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd202-21a8-77ec-9bf7-ad7f8b0d8af3","at":1773049881000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd202-40e8-7245-816f-71fb1360b422","at":1773049889000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cd202-b433-73f9-8549-02649cf35bfe","at":1773049918515000000,"seq":1193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"chore rota saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019cd202-c5b8-7be8-8e53-fb4b4fa379e1","at":1773049923000000000,"seq":1194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd202-cd88-750a-badc-fcbec9d7f2b3","at":1773049925000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cd202-ecc8-7675-8ddb-2545f4b8501a","at":1773049933000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd202-f0b0-7692-9630-11f17a8b396a","at":1773049934000000000,"seq":1197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd202-fc68-74ad-9744-934df8f0861c","at":1773049937000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

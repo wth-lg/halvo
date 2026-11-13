@@ -1,0 +1,19 @@
+{"v":1,"id":"019cadec-a6d5-7d1b-a6d4-7999ccfd7f95","at":1772444493525000000,"seq":962,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cadec-a6d5-78d9-834a-f08435e37401","at":1772444493525000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019caded-1de0-7a4d-b545-2748a56754cb","at":1772444524000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019caded-96d2-7a9a-b85b-1e16dee593cc","at":1772444554962000000,"seq":965,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019caded-f0d0-7474-8c9b-201f9aa2bc31","at":1772444578000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadee-4aa8-76ef-8a04-61e8071e96a1","at":1772444601000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cadee-6cca-7805-a8ff-463ab83e4e28","at":1772444609738000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cadee-8928-73e4-8f11-6e72b60f073c","at":1772444617000000000,"seq":969,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cadee-c3c0-7803-96bd-dbbf80f3f089","at":1772444632000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cadef-5bb8-748f-803a-7f54e64cdc5e","at":1772444670904000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019cadef-9a98-785e-a6a4-bcb8212660dd","at":1772444687000000000,"seq":972,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cadef-dd00-731b-8a8d-47d5c47f6eb0","at":1772444704000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cae00-9fe8-7910-aa6b-7e1b8ab8eef3","at":1772445802472000000,"seq":974,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cae00-a9c8-7191-bb37-e91c477961ba","at":1772445805000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae00-b198-7a02-9fab-09b05ffa6dd9","at":1772445807000000000,"seq":976,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cae00-e848-74c7-8c22-2ea7e8a18c07","at":1772445821000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cae00-efcd-78dd-814b-75fb36ac3c97","at":1772445822925000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019cae01-0788-733c-94a5-9b2ea257020a","at":1772445829000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cae01-6160-77d8-85b6-730f7f616acc","at":1772445852000000000,"seq":980,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

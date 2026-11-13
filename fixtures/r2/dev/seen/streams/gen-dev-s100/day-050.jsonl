@@ -1,0 +1,16 @@
+{"v":1,"id":"019c7566-8ff8-7db1-b8c6-deb74e708eab","at":1771496181752000000,"seq":806,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c7566-8ff8-7d4a-a7fc-a48144082f75","at":1771496181752000000,"seq":807,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c7566-98c0-7e32-9192-d2a094a68e98","at":1771496184000000000,"seq":808,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7566-ac48-7b8f-ba9a-021f5b8cdd59","at":1771496189000000000,"seq":809,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c7566-b030-7735-bddb-9f86def05f7a","at":1771496190000000000,"seq":810,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c7566-b800-709f-9000-3693e575bc7f","at":1771496192000000000,"seq":811,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c7579-63b8-777a-8df5-fb330d3fadf0","at":1771497415608000000,"seq":812,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7579-63b8-7666-bf50-46c0cfc6df4c","at":1771497415608000000,"seq":813,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c7579-6d10-79e0-8126-b390de41ecca","at":1771497418000000000,"seq":814,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c7579-a7a8-76fd-b2df-564201f4d4e4","at":1771497433000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7579-c300-7180-b5ee-3bbe41344e63","at":1771497440000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c7579-d2a0-7a51-9817-aef92168f8c4","at":1771497444000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c757f-7aa0-70a6-ac21-a7d10fc81768","at":1771497814688000000,"seq":818,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c757f-ba58-748b-8fa7-ca1dd667d1dc","at":1771497831000000000,"seq":819,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7580-27b8-7148-8e82-6a4d345735a4","at":1771497859000000000,"seq":820,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7580-46f8-7f46-95a0-0a9cf7b2af54","at":1771497867000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

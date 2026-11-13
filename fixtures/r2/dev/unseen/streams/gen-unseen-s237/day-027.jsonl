@@ -1,0 +1,48 @@
+{"v":1,"id":"019bfee1-06ba-7ada-be92-e5cbb57f723f","at":1769507718842000000,"seq":283,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfee1-06ba-7b60-8bb5-443c510703c8","at":1769507718842000000,"seq":284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bfee1-2e68-7f6c-8f93-45b2c30bf468","at":1769507729000000000,"seq":285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfee1-6900-7b21-8233-148648d7e293","at":1769507744000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bfee1-c2d8-79b8-bc82-cb877e52e6e2","at":1769507767000000000,"seq":287,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfee1-dbfc-70ac-b355-8c1711f76def","at":1769507773436000000,"seq":288,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bfee2-5b30-769d-a7c6-66cd4b16782d","at":1769507806000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfee2-ad38-707d-ad2e-24fe8015ea42","at":1769507827000000000,"seq":290,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfee2-ad41-7580-9ba2-4f703f7c88f8","at":1769507827009000000,"seq":291,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bfee3-0710-71c3-a2f4-6658a12400b9","at":1769507850000000000,"seq":292,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bfee3-2e20-7a0a-9331-90ca08cab82e","at":1769507860000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfee3-8410-7b3f-92b6-eeb45f260dd3","at":1769507882000000000,"seq":294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfee3-a066-7ba9-961a-176e3cbcba8f","at":1769507889254000000,"seq":295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bfee3-ed88-7a5c-bc99-bc59ce9bb776","at":1769507909000000000,"seq":296,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bfee4-1c68-7a97-817c-e41413d01130","at":1769507921000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfee4-2c08-7499-8618-2fd4f668e2e2","at":1769507925000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bfee4-37c0-7890-b26d-a0bd7b1bcc54","at":1769507928000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bfee4-aa56-798d-a932-b97c99ef6fc5","at":1769507957334000000,"seq":300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bfee4-eb70-7b7b-a1ad-ee7b0c403c6c","at":1769507974000000000,"seq":301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bfee5-1280-7323-b669-3ef8529dfcb4","at":1769507984000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfee5-4160-7053-b2ed-02702206ab9e","at":1769507996000000000,"seq":303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bfee5-4a97-7028-a63b-6b5ad5b66515","at":1769507998359000000,"seq":304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bfee5-4d18-72e5-9fee-1d515ee7feef","at":1769507999000000000,"seq":305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfee5-60a0-7378-a345-28fbb5698db8","at":1769508004000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfee5-9368-7061-aedf-363f05e0a0aa","at":1769508017000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bfef5-837a-7ee9-92b3-3514776176a4","at":1769509061498000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bfef5-b068-7012-b864-9206ff1bad73","at":1769509073000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfef5-d390-7133-a48f-f0d11926ffa2","at":1769509082000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bfef5-e330-7b43-818a-9521c4b6fd0b","at":1769509086000000000,"seq":311,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bfef5-eb00-75ce-b7b2-01785cf951c7","at":1769509088000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bfef8-788e-7e08-9f4a-f0c1d2f1c004","at":1769509255310000000,"seq":313,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bfef8-b1f0-7073-939f-6da199faabd2","at":1769509270000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bfef9-5abe-71aa-9bfe-0582e096bcb4","at":1769509313214000000,"seq":315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bfef9-ee58-788f-bb4d-27a54c71507e","at":1769509351000000000,"seq":316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bfef9-f240-77df-8d4c-c9004f2a822d","at":1769509352000000000,"seq":317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bfefa-0f97-7b14-a933-1d32d512abe8","at":1769509359511000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bfefa-cd00-7aed-a4d7-0d6c55806446","at":1769509408000000000,"seq":319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bfefa-cf58-73c1-b6b5-ddc850e2d30e","at":1769509408600000000,"seq":320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bfefa-d4d0-7a16-a73d-aa4cc2396b89","at":1769509410000000000,"seq":321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bfefb-08fb-7a66-a2b6-a5fdef2884a3","at":1769509423355000000,"seq":322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bfefb-0b80-7e57-8144-d134d1e9921f","at":1769509424000000000,"seq":323,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bfefb-1350-71b6-9d40-6a7107963b3f","at":1769509426000000000,"seq":324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfefb-22f0-782a-a0e6-b18f52b01b12","at":1769509430000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfefb-3290-7bd0-ae4e-5967437c4dcd","at":1769509434000000000,"seq":326,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bff06-75ed-7815-ba25-64100da990c9","at":1769510172141000000,"seq":327,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bff06-b7c8-7313-a942-23e4de2d59f5","at":1769510189000000000,"seq":328,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bff06-d708-786e-95b0-ed517c7d6ff9","at":1769510197000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bff06-ee78-72b7-977f-aa53a2611970","at":1769510203000000000,"seq":330,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

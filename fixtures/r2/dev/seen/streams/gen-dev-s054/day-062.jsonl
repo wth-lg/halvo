@@ -1,0 +1,12 @@
+{"v":1,"id":"019cb2d8-385d-7ae1-af46-1d4b5044160b","at":1772527040605000000,"seq":658,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2d8-385d-7263-a54c-ab457852d657","at":1772527040605000000,"seq":659,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d8-8420-751f-b65d-3850bad63b45","at":1772527060000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d8-f568-7f70-b943-594301b11b98","at":1772527089000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d8-fd56-7c0f-8c7b-854a2eb93b98","at":1772527091030000000,"seq":662,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d9-2060-77fb-af8b-d4577e428629","at":1772527100000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d9-5ee0-7bc0-965e-a61f902648c6","at":1772527116000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019cb2f3-949e-7db6-b74e-d8f3746f9e3d","at":1772528833694000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f4-3105-7054-82e8-9986707a5963","at":1772528873733000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f4-4598-762e-9c11-7eb6ffd382de","at":1772528879000000000,"seq":667,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb2f4-64d8-7411-9ff9-1b1a5fd36ada","at":1772528887000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cb2f4-7090-79da-84ce-2f595382cbc7","at":1772528890000000000,"seq":669,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

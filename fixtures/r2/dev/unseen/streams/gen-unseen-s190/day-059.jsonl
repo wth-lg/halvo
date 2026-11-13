@@ -1,0 +1,35 @@
+{"v":1,"id":"019ca329-6a13-76d1-b3a5-315d80c7c6a5","at":1772263926291000000,"seq":944,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca329-6a13-776c-ad02-30c78f95701d","at":1772263926291000000,"seq":945,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca329-8060-761c-996b-2d473522bed3","at":1772263932000000000,"seq":946,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca329-b710-73c6-94d3-7738ff0778fb","at":1772263946000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca329-ca98-7e4b-840d-76b5ef5afe10","at":1772263951000000000,"seq":948,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca329-e9d8-7fca-bece-445b359f4b29","at":1772263959000000000,"seq":949,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca331-ae5d-7d21-b242-b9ef0a4ff9a9","at":1772264468061000000,"seq":950,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ca331-e4d0-76a8-8117-bf5e1a957e0a","at":1772264482000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca332-2b20-71f8-a92a-629088cd501f","at":1772264500000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019ca332-69a0-7f45-aee2-26f9db2cebb6","at":1772264516000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca347-3589-76e8-b38e-19b512eb91a0","at":1772265878921000000,"seq":954,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ca347-4190-7b9a-854d-195c0bb3e485","at":1772265882000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca347-4d48-7ef6-85f6-fd19adbb01b2","at":1772265885000000000,"seq":956,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca347-9f50-7eb2-9cf7-fe3a9893944d","at":1772265906000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019ca34e-2a56-726f-b767-c99337a13a29","at":1772266334806000000,"seq":958,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ca34e-4670-7276-92c8-99329ec98c32","at":1772266342000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ca34e-c9d6-7d0c-9a40-b05f09e317d8","at":1772266375638000000,"seq":960,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"School messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ca34f-9278-741a-87e9-12aebeb98a38","at":1772266427000000000,"seq":961,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca34f-bd70-7657-ac7d-d8d8077a7a8a","at":1772266438000000000,"seq":962,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca34f-cc4a-7d35-86b1-74c06c9fcf89","at":1772266441802000000,"seq":963,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ca350-2a54-7701-aa7f-fc9830d18277","at":1772266465876000000,"seq":964,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019ca350-6568-7d0b-b706-88de72d871d2","at":1772266481000000000,"seq":965,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ca352-c0ba-7fa5-b792-16f0016d14ae","at":1772266635450000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ca353-3810-73b3-b948-52fb8cc734fd","at":1772266666000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca353-4944-7022-a586-e5c24650aa34","at":1772266670404000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ca353-9da0-7592-ae38-0f071fd51564","at":1772266692000000000,"seq":969,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca353-c898-73d0-8e62-31cb8ff77713","at":1772266703000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca354-0b00-7615-8b2b-f689fa0002ab","at":1772266720000000000,"seq":971,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca354-24de-7488-8671-1dc8d9c1cca1","at":1772266726622000000,"seq":972,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ca354-2a40-7660-83d3-4755461ccfac","at":1772266728000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ca354-35f8-7f96-9903-63fdd3d70186","at":1772266731000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca355-2058-7573-8266-9b462e7342f2","at":1772266791000000000,"seq":975,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca355-2b1d-77b9-89c5-593ef5540902","at":1772266793757000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ca355-3f98-72cc-a49c-eb0af0513394","at":1772266799000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca355-4768-7593-9ad7-32464339acff","at":1772266801000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

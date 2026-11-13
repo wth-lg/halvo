@@ -1,0 +1,10 @@
+{"v":1,"id":"019ca348-fb36-7195-9b7e-07fd38491730","at":1772265995062000000,"seq":745,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca348-fb36-7f44-a917-1b7627889535","at":1772265995062000000,"seq":746,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca349-31a8-7b12-90d4-eb0b15fef68c","at":1772266009000000000,"seq":747,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ca349-9858-7a8e-ac1c-2d7ba636bb5a","at":1772266035288000000,"seq":748,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ca349-d5b8-7c61-ab04-bb06fcd023b3","at":1772266051000000000,"seq":749,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ca34a-3760-704c-8aa6-44e6eff87b4a","at":1772266076000000000,"seq":750,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ca358-80fb-7252-9ab5-ed30c610214e","at":1772267012347000000,"seq":751,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca358-80fb-7bd4-9d86-220b68a513e6","at":1772267012347000000,"seq":752,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ca358-a6b0-7f93-b5bb-5e472623c9ca","at":1772267022000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ca358-c208-7ed0-bc34-cdffb2bcf007","at":1772267029000000000,"seq":754,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

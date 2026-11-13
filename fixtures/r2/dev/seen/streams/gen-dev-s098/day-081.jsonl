@@ -1,0 +1,37 @@
+{"v":1,"id":"019d14db-a6ac-763b-b15c-efadbd530cd9","at":1774171432620000000,"seq":1114,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d14db-a6ac-7e1c-a676-97e445444bbe","at":1774171432620000000,"seq":1115,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d14dc-6a21-78cb-8b3a-af0856ff7413","at":1774171482657000000,"seq":1116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d14dc-8ea0-7779-8dce-4c18dfaa8fa7","at":1774171492000000000,"seq":1117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d14dc-9e40-7316-b33b-d8fe5da83e79","at":1774171496000000000,"seq":1118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d14dc-ec60-7e0a-a5bb-c97b0e269ea8","at":1774171516000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14dc-f430-7c4e-9df1-c101c804f046","at":1774171518000000000,"seq":1120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d14dd-36c4-74c9-ad40-8b128f236b10","at":1774171535044000000,"seq":1121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d14dd-4638-7485-a707-739afc5848c3","at":1774171539000000000,"seq":1122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d14dd-9c28-70d5-9e6d-1a83e88bb235","at":1774171561000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14dd-afb0-7f07-8615-ec61852e6cf7","at":1774171566000000000,"seq":1124,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d14dd-b398-7216-972d-077e2c819610","at":1774171567000000000,"seq":1125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d14dd-bb68-7b5b-aa9b-87563f683959","at":1774171569000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14dd-c285-72ef-bdbf-a7abd41e2b9b","at":1774171570821000000,"seq":1127,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d14dd-cef0-7f5e-9458-e84ff594493c","at":1774171574000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d14dd-e278-7848-98b6-ecf602f87a80","at":1774171579000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14de-5f78-7071-9849-b43f03d7c9aa","at":1774171611000000000,"seq":1130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d14de-9240-71b0-8b07-f6d63e772ea6","at":1774171624000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d14e4-a6e7-70db-904c-a6e74ecff6c6","at":1774172022503000000,"seq":1132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d14e4-d3d0-7412-b3e5-e015c22d3101","at":1774172034000000000,"seq":1133,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d14e4-dba0-7c3b-8c04-a23f16c01a69","at":1774172036000000000,"seq":1134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d14e4-df88-7180-a497-233a1b57bdc3","at":1774172037000000000,"seq":1135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14e4-e370-7a4d-b6c2-7ca20fc480a2","at":1774172038000000000,"seq":1136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d14e4-eb40-7b29-a723-b62de822834b","at":1774172040000000000,"seq":1137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f4-ebf7-7d07-9e23-51e694d71f6c","at":1774173088759000000,"seq":1138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d14f5-0c28-7aec-bcb9-cd5a591fdc41","at":1774173097000000000,"seq":1139,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f5-17e0-74a8-80e8-519a1e318c86","at":1774173100000000000,"seq":1140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d14f5-2780-7e3c-819a-e76d76c01a75","at":1774173104000000000,"seq":1141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1508-211d-7338-8c86-ed3da1ce5c47","at":1774174347549000000,"seq":1142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d1508-3a50-78a5-bf1f-4d10eb235f6d","at":1774174354000000000,"seq":1143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d1508-8ace-758d-bc1c-c0b2659d1b17","at":1774174374606000000,"seq":1144,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019d1508-9040-72e6-bb1b-95df6a0b7955","at":1774174376000000000,"seq":1145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1508-a3c8-759d-96cd-73296a3d5443","at":1774174381000000000,"seq":1146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d151e-3d6b-7ac4-95fe-5284781d3925","at":1774175796587000000,"seq":1147,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d151e-4ac0-72e4-adbc-e5e5b5f389f3","at":1774175800000000000,"seq":1148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d151e-98e0-7f86-8583-37dc467981d3","at":1774175820000000000,"seq":1149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d151e-e318-7508-a990-d2aadd56bd25","at":1774175839000000000,"seq":1150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

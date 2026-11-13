@@ -1,0 +1,9 @@
+{"v":1,"id":"019d2e17-fe75-7c98-a9f6-05518dd368cf","at":1774594817653000000,"seq":1182,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2e17-fe75-7629-9b7b-c36f5f44cc81","at":1774594817653000000,"seq":1183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2e18-1f10-7f46-a98f-e846bd4a9a3c","at":1774594826000000000,"seq":1184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2e18-6178-7097-9d34-f8f0070297bd","at":1774594843000000000,"seq":1185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2e22-b958-722e-9efd-519323132891","at":1774595520856000000,"seq":1186,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d2e23-8cd8-79df-a085-a6a40acf49b0","at":1774595575000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d2e23-961b-7c08-b015-d2be28f44355","at":1774595577371000000,"seq":1188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d2e24-30e8-73ea-a557-19ab24f72b26","at":1774595617000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2e24-63b0-742e-9a14-df5d03f6b3ec","at":1774595630000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

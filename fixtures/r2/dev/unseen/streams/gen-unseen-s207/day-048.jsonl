@@ -1,0 +1,21 @@
+{"v":1,"id":"019c6ac9-79c8-7275-b9ef-459f45e89058","at":1771318114760000000,"seq":748,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ac9-79c8-7aea-948c-e3cfdde72f4d","at":1771318114760000000,"seq":749,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6ac9-7ab8-7d9a-9bdb-aa0d6519752f","at":1771318115000000000,"seq":750,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac9-8e40-75c3-aebf-3c85f1c7b049","at":1771318120000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6ac9-9228-774d-b096-9945b9449a55","at":1771318121000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac9-9610-7383-9fac-9b81f7bcce13","at":1771318122000000000,"seq":753,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6ac9-e818-7cba-a7e4-d665bc4c1ebd","at":1771318143000000000,"seq":754,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6ad8-866d-7595-86f8-9753d1dd266a","at":1771319101037000000,"seq":755,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c6ad8-c0e0-71cc-98ef-dc10c2eedcb2","at":1771319116000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ad9-5118-7236-a4a3-f05fe3c60656","at":1771319152920000000,"seq":757,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c6ad9-93d0-70c8-963c-860d6bdba54b","at":1771319170000000000,"seq":758,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ad9-b310-7704-9dc3-8a9faaa551ea","at":1771319178000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ad9-bec8-793b-8849-d7df27d5f293","at":1771319181000000000,"seq":760,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c6ada-2840-7016-9b37-cabe40768c8e","at":1771319208000000000,"seq":761,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ada-4780-77a3-b022-2220559223cc","at":1771319216000000000,"seq":762,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6ada-60d3-71b0-aba8-b24b2e35d0fe","at":1771319222483000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c6ada-8218-7e7e-86fe-d4433def5ea2","at":1771319231000000000,"seq":764,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6ada-ad10-7120-971b-45a5ae34ba81","at":1771319242000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ada-b8c8-75b6-9e48-fdd3ed51187c","at":1771319245000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6ada-c098-786e-9281-d970f2dbb055","at":1771319247000000000,"seq":767,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ada-d891-7728-8805-df3e13a47bfa","at":1771319253137000000,"seq":768,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}

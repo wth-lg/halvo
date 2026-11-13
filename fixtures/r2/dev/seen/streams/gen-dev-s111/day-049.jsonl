@@ -1,0 +1,17 @@
+{"v":1,"id":"019c6f8c-8a03-795a-a584-99c1b626362b","at":1771398007299000000,"seq":576,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6f8c-8a03-7612-94c3-f96232a4baf1","at":1771398007299000000,"seq":577,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6f8c-dec8-7d28-acd3-46af98d8b555","at":1771398029000000000,"seq":578,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6f8d-9278-70a4-b637-0b145708e77b","at":1771398075000000000,"seq":579,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6fa2-67cc-79eb-90c6-4af383f4bc0b","at":1771399440332000000,"seq":580,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6fa2-6e50-7677-b216-3ef07275ec10","at":1771399442000000000,"seq":581,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6fa2-85c0-7f3c-a0c0-f895ae81591c","at":1771399448000000000,"seq":582,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fa2-89a8-78b3-bbce-f301fcacf759","at":1771399449000000000,"seq":583,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fa2-9948-785b-9f08-bc017be75df9","at":1771399453000000000,"seq":584,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c6fa9-088a-7ca9-a58e-351172bd854c","at":1771399874698000000,"seq":585,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fa9-088a-707f-ae5e-5a1b464a1efd","at":1771399874698000000,"seq":586,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c6fa9-3898-7b96-a239-33de4db97d5f","at":1771399887000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fa9-3c80-7110-a486-f9be6dda8ca7","at":1771399888000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fa9-7718-7649-8f6d-91e653a138e9","at":1771399903000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6fa9-8351-7332-ad1c-fc58542a3df5","at":1771399906129000000,"seq":590,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c6fa9-c920-71e7-93dc-1218ca8beac4","at":1771399924000000000,"seq":591,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6faa-1f10-7353-9253-0f2af14d8688","at":1771399946000000000,"seq":592,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

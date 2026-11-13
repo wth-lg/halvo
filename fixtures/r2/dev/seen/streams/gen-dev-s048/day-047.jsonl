@@ -1,0 +1,39 @@
+{"v":1,"id":"019c657b-6a95-7114-b306-41be76f92291","at":1771229112981000000,"seq":456,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c657b-6a95-75d6-b4b9-e0997560d3cd","at":1771229112981000000,"seq":457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c657c-1a70-7857-bf88-472ca387d533","at":1771229158000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c657c-31eb-7584-9a4f-76d0356c6fa2","at":1771229164011000000,"seq":459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c657c-4d38-718d-a074-638e367329c8","at":1771229171000000000,"seq":460,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c657c-7c18-7ef5-934d-6dd09c531c55","at":1771229183000000000,"seq":461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c657c-b2c8-7683-98b0-553004dee41a","at":1771229197000000000,"seq":462,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c657c-e1f5-712a-81ab-2a9453b8ac0d","at":1771229209077000000,"seq":463,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c657d-2be0-7f9d-9908-939f2152bdf0","at":1771229228000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c657d-56d8-75e4-8bf5-792ee5d5cee4","at":1771229239000000000,"seq":465,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c657d-6290-7637-88dd-fbba2affcd5f","at":1771229242000000000,"seq":466,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c657d-6e48-7a01-972f-a7edddbb6e00","at":1771229245000000000,"seq":467,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c657d-7230-7852-91bc-730ce8f647fc","at":1771229246000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c657d-9408-7106-9385-eff1595da4e5","at":1771229254664000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c657d-bc68-7ef1-b63e-8e56bc15a99a","at":1771229265000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c657d-e4d6-7b87-8ad9-181d04568a33","at":1771229275350000000,"seq":471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c657e-1258-79b8-80ed-7424fa84ba97","at":1771229287000000000,"seq":472,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c657e-3580-7b35-802a-a98110e0f0e5","at":1771229296000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c657e-4138-7f33-b1fa-7988a29e2ff8","at":1771229299000000000,"seq":474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c657e-77e8-7906-861a-68b3b880f6ff","at":1771229313000000000,"seq":475,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c657e-c07f-7092-b03f-879df99f6a8a","at":1771229331583000000,"seq":476,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c657e-c9f0-79db-966e-d6099c935914","at":1771229334000000000,"seq":477,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c657f-2b98-7953-927f-01567f3c6872","at":1771229359000000000,"seq":478,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c657f-3750-700d-bc46-c2f1d5deb071","at":1771229362000000000,"seq":479,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c657f-6248-7717-8122-acfcc19ac428","at":1771229373000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c657f-8188-7b4f-b393-3dc1c0219318","at":1771229381000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c657f-8300-7f27-80d2-fd27d1d0a613","at":1771229381376000000,"seq":482,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c657f-8d40-7af3-bf0d-059824b5a51e","at":1771229384000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c657f-98f8-7523-a050-938b81aff383","at":1771229387000000000,"seq":484,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c657f-c3f0-7082-bddd-700e1519bc31","at":1771229398000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c657f-db60-70fa-926c-cdd05a514ce3","at":1771229404000000000,"seq":486,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c657f-fb32-7f7b-baf0-7ece4d2a4d4a","at":1771229412146000000,"seq":487,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c657f-fe88-7b77-87a7-eb45d94bd399","at":1771229413000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6580-0a40-7730-859f-bc11e727cd70","at":1771229416000000000,"seq":489,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6580-6030-73ca-9dc6-c74fe5068b31","at":1771229438000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6580-6be8-71f8-be4a-374d3efcd3ad","at":1771229441000000000,"seq":491,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6594-dc69-7d33-a8ca-0c1132421e34","at":1771230780521000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6594-e618-72e0-b55d-7cb9735cc101","at":1771230783000000000,"seq":493,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6595-1110-7b96-b346-527abb1c31f4","at":1771230794000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

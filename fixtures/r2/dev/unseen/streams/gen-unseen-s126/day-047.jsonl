@@ -1,0 +1,31 @@
+{"v":1,"id":"019c65cf-400b-7334-af5b-f957bbbbf03a","at":1771234607115000000,"seq":642,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65cf-400b-7295-96ae-89f2ec67e8ef","at":1771234607115000000,"seq":643,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c65cf-e2bf-7965-a45c-01dd131c6e87","at":1771234648767000000,"seq":644,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c65cf-e790-7422-8ed0-8b8d298c3f12","at":1771234650000000000,"seq":645,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c65cf-eb78-7bfb-acba-ba828288bd91","at":1771234651000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65cf-ef60-76ed-9ea6-049ba111cb25","at":1771234652000000000,"seq":647,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c65d0-02e8-7c7d-8254-f2f40e7b8fe9","at":1771234657000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65d0-0ea0-7c0d-85d5-8042322b266d","at":1771234660000000000,"seq":649,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c65d0-9aa3-7556-a2ce-18cd392ea8ff","at":1771234695843000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c65d0-aec8-7560-842f-1c071c16d42b","at":1771234701000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65d0-e190-7309-b80a-b7db6d75ae24","at":1771234714000000000,"seq":652,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c65d1-4720-7f76-bab8-244b16ef2abf","at":1771234740000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65d1-4a0d-717b-a834-3ad192eac7e3","at":1771234740749000000,"seq":654,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019c65d1-6a48-7107-834d-ea43349b4c46","at":1771234749000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65d1-79e8-7203-9530-878a0cc7e77d","at":1771234753000000000,"seq":656,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c65d1-85a0-7726-b9ea-4f428122db13","at":1771234756000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c65de-85f5-7f35-a439-501fe4cee3d4","at":1771235608053000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c65de-acd0-743d-93bb-c6a28f2af913","at":1771235618000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c65de-d7c8-7797-a3a1-d332746042be","at":1771235629000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65df-1d9b-7c31-8879-845b769e0a7c","at":1771235646875000000,"seq":661,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c65df-58b0-7ace-aca8-f3cd6c97ec20","at":1771235662000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c65df-7408-7e70-9fec-95c4b0091d1c","at":1771235669000000000,"seq":663,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c65df-9b18-704d-bb44-366e97b4375f","at":1771235679000000000,"seq":664,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65df-a2e8-7e7a-bc53-243d888787a6","at":1771235681000000000,"seq":665,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c65e6-7cb5-7cad-b091-c4a68b32990b","at":1771236129973000000,"seq":666,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c65e6-f9d0-743f-91dd-036286b5e017","at":1771236162000000000,"seq":667,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c65e7-0588-7715-a866-3c6a05e7938d","at":1771236165000000000,"seq":668,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65fe-b160-70f9-afbe-da037ab9300d","at":1771237716320000000,"seq":669,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c65fe-b160-789f-bb8c-fafbb7489302","at":1771237716320000000,"seq":670,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c65ff-0228-742e-8b09-9f6e23b8e4ca","at":1771237737000000000,"seq":671,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65ff-09f8-71a7-bc67-b0b10c63690d","at":1771237739000000000,"seq":672,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

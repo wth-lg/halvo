@@ -1,0 +1,27 @@
+{"v":1,"id":"019c3284-afb4-73a9-ac29-b84bc9a0951c","at":1770374082484000000,"seq":504,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3284-afb4-71a3-af00-7a61fd6ad283","at":1770374082484000000,"seq":505,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c3284-b1b8-7a5f-b41d-15d524aeaa50","at":1770374083000000000,"seq":506,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3284-bd70-7e43-a664-53eba66b8d65","at":1770374086000000000,"seq":507,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3284-e480-7c24-9a4b-1778526ec762","at":1770374096000000000,"seq":508,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3284-ec50-77c2-922c-217925b3dedf","at":1770374098000000000,"seq":509,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3295-a83a-776a-be84-ad13b4584abe","at":1770375194682000000,"seq":510,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3295-a83a-7b5e-9a37-4f0a97d55c8c","at":1770375194682000000,"seq":511,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3295-ad60-7fb8-baf4-23ef76352545","at":1770375196000000000,"seq":512,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c3295-f3b0-72e4-b8e4-d36abbc63a6b","at":1770375214000000000,"seq":513,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c3296-12f0-75ff-a2ba-89f02383ff62","at":1770375222000000000,"seq":514,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c3296-2290-75f0-92eb-1ea4d8e10e44","at":1770375226000000000,"seq":515,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3296-3230-74a5-9d19-ca488a007ee6","at":1770375230000000000,"seq":516,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32a7-78cd-70f3-998b-3fb1a7493cb4","at":1770376362189000000,"seq":517,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c32a7-78cd-7756-b00c-43d96a96a365","at":1770376362189000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c32a8-2008-7f3a-b524-799363d3ef4a","at":1770376405000000000,"seq":519,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c32a8-23f0-7c40-b7c1-46e28eb4f290","at":1770376406000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c32bd-8307-7117-8f0f-3dfafe85d34f","at":1770377806599000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c32be-4cb7-70ce-81b2-88195f87e1ba","at":1770377858231000000,"seq":522,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c32be-53a0-736a-98da-2ec29e9480be","at":1770377860000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32be-5f58-7a89-b1ef-382e24628c8d","at":1770377863000000000,"seq":524,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c32be-a5a8-72dc-88aa-58a4e08d1cdf","at":1770377881000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32bf-0208-743f-822b-bc767fed5dcc","at":1770377904648000000,"seq":526,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Poplar Yard - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c32bf-0b38-72c8-9df4-7c301af510bd","at":1770377907000000000,"seq":527,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c32bf-2e60-7cc6-b829-8548d1e4cb07","at":1770377916000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c32bf-45d0-7eae-b2ca-4f516011cc64","at":1770377922000000000,"seq":529,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c32bf-7e7b-7196-8b1c-2b22b25fd6de","at":1770377936507000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}

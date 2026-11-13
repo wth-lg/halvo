@@ -1,0 +1,16 @@
+{"v":1,"id":"019cdc15-1206-7747-ad64-e30cef0cfbe4","at":1773218894342000000,"seq":1061,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc15-1206-76ec-8c77-ebd44e31cbca","at":1773218894342000000,"seq":1062,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cdc15-5ed0-7af4-abe0-a591ae8f49fa","at":1773218914000000000,"seq":1063,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdc15-f728-7313-948a-309ee99f7ca2","at":1773218953000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdc2e-8485-7f11-8750-cb9bbe64f5f3","at":1773220562053000000,"seq":1065,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc2e-8485-7ab8-9bcb-c5522e71ce88","at":1773220562053000000,"seq":1066,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc2e-b330-7a4d-ab43-f235fd128303","at":1773220574000000000,"seq":1067,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cdc2e-caa0-72fc-bfc5-d944359b7dc4","at":1773220580000000000,"seq":1068,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc2f-0350-7d03-b6e1-945d3878cab7","at":1773220594512000000,"seq":1069,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdc2f-0350-70e9-bc40-166d7c6e2a72","at":1773220594512000000,"seq":1070,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cdc2f-7680-7ad4-b712-361b0dabfe6d","at":1773220624000000000,"seq":1071,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cdc2f-d440-7156-8cd5-be1acb697bf7","at":1773220648000000000,"seq":1072,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc2f-fd48-71cf-915b-27edeeca9b41","at":1773220658504000000,"seq":1073,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdc2f-fd48-7642-b1b8-52f47616ceee","at":1773220658504000000,"seq":1074,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdc30-1a90-79b1-98d3-94c3305ceff4","at":1773220666000000000,"seq":1075,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cdc30-2a30-78a1-83b2-f79747df6bbe","at":1773220670000000000,"seq":1076,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}

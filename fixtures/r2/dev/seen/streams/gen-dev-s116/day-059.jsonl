@@ -1,0 +1,14 @@
+{"v":1,"id":"019ca318-d89a-7cee-8bd7-5ed5cee5001d","at":1772262840474000000,"seq":710,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca318-d89a-7cff-b4f8-5fb0d4110dea","at":1772262840474000000,"seq":711,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca318-ea48-739b-8e5a-808ac02e6620","at":1772262845000000000,"seq":712,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca319-4420-79f3-b0e6-5b117eb811f3","at":1772262868000000000,"seq":713,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ca31f-f83f-7b76-81d8-541a64bec07d","at":1772263307327000000,"seq":714,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca31f-f83f-7ade-a0ea-0c52a80c3a79","at":1772263307327000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ca320-1e08-79a3-8f4a-4f14d35a5f9d","at":1772263317000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca320-3960-72be-b2d0-d691690c6a8d","at":1772263324000000000,"seq":717,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ca320-58a0-76b5-a1b2-052364705d28","at":1772263332000000000,"seq":718,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca322-2c83-7759-9eb3-8cd6f1e6271f","at":1772263451779000000,"seq":719,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ca322-40e8-7d05-96ca-df91c7689c67","at":1772263457000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca322-4ca0-752e-adcd-62857a17efd0","at":1772263460000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ca322-ba08-7f49-aeb1-7cc0990a7d3c","at":1772263488008000000,"seq":722,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ca323-8908-7803-9930-91097b58f622","at":1772263541000000000,"seq":723,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

@@ -1,0 +1,21 @@
+{"v":1,"id":"019d52d5-666c-708f-8e46-6770689e940a","at":1775211210348000000,"seq":1359,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52d5-666c-7b0e-b235-ccdd1a13c4d0","at":1775211210348000000,"seq":1360,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d52d5-68f8-7756-88a6-71d0c9d41d52","at":1775211211000000000,"seq":1361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52d5-7c80-7206-be92-3e570301ba84","at":1775211216000000000,"seq":1362,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d52d5-9bc0-7dad-8cea-98685220f3fc","at":1775211224000000000,"seq":1363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d52e7-5449-7f8a-bdcf-66e68e7378dd","at":1775212385353000000,"seq":1364,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d52e7-56d0-78bd-817c-2f5146932305","at":1775212386000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e7-ca2a-76c8-be6f-0e5faf1b1c09","at":1775212415530000000,"seq":1366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d52e8-02b0-76b9-9ab4-d25b599c3e72","at":1775212430000000000,"seq":1367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e8-0a80-7ec4-9031-8fb1921560e6","at":1775212432000000000,"seq":1368,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d52e8-0e68-716e-b53e-a4d6a23f6930","at":1775212433000000000,"seq":1369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d52e8-2633-7831-a23f-867e7b679646","at":1775212439091000000,"seq":1370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d52e8-29c0-7a45-a274-486f59b4585c","at":1775212440000000000,"seq":1371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e8-3578-7b25-b3bf-2eb4ee14a505","at":1775212443000000000,"seq":1372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52e8-4130-7edc-9fd2-19514d3e7694","at":1775212446000000000,"seq":1373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d52e8-a6c0-7dbb-bce7-dd2897fe4a07","at":1775212472000000000,"seq":1374,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d52fd-1297-715e-aeb5-e77012adadca","at":1775213810327000000,"seq":1375,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52fd-1297-7bb9-96e1-cecfb19eaa2a","at":1775213810327000000,"seq":1376,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52fd-28c0-7bc6-99cf-78ccf0db25fc","at":1775213816000000000,"seq":1377,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52fd-3478-70b6-908c-1494f6365a5e","at":1775213819000000000,"seq":1378,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52fe-0b50-7bdb-a85f-5fc3e589973c","at":1775213874000000000,"seq":1379,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}

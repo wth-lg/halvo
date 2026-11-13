@@ -1,0 +1,8 @@
+{"v":1,"id":"019c9e01-d0f4-7ea2-8a27-6575e3eaec5c","at":1772177445108000000,"seq":940,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e01-d0f4-735d-a813-a43107ae4392","at":1772177445108000000,"seq":941,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c9e02-5d28-7a84-a8ca-04b43462c8e9","at":1772177481000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c9e02-a124-7451-9d2a-5581f9affe09","at":1772177498404000000,"seq":943,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c9e02-b700-7c19-ac70-bc733b299577","at":1772177504000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e1a-4513-7d35-9ef9-7ab34412d6bd","at":1772179047699000000,"seq":945,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c9e1a-7908-70a7-b35b-9c94899373f8","at":1772179061000000000,"seq":946,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9e1a-88a8-7bbb-8f3c-2e5ea4c8508a","at":1772179065000000000,"seq":947,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

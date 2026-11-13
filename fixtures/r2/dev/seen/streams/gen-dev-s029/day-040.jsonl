@@ -1,0 +1,10 @@
+{"v":1,"id":"019c419f-8a0d-767a-a162-9388b01acf12","at":1770627500557000000,"seq":599,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c419f-8a0d-72cf-ae02-8c4b339a74cd","at":1770627500557000000,"seq":600,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c41a0-43db-7fb0-a533-a09bd16ac439","at":1770627548123000000,"seq":601,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c41a0-5eb8-7212-8141-f04d964315d4","at":1770627555000000000,"seq":602,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c41a2-1cc2-7eff-af90-afd2b48c8144","at":1770627669186000000,"seq":603,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c41a2-75e0-754f-b042-904f8c513b27","at":1770627692000000000,"seq":604,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c41a2-7db0-71e3-ab77-667b90c4f460","at":1770627694000000000,"seq":605,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ac-195e-70a6-8ad4-e9030e01f76b","at":1770628323678000000,"seq":606,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41ac-195e-772e-b370-ae0d43b433ed","at":1770628323678000000,"seq":607,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c41ac-c680-777b-98a7-f9654d6899a8","at":1770628368000000000,"seq":608,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

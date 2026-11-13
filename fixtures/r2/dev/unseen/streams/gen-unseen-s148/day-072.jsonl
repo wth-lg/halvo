@@ -1,0 +1,33 @@
+{"v":1,"id":"019ce6bb-c15c-70a8-b1e0-01cc538cb4ae","at":1773397590364000000,"seq":811,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ce6bb-c15c-7474-92f4-5b76cfcfde93","at":1773397590364000000,"seq":812,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ce6bb-c7c0-7994-b47e-af4dfe7c502e","at":1773397592000000000,"seq":813,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ce6bb-cf90-7aab-811a-86baf5e460a9","at":1773397594000000000,"seq":814,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6bb-d378-79cc-b013-970fab360dc8","at":1773397595000000000,"seq":815,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ce6bb-eae8-729a-b756-450f7e434e73","at":1773397601000000000,"seq":816,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d0-4d2c-7069-8184-a9a2f1038910","at":1773398936876000000,"seq":817,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6d0-4d2c-7f2c-b799-9d75825b18e0","at":1773398936876000000,"seq":818,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ce6d0-6ce8-7074-a4ed-9db5df314010","at":1773398945000000000,"seq":819,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6d0-6ce8-7231-afa6-2abf91a998d2","at":1773398945000000000,"seq":820,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ce6d0-b338-7e21-ac17-1dd73ff17542","at":1773398963000000000,"seq":821,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6de-bb9d-7a57-9bc7-06ebd53a4602","at":1773399882653000000,"seq":822,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ce6de-ff60-7325-b8bf-7c0103715550","at":1773399900000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6df-16d0-7e3f-8eb2-cde5959a06df","at":1773399906000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6f2-3e2c-7ee4-a165-69a6407a8c77","at":1773401161260000000,"seq":825,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ce6f2-6438-7134-92bf-d337a3a9f4e5","at":1773401171000000000,"seq":826,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6f2-be10-7e47-9345-d25513903f0f","at":1773401194000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ce6f2-d198-7bb6-88d2-6e28be8990a4","at":1773401199000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6f3-0c48-7986-ad52-25e36fe58c12","at":1773401214024000000,"seq":829,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ce6f3-4e98-78ad-8717-2fc9c26acde5","at":1773401231000000000,"seq":830,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6f3-5e38-7115-b208-e6dba3c89639","at":1773401235000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6f3-6608-7a37-8088-c7b8756e7768","at":1773401237000000000,"seq":832,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6f3-6608-765d-9386-83115ec7d1fa","at":1773401237000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ce6f3-8160-77de-b614-afd638e4c11f","at":1773401244000000000,"seq":834,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6f3-846a-7ca1-99a6-34ad86e090d6","at":1773401244778000000,"seq":835,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ce6f3-8d18-7eba-9f43-83e8544ecd89","at":1773401247000000000,"seq":836,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6f3-b428-7e54-92a7-2742ec907e8b","at":1773401257000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ce6f3-bbf8-7c77-9d5f-4fce23ed88e5","at":1773401259000000000,"seq":838,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce6f3-ead8-7fac-b52c-9017a5a85a9f","at":1773401271000000000,"seq":839,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6f3-fc6c-7d28-b584-d64d01e40853","at":1773401275500000000,"seq":840,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ce6f4-44b0-7ae0-9362-b0b5c3c729fc","at":1773401294000000000,"seq":841,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019ce6f4-b210-7f1a-9e61-e284e89abff5","at":1773401322000000000,"seq":842,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce6f4-e8c0-70fe-b82f-f7aee3f8e90a","at":1773401336000000000,"seq":843,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

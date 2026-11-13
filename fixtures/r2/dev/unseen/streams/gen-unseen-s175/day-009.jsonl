@@ -1,0 +1,22 @@
+{"v":1,"id":"019ba1f3-abb9-781d-9a9b-d83c76f46075","at":1767948659641000000,"seq":113,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba1f3-abb9-7147-9d18-c7c8705c7e8e","at":1767948659641000000,"seq":114,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ba1f4-2638-7f35-b0eb-5e94f5b95a2a","at":1767948691000000000,"seq":115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba1f4-5ce8-7026-9367-ab2054968c87","at":1767948705000000000,"seq":116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba1f4-6c88-76d4-9cf8-8e3048315231","at":1767948709000000000,"seq":117,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ba20e-748e-7f1f-aab4-2f9a37a98e8a","at":1767950414990000000,"seq":118,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba20e-748e-72f8-85bc-722d937b4c0a","at":1767950414990000000,"seq":119,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba20e-7c68-7a6b-9edc-0d7b35d1596d","at":1767950417000000000,"seq":120,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019ba20e-8050-7e96-8ddf-88da63759ed8","at":1767950418000000000,"seq":121,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019ba20e-97c0-7ed2-b388-5a37c47576be","at":1767950424000000000,"seq":122,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019ba20e-d640-73d3-aa41-55cc05e0d494","at":1767950440000000000,"seq":123,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba20e-e9c8-78dc-82e7-96f64fe885f5","at":1767950445000000000,"seq":124,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba217-3664-7de9-a10b-9f394e417242","at":1767950988900000000,"seq":125,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba217-3664-709a-a1ef-69ac5ed834f0","at":1767950988900000000,"seq":126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba217-7e0f-7b94-b381-5a2449d963ef","at":1767951007247000000,"seq":127,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent account for September - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba217-fa18-7db1-a801-366c45d34f1a","at":1767951039000000000,"seq":128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ba218-0da0-7408-b704-20e84b5ffebe","at":1767951044000000000,"seq":129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba218-1d8d-7587-a1a1-84a99e166c2d","at":1767951048077000000,"seq":130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Bank payment for rent - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba218-c920-77e9-9915-1bc57c21ed34","at":1767951092000000000,"seq":131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019ba219-10eb-7d51-b8f2-b5f724c6f648","at":1767951110379000000,"seq":132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment received - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019ba219-51d8-76f6-b86a-56de71f8d400","at":1767951127000000000,"seq":133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba219-84a0-70dd-af20-637de94c3d5d","at":1767951140000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

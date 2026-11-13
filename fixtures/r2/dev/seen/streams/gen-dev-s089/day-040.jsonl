@@ -1,0 +1,22 @@
+{"v":1,"id":"019c4150-855a-7a23-9363-f739a12cfaaf","at":1770622322010000000,"seq":473,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4150-855a-74bf-b334-b1a49fd19c99","at":1770622322010000000,"seq":474,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4150-8d20-7906-a66d-9e669002accb","at":1770622324000000000,"seq":475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4150-c166-7936-9386-aaf9bc353560","at":1770622337382000000,"seq":476,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4150-c3d0-7074-8e8d-80608968ced5","at":1770622338000000000,"seq":477,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4150-cf88-7d08-895f-802bc591ce74","at":1770622341000000000,"seq":478,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c4150-f98f-78ae-8f1e-424f2149d876","at":1770622351759000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4151-19c0-719d-8d1d-e39b2cc9149b","at":1770622360000000000,"seq":480,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c4151-1da8-71aa-97ac-54fb7030e252","at":1770622361000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4151-40d0-7fd9-9fc9-25d733cdc28b","at":1770622370000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c4151-6fb0-7e4a-9f9c-99e0b53667f5","at":1770622382000000000,"seq":483,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c4151-839a-7681-a7bc-1f33e605af70","at":1770622387098000000,"seq":484,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019c4151-ae30-7422-bfa3-4a98159ffcc9","at":1770622398000000000,"seq":485,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4151-b218-7c39-81cd-bab8e78b2698","at":1770622399000000000,"seq":486,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c415a-f443-7b30-beb9-8de895e358b6","at":1770623005763000000,"seq":487,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c415b-3f68-7a29-b22d-ee271cc686c6","at":1770623025000000000,"seq":488,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c415b-6290-7048-9408-0f17ebd3fe91","at":1770623034000000000,"seq":489,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c415b-a8e0-740c-8c01-a97ca789dc7d","at":1770623052000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4171-dd4b-78a1-8843-e83885093b7d","at":1770624507211000000,"seq":491,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c4172-4dc0-7859-83f3-86f5a2468d6d","at":1770624536000000000,"seq":492,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4172-5978-72e7-ac9e-8579d6ec2802","at":1770624539000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c4177-60d1-7725-bebd-5b0a5c891831","at":1770624868561000000,"seq":494,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}

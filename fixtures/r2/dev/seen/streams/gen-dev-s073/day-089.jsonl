@@ -1,0 +1,14 @@
+{"v":1,"id":"019d3ddc-d095-7e27-ba3e-4c7a50207680","at":1774859374741000000,"seq":1366,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3ddc-d095-7f96-9ea9-8c8dab5109f1","at":1774859374741000000,"seq":1367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d3ddd-cb98-7a32-af32-d5dcf403dc2f","at":1774859439000000000,"seq":1368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3ddd-e0cd-7650-8b06-7de963cb0a65","at":1774859444429000000,"seq":1369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d3ddd-fe60-7e32-8832-b7e1c044a371","at":1774859452000000000,"seq":1370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3dde-0630-7209-9811-4a972e9587a7","at":1774859454000000000,"seq":1371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3dde-0a18-7960-a747-431121e7f150","at":1774859455000000000,"seq":1372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3ddf-c1fb-7ddc-a243-ac44fedb83f5","at":1774859567611000000,"seq":1373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3de0-ae30-7d80-a7d5-aad566f05851","at":1774859628080000000,"seq":1374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019d3de0-d108-7679-91c3-88fb2c636126","at":1774859637000000000,"seq":1375,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3de0-f048-74a4-b573-714f8bf4c282","at":1774859645000000000,"seq":1376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3df5-2d29-720b-8c96-acc7990d1233","at":1774860971305000000,"seq":1377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3df5-5308-7229-9ae6-4b9ba19f1975","at":1774860981000000000,"seq":1378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d3df5-7630-7a1a-a5ad-ca63188d5df8","at":1774860990000000000,"seq":1379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

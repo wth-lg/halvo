@@ -1,0 +1,25 @@
+{"v":1,"id":"019bf3ff-b637-7db1-a87a-349efeaba5de","at":1769325180471000000,"seq":429,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf3ff-b637-71ef-888f-b267a1eaa2b0","at":1769325180471000000,"seq":430,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf3ff-c018-712c-abbe-c40930fb7c2f","at":1769325183000000000,"seq":431,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf3ff-df58-7be3-b8d6-13b9db1b9d13","at":1769325191000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf400-0280-73fc-b81e-f631d924be45","at":1769325200000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf40c-2442-732c-bd40-6532126ffc62","at":1769325995074000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf40c-2bc8-78c4-b6c6-40dd8e9951b9","at":1769325997000000000,"seq":435,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf40c-ef18-771b-95fa-7ab8ffffc48f","at":1769326047000000000,"seq":436,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf41d-30b8-7492-9cbc-5b317e804aac","at":1769327112376000000,"seq":437,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf41d-3ee0-7f80-a0e5-be1c54343e24","at":1769327116000000000,"seq":438,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bf41d-71a8-7693-891b-59067224b78a","at":1769327129000000000,"seq":439,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf41d-9ca0-7598-8f1d-83668f7e7a80","at":1769327140000000000,"seq":440,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf41d-a470-7efc-96f2-986158b674fd","at":1769327142000000000,"seq":441,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf41d-b410-767c-b481-53c16ba17b61","at":1769327146000000000,"seq":442,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf438-8519-73c7-bf1b-d5629d0507bf","at":1769328903449000000,"seq":443,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf438-92f8-7267-bc18-a58ab02895b3","at":1769328907000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf438-9ac8-7826-87ba-ab277479959c","at":1769328909000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf438-c5c0-7e5b-a73f-24f6f8b33a37","at":1769328920000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bf438-c82a-7afa-bbe6-30e8a6921964","at":1769328920618000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf438-cd90-7199-9d53-1bb065d11be0","at":1769328922000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf439-0c10-7541-8896-a37567c1fa77","at":1769328938000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf439-13e0-7fde-ac31-680481ffe1b6","at":1769328940000000000,"seq":450,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bf439-41a7-78a3-a1f0-30cac41f20b0","at":1769328951719000000,"seq":451,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf439-65e8-7c70-acfb-2a7f59d43771","at":1769328961000000000,"seq":452,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf439-9c98-77da-a642-d194a6db5456","at":1769328975000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

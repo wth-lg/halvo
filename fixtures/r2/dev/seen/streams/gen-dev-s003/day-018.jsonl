@@ -1,0 +1,20 @@
+{"v":1,"id":"019bd015-834c-7f8b-95f3-393ae69ecf43","at":1768722629452000000,"seq":251,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd015-834c-7802-9157-9091ade3b963","at":1768722629452000000,"seq":252,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd015-8958-70f6-bdc2-6cedc40a5f41","at":1768722631000000000,"seq":253,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bd030-0025-78d4-8317-0d17f47976d1","at":1768724365349000000,"seq":254,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd030-0025-7c86-b385-0da0b6991fe9","at":1768724365349000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bd030-54b8-7f2a-a023-f3f61269475b","at":1768724387000000000,"seq":256,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd030-6840-719a-938c-94b35e96e1e1","at":1768724392000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd030-73f8-72ac-be39-2923db5c5dd5","at":1768724395000000000,"seq":258,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bd030-7bc8-74a0-ae04-109daf354398","at":1768724397000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bd042-c281-797c-bd83-b90561b53441","at":1768725594753000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bd042-ded0-7c97-8f15-a99f7af91143","at":1768725602000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bd043-76d7-7465-8280-eb9df9296549","at":1768725640919000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bd043-7728-71d3-9c13-b0fe37f98d47","at":1768725641000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bd043-dcb8-7480-8db8-d905f0dbcb15","at":1768725667000000000,"seq":264,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd044-0f80-7f23-bc95-a07b4c09d0ce","at":1768725680000000000,"seq":265,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bd04c-bacd-74e2-881c-39ff3fbee30c","at":1768726248141000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd04c-d1b0-7ebd-b675-daa2b9387fc9","at":1768726254000000000,"seq":267,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd04d-27a0-7cdc-ad32-fed0cb8e7712","at":1768726276000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bd04d-3f10-79c4-a0ec-6f7a774a7797","at":1768726282000000000,"seq":269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd04d-5680-754e-8a15-24fc65fab42e","at":1768726288000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

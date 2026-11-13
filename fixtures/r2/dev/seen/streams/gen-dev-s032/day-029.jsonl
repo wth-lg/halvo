@@ -1,0 +1,22 @@
+{"v":1,"id":"019c089d-34a2-7225-8ba3-94bf1117ecd7","at":1769671046306000000,"seq":396,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c089d-34a2-7441-bb2f-5660c6d9b322","at":1769671046306000000,"seq":397,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c089d-3758-7d8d-98fc-8f5a7e83b90b","at":1769671047000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c089e-0278-71f9-a100-002fc14e3cae","at":1769671099000000000,"seq":399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c089e-233e-719b-9b08-09ab550c4e6d","at":1769671107390000000,"seq":400,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c089e-c1e0-72e2-83b8-ee69e5216d4d","at":1769671148000000000,"seq":401,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c089f-120c-7887-bb77-b3361f6c9cdc","at":1769671168524000000,"seq":402,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c089f-69d8-7ba8-a976-a5c49cde1ce2","at":1769671191000000000,"seq":403,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c089f-8918-7c7b-b73f-730018750361","at":1769671199000000000,"seq":404,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c089f-a470-73e8-b5ed-11126ee6af23","at":1769671206000000000,"seq":405,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c089f-b028-741d-9fd1-f0477e232ae2","at":1769671209000000000,"seq":406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c089f-d10c-7674-a59d-14ae85094c2f","at":1769671217420000000,"seq":407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c089f-df08-751c-b7c7-2a1b54fd6ea1","at":1769671221000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c08a0-2558-77c8-a6a9-b7c4b0def6fb","at":1769671239000000000,"seq":409,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c08a0-aa28-7adc-8df6-1de38dde688c","at":1769671273000000000,"seq":410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c08a0-c0ae-7928-ab81-5734da8baef6","at":1769671278766000000,"seq":411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c08a1-3ab0-7fdd-a514-14423e11e567","at":1769671310000000000,"seq":412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08a1-b06e-7290-acfd-ffde439f8800","at":1769671340142000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c08a1-c368-7015-9cd4-a405a22fccb6","at":1769671345000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c08a1-cb38-7c7c-9d76-60dbb41e8303","at":1769671347000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c08a1-cf20-7db7-8bff-98764a823d00","at":1769671348000000000,"seq":416,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c08a1-fe00-77ce-b290-abfa3cbc7468","at":1769671360000000000,"seq":417,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

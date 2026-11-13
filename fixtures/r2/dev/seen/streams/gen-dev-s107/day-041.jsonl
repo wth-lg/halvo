@@ -1,0 +1,21 @@
+{"v":1,"id":"019c4677-e439-77cd-ac34-33d7e45b7e2b","at":1770708788281000000,"seq":580,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c4677-e439-78a8-b397-65ac372a398b","at":1770708788281000000,"seq":581,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c4677-f6a8-7b6f-8fe7-eb5bf0b27160","at":1770708793000000000,"seq":582,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4678-2588-7767-ae18-4c082d4f6a69","at":1770708805000000000,"seq":583,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c4678-40e0-74ce-ab00-03a7beade8b1","at":1770708812000000000,"seq":584,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c4678-44c8-7c8a-bb65-7a7a9e790631","at":1770708813000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c4678-48b0-7771-8d1e-0fab03441fae","at":1770708814000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c467c-df96-76f1-98f0-74c4edde7b5e","at":1770709114774000000,"seq":587,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c467d-3e38-717e-aa45-5519ae78fc58","at":1770709139000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c467d-7cb8-7e1b-97dc-7929b1654133","at":1770709155000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c467d-82e9-74b9-b048-1862eb879f02","at":1770709156585000000,"seq":590,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Landlord - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c467e-4008-7fdb-bd31-79d9aa1ad17d","at":1770709205000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c467e-540e-7056-931b-e47925c71a9d","at":1770709210126000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c467f-0358-7ab2-85a4-df01f453062f","at":1770709255000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c467f-0b28-79cc-87d9-f2c296a9ec6b","at":1770709257000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c467f-16e0-7b58-9773-db068a7eb06e","at":1770709260000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c467f-4626-769c-b0c7-2166550569c4","at":1770709272102000000,"seq":596,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c467f-4d90-72a3-b3f9-1c181e41bad6","at":1770709274000000000,"seq":597,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c467f-5948-72a2-a996-538641b8251d","at":1770709277000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c467f-7888-70a5-9144-377030420ece","at":1770709285000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c467f-7c70-7361-9f1a-d9f8534e5017","at":1770709286000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

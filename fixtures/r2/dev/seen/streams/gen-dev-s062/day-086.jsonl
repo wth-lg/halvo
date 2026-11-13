@@ -1,0 +1,40 @@
+{"v":1,"id":"019d2eb6-715d-7b0d-ac0d-b7bd632e95ec","at":1774605201757000000,"seq":1188,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2eb6-715d-747c-9ac3-361fd423331a","at":1774605201757000000,"seq":1189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb7-02d8-787f-b889-996b304b3c89","at":1774605239000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019d2eb7-7e02-71c5-b878-52ef72b58b34","at":1774605270530000000,"seq":1191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb7-ba70-7fa8-8596-16a8215b37fb","at":1774605286000000000,"seq":1192,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2eb8-04a8-726a-a027-8b9fb5af514b","at":1774605305000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d2eb8-119d-7cdf-88e5-079e27279080","at":1774605308317000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb8-4710-73f3-ac03-6465f5c410a6","at":1774605322000000000,"seq":1195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eb8-4ee0-7481-af12-45b02b980ee1","at":1774605324000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eb8-59ac-7049-be90-7b9358314ffd","at":1774605326764000000,"seq":1197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb8-c410-7b61-913d-3a5214e1241f","at":1774605354000000000,"seq":1198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2eb8-fea8-789d-ad96-f55bcda2a722","at":1774605369000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eb9-3558-7917-b283-430749016815","at":1774605383000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eb9-50b0-7884-80e9-52c3135db7ac","at":1774605390000000000,"seq":1201,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2eb9-5d51-77fd-bdc0-d9234aa347a4","at":1774605393233000000,"seq":1202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb9-7ba8-7c7a-88d6-daa91e815499","at":1774605401000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2eb9-be10-7487-a913-c9de02c7ee0c","at":1774605418000000000,"seq":1204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2eb9-caf1-70c2-9970-75d33bf4a48a","at":1774605421297000000,"seq":1205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb9-e138-714d-a82f-a0fb7a048a41","at":1774605427000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eba-46c8-7e9f-aa91-6b686c662b72","at":1774605453000000000,"seq":1207,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d2eba-6328-763d-9d7f-a3a5c1ef237d","at":1774605460264000000,"seq":1208,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2eba-ac58-796b-9a32-1e3bed27dee2","at":1774605479000000000,"seq":1209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d2eba-bd4b-727c-ba86-5fc4b1d5469a","at":1774605483339000000,"seq":1210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2eba-d750-73d4-9e82-fd8f49d9702f","at":1774605490000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eba-e6f0-7376-b9d5-f1678bb58765","at":1774605494000000000,"seq":1212,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d2ebb-0630-7f2c-892a-04e71b01dfb2","at":1774605502000000000,"seq":1213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2ed6-2d1c-700a-ba65-77e074594446","at":1774607281436000000,"seq":1214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2ed6-5278-7e7f-8a6d-d8883b993f36","at":1774607291000000000,"seq":1215,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2ed6-5a48-705e-af97-018f3d7683d2","at":1774607293000000000,"seq":1216,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2ee4-cca1-70ef-9ebe-eaee5d01b0d9","at":1774608239777000000,"seq":1217,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2ee4-cca1-7c5d-8675-afa1bce18e31","at":1774608239777000000,"seq":1218,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2ee4-e108-7a6f-8c7e-a8d31950e5a9","at":1774608245000000000,"seq":1219,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee4-f878-740a-8486-146a3a27ace8","at":1774608251000000000,"seq":1220,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d2ee5-0048-7da0-a2c1-ed051d2440e2","at":1774608253000000000,"seq":1221,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d2ee5-0430-7890-9233-e05a098fd5ee","at":1774608254000000000,"seq":1222,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d2efa-4139-728f-8a40-706c45b147e8","at":1774609645881000000,"seq":1223,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2efa-4139-7296-bfa1-21ea9750397d","at":1774609645881000000,"seq":1224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2efa-4d68-7d12-ac00-12a7f4269e55","at":1774609649000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2efa-5920-7dfb-a009-7be45d0c2ece","at":1774609652000000000,"seq":1226,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2efa-f178-7338-91b3-58d77cb319f1","at":1774609691000000000,"seq":1227,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

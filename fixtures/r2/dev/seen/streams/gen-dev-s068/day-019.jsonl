@@ -1,0 +1,14 @@
+{"v":1,"id":"019bd5e8-14d9-7bcf-9988-a4782fd3b89d","at":1768820315353000000,"seq":273,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd5e8-14d9-753d-9d56-f73b1eb77193","at":1768820315353000000,"seq":274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bd5ec-5fad-7965-98d0-9d7ec389622d","at":1768820596653000000,"seq":275,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd5ec-5fad-794e-9430-64291cb9ed6f","at":1768820596653000000,"seq":276,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd5ec-64f0-7e42-b14d-20e6554522b2","at":1768820598000000000,"seq":277,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd5ec-7490-7988-b173-5da0dcfd9d68","at":1768820602000000000,"seq":278,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bd5ec-8e9b-74b2-b063-bf0bc7795de2","at":1768820608667000000,"seq":279,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bd5ec-97b8-71b2-9bdb-891db37578c3","at":1768820611000000000,"seq":280,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bd5ec-ab40-7634-8a24-d7aa5d253b50","at":1768820616000000000,"seq":281,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5ec-e9c0-70b9-bd37-2faa57e07c5c","at":1768820632000000000,"seq":282,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5ed-18d6-7da0-82e6-e6562507717f","at":1768820644054000000,"seq":283,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bd5ed-2458-78f1-8ced-16dc8b398eec","at":1768820647000000000,"seq":284,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5ed-3010-7a28-8f75-a050ec67dd8b","at":1768820650000000000,"seq":285,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd5ed-3010-7c69-9edf-258c1d1d5105","at":1768820650000000000,"seq":286,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}

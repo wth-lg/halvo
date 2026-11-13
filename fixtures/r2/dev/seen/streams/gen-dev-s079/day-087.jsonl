@@ -1,0 +1,16 @@
+{"v":1,"id":"019d3356-4f7f-7d01-aa2a-cec7ba3cded6","at":1774682787711000000,"seq":1040,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3356-4f7f-7405-98f7-dfaf708f3c6e","at":1774682787711000000,"seq":1041,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3356-5870-7878-b049-488170f34993","at":1774682790000000000,"seq":1042,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d3356-6fe0-7100-bbf7-8a95e9c8a9bd","at":1774682796000000000,"seq":1043,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d336c-2d39-7ec4-8240-3b515a5fc4d8","at":1774684220729000000,"seq":1044,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d336c-5558-714f-96f5-2327cf896457","at":1774684231000000000,"seq":1045,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d336c-6cc8-7353-acda-592379abab03","at":1774684237000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3383-0550-7d14-9428-a04613d18def","at":1774685717840000000,"seq":1047,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3383-1978-7dc1-a070-22296882ddbd","at":1774685723000000000,"seq":1048,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3383-3ca0-79bc-8477-fa1d38efc0c3","at":1774685732000000000,"seq":1049,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d3383-4470-7d45-a379-782b0b8e757c","at":1774685734000000000,"seq":1050,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3383-5028-7648-a722-38d155a44eb2","at":1774685737000000000,"seq":1051,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3384-a9c2-7496-ace0-02492501e2b0","at":1774685825474000000,"seq":1052,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d3385-3870-77bb-aaef-2e1b2147126a","at":1774685862000000000,"seq":1053,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d3385-3dae-7daf-9c65-1d853464908f","at":1774685863342000000,"seq":1054,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019d3385-4428-78dd-82eb-1ab5948953fd","at":1774685865000000000,"seq":1055,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

@@ -1,0 +1,25 @@
+{"v":1,"id":"019cd21d-2ba8-70c0-ba1e-7447b45de845","at":1773051653032000000,"seq":958,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd21d-2ba8-7302-9e06-478d117db19e","at":1773051653032000000,"seq":959,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd21d-2f70-7df7-b166-b9811f2e53cf","at":1773051654000000000,"seq":960,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cd21d-3358-79d0-9123-4cdde754912d","at":1773051655000000000,"seq":961,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cd21d-5680-7248-b923-d2e00542add8","at":1773051664000000000,"seq":962,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cd21d-5e50-73ef-999e-9ce1307f4bb0","at":1773051666000000000,"seq":963,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd21d-9118-795a-a227-e35f438c2914","at":1773051679000000000,"seq":964,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd225-3bb0-715a-866c-ab1c32b8c8a7","at":1773052181424000000,"seq":965,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd225-3bb0-7224-846c-c52d494c8f2d","at":1773052181424000000,"seq":966,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cd225-5d30-7801-a7a1-46b0a6b7cc6d","at":1773052190000000000,"seq":967,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd225-833b-7465-89e0-88bfd76ee321","at":1773052199739000000,"seq":968,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cd226-3408-7981-9dab-c84e937cf0e3","at":1773052245000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd226-4b78-7675-a59a-41b15a644252","at":1773052251000000000,"seq":970,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd226-5f00-7301-9328-eac18e33da0d","at":1773052256000000000,"seq":971,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd226-7288-7149-a3f9-3355f183e3a2","at":1773052261000000000,"seq":972,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cd226-8210-7d9b-8b97-7de6838e6f0b","at":1773052264976000000,"seq":973,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd226-8210-7d77-bc00-1a51d0ca52ad","at":1773052264976000000,"seq":974,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd226-b8d8-7f30-92df-483b9d6b3cff","at":1773052279000000000,"seq":975,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cd226-bcc0-7003-8f38-e3e5923e8580","at":1773052280000000000,"seq":976,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cd227-0412-778c-9869-8cabf3b3e9f5","at":1773052298258000000,"seq":977,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd227-0412-7464-acd9-fe9a1901a510","at":1773052298258000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019cd227-4d48-7f08-8a3a-37bf72717ab2","at":1773052317000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cd227-6c88-7f3d-a28e-42060386ded3","at":1773052325000000000,"seq":980,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd227-7070-7ac7-a1ef-7a6ae12a740c","at":1773052326000000000,"seq":981,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd227-b6c0-711b-970d-861de2682dc0","at":1773052344000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

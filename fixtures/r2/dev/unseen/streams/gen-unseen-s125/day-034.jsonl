@@ -1,0 +1,5 @@
+{"v":1,"id":"019c231d-6cbe-7c42-b4be-9d5dc8f08f0d","at":1770115656894000000,"seq":362,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c231d-6cbe-7f28-9b63-daaa553503a9","at":1770115656894000000,"seq":363,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c231d-9ff0-768d-be6b-8a36fb12a812","at":1770115670000000000,"seq":364,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c231d-bf30-77fb-9387-21099faf216d","at":1770115678000000000,"seq":365,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c231d-ea28-7872-b6b5-a75bb2ade2b2","at":1770115689000000000,"seq":366,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}

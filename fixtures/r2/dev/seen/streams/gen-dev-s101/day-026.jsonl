@@ -1,0 +1,37 @@
+{"v":1,"id":"019bf9e0-ceac-7cc2-8824-0df33e35151c","at":1769423818412000000,"seq":366,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf9e0-ceac-7a88-aabf-fe5aeb27cb5c","at":1769423818412000000,"seq":367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf9e1-2ad0-7333-b818-052af998ff95","at":1769423842000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bf9eb-816b-7b14-8389-8d79f7a97ee3","at":1769424519531000000,"seq":369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf9eb-9e98-7757-a0b0-5cee5aa35a8b","at":1769424527000000000,"seq":370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9eb-fc58-74a6-87bf-96c452139ec3","at":1769424551000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ec-3ec0-7976-b3b3-43aac47cc2c8","at":1769424568000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bf9ec-57eb-745d-b907-c6d493d3e651","at":1769424574443000000,"seq":373,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ec-5a18-7477-b8eb-269ed7602921","at":1769424575000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ec-5e00-7e3f-9ac3-dfc22c7cdb6c","at":1769424576000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ec-65d0-7c06-8589-d236e07f5801","at":1769424578000000000,"seq":376,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf9ec-8ce0-741e-acdc-b677721a790b","at":1769424588000000000,"seq":377,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf9ec-ac20-734e-a10c-2b3df154115a","at":1769424596000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bf9ec-b27b-75a4-9fa4-a706d8f4c752","at":1769424597627000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the office - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ec-db00-70bc-afed-826e0c62df90","at":1769424608000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bf9ec-dee8-7594-aea4-9c4b90034b36","at":1769424609000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ec-e2d0-7759-a1ca-d546e5b4faff","at":1769424610000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf9ec-ee88-765d-add0-7712f415e7d7","at":1769424613000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9ec-ef57-7361-84ef-f634f9dd1f04","at":1769424613207000000,"seq":384,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019bf9ec-f270-7d5a-afb6-91e969baa893","at":1769424614000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf9ed-1d68-7f6a-a029-320094001be5","at":1769424625000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf9ed-34d8-7ca2-82a3-f79272bb46e9","at":1769424631000000000,"seq":387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bf9fc-2112-7ec1-aca0-d218a669fa20","at":1769425608978000000,"seq":388,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf9fc-6f48-7a9a-baca-c1c136899107","at":1769425629000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bf9fc-9569-7075-a3bc-f437b7ee36bd","at":1769425638761000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf9fd-0c17-7ece-a119-73e6fc76436a","at":1769425669143000000,"seq":391,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf9fd-1f10-77d5-9bde-8511a719f055","at":1769425674000000000,"seq":392,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf9fd-22f8-7c22-bcee-008de78407a4","at":1769425675000000000,"seq":393,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf9fd-72be-73ef-abfa-c7ca5355c6ae","at":1769425695422000000,"seq":394,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf9fd-80b8-7718-8ffd-6b90bdeb227d","at":1769425699000000000,"seq":395,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf9fd-b271-7118-bab9-34a7ad8a6223","at":1769425711729000000,"seq":396,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf9fe-53a8-7847-b0a7-c57267b55f39","at":1769425753000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9fe-5b78-7ace-879e-891ff6e43998","at":1769425755000000000,"seq":398,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf9fe-79f7-7ff9-a8d5-e29b3b7bfe30","at":1769425762807000000,"seq":399,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019bf9fe-9610-7aff-975c-c3df79ebc196","at":1769425770000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf9fe-b938-7ac8-a4ae-d2cfa1b48f24","at":1769425779000000000,"seq":401,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bf9fe-dc60-7d1a-9cb8-27e59786238e","at":1769425788000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

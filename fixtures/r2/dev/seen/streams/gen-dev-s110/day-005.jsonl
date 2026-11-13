@@ -1,0 +1,39 @@
+{"v":1,"id":"019b8dbd-f29f-76eb-be3b-ed0dc270ad9c","at":1767609594527000000,"seq":62,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8dbd-f29f-7749-a8b4-dcf91514bcdb","at":1767609594527000000,"seq":63,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8dbe-1b88-7e77-bc4c-8b34dbaa17e3","at":1767609605000000000,"seq":64,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019b8dbe-b6a6-7b96-a04b-01ab5a0c9b2b","at":1767609644710000000,"seq":65,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8dbf-05e8-7e9b-844f-afe253c0e158","at":1767609665000000000,"seq":66,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8dbf-ade0-7cc9-8fd6-b69ec59619bc","at":1767609708000000000,"seq":67,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8dbf-bcb3-727e-95a9-a7a5e2115417","at":1767609711795000000,"seq":68,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8dbf-bcb3-791f-aaec-af70273a3eef","at":1767609711795000000,"seq":69,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8dbf-d108-7bdd-9f75-b52b47b91551","at":1767609717000000000,"seq":70,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b8dbf-f860-785a-8cd1-6ed2200df016","at":1767609727072000000,"seq":71,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8dbf-f860-7b40-8859-87bd9b2174d3","at":1767609727072000000,"seq":72,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8dc0-32b0-79df-8357-fa6cd8ebbaba","at":1767609742000000000,"seq":73,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc0-a15a-7ec7-a424-7e27d1f3597f","at":1767609770330000000,"seq":74,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b8dc0-bb68-71b4-834a-ce648e33e81c","at":1767609777000000000,"seq":75,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8dc0-cef0-7338-9756-f405a356063d","at":1767609782000000000,"seq":76,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8dd0-1aea-7d5a-b372-8efe1b3fc446","at":1767610784490000000,"seq":77,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b8dda-1649-7e9d-bdc9-33a49e382693","at":1767611438665000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b8dda-e80f-7e19-a907-e533b44c17f1","at":1767611492367000000,"seq":79,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b8dda-fe10-7977-adf8-e178a97fbd15","at":1767611498000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b8ddb-2908-7198-b6a6-fd6d3ab2df7c","at":1767611509000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8ddb-2a6d-79c3-95c2-d0eb49c09038","at":1767611509357000000,"seq":82,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b8ddb-9668-79c0-b01f-874b56505c43","at":1767611537000000000,"seq":83,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8ddb-a220-72c4-adf3-c725fd2e42a7","at":1767611540000000000,"seq":84,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8ddb-a27a-749b-96bb-429aae536035","at":1767611540090000000,"seq":85,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b8ddb-e0a0-7d1d-a4ba-e638b7e038de","at":1767611556000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b8ddb-e488-7365-a71e-4488f96fe84a","at":1767611557000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8ddb-ffe0-7382-92c9-11ddde3378df","at":1767611564000000000,"seq":88,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8ddc-0f4c-7184-a1a7-5357e8da6eed","at":1767611567948000000,"seq":89,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b8ddc-4a18-72cb-9a57-aa320ac2b1bb","at":1767611583000000000,"seq":90,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8ddc-99a4-722b-82af-b5377d99ac9a","at":1767611603364000000,"seq":91,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019b8ddd-5f70-7491-9217-f5e9fc83676d","at":1767611654000000000,"seq":92,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8ddd-76e0-798d-85c0-f4e43c11409b","at":1767611660000000000,"seq":93,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8ddd-8e50-7b34-b282-70c271747675","at":1767611666000000000,"seq":94,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8de9-b09c-79fe-987c-d4e96f2c84e2","at":1767612461212000000,"seq":95,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8de9-b09c-7f93-a122-0e1220409a4a","at":1767612461212000000,"seq":96,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8de9-b3b0-7ed7-850f-20a29d880a28","at":1767612462000000000,"seq":97,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b8dea-1d28-7666-896a-310616e43923","at":1767612489000000000,"seq":98,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dea-24f8-7ad1-a85a-568d5acbf6d3","at":1767612491000000000,"seq":99,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b8dea-9258-7aef-b165-5c108f576207","at":1767612519000000000,"seq":100,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

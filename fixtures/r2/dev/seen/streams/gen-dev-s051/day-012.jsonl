@@ -1,0 +1,13 @@
+{"v":1,"id":"019bb171-116b-73f0-8e36-8fc1356403a2","at":1768208535915000000,"seq":170,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb171-116b-7cfd-a419-c11e38a55be1","at":1768208535915000000,"seq":171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb171-3100-7a8a-a859-ca78cff8fbfc","at":1768208544000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bb171-7750-73b7-b6fc-851b65dd0be3","at":1768208562000000000,"seq":173,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb171-b9b8-7c50-ba1a-801e1c42196e","at":1768208579000000000,"seq":174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb171-dce0-779c-8eb5-15cfa8856973","at":1768208588000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb183-b787-7793-94ed-3841984e81f1","at":1768209758087000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb183-cab8-7cec-a9eb-116e9133186c","at":1768209763000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bb198-5760-7031-93bb-fd44a5269ab6","at":1768211109728000000,"seq":178,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bb199-62ae-75be-8353-d9664d1ad7b9","at":1768211178158000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bb19a-3378-7549-89ba-cad799a18a2c","at":1768211231608000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bb19a-5828-703a-9402-e49d72d63af6","at":1768211241000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bb19a-d910-7998-b3b1-6c9637102d73","at":1768211274000000000,"seq":182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

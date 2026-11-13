@@ -1,0 +1,35 @@
+{"v":1,"id":"019c37be-64fe-787e-b022-303e603e4bb4","at":1770461750526000000,"seq":512,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c37be-64fe-7551-bb44-91d8bc0b9796","at":1770461750526000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c37be-a170-7780-bb74-1a4b190d5e5d","at":1770461766000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37be-d438-7cf6-b67a-d7b7ed7ad1b4","at":1770461779000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37bf-6ba7-7ab0-be94-0d4d241abb33","at":1770461817767000000,"seq":516,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c37bf-ab10-7d2c-b6a1-d28cfef9191f","at":1770461834000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37bf-d9f0-768f-a8f7-8d756a5f55ad","at":1770461846000000000,"seq":518,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c37bf-f8bf-7279-8987-36ad96843b6c","at":1770461853887000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c37c0-08d0-72d7-ac3f-868a66812990","at":1770461858000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c37c0-1488-72d7-96f3-13cded8aea84","at":1770461861000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c37c0-2810-79f9-973d-4bf29b3246d2","at":1770461866000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37c0-2fe0-7d45-922a-441f9351744f","at":1770461868000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37c0-4f20-7d62-b3e5-74d168e3d937","at":1770461876000000000,"seq":524,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c37c1-6c67-72b5-b393-65ccd9752a92","at":1770461949031000000,"seq":525,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c37c1-b680-744b-aa30-2b15519fd264","at":1770461968000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c37c2-4641-7913-886a-b2ac6bbd13a2","at":1770462004801000000,"seq":527,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c37c2-75e8-73f7-af5e-0673ba05ca5e","at":1770462017000000000,"seq":528,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c37c2-9910-719b-9be3-b2f253c2f5d5","at":1770462026000000000,"seq":529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37c2-cbd8-7b97-8c49-94cc67f50eed","at":1770462039000000000,"seq":530,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c37c2-f2e8-7ec0-90da-4906f30881ae","at":1770462049000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c37c2-fbc2-7839-b733-e1399c6771f9","at":1770462051266000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c37c3-3938-7ce8-9b64-4bd304631564","at":1770462067000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c37c3-7ba0-7143-b06a-1229860ad654","at":1770462084000000000,"seq":534,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c37c3-96f8-74b0-a7d6-4c48036476d2","at":1770462091000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ce-5f84-7a08-9b1f-b1fc6c182e1f","at":1770462797700000000,"seq":536,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c37ce-9378-7c23-a919-eedf6e8f0e71","at":1770462811000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37ce-9f30-7ffe-966a-5e0fe664182d","at":1770462814000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37cf-0f2b-7eff-869f-e91676603a95","at":1770462842667000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance November - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c37cf-1078-7c88-857b-7fa44f8a03e2","at":1770462843000000000,"seq":540,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c37cf-6280-7dc9-9a19-b84bc5266a1f","at":1770462864000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c37cf-6ff9-73a7-b13f-db4acc526a32","at":1770462867449000000,"seq":542,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c37cf-a4e8-7f5e-a073-f47b1b7bf3fb","at":1770462881000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37cf-db98-7837-ba9d-2cf69d0a0d10","at":1770462895000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c37d0-1909-7d86-ab83-50cc68f9173d","at":1770462910729000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019c37d0-3570-757a-94e0-7574b569ef04","at":1770462918000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

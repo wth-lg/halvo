@@ -1,0 +1,16 @@
+{"v":1,"id":"019c5657-1a2c-7515-8c22-cd90a7545ce4","at":1770975074860000000,"seq":461,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5657-1a2c-7fef-8e0c-84b446a5f8ba","at":1770975074860000000,"seq":462,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c5657-2288-7811-9385-f2a7ecbf34af","at":1770975077000000000,"seq":463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5657-3228-74a0-b07c-5e987b7fb573","at":1770975081000000000,"seq":464,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5657-41c8-76ad-bb9d-6d4dce30654e","at":1770975085000000000,"seq":465,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c5657-7878-7005-bcf3-bc4f8a1acc2a","at":1770975099000000000,"seq":466,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c565a-74dc-71a7-ae2c-3f384385af43","at":1770975294684000000,"seq":467,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c565a-81d0-7989-bfcb-772686e0e159","at":1770975298000000000,"seq":468,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5667-5a05-7524-853d-c85a7204f328","at":1770976139781000000,"seq":469,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c5667-6e68-7225-bdbe-97457995d134","at":1770976145000000000,"seq":470,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5668-2775-702f-95f1-25681becfa41","at":1770976192373000000,"seq":471,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c5670-59a2-7c3f-880e-f7d1d7fef87e","at":1770976729506000000,"seq":472,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c5670-9df8-7e04-8137-dfb95cbfaebb","at":1770976747000000000,"seq":473,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5671-0770-7855-8c95-265cf7ad7929","at":1770976774000000000,"seq":474,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5671-1ee0-74c8-9777-b6a02f5fda46","at":1770976780000000000,"seq":475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5671-3268-7c28-82f1-d105e08e8e4c","at":1770976785000000000,"seq":476,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

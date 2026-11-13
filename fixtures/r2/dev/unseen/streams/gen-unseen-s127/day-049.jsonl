@@ -1,0 +1,29 @@
+{"v":1,"id":"019c6fce-8dd1-7fd7-bf0b-77ae40508db1","at":1771402333649000000,"seq":616,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fce-8dd1-72ac-ab25-4cfba2029964","at":1771402333649000000,"seq":617,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6fce-b258-71f4-8574-8ef37461551e","at":1771402343000000000,"seq":618,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6fcf-23a0-758f-82ba-2b1620ef3461","at":1771402372000000000,"seq":619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c6fcf-3728-7eb5-9e93-91fb20068024","at":1771402377000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6fe2-b9fa-7c3c-a936-7c92649d43ac","at":1771403655674000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe2-e250-7e56-b5ab-cb1b9883520b","at":1771403666000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe2-e250-7169-9435-a906fc11145b","at":1771403666000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c6fe2-ea20-74cb-9bee-5cd47ad4057a","at":1771403668000000000,"seq":624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fe3-28a0-7f5d-9323-91587c2a5dd9","at":1771403684000000000,"seq":625,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6fef-98b1-7735-a2f4-291f06b5e5c7","at":1771404499121000000,"seq":626,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6fef-98b1-7ace-a7f4-16cbf634f0fd","at":1771404499121000000,"seq":627,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6fef-a3f0-7fb8-baab-8206720aec82","at":1771404502000000000,"seq":628,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c6fef-abc0-7ef9-b97c-e99bb27bd0c3","at":1771404504000000000,"seq":629,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fef-cee8-75c3-8c50-96202ef6f400","at":1771404513000000000,"seq":630,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7000-04af-7532-8ab5-f4f7e6d93070","at":1771405575343000000,"seq":631,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7000-04af-7d07-a6df-0dfa0d170b86","at":1771405575343000000,"seq":632,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7000-3620-798d-b6d2-b4e758828056","at":1771405588000000000,"seq":633,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7000-ab50-7631-80a0-c24233764ca1","at":1771405618000000000,"seq":634,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7000-e200-7be6-b5c6-eda706d74b04","at":1771405632000000000,"seq":635,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7000-e780-7f88-a4e0-dc530aa2565b","at":1771405633408000000,"seq":636,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7001-7288-7e96-9af7-e0573fa2f01a","at":1771405669000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c7001-b069-733e-93aa-e391e41140ff","at":1771405684841000000,"seq":638,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7002-1a80-7394-86a3-8dc679ea1fcf","at":1771405712000000000,"seq":639,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7002-39c0-7181-955f-62a1423bd6cc","at":1771405720000000000,"seq":640,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c7002-5130-7a00-a384-c9f4c44e0898","at":1771405726000000000,"seq":641,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7002-5b3b-79cc-b464-c2f325e3eb85","at":1771405728571000000,"seq":642,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c7002-7c28-7b36-9915-e8382f025ab5","at":1771405737000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7002-9b68-7d72-831d-488921076eb2","at":1771405745000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

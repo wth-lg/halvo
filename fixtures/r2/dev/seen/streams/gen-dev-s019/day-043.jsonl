@@ -1,0 +1,11 @@
+{"v":1,"id":"019c50b7-8f53-7cd7-9fb8-4b3bdc95d9c4","at":1770880733011000000,"seq":628,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c50b7-8f53-7e68-9793-64f328d5e469","at":1770880733011000000,"seq":629,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c50b7-d037-7943-9809-e0ee2f8dd8c3","at":1770880749623000000,"seq":630,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c50b7-dd68-7d2e-84b3-6b6ff9ae8b69","at":1770880753000000000,"seq":631,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50b7-ed08-77e0-9e46-402922f3872d","at":1770880757000000000,"seq":632,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50b9-7159-715f-9e90-b47182115228","at":1770880856409000000,"seq":633,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c50b9-7159-7c74-b98d-3616e2c8c520","at":1770880856409000000,"seq":634,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c50b9-c1c8-7b21-ade1-fb7c6f6adab0","at":1770880877000000000,"seq":635,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c50d1-3a7e-729e-8ec4-cedafd546f05","at":1770882415230000000,"seq":636,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c50d1-8f88-7c0e-b9ed-e8fbfcfc8795","at":1770882437000000000,"seq":637,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c50d1-e190-7cd3-b9ad-b09062d60c25","at":1770882458000000000,"seq":638,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,27 @@
+{"v":1,"id":"019bcb60-842b-70bd-ae25-9a5b1dff9b7b","at":1768643658795000000,"seq":158,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb60-842b-76d7-98b5-878e02eb4f2f","at":1768643658795000000,"seq":159,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bcb60-cf30-767d-b00b-e37a63afc0a5","at":1768643678000000000,"seq":160,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb68-31bb-79f6-aed8-557541056725","at":1768644161979000000,"seq":161,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bcb68-4d28-710e-bb00-b608f5cec0b5","at":1768644169000000000,"seq":162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bcb68-6880-734c-b1ef-96815cf30606","at":1768644176000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb68-7c08-7432-85b7-6ab62f59fb67","at":1768644181000000000,"seq":164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb69-28d4-7f34-835b-311939472229","at":1768644225236000000,"seq":165,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bcb69-81c0-712b-a842-c79320843a71","at":1768644248000000000,"seq":166,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb69-a100-7708-9bb0-0847856d9753","at":1768644256000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb69-c040-72a1-b3fd-f4e228ad0602","at":1768644264000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bcb6a-0f88-7433-8c67-0c510edea33a","at":1768644284296000000,"seq":169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bcb6a-1a18-71f0-a507-e87002181b4e","at":1768644287000000000,"seq":170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb6a-1e00-7099-b338-c0cb1cfc352b","at":1768644288000000000,"seq":171,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb6a-54b0-79f3-a62d-240527e132ed","at":1768644302000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bcb78-0da7-7641-a2ba-2e03ebf6b186","at":1768645201319000000,"seq":173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bcb78-9138-7922-bb5a-3409b58ea72b","at":1768645235000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb78-9138-7868-b7c4-5fbcf58af9de","at":1768645235000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bcb78-9cf0-7a21-b725-38a53d5810c9","at":1768645238000000000,"seq":176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb78-a0d8-7cf8-9f24-31a134bb9670","at":1768645239000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcb78-bc30-75bd-ac76-4f029fcb2abb","at":1768645246000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb7c-769b-7695-a74c-29d5cc2f4caf","at":1768645490331000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bcb7c-9878-7b41-bcf9-c2a94ae2437e","at":1768645499000000000,"seq":180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb7c-e455-7aa4-b47a-d1260dbbec4b","at":1768645518421000000,"seq":181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019bcb7c-fa20-7b23-ad44-d7f3c39059d5","at":1768645524000000000,"seq":182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcb7d-4840-71d4-9f49-0ec527fc9491","at":1768645544000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb7d-b1b8-785f-9f3d-b581f63afedd","at":1768645571000000000,"seq":184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

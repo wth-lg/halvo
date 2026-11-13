@@ -1,0 +1,56 @@
+{"v":1,"id":"019c562e-3c61-77ef-b722-0af3e83316cb","at":1770972396641000000,"seq":721,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c562e-3c61-7d87-8420-cc8031093c0b","at":1770972396641000000,"seq":722,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c562e-9f70-728c-b678-092a1d9fef74","at":1770972422000000000,"seq":723,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c562f-1888-7192-8c24-7c8cdff2711d","at":1770972453000000000,"seq":724,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562f-35ce-7ba1-9397-0cfde4a9a6ca","at":1770972460494000000,"seq":725,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox storage - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019c562f-3bb0-7f7a-91c8-ad28edc5e568","at":1770972462000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c562f-a140-7cac-a073-cc3afffc72fd","at":1770972488000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562f-b0e0-7a40-b860-88fd845a42d9","at":1770972492000000000,"seq":728,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c562f-b8b0-74a3-9dab-2091c9dcd7a7","at":1770972494000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c562f-c850-79cd-ac5c-d0aaf9d3355f","at":1770972498000000000,"seq":730,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5637-5a41-728b-a637-ac9ba7da45c8","at":1770972994113000000,"seq":731,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5637-5a41-783e-8076-c51a7f8d77a4","at":1770972994113000000,"seq":732,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5644-b8c3-712c-94b5-45a8a870d480","at":1770973870275000000,"seq":733,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5644-b8c3-725f-a74b-b6cb8ac07e3f","at":1770973870275000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5644-ee60-71ab-87d7-17489bbefb99","at":1770973884000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5645-7ee8-75f4-857e-53d13d3fc72f","at":1770973921000000000,"seq":736,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5645-c871-7997-813f-81e1ed0e56f5","at":1770973939825000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5645-e090-7136-b160-251f727cb385","at":1770973946000000000,"seq":738,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5646-0b88-734e-9459-57029c827886","at":1770973957000000000,"seq":739,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5646-3a68-7a58-a840-f32f30bc3004","at":1770973969000000000,"seq":740,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5646-6560-7f97-bd11-522d4e570dd8","at":1770973980000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5646-a6f7-7f05-adf8-6fb10ca43187","at":1770973996791000000,"seq":742,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5646-b768-7d9b-a88d-1c2c8bf8fa0d","at":1770974001000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5647-0970-7ca3-a6ab-f6a92b512e54","at":1770974022000000000,"seq":744,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5647-1528-7a8f-81ff-aebc0833cccf","at":1770974025000000000,"seq":745,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5647-1ac6-7972-87cf-c2260ebd7119","at":1770974026438000000,"seq":746,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5647-3850-79f4-aa4f-e8d9b57677f8","at":1770974034000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5647-53a8-7265-b2b0-c77c3fa9c6d1","at":1770974041000000000,"seq":748,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5647-5790-7b7b-913b-1e2c42a5f8de","at":1770974042000000000,"seq":749,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5647-8670-7242-bddc-ea33889ebda7","at":1770974054000000000,"seq":750,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5647-a790-7b78-9551-55ce716d63d7","at":1770974062480000000,"seq":751,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c5647-d0a8-7e0d-a51e-721b90d8bef7","at":1770974073000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5648-2698-7b15-ad78-7181503f90ea","at":1770974095000000000,"seq":753,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5648-74b8-758e-8239-2a8dd7aa331d","at":1770974115000000000,"seq":754,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5660-859a-7cbb-b7b8-5b9e3aef96f0","at":1770975692186000000,"seq":755,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5660-cf18-7a7c-99bd-f59de27a0de6","at":1770975711000000000,"seq":756,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5661-5000-734f-87f7-2cabcfcede58","at":1770975744000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5661-53dd-741a-bf70-9690b1f380fb","at":1770975744989000000,"seq":758,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5661-5fa0-75a7-804a-e8f9e99155a3","at":1770975748000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5661-8e80-7a4b-a865-a8433bed4d82","at":1770975760000000000,"seq":760,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5661-9e20-7166-85db-8b28a92c2678","at":1770975764000000000,"seq":761,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5661-a5f0-719b-aeaa-859ef0e984c4","at":1770975766000000000,"seq":762,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5661-c136-7ccb-9a8d-357c92c20dff","at":1770975772982000000,"seq":763,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c5661-c918-7963-a956-7ef91041e041","at":1770975775000000000,"seq":764,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c5662-9050-77d3-986c-b4dcfb4976c6","at":1770975826000000000,"seq":765,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5662-af90-77e8-a8cb-6caf7149ed3d","at":1770975834000000000,"seq":766,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5662-c58a-7d16-91c9-fe6cadf709f9","at":1770975839626000000,"seq":767,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5662-f5e0-79af-91c4-9a929ff7b99d","at":1770975852000000000,"seq":768,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5663-20d8-783d-befa-88eaef5d557b","at":1770975863000000000,"seq":769,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c5663-3363-74a8-b745-e9da88e74b97","at":1770975867747000000,"seq":770,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5663-47e8-73cb-823c-3dc9600fdf4a","at":1770975873000000000,"seq":771,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5663-5788-7f31-86ec-0ab6f6f9c4a2","at":1770975877000000000,"seq":772,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5663-6ef8-7b50-b21d-c0b4541aef1b","at":1770975883000000000,"seq":773,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5664-107a-7222-88f9-05279ddc1f6e","at":1770975924346000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019c5664-1ec0-75a3-a2b1-212e9022f9ab","at":1770975928000000000,"seq":775,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5664-b718-7f1b-87d7-ce452adad474","at":1770975967000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

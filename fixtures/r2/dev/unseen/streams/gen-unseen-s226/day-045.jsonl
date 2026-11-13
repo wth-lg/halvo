@@ -1,0 +1,23 @@
+{"v":1,"id":"019c5ba0-2dc5-7501-8109-d094b21a9a84","at":1771063750085000000,"seq":638,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5ba0-2dc5-732b-83e5-b0731a78a21d","at":1771063750085000000,"seq":639,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba0-96e8-7815-a5d0-43275352943a","at":1771063777000000000,"seq":640,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c5ba1-069e-75dd-978f-16a920492421","at":1771063805598000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba1-1bb8-7e4a-8a37-a5515a1b86d8","at":1771063811000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba1-7109-71b8-85d5-83a29885bdf8","at":1771063832841000000,"seq":643,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba1-94d0-78a8-be09-66e342513386","at":1771063842000000000,"seq":644,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5ba2-11d0-784a-8f40-2004840997cd","at":1771063874000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba2-2940-7408-8afe-fc5285937092","at":1771063880000000000,"seq":646,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5ba2-30dd-7b73-9da2-7de82f448e8c","at":1771063881949000000,"seq":647,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c5ba2-7378-7e43-acb8-5101d682122d","at":1771063899000000000,"seq":648,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5ba2-d908-758e-a29c-8763f6a023cd","at":1771063925000000000,"seq":649,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c5bb8-f2dd-7895-96d7-1cbabbbaede2","at":1771065373405000000,"seq":650,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb9-1c40-7ff0-b193-ab55e735a39d","at":1771065384000000000,"seq":651,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb9-4b20-7ba8-8002-010e871a3ce3","at":1771065396000000000,"seq":652,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb9-d998-7fa1-b798-ecc9ebc3ba77","at":1771065432472000000,"seq":653,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c5bb9-dba8-726f-b7d4-ff32e9eb9c98","at":1771065433000000000,"seq":654,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bb9-e378-75da-81c8-b00e29af6568","at":1771065435000000000,"seq":655,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c5bb9-ef30-7854-8012-f4697af7a77a","at":1771065438000000000,"seq":656,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5bba-0e70-7752-b5de-b83cdca1d389","at":1771065446000000000,"seq":657,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c5bba-17f1-7629-853f-582041069c28","at":1771065448433000000,"seq":658,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"heart rate chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c5bba-21f8-7625-9388-774bb89a765f","at":1771065451000000000,"seq":659,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5bba-aab0-7de8-9512-59e5171a2920","at":1771065486000000000,"seq":660,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

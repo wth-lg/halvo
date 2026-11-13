@@ -1,0 +1,23 @@
+{"v":1,"id":"019c5682-4d32-777e-9bd6-90f28fdf3259","at":1770977905970000000,"seq":597,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5682-4d32-77ae-aa9c-3ff07cdeb43c","at":1770977905970000000,"seq":598,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c5682-5908-7325-9ae1-5e40a45979ea","at":1770977909000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5682-5cf0-7bff-b0b9-d943a1b4f218","at":1770977910000000000,"seq":600,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5682-8018-7f2f-8c72-a34989b37ac6","at":1770977919000000000,"seq":601,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c5682-ca50-7c25-9c7c-00cadf5041a4","at":1770977938000000000,"seq":602,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c568c-e983-7e97-8841-c8b34f91022d","at":1770978601347000000,"seq":603,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c568d-6cf8-7626-88e4-4278affff3f1","at":1770978635000000000,"seq":604,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56a0-2b94-7acf-b5cc-8cf42d15db99","at":1770979863444000000,"seq":605,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c56a0-6088-7a9d-b49b-b3e1e6538ce3","at":1770979877000000000,"seq":606,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c56a0-aac0-7fec-9cd5-816384d4ee1e","at":1770979896000000000,"seq":607,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56a0-ea36-7abc-b550-f58d1c04e02d","at":1770979912246000000,"seq":608,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c56a0-f4f8-792f-b1b2-0ad8e36ef2f6","at":1770979915000000000,"seq":609,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c56a1-1050-728f-8318-d935ebb1217b","at":1770979922000000000,"seq":610,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56a1-1050-7ab3-9e8b-66e2ccc7c491","at":1770979922000000000,"seq":611,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c56a1-1c08-7884-95a6-baa9ab4dfaf2","at":1770979925000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c56a1-2cfa-790b-8b2e-6a1c3b319392","at":1770979929338000000,"seq":613,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c56a1-3b48-7ecd-af2a-09084db3319a","at":1770979933000000000,"seq":614,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c56a1-56a0-7cad-bdb1-e19c71605f2d","at":1770979940000000000,"seq":615,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c56a1-9520-7123-8e8d-a54ed70e08ee","at":1770979956000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c56a1-a49b-74ba-adb4-43769ea2748f","at":1770979959963000000,"seq":617,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c56a1-f2e0-7038-8431-2de223886191","at":1770979980000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c56a2-5488-7c24-9358-b2fd406d5036","at":1770980005000000000,"seq":619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

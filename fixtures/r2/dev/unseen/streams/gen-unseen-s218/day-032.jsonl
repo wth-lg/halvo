@@ -1,0 +1,10 @@
+{"v":1,"id":"019c1858-928d-7cf8-bbf8-d31fbaf7846c","at":1769934983821000000,"seq":513,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1858-928d-77a2-8a54-0d49d8e4004b","at":1769934983821000000,"seq":514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1858-f8d0-746c-b064-856ebcefd4e7","at":1769935010000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c1859-0870-78cb-a3b8-ba3f027caa20","at":1769935014000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1859-22da-79a3-a87f-36556a88d7bd","at":1769935020762000000,"seq":517,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1859-27b0-7660-b9c1-56397073d4f4","at":1769935022000000000,"seq":518,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1859-8ddd-76d7-9dba-56603fd705a0","at":1769935048157000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c1859-eb00-7bb7-9dd9-81691220a0c9","at":1769935072000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c185a-5990-7dd7-8e9a-367592d5ed49","at":1769935100304000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019c185b-13e0-71ad-a883-9b469ef441e3","at":1769935148000000000,"seq":522,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

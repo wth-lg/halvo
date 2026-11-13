@@ -1,0 +1,16 @@
+{"v":1,"id":"019c752d-a14c-7f88-887f-cf1abe9efce7","at":1771492450636000000,"seq":847,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c752d-a14c-7ea7-8724-b5b6b63fd63c","at":1771492450636000000,"seq":848,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c752e-0848-7a27-b482-44b5c9a8c688","at":1771492477000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c752e-17ed-77a6-a25d-222f3121d6af","at":1771492481005000000,"seq":850,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c752e-5280-70b4-b935-04f7490e9c98","at":1771492496000000000,"seq":851,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c752e-6a42-7065-b8a1-1b977f1a2d37","at":1771492502082000000,"seq":852,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c752e-6dd8-7345-b09d-e00d9d5644c6","at":1771492503000000000,"seq":853,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c752e-7d78-7ed8-b044-c6d56b728392","at":1771492507000000000,"seq":854,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c752e-9100-77fd-9b32-04c0a92052db","at":1771492512000000000,"seq":855,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c752e-b5af-7ad1-947b-691196e4287d","at":1771492521391000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c752f-2570-7aa7-a6ab-2579643c2c0e","at":1771492550000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c752f-63f0-702c-8bc6-eb4758d347eb","at":1771492566000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7530-fdb1-74cc-b2b3-a5dcaa08b1e4","at":1771492670897000000,"seq":859,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c7531-11a0-76ba-b229-1058f933313f","at":1771492676000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7531-1970-7dd8-a1bc-a32f6bbb761e","at":1771492678000000000,"seq":861,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7531-3c98-776c-800e-8e6b90cdf83c","at":1771492687000000000,"seq":862,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}

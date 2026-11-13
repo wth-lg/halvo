@@ -1,0 +1,23 @@
+{"v":1,"id":"019c564c-cfae-70fc-b18f-fc71b81202be","at":1770974400430000000,"seq":701,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c564c-cfae-70b6-8001-0cc6b9c70972","at":1770974400430000000,"seq":702,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c564c-f8f8-74ce-975a-e236c80316de","at":1770974411000000000,"seq":703,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c564d-00c8-77be-8559-66a3e321650d","at":1770974413000000000,"seq":704,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c564d-04b0-7781-8884-4c7c81eb4a80","at":1770974414000000000,"seq":705,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c564d-1c20-7b08-88c7-5a79f018c9b0","at":1770974420000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5666-c5dd-7c71-b522-b83961baf86a","at":1770976101853000000,"seq":707,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5667-0cc0-76f8-981c-b25fd0692b06","at":1770976120000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5667-3ba0-7111-a1db-c562cf75b419","at":1770976132000000000,"seq":709,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5667-4758-777b-a250-8e8bc1a4c64b","at":1770976135000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c5667-47fd-76df-8959-ed8a6a8e3e40","at":1770976135165000000,"seq":711,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c5667-4f28-7345-bce9-1951f9904833","at":1770976137000000000,"seq":712,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5667-9960-79de-8331-597ac3724580","at":1770976156000000000,"seq":713,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c5667-a518-73b8-bf08-e9281f6661c4","at":1770976159000000000,"seq":714,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c567f-464e-71fe-b2cb-d849426b025f","at":1770977707598000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c567f-5398-7466-a1e3-d7edd8c1c833","at":1770977711000000000,"seq":716,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c567f-6338-7b4a-871f-3423bc6c3c75","at":1770977715000000000,"seq":717,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c567f-7aa8-7bb7-9461-cad6cd5bc076","at":1770977721000000000,"seq":718,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c5692-9ee4-7d1d-82ac-065d9ae823b2","at":1770978975460000000,"seq":719,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5692-9ee4-7a3f-b7cf-18b7c3526bdf","at":1770978975460000000,"seq":720,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5692-bc58-7ae8-a59b-1d0a668f0eb6","at":1770978983000000000,"seq":721,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5692-c428-7809-99a8-a35196869579","at":1770978985000000000,"seq":722,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5692-db98-7d1f-9b63-e0ad845b6d5f","at":1770978991000000000,"seq":723,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

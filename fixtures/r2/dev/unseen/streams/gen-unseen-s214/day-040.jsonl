@@ -1,0 +1,44 @@
+{"v":1,"id":"019c41d1-350a-78f4-896a-eaeec33c47ba","at":1770630755594000000,"seq":393,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c41d1-350a-752d-8ee9-3803e7aa726b","at":1770630755594000000,"seq":394,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c41d1-9848-7a8f-8751-c8a6865193c8","at":1770630781000000000,"seq":395,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d1-dab0-7660-bfa0-35e62e6f2edb","at":1770630798000000000,"seq":396,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41d2-0d78-79d5-92d4-8e1570d13d9a","at":1770630811000000000,"seq":397,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c41d2-2100-7fec-9ea4-5bbf9bc860e7","at":1770630816000000000,"seq":398,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c41dc-3b44-7fd3-9975-74ba03bfeb0c","at":1770631478084000000,"seq":399,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c41dc-3b44-7b48-9e4b-d816961ea615","at":1770631478084000000,"seq":400,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c41dc-a080-78cd-9899-155874f09a31","at":1770631504000000000,"seq":401,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41dc-a468-7dc2-9c22-3724f984ca59","at":1770631505000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41dc-a48b-7df6-8e94-4fc4c8fa855f","at":1770631505035000000,"seq":403,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c41dc-b408-7942-be74-92831117005a","at":1770631509000000000,"seq":404,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c41dc-bfc0-7d5b-9d51-7a68d1d2eecb","at":1770631512000000000,"seq":405,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41dd-2168-7c4a-907d-31e7ca7399bf","at":1770631537000000000,"seq":406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c41dd-2d20-7663-b088-48a56c991b8b","at":1770631540000000000,"seq":407,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41dd-4c60-7a80-bc1f-2699f099b8a3","at":1770631548000000000,"seq":408,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c41dd-5393-7c18-a384-0ec161b0dc39","at":1770631549843000000,"seq":409,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c41dd-5818-7b62-9650-1a10d0d82a1c","at":1770631551000000000,"seq":410,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41de-0bc8-7798-b309-55a529101352","at":1770631597000000000,"seq":411,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c41de-1b68-7503-864a-b46b2ebb5937","at":1770631601000000000,"seq":412,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41de-29c0-7d32-8419-1c2130e2811d","at":1770631604672000000,"seq":413,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c41de-80f8-7213-84b4-9e3769086e40","at":1770631627000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41de-88c8-7234-b7d5-23c0433f8922","at":1770631629000000000,"seq":415,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c41e5-79f7-7eb6-850b-4e5ea33d0838","at":1770632083959000000,"seq":416,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c41e6-1606-74cf-8d74-47bc426381d0","at":1770632123910000000,"seq":417,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c41e6-8b90-7cdd-9322-406ef7be62fd","at":1770632154000000000,"seq":418,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c41e6-c240-79ba-a938-9efbae8f46b1","at":1770632168000000000,"seq":419,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41e7-181e-7135-818f-7cef9d810a2f","at":1770632189982000000,"seq":420,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c41e7-3388-7200-8498-b13748c65ef6","at":1770632197000000000,"seq":421,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41e7-4710-7f2c-a84e-0641ee66b14d","at":1770632202000000000,"seq":422,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c41e7-52c8-7858-bdaa-d81bfcd3c2ab","at":1770632205000000000,"seq":423,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41ee-661c-70e9-a6c2-1b2838a16c04","at":1770632668700000000,"seq":424,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c41ee-7300-74fd-908f-ed7fff69f479","at":1770632672000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41ee-ccd8-7c80-b385-316a50e5382f","at":1770632695000000000,"seq":426,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c41ef-0cec-73ee-92e2-89e5d7e3d878","at":1770632711404000000,"seq":427,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c41ef-4208-7293-a51c-0c42d8400355","at":1770632725000000000,"seq":428,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c41ef-cac0-77cf-b57f-e98e3252b967","at":1770632760000000000,"seq":429,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c41ef-e230-7312-bb60-65100a9f9f6d","at":1770632766000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c41f0-0191-7542-b59e-a6daae611e96","at":1770632774033000000,"seq":431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Ash Terrace - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c41f0-20b0-74d9-bed0-ca8627351ffe","at":1770632782000000000,"seq":432,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c41f0-3ff0-7f19-b495-3c2462f78925","at":1770632790000000000,"seq":433,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41f0-616b-73e3-8115-47395a99f22f","at":1770632798571000000,"seq":434,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c41f0-6318-700c-a268-2348200f9813","at":1770632799000000000,"seq":435,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c41f0-efb8-73ae-85e9-af626441a66b","at":1770632835000000000,"seq":436,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

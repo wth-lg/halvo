@@ -1,0 +1,22 @@
+{"v":1,"id":"019cb7b7-5d0f-7b14-bd4b-b5163bcb80e6","at":1772608773391000000,"seq":975,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb7b7-5d0f-7d0a-86e2-da5b689f6f38","at":1772608773391000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cb7b7-6740-7b95-99ec-26824d23d3f6","at":1772608776000000000,"seq":977,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb7b7-7ac8-7355-80fa-72d1e2007e53","at":1772608781000000000,"seq":978,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7b7-8298-7937-949e-6e4e9083ef0a","at":1772608783000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cb7b7-8680-72fa-9748-911bce9cddc3","at":1772608784000000000,"seq":980,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb7c3-5ce4-7bfa-b8fa-a1d4ef07127c","at":1772609559780000000,"seq":981,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cb7c3-afc8-7371-9009-a5d21fac5bcd","at":1772609581000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7c3-b3b0-7869-8cab-97918ea06dd7","at":1772609582000000000,"seq":983,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7c3-bcc4-7746-8bcc-5ad539e64d20","at":1772609584324000000,"seq":984,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cb7c4-7ebf-7504-b731-7b1b30231bd5","at":1772609633983000000,"seq":985,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cb7c4-a5e0-7b43-af7a-460ab33b767b","at":1772609644000000000,"seq":986,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cb7c4-c520-749d-829f-9e00911a8bfa","at":1772609652000000000,"seq":987,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb7c4-d8ae-7998-8df4-a71c8f8e299b","at":1772609657006000000,"seq":988,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cb7c5-7cb8-77b6-9aae-e7a5dc15dbad","at":1772609699000000000,"seq":989,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7c5-bb38-76b6-9fc9-895f44df9302","at":1772609715000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7dc-59e7-766b-842d-d5f6ad999313","at":1772611197415000000,"seq":991,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb7dc-59e7-75e5-b7a0-62393da66bf9","at":1772611197415000000,"seq":992,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb7dc-8728-7b42-a30b-6453368aa187","at":1772611209000000000,"seq":993,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cb7dc-a668-7710-b484-c0314d9afc11","at":1772611217000000000,"seq":994,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7dc-b220-7688-98fd-54d140863eee","at":1772611220000000000,"seq":995,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cb7dc-b608-7d00-9e6a-4da90d344eb7","at":1772611221000000000,"seq":996,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

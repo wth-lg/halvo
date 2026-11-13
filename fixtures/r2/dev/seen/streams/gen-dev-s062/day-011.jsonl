@@ -1,0 +1,26 @@
+{"v":1,"id":"019bac52-20c1-75da-a2df-f725a3ee5443","at":1768122622145000000,"seq":171,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac52-20c1-7251-a006-d5ff752086e1","at":1768122622145000000,"seq":172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bac52-2be8-7196-8522-9e19bb775a02","at":1768122625000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac52-7d78-77a8-8dcd-9cf0a79e2da8","at":1768122645880000000,"seq":174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bac53-5aa6-73f3-8d4f-9002c741ee2b","at":1768122702502000000,"seq":175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bac53-9b18-715b-96dd-9870d470156d","at":1768122719000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac53-a2e8-73c0-bcb4-cc05f0cd6046","at":1768122721000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bac53-cde0-7801-bc64-e099dfdd5492","at":1768122732000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bac53-d5b0-7cda-b2be-4db2aa73ef02","at":1768122734000000000,"seq":179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac54-0f1f-7d7a-b906-fc9e2cc84f77","at":1768122748703000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019bac54-8578-756c-9253-0b70a1eef2fd","at":1768122779000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bac59-3a54-7d34-b75e-72b8f2c99056","at":1768123087444000000,"seq":182,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bac59-a5f8-70d1-a749-50991becf408","at":1768123115000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac59-ba89-72a6-93cd-f7935538f5fe","at":1768123120265000000,"seq":184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bac5a-51d8-7329-ba49-a2f402f77d04","at":1768123159000000000,"seq":185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5a-8888-7b14-9923-dfb769f27141","at":1768123173000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bac5a-9332-7fc5-b63c-9e25be1fc410","at":1768123175730000000,"seq":187,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bac5a-abb0-7bc8-8bfd-736b8e14fe00","at":1768123182000000000,"seq":188,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5a-caf0-7802-a730-871fbb4b7a89","at":1768123190000000000,"seq":189,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac5a-f200-7cff-9fa0-919d7a6bbd82","at":1768123200000000000,"seq":190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bac5b-1140-7547-9cb7-e5c129e1bf46","at":1768123208000000000,"seq":191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5b-3308-74f6-a061-884d21e83106","at":1768123216648000000,"seq":192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bac5b-3468-7452-9af9-abc27abddd8c","at":1768123217000000000,"seq":193,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac5b-4408-79ba-ba0d-f3007fbdca42","at":1768123221000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bac5b-5f60-7f32-8ed3-75e880ed4930","at":1768123228000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5b-6730-776e-b0b6-141c2901bb68","at":1768123230000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

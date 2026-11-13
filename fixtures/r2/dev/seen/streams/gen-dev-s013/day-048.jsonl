@@ -1,0 +1,40 @@
+{"v":1,"id":"019c6aaf-14a8-721f-b819-7fdc9fe8aadb","at":1771316384936000000,"seq":548,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6aaf-14a8-7420-8914-ca312d734075","at":1771316384936000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6aaf-3fe0-784f-8405-54b58e413980","at":1771316396000000000,"seq":550,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c6aaf-eb09-7845-9294-3d961ab588fe","at":1771316439817000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ab0-2658-7a82-92f2-908eae5dff60","at":1771316455000000000,"seq":552,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6ab0-68c0-760b-9209-26a0806ceb8a","at":1771316472000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c6ab0-7478-7c11-820b-4478b8d3a699","at":1771316475000000000,"seq":554,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6ab0-b78e-7237-9e19-66f37fa3d08c","at":1771316492174000000,"seq":555,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ab1-12ea-7e1c-8959-b4a9ef1f06fc","at":1771316515562000000,"seq":556,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shopping bag - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ab1-14a0-7089-a8b2-bd18d4f9f991","at":1771316516000000000,"seq":557,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ab1-1888-709e-aa5d-b5535bcfd34b","at":1771316517000000000,"seq":558,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ab1-2440-7349-9aec-712092958cd9","at":1771316520000000000,"seq":559,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6ab1-5ed8-7bbe-8981-a537567250aa","at":1771316535000000000,"seq":560,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c6ab1-7260-767d-983d-649e786c27b9","at":1771316540000000000,"seq":561,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c6ab1-8906-71c8-9bf7-e1913f8e96da","at":1771316545798000000,"seq":562,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Checkout card 4242 4242 4242 4242 - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ab1-fb18-76da-821c-828f043a090a","at":1771316575000000000,"seq":563,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ab2-629f-7e09-b57a-0c344393c19b","at":1771316601503000000,"seq":564,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order confirmed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c6ab2-dda8-7820-a2fe-ad5e9640ee15","at":1771316633000000000,"seq":565,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6ac3-0fe7-7670-b956-167e3a4287a5","at":1771317694439000000,"seq":566,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6ac3-0fe7-7448-b7fa-d00de488bf44","at":1771317694439000000,"seq":567,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6ac3-1600-76d3-9cf9-1dc0e3eee581","at":1771317696000000000,"seq":568,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ac3-8360-7896-a469-c26ec3b026c6","at":1771317724000000000,"seq":569,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6ac3-9ad0-783a-b15a-6703576ee0a5","at":1771317730000000000,"seq":570,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c6ad8-5d0b-7619-8f36-7222a48a6910","at":1771319090443000000,"seq":571,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ad8-5d0b-7d34-b2bd-26678203f5e2","at":1771319090443000000,"seq":572,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c6ad8-9200-7b87-8995-b87325bf5278","at":1771319104000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ad8-b081-732b-82d6-d585fb1b3c66","at":1771319111809000000,"seq":574,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6ad8-b081-730a-bc7f-8620b1308b9c","at":1771319111809000000,"seq":575,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6ad8-c0e0-7f62-a4f1-1db6251a31c5","at":1771319116000000000,"seq":576,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ad8-e020-7837-aeb2-7ab2697c473e","at":1771319124000000000,"seq":577,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c6ad8-efc0-7948-a768-88796c46bbab","at":1771319128000000000,"seq":578,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6ad8-f3a8-7493-949c-eb7ceff8a5d9","at":1771319129000000000,"seq":579,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ad8-fe5c-7f5a-8d79-e6ac60984a5e","at":1771319131740000000,"seq":580,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6ad9-a758-7b6f-832f-e01a231c7181","at":1771319175000000000,"seq":581,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6ad9-d250-752a-b4b0-941255c152b8","at":1771319186000000000,"seq":582,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ad9-da20-716a-8105-3dc8b4b6e8a9","at":1771319188000000000,"seq":583,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ad9-df13-7a70-9453-d4cedcdcab34","at":1771319189267000000,"seq":584,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6ad9-df13-7edc-8148-5d7456dcf0f8","at":1771319189267000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c6ad9-e9c0-775e-a14a-fd29200c181c","at":1771319192000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ada-33f8-7c73-8cf4-367051fc19d8","at":1771319211000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

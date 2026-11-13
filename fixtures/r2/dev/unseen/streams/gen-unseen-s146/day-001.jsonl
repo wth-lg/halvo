@@ -1,0 +1,12 @@
+{"v":1,"id":"019b78ff-6757-71bd-a0d2-8dcaaa8af85e","at":1767261562711000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b78ff-6757-76fd-b103-f23e068fa577","at":1767261562711000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b78ff-7818-7aa5-a53d-83361bbea69e","at":1767261567000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b78ff-7c00-7fc3-9f41-d6a4922f8346","at":1767261568000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78ff-a310-755b-8f73-42b291755e50","at":1767261578000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7900-33dc-7bc6-b0e1-e82bb893cbbf","at":1767261615068000000,"seq":5,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7900-9158-701f-8567-73f3f5840ecb","at":1767261639000000000,"seq":6,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7900-a4e0-760e-a374-3d5c57ce6961","at":1767261644000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7900-c808-7665-a646-697e1f9bc482","at":1767261653000000000,"seq":8,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7903-a744-7feb-8ed8-da4493da82c0","at":1767261841220000000,"seq":9,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7904-1b98-7eba-8a34-6303fc00c8ac","at":1767261871000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b7904-2750-7cb3-977e-dc457ad69f76","at":1767261874000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

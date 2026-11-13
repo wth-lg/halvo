@@ -1,0 +1,13 @@
+{"v":1,"id":"019cbce5-a338-7636-9aa3-b5da42cd79ac","at":1772695692088000000,"seq":1101,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbce5-a338-7c9a-84ea-131b37959ae9","at":1772695692088000000,"seq":1102,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cbce6-6e00-7749-b0e5-88bf088697b1","at":1772695744000000000,"seq":1103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbce6-7da0-7909-91c1-00568cd7ea7b","at":1772695748000000000,"seq":1104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbce6-8958-7b34-a8d9-cc41813ab3ef","at":1772695751000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cbce6-afed-708b-b0eb-b241f974f891","at":1772695760877000000,"seq":1106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cbce6-c008-705e-88ef-904a8f350b2c","at":1772695765000000000,"seq":1107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cbce6-c3f0-7402-9756-636db0d0b752","at":1772695766000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbce6-c7d8-7208-ac18-f247b9af18e8","at":1772695767000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbce6-d390-7288-b311-f024b4155199","at":1772695770000000000,"seq":1110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cbce6-e812-737e-be4c-c61948bb71d9","at":1772695775250000000,"seq":1111,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cbce7-19e0-719f-93de-1ca0c441e481","at":1772695788000000000,"seq":1112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbce7-48c0-7fc9-8482-48368a073a78","at":1772695800000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

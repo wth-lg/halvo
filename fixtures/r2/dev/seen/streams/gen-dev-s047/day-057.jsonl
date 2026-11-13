@@ -1,0 +1,28 @@
+{"v":1,"id":"019c98ff-672d-7bef-89b2-f2faf92c65fe","at":1772093400877000000,"seq":640,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c98ff-672d-702f-97e8-56693d1b664e","at":1772093400877000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c98ff-a240-78ae-a8e6-bbb9c18dc40b","at":1772093416000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98ff-a628-7c6d-a615-5dd54857189d","at":1772093417000000000,"seq":643,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c98ff-cd37-72a3-8553-26ad99c1d009","at":1772093426999000000,"seq":644,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Pine Close - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c98ff-dcd8-7d3e-a036-ecfbf0c28e8a","at":1772093431000000000,"seq":645,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c98ff-f448-777a-b9f5-34df0af3c6f9","at":1772093437000000000,"seq":646,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9900-07d0-7cbb-a339-343d967023c2","at":1772093442000000000,"seq":647,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9900-0bb8-7d58-9326-90f659d9b919","at":1772093443000000000,"seq":648,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9900-1b29-76ae-9a54-fe221d9b16dc","at":1772093446953000000,"seq":649,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c9900-1b58-7e64-9bfc-af4562452899","at":1772093447000000000,"seq":650,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9900-e18c-786e-89ce-d219a26f6a0c","at":1772093497740000000,"seq":651,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c9916-dc53-7d34-a87f-7e9641afa7a4","at":1772094938195000000,"seq":652,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9916-f300-7045-aef6-b626aad8dfa7","at":1772094944000000000,"seq":653,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c9917-1e44-72e4-bb07-4ae0ee3c042c","at":1772094955076000000,"seq":654,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9917-1e44-7ec3-90ca-180eb46c219c","at":1772094955076000000,"seq":655,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9917-2d98-7cb7-9c9c-7b72bd5bbed4","at":1772094959000000000,"seq":656,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9917-4120-746c-bc6e-b92af8c3a1c6","at":1772094964000000000,"seq":657,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9917-50c0-79ac-bd13-4c67ff88c9e1","at":1772094968000000000,"seq":658,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c9917-5845-73be-8b96-e0bf9d1f1027","at":1772094969925000000,"seq":659,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9917-5845-7cbc-91b5-65478a54ce99","at":1772094969925000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for September - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9917-6c18-7e89-b514-a20551110f3e","at":1772094975000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c9917-ef9e-77e6-8c99-672cb93165ac","at":1772095008670000000,"seq":662,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9918-0088-7d3d-95f9-1f1da0dd2b32","at":1772095013000000000,"seq":663,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c9918-46d8-7ebe-9aba-25bd5ac144be","at":1772095031000000000,"seq":664,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9918-5287-7539-9b6c-538e7a3e3920","at":1772095033991000000,"seq":665,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019c9918-a0b0-7184-bc87-aed449ab37a1","at":1772095054000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9918-e318-7f98-81bc-551c044c05b9","at":1772095071000000000,"seq":667,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}

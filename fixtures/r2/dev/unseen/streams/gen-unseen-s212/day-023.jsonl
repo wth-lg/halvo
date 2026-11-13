@@ -1,0 +1,28 @@
+{"v":1,"id":"019be9aa-c7ff-7534-bc3e-c6b708513b45","at":1769151842303000000,"seq":159,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be9aa-c7ff-71bd-9c3a-60eddf5b46b7","at":1769151842303000000,"seq":160,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be9c5-5e20-74d5-9580-22d338c60576","at":1769153584672000000,"seq":161,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be9c5-5e20-7721-bca2-c82c763322a9","at":1769153584672000000,"seq":162,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019be9c5-ad88-7120-b219-8388f1d008b0","at":1769153605000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9c6-1756-777c-a8c7-51d3122fa552","at":1769153632086000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019be9c6-8c30-7806-b998-e7549223e8cf","at":1769153662000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019be9c6-f5cc-7de3-8c10-512be7b4c611","at":1769153689036000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019be9c7-0548-7eb6-bf18-d3622ab7aa0a","at":1769153693000000000,"seq":167,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9c7-0548-7d8e-b10a-625eb7d38a52","at":1769153693000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019be9c7-0d18-7fb3-94eb-0e7217a91548","at":1769153695000000000,"seq":169,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be9c7-2488-7600-b9a9-76fbf00472c0","at":1769153701000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be9c7-5649-7d8e-9cf2-fceeed8364f3","at":1769153713737000000,"seq":171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019be9c7-8e00-7bc5-890b-8f4ededfd2cb","at":1769153728000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019be9c7-9da0-7e81-a520-b28f4f4e7315","at":1769153732000000000,"seq":173,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be9c7-a188-716f-bda9-e0629584577a","at":1769153733000000000,"seq":174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9c7-bce0-7d55-bed1-e56df070b3d6","at":1769153740000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9c7-c4b0-7f6a-9371-925e502feb66","at":1769153742000000000,"seq":176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be9c7-d29b-700e-9850-0c8b1b9f8664","at":1769153745563000000,"seq":177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019be9c8-16b8-7476-b7e3-40dbdad3b7d8","at":1769153763000000000,"seq":178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9c8-68f2-7c99-b7c7-2af8d9d01f67","at":1769153784050000000,"seq":179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019be9c8-8be8-750e-9227-e12c3d817d2e","at":1769153793000000000,"seq":180,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be9c9-14a0-7746-a6dd-8f803281b2d4","at":1769153828000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019be9c9-1888-72cb-99cc-914a97ba2b74","at":1769153829000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9cc-af5a-704f-8e18-fbf23a97b1b8","at":1769154064218000000,"seq":183,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be9cc-af5a-79d7-8782-81a6269afc75","at":1769154064218000000,"seq":184,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be9cd-0088-73aa-8035-f9913ac91a26","at":1769154085000000000,"seq":185,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9cd-0858-75b0-b7e2-cdf2f554ff72","at":1769154087000000000,"seq":186,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

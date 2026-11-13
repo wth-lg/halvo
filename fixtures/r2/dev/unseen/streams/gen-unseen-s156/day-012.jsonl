@@ -1,0 +1,17 @@
+{"v":1,"id":"019bb16d-6f08-7881-ae42-8acd0186ea5d","at":1768208297736000000,"seq":122,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb16d-6f08-71c8-abd9-71ab32eed6a1","at":1768208297736000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb16e-2b90-7b63-8cf9-66f4bac153e1","at":1768208346000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb16e-3f18-74b0-af13-9bdd34fc92ae","at":1768208351000000000,"seq":125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb16e-4996-795e-8fb4-e00175437cce","at":1768208353686000000,"seq":126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb16e-4eb8-7ad0-8ec8-69a9a4683d18","at":1768208355000000000,"seq":127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb16e-75c8-7451-ad21-013e69214d66","at":1768208365000000000,"seq":128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bb16e-93a3-7d29-979f-3de5d9e5bbc5","at":1768208372643000000,"seq":129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb16e-a0c0-78c7-9e2c-f407882df668","at":1768208376000000000,"seq":130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb16e-b448-7c2a-ab12-243d111baae9","at":1768208381000000000,"seq":131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bb16e-d388-7377-8fc7-9b03265473c2","at":1768208389000000000,"seq":132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb16f-3243-7c2f-9719-94c60c29bd8d","at":1768208413251000000,"seq":133,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bb16f-5c40-70bb-9268-427529e95ac8","at":1768208424000000000,"seq":134,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb16f-7b80-73d5-873f-ba2e95dba50f","at":1768208432000000000,"seq":135,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bb16f-9ea8-730f-bb02-1e28b6bc5cb1","at":1768208441000000000,"seq":136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bb16f-c1d0-7c2c-971e-a548df7e1fa1","at":1768208450000000000,"seq":137,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb170-0820-7029-b80b-f974b9fbc3ed","at":1768208468000000000,"seq":138,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

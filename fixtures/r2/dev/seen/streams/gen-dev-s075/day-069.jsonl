@@ -1,0 +1,12 @@
+{"v":1,"id":"019cd699-ef9a-7e1e-9f94-a4c1627fbb6a","at":1773126938522000000,"seq":989,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd699-ef9a-7f0a-9789-7ef1a733f7bd","at":1773126938522000000,"seq":990,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd69a-0cd0-7eae-8483-6962e4b7c7d9","at":1773126946000000000,"seq":991,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cd69a-2ff8-7a3b-b78c-6b2632959542","at":1773126955000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cd69a-9d58-7635-8d66-ff0fac09d167","at":1773126983000000000,"seq":993,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6a9-2ab5-7eb1-a7be-7507516cf23c","at":1773127936693000000,"seq":994,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd6a9-2ab5-72a8-843d-e3839b32ded6","at":1773127936693000000,"seq":995,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd6a9-6298-7527-9f45-8e9f0fa8ddda","at":1773127951000000000,"seq":996,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019cd6a9-81d8-7b78-b263-b31b5cb5681b","at":1773127959000000000,"seq":997,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cd6a9-99d1-794c-96ce-bcdc67f7b879","at":1773127965137000000,"seq":998,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cd6a9-b4a0-7628-86a9-f8ac0471c95f","at":1773127972000000000,"seq":999,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd6a9-fed8-7d93-b7cb-2b06d04639c6","at":1773127991000000000,"seq":1000,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}

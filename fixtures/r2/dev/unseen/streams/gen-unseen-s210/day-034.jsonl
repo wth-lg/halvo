@@ -1,0 +1,30 @@
+{"v":1,"id":"019c22cd-5430-709a-9905-92a8e9ad554b","at":1770110407728000000,"seq":524,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c22cd-5430-71b8-a967-dbf2123bb49d","at":1770110407728000000,"seq":525,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c22cd-9f78-79de-8dea-86a3d04109f3","at":1770110427000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c22cd-d0aa-7133-af51-b8d6f2896f89","at":1770110439594000000,"seq":527,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Inbox - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c22cd-e5c8-7b21-b8bb-a15082e97b6f","at":1770110445000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c22cd-e9b0-70c0-9c72-ac644c81e765","at":1770110446000000000,"seq":529,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c22cd-f568-7ec6-a2f0-708127e42a61","at":1770110449000000000,"seq":530,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ce-4770-76df-a921-0d866c368b7b","at":1770110470000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22ce-492d-7777-af04-1a86fdb688b1","at":1770110470445000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c22ce-a530-75c3-8a47-d52314936970","at":1770110494000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c22ce-ad00-774d-8f8c-97586903b787","at":1770110496000000000,"seq":534,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22ce-bca3-744d-a0bf-ab46fbfd8e60","at":1770110500003000000,"seq":535,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c22ce-d028-7458-bc44-33dce2e1ce14","at":1770110505000000000,"seq":536,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c22ce-e798-74ca-b045-6679f7d7cccf","at":1770110511000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cf-1678-777e-876e-ddd1d2654b45","at":1770110523000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22cf-2230-7c84-a198-51eddc948505","at":1770110526000000000,"seq":539,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c22e6-a43e-73b2-b01e-65764baf9634","at":1770112066622000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c22e6-a5b8-791c-b885-4e7643397836","at":1770112067000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22e6-a9a0-7211-9898-292d2252cf37","at":1770112068000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c22e6-c110-7d55-b9d2-930e00f87141","at":1770112074000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22e6-e2d1-73ab-b5b6-6e1be3a982d7","at":1770112082641000000,"seq":544,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Elm Yard - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c22e6-f3d8-77b6-9bfa-ab56cf02274f","at":1770112087000000000,"seq":545,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22e7-1318-7d89-bf5f-865ce1fa71b3","at":1770112095000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c22e7-2e70-7705-a049-2646c1cd46f4","at":1770112102000000000,"seq":547,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c22e7-5b5b-7e70-852c-3296a58431aa","at":1770112113499000000,"seq":548,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c22e7-d280-7283-b97d-6c488510f8c7","at":1770112144000000000,"seq":549,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c22e7-f990-7105-b8ed-9d8719b744dd","at":1770112154000000000,"seq":550,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c22e8-0574-7d36-b5bd-506159973780","at":1770112157044000000,"seq":551,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019c22e8-1100-7f81-819d-87236749e094","at":1770112160000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c22e8-5368-7b91-a4af-86d833f102f6","at":1770112177000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

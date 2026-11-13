@@ -1,0 +1,49 @@
+{"v":1,"id":"019b7dcb-e813-7f97-80b9-5dd8fe99e29a","at":1767342073875000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7dcb-e813-7fed-a023-67d7b9cbd2ab","at":1767342073875000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b7dcc-0000-71ab-9468-b75dfb042c82","at":1767342080000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dcc-03e8-7846-b487-4523dbb756b1","at":1767342081000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dcc-2e34-74a8-9ee7-7830efb09508","at":1767342091828000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b7dcc-f230-7d89-b1f8-68e11129060b","at":1767342142000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b7dcc-f28d-7c0d-b052-57ea9d7dfe13","at":1767342142093000000,"seq":6,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b7dcd-24f8-79e1-b9fe-a0ea2230bdf4","at":1767342155000000000,"seq":7,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7dcd-8e70-7277-b1bc-f8f0fbae2e2b","at":1767342182000000000,"seq":8,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7dcd-9258-7d55-9c86-85fcb6faaca2","at":1767342183000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dcd-92de-7c5b-ae37-c71fd9000e69","at":1767342183134000000,"seq":10,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your cart - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b7dcd-9a28-7e19-a779-61a21ec7bde1","at":1767342185000000000,"seq":11,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7dcd-e460-7de5-af0a-b497cb6affb0","at":1767342204000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dcd-ec30-7e2a-ae3b-e37e76ac1a25","at":1767342206000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dce-03a0-7a16-b28b-f45091084fe8","at":1767342212000000000,"seq":14,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b7dce-385d-7f2c-9a1f-3aa5b144b8a0","at":1767342225501000000,"seq":15,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Card 4242 4242 4242 4242 - Confirm order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b7dce-4dd8-7c6f-b149-addfab0b4ac2","at":1767342231000000000,"seq":16,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dce-8c58-77b2-8471-56c54a95e165","at":1767342247000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b7dce-af80-744d-8670-94216d8208d8","at":1767342256000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dce-c3e4-73df-98ba-592f97589bbd","at":1767342261220000000,"seq":19,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Thanks for your order - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019b7dce-cad8-7902-827f-c0baea87fa12","at":1767342263000000000,"seq":20,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7dce-da78-7bf0-9e68-c3d00c728cf0","at":1767342267000000000,"seq":21,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dce-de60-70e4-959d-d814bde4afd9","at":1767342268000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019b7dce-ee00-7640-aca1-068d37c698b3","at":1767342272000000000,"seq":23,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7dcf-24b0-7760-8306-5fcf7d026ceb","at":1767342286000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dd3-4b47-7347-9a5a-feb9320ef11e","at":1767342558023000000,"seq":25,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b7dd3-56e8-76df-bc44-198fc5d44f93","at":1767342561000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dd3-6a70-7431-9a18-3adefc4f14bf","at":1767342566000000000,"seq":27,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b7dd3-85c8-75cd-9f8c-c7659860cc87","at":1767342573000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dd3-d7b1-7e3f-b1e4-367c5a24b906","at":1767342593969000000,"seq":29,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b7dd3-dbb8-737c-a28c-c600d61eba88","at":1767342595000000000,"seq":30,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7dd3-f710-7056-a804-cf996c28ca9d","at":1767342602000000000,"seq":31,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b7dd3-faf8-7691-ba88-16d44e550c6c","at":1767342603000000000,"seq":32,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dd3-fee0-714d-97fa-1f65bab3ac45","at":1767342604000000000,"seq":33,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7dd4-06b0-796c-90e0-3f3256625dcb","at":1767342606000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dd4-0ff3-7d5f-8e67-10131e4d0df0","at":1767342608371000000,"seq":35,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7dd4-0ff3-7d4b-a674-d728bdb67a49","at":1767342608371000000,"seq":36,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7dd4-4918-7401-844d-d31ae0a8822f","at":1767342623000000000,"seq":37,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dd4-8f68-7ed7-90f8-ff6341e170c5","at":1767342641000000000,"seq":38,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b7dd4-9b20-7c1e-a5a5-c762f16ff05e","at":1767342644000000000,"seq":39,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dd4-cb3b-7962-9684-9a385b5ed858","at":1767342656315000000,"seq":40,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7dd4-cb3b-714b-89ff-8b214a71ab8a","at":1767342656315000000,"seq":41,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019b7dd5-0c68-71c9-b636-14f082dc711b","at":1767342673000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b7dd5-3760-77e8-b451-f04e48bd17bd","at":1767342684000000000,"seq":43,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dd5-6258-769a-988e-71c0369cda97","at":1767342695000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7dee-5865-70b5-b6c7-4388e1d669d7","at":1767344330853000000,"seq":45,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7dee-8008-76bf-8b9c-a2158b0ac650","at":1767344341000000000,"seq":46,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7dee-b6b8-7fe9-8547-f5e0a3b21b15","at":1767344355000000000,"seq":47,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e07-c278-7ebb-89ac-72ff3ed5cd94","at":1767345996408000000,"seq":48,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}

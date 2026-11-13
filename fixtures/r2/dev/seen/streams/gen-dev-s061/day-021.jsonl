@@ -1,0 +1,28 @@
+{"v":1,"id":"019be005-2bbb-74ef-8620-3da7be46ffcc","at":1768989993915000000,"seq":261,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be005-2bbb-7fa4-bb32-c93546195159","at":1768989993915000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be005-33e0-7807-b338-9878593fcbbe","at":1768989996000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be005-62c0-7d83-a942-f2796a493b2d","at":1768990008000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019be005-6e78-76d5-85d6-6dbd9b7373db","at":1768990011000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be005-bc98-782b-84c9-f1dcc1586dbc","at":1768990031000000000,"seq":266,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be01c-d6bd-7758-bced-154f41e00426","at":1768991545021000000,"seq":267,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019be01d-2e88-7bf0-aee4-c6bfe213cb63","at":1768991567496000000,"seq":268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019be01d-8e40-7599-83c3-a37e62813cf6","at":1768991592000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be01d-c108-7d17-8f0f-9d60ee35d822","at":1768991605000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be01d-e731-77a4-a08c-fc0dedeccc71","at":1768991614769000000,"seq":271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019be01d-e818-7ac1-b225-9892058b3e94","at":1768991615000000000,"seq":272,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019be01d-ff88-74c9-b26e-64158694a9e4","at":1768991621000000000,"seq":273,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be01e-1ae0-7725-a9ae-e894b0f6c83f","at":1768991628000000000,"seq":274,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be01e-22b0-723d-b262-06865674cb2e","at":1768991630000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be01e-261c-731c-8e2a-ac2a0940ccd3","at":1768991630876000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019be01e-97e0-7242-a289-bbff5e416245","at":1768991660000000000,"seq":277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019be024-abda-7d75-96be-4fc98c1c24b4","at":1768992058330000000,"seq":278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be024-cdb8-7aeb-970e-d13058fa1dc3","at":1768992067000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be024-efe6-7b98-8700-5c2f0a52afd5","at":1768992075750000000,"seq":280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019be025-6610-7f1e-85ef-6e6eaf8f7717","at":1768992106000000000,"seq":281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be02c-659d-709b-8c05-2075fcd8a046","at":1768992564637000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019be02c-8e18-7f57-8218-c98e3f925c43","at":1768992575000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be02c-8e18-7d00-b19c-e0d2a6d941c5","at":1768992575000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019be02c-9db8-7c68-949f-3290c2202e52","at":1768992579000000000,"seq":285,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be02c-a1a0-76e8-84f5-fdf9a212296d","at":1768992580000000000,"seq":286,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019be033-afd0-77e6-b661-0a95da1b46da","at":1768993042384000000,"seq":287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be033-f888-7d3e-a096-72a7118db76b","at":1768993061000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

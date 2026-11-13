@@ -1,0 +1,22 @@
+{"v":1,"id":"019ceb86-3481-7191-bc81-92f2323a30b0","at":1773477966977000000,"seq":1068,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb86-3481-7e7a-8694-de96e98a53bc","at":1773477966977000000,"seq":1069,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019ceb86-6b48-7b8c-882b-b0db549e9ca2","at":1773477981000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb86-9640-7b77-ac8e-33765942ec50","at":1773477992000000000,"seq":1071,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ceb86-dc90-7c41-a51f-d22852b40cc6","at":1773478010000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb87-26c8-77a1-9192-0f3576311629","at":1773478029000000000,"seq":1073,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceb8d-983f-78e1-bbd5-b06dde764e38","at":1773478451263000000,"seq":1074,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ceb8d-983f-7a67-bb44-8e5a9c748e8a","at":1773478451263000000,"seq":1075,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ceb8e-1c08-73e2-8acf-977042f2e06d","at":1773478485000000000,"seq":1076,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba3-33ac-7c91-9387-863a42dce1cc","at":1773479867308000000,"seq":1077,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceba3-33ac-7eba-80e4-296c4aa2b92c","at":1773479867308000000,"seq":1078,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ceba3-4600-7581-8c28-21fee699dabc","at":1773479872000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba3-9bf0-797b-bedc-2127257f660e","at":1773479894000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba3-cdc1-7b00-93ce-e75bee6aa424","at":1773479906753000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ceba4-1120-7823-a027-814d61a645a3","at":1773479924000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ceba4-20c0-7923-9832-39ce4f18e4dd","at":1773479928000000000,"seq":1083,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceba4-3060-7596-be7b-a6952345fec1","at":1773479932000000000,"seq":1084,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceba4-71a7-742b-ac0a-20a4515698aa","at":1773479948711000000,"seq":1085,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the theatre - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019ceba4-9208-785a-9d3a-4d85678a43ca","at":1773479957000000000,"seq":1086,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ceba4-99d8-7486-abfe-3723ec11d4e2","at":1773479959000000000,"seq":1087,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceba4-a590-709b-861f-247f6cce6c5e","at":1773479962000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba4-aabc-79ca-a870-4be182aea57d","at":1773479963324000000,"seq":1089,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}

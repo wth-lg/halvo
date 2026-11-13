@@ -1,0 +1,20 @@
+{"v":1,"id":"019c50e6-68de-7d09-bed2-e1c0029f414c","at":1770883803358000000,"seq":659,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c50e6-68de-784a-837c-2ae22c4f253d","at":1770883803358000000,"seq":660,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c50e6-cd08-7eb6-96c8-5058a6d35109","at":1770883829000000000,"seq":661,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50e6-f800-7ddc-b203-d5108a823dab","at":1770883840000000000,"seq":662,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c50e6-ffd0-752f-82ed-b9189e791478","at":1770883842000000000,"seq":663,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c50ff-25ed-71ee-9dae-1ea53c7ee4e4","at":1770885424621000000,"seq":664,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c50ff-42c0-7d39-bf27-d71c87eacad5","at":1770885432000000000,"seq":665,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c50ff-5648-7246-8df0-e5b650fbe4c8","at":1770885437000000000,"seq":666,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50ff-6823-7d11-85e3-4546d5a6ed7d","at":1770885441571000000,"seq":667,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board this week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c50ff-8cf8-7e65-8135-625427bfc10f","at":1770885451000000000,"seq":668,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c50ff-a468-7155-b76c-75b145bedf46","at":1770885457000000000,"seq":669,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50ff-fa58-7b52-9021-ee63f619901e","at":1770885479000000000,"seq":670,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c5100-2168-73e5-895e-8abeed0aeb9c","at":1770885489000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5100-53f2-7744-9b12-99ebb3489555","at":1770885501938000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c5100-8310-7dc3-a3a2-6a0cf05cfc3e","at":1770885514000000000,"seq":673,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5100-ae08-7e06-83f1-cda2f26d5484","at":1770885525000000000,"seq":674,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5100-f840-72c4-b32e-a43ce962496a","at":1770885544000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c5101-4780-7183-ab67-33e540c94d27","at":1770885564288000000,"seq":676,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019c5101-5600-726b-9eb1-b76d374fa322","at":1770885568000000000,"seq":677,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c5101-7158-7de8-a2fb-b45fa06a466c","at":1770885575000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

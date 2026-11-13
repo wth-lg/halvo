@@ -1,0 +1,20 @@
+{"v":1,"id":"019d2ee9-143d-70e8-ab52-949d3f487b5b","at":1774608520253000000,"seq":1362,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2ee9-143d-7360-a74b-05b9cfd462e1","at":1774608520253000000,"seq":1363,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2ee9-1728-7ecb-b87b-5375b3277758","at":1774608521000000000,"seq":1364,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d2ee9-3a50-7e55-af0b-e494286c288c","at":1774608530000000000,"seq":1365,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ee9-51c0-7f19-8c3c-ff63d3582c28","at":1774608536000000000,"seq":1366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eed-8e77-7960-8dc8-82ead5954a9e","at":1774608813687000000,"seq":1367,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2eed-a338-765a-8792-406183056842","at":1774608819000000000,"seq":1368,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2f03-b765-7ad4-8269-ed2bf0298b6d","at":1774610265957000000,"seq":1369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2f03-f9f8-720c-8e95-d4c9f9cb218f","at":1774610283000000000,"seq":1370,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f04-05b0-7d6f-8fb8-8e1987beea45","at":1774610286000000000,"seq":1371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2f04-4818-7377-b2a4-c116fdc02b9e","at":1774610303000000000,"seq":1372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f04-a5d8-756b-b31f-6ec8bb2fce7e","at":1774610327000000000,"seq":1373,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2f14-012c-778d-a6b5-e49cb3bab7e6","at":1774611333420000000,"seq":1374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d2f14-2698-7cfd-a5ba-6ff13833b0a4","at":1774611343000000000,"seq":1375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f14-8c28-7118-a7e3-a4870911db06","at":1774611369000000000,"seq":1376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f14-ee22-7476-b7b5-9c874e5e6838","at":1774611394082000000,"seq":1377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for last week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d2f15-0d10-7686-a768-aeec0136a62e","at":1774611402000000000,"seq":1378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d2f15-5f18-7c4b-b7a5-104ad95277a8","at":1774611423000000000,"seq":1379,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2f15-99b0-70c5-bb63-69a75172460a","at":1774611438000000000,"seq":1380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f15-ad38-7a88-bbb2-0f109e64a48c","at":1774611443000000000,"seq":1381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

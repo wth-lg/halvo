@@ -1,0 +1,49 @@
+{"v":1,"id":"019cdbde-3332-7669-ab75-adf8c3f38c9f","at":1773215298354000000,"seq":1074,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cdbde-3332-750a-a93a-a967b1cbd8a5","at":1773215298354000000,"seq":1075,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cdbde-4d28-7cea-a058-5f159bec8f5a","at":1773215305000000000,"seq":1076,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cdbde-a876-75ba-9630-15f4de6ac095","at":1773215328374000000,"seq":1077,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cdbde-ce10-77a9-abae-ab9309b7e0c1","at":1773215338000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbde-d9c8-7684-b8d0-412372a91888","at":1773215341000000000,"seq":1079,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdbdf-92b0-7047-8173-0fdd3555c990","at":1773215388336000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe0-0690-7077-8548-b65de5c8fcaf","at":1773215418000000000,"seq":1081,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cdbe0-4fa7-7666-9a8c-715eab97b855","at":1773215436711000000,"seq":1082,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019cdbe0-50c8-7a63-b2be-8b7fe6d3f908","at":1773215437000000000,"seq":1083,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdbe0-77d8-726a-a5b6-799328f88a6b","at":1773215447000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe0-a2d0-7e09-9a13-60cc86998abf","at":1773215458000000000,"seq":1085,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbe0-ba40-748e-817b-dc196f8c17eb","at":1773215464000000000,"seq":1086,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdbeb-b662-75be-9903-82447fab87a0","at":1773216183906000000,"seq":1087,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cdbec-1868-799e-805a-16376b05f581","at":1773216209000000000,"seq":1088,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbec-4804-7ac0-badd-422def339cb2","at":1773216221188000000,"seq":1089,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cdbec-9950-730b-a46d-4d41636c579b","at":1773216242000000000,"seq":1090,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbec-a8f0-74ee-9d38-0640790fed90","at":1773216246000000000,"seq":1091,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbec-c830-7838-b39d-1ab0596f0297","at":1773216254000000000,"seq":1092,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cdbec-ce44-7027-bc6c-40e558246cfe","at":1773216255556000000,"seq":1093,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cdbec-eb58-7728-9795-c2e83741d8b8","at":1773216263000000000,"seq":1094,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cdbed-31a8-76e8-93ed-e67aaae57b96","at":1773216281000000000,"seq":1095,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cdbed-bb2e-7f99-8b58-f3c16c017aa4","at":1773216316206000000,"seq":1096,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cdbed-c618-7c6a-ae0a-af164245b944","at":1773216319000000000,"seq":1097,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019cdbed-d5b8-77b1-8a21-b714dd64e73f","at":1773216323000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbee-053c-74aa-ac0e-26b77329f55d","at":1773216335164000000,"seq":1099,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cdbee-3b48-7ea4-a4c1-a0fe4bb2556e","at":1773216349000000000,"seq":1100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbee-a8a8-7558-84a9-7815bd6d1ea7","at":1773216377000000000,"seq":1101,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbee-cbd0-7f63-a843-0c2a35347da3","at":1773216386000000000,"seq":1102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cdbee-e245-7c58-8361-29cf03c7f2c4","at":1773216391749000000,"seq":1103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cdbef-1608-7a85-99c5-31ab7214a812","at":1773216405000000000,"seq":1104,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cdbef-21c0-79ed-abba-7e9ab921bf10","at":1773216408000000000,"seq":1105,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cdbef-61f8-751c-894e-04d0724ed5fd","at":1773216424440000000,"seq":1106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cdbef-aa78-7b4c-8c94-b1baf8db8e82","at":1773216443000000000,"seq":1107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cdbef-be00-7c36-845c-649728015798","at":1773216448000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cdbef-e128-749d-9154-4860441e5a3b","at":1773216457000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbef-e510-7794-950e-7872980fb714","at":1773216458000000000,"seq":1110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbef-f0c8-7740-b47a-1b706e5c88c4","at":1773216461000000000,"seq":1111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cdbef-f264-7a46-8aba-40e93fa698d1","at":1773216461412000000,"seq":1112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cdbf0-1fa8-7d62-a829-4fa3e1528127","at":1773216473000000000,"seq":1113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cdbf0-42d0-79ec-8795-6527b8ccc142","at":1773216482000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cdbf0-46b8-720f-b5e5-c1db25a9ad63","at":1773216483000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbf0-5e28-7166-b533-00e01a9b9015","at":1773216489000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbfb-a055-7f2e-8711-6528fa9f4b2b","at":1773217226837000000,"seq":1117,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cdbfb-a055-7cb9-8e69-7fd4271dde9a","at":1773217226837000000,"seq":1118,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cdbfb-e360-7494-849d-265c0caeb41f","at":1773217244000000000,"seq":1119,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cdbfb-eb0c-7f83-81d3-f85af5f706e7","at":1773217245964000000,"seq":1120,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cdbfc-0688-7c2b-a5f4-353a1a346a06","at":1773217253000000000,"seq":1121,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cdbfc-3180-76af-8503-78ce41d65455","at":1773217264000000000,"seq":1122,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

@@ -1,0 +1,10 @@
+{"v":1,"id":"019d0fb9-e865-76ab-aba8-d5d65ba782eb","at":1774085335141000000,"seq":1109,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fb9-e865-7343-aca6-b3f1f4b267f6","at":1774085335141000000,"seq":1110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d0fba-4980-7ef5-809a-875af3c039b1","at":1774085360000000000,"seq":1111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d0fba-8d9c-7de4-aa7b-cca977160f4a","at":1774085377436000000,"seq":1112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d0fba-93b8-7a19-9b54-3fc07c6edb41","at":1774085379000000000,"seq":1113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0fba-ab28-7e66-b5cd-63c80657e14c","at":1774085385000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fba-b2f8-75e9-8b96-e891753db3fd","at":1774085387000000000,"seq":1115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0fba-c666-7948-b57f-e734ce49c69e","at":1774085391974000000,"seq":1116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019d0fba-d238-7626-9def-85e577a8088d","at":1774085395000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fba-f948-783b-889e-2777d110fb11","at":1774085405000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

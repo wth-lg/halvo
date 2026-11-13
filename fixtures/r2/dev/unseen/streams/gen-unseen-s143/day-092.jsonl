@@ -1,0 +1,7 @@
+{"v":1,"id":"019d4d94-25cb-730b-b58e-625ae2924df4","at":1775123047883000000,"seq":1172,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4d94-25cb-7c91-9b81-79b329cae42c","at":1775123047883000000,"seq":1173,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d4d94-d220-73eb-81a4-406ab721a014","at":1775123092000000000,"seq":1174,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d4d95-02b0-7a7a-9ab4-df249e53ddd8","at":1775123104432000000,"seq":1175,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d4d95-1488-7943-931a-533bf5efc7ec","at":1775123109000000000,"seq":1176,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4d95-1870-70a7-a56f-35149b85c5f4","at":1775123110000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4d95-4368-7ddf-8085-7f728d3124c3","at":1775123121000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}

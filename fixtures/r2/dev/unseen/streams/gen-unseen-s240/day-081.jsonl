@@ -1,0 +1,14 @@
+{"v":1,"id":"019d1504-51d3-79af-972b-ed770275f2d4","at":1774174097875000000,"seq":1187,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1504-51d3-722b-ab14-081164e291b6","at":1774174097875000000,"seq":1188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1504-7190-7d02-a367-b5d2284cf657","at":1774174106000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1504-fe30-7361-8e96-a21063b79c18","at":1774174142000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d1505-03db-7c6d-b754-2f12d734c3c8","at":1774174143451000000,"seq":1191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d1505-9a70-7e75-802f-1e2d4c21cdb7","at":1774174182000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1505-b9b0-7bed-a281-23da0a5d590f","at":1774174190000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1505-becd-7a52-be33-00a3ae1f06e3","at":1774174191309000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d1505-d8f0-7cc1-97c1-66e421bde27b","at":1774174198000000000,"seq":1195,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1505-dcd8-7418-864d-ea68d5cb77dd","at":1774174199000000000,"seq":1196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d1506-2b5d-7ac4-a5f7-87b49a68ea6a","at":1774174219101000000,"seq":1197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d1506-61a8-74f3-befe-88182d773bcf","at":1774174233000000000,"seq":1198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1506-7148-7824-a20a-baba912a3335","at":1774174237000000000,"seq":1199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1506-a028-7ebb-84aa-111850884899","at":1774174249000000000,"seq":1200,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

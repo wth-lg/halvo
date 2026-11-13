@@ -1,0 +1,22 @@
+{"v":1,"id":"019ceb3c-2ac5-7a75-94c3-668ba28f5307","at":1773473114821000000,"seq":1006,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb3c-2ac5-7cbb-9dbb-70d02dd7f5c0","at":1773473114821000000,"seq":1007,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ceb3c-3b18-7ab8-ad00-3b19ca99ae38","at":1773473119000000000,"seq":1008,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb3c-5288-7eb2-9028-d1a579792a5a","at":1773473125000000000,"seq":1009,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb3c-6340-7023-967e-9980c6112f6e","at":1773473129280000000,"seq":1010,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ceb3c-9108-7806-8144-47daab81481b","at":1773473141000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ceb3c-9cc0-7f20-ab5e-e7e2ada8fddb","at":1773473144000000000,"seq":1012,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb3c-bb5f-73c6-bfff-7b522f535b79","at":1773473151839000000,"seq":1013,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ceb3c-bc00-72ee-b749-808b2cad2a65","at":1773473152000000000,"seq":1014,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ceb3c-db40-732a-8a04-d0ae94243c7e","at":1773473160000000000,"seq":1015,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceb3d-20d4-7644-9c17-e7027972bdd6","at":1773473177812000000,"seq":1016,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ceb3d-5458-7241-86be-ae88959ecd59","at":1773473191000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb3d-6fb0-7859-9058-a491901b955d","at":1773473198000000000,"seq":1018,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019ceb3d-dd10-7ade-932a-8ab0671e75f1","at":1773473226000000000,"seq":1019,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceb3d-dd66-767b-b5ab-643e05811c31","at":1773473226086000000,"seq":1020,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019ceb3d-e4e0-7c45-964e-fc900e09e9a7","at":1773473228000000000,"seq":1021,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb3d-e4e0-772c-bb36-da249d31d94f","at":1773473228000000000,"seq":1022,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ceb3e-0bf0-72fc-896f-1d9e3ec58472","at":1773473238000000000,"seq":1023,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ceb3e-65c8-711e-8c02-28d25af0f08e","at":1773473261000000000,"seq":1024,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceb4f-9783-7cf2-a998-aaf49823d4eb","at":1773474387843000000,"seq":1025,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019ceb4f-9820-7d79-a273-54e646a59415","at":1773474388000000000,"seq":1026,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceb4f-9c08-79b3-ad3b-fc5cbd2e6bd0","at":1773474389000000000,"seq":1027,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}

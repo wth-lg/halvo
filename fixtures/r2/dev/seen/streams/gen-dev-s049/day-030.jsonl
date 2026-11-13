@@ -1,0 +1,44 @@
+{"v":1,"id":"019c0e55-cf19-7571-9a3d-e20c29e14725","at":1769767030553000000,"seq":294,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c0e55-cf19-7ab2-a196-63d9ac702f59","at":1769767030553000000,"seq":295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0e56-1b10-7234-89ab-8fdde69a46c1","at":1769767050000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c0e56-3668-7773-98d7-af039de9a6f1","at":1769767057000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e56-5d78-7b6e-8486-6df8f029d711","at":1769767067000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c0e56-7100-7a3c-acc8-bb5051d03125","at":1769767072000000000,"seq":299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c0e6d-d4db-70c3-8e57-743940073529","at":1769768604891000000,"seq":300,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c0e6e-36f0-7d21-a73b-19c5b949d6b4","at":1769768630000000000,"seq":301,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e6e-b372-7f80-b358-b6837dacf604","at":1769768661874000000,"seq":302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c0e6e-dee8-7951-b6f3-d66a8d8269f5","at":1769768673000000000,"seq":303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0e6e-e2d0-73af-bd8b-7b2e722a7b63","at":1769768674000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c0e6f-0b45-71c0-80e0-227adffd3dd3","at":1769768684357000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c0e6f-11b0-7b37-9cde-aed78e18a36c","at":1769768686000000000,"seq":306,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0e6f-2920-79ea-9bfe-452fdf16c8ff","at":1769768692000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e6f-5030-7346-aec2-c317c9c6eb23","at":1769768702000000000,"seq":308,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e6f-9e50-72e9-9d2e-aba5ef8df7f9","at":1769768722000000000,"seq":309,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e6f-a273-7e5d-bf84-e4d857479444","at":1769768723059000000,"seq":310,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e70-2008-79b5-bf77-930debe88e83","at":1769768755208000000,"seq":311,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 7 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e70-36a8-775d-ab8c-b2da02a70ba4","at":1769768761000000000,"seq":312,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e70-6970-7a54-a5df-ef676f1ef5cd","at":1769768774000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e70-8c93-7b07-b459-b3541cb0ff62","at":1769768782995000000,"seq":314,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e70-8c98-7eec-9dd2-4b88a8eb270a","at":1769768783000000000,"seq":315,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c0e70-9468-7149-b205-5606b25cc44b","at":1769768785000000000,"seq":316,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e70-9c38-7d5e-a8e4-599bf8842483","at":1769768787000000000,"seq":317,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e70-a020-762a-ad8b-fa73e84faef7","at":1769768788000000000,"seq":318,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c0e70-bb78-70f1-8c8b-2050dc824152","at":1769768795000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c0e70-df3d-7285-a62a-3b51708aa7b4","at":1769768804157000000,"seq":320,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e71-3878-7171-b8f5-172c258191ff","at":1769768827000000000,"seq":321,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e71-3c60-7cfe-aadb-c0f7c29c1ba5","at":1769768828000000000,"seq":322,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c0e71-4f64-7e28-a041-43476afb3f67","at":1769768832868000000,"seq":323,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c0e71-6b40-7d37-aef5-51ae03a4a9d8","at":1769768840000000000,"seq":324,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c0e71-76f8-7b62-aff1-e0bd41f66ff5","at":1769768843000000000,"seq":325,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e71-76f8-7576-99c2-cdbf372c09e8","at":1769768843000000000,"seq":326,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c0e71-8698-7328-90d1-7f2e2fe1d0e8","at":1769768847000000000,"seq":327,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c0e71-8ae9-769b-b281-c9a5fde7215b","at":1769768848105000000,"seq":328,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019c0e71-9638-7fe9-8c65-ba0806310674","at":1769768851000000000,"seq":329,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c0e87-e7d3-7bd7-9e37-632709241d65","at":1769770313683000000,"seq":330,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c0e87-fc98-76e0-a3f0-c3bb9ea8e4f9","at":1769770319000000000,"seq":331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e88-0468-791e-8805-1325b958555b","at":1769770321000000000,"seq":332,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0e88-1bd8-7db3-adcc-2424a718ac6c","at":1769770327000000000,"seq":333,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c0e88-2f60-7964-940c-87e6c9d75053","at":1769770332000000000,"seq":334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c0e94-cdbf-7677-a7a7-11965d02abd5","at":1769771158975000000,"seq":335,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c0e94-cdbf-79d3-8966-3e324f7730b4","at":1769771158975000000,"seq":336,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c0e95-3f20-7724-92b7-e5ec12e7ae31","at":1769771188000000000,"seq":337,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}

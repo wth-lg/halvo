@@ -1,0 +1,36 @@
+{"v":1,"id":"019c9ea2-cb16-7dc3-8ad9-6bf3251733e2","at":1772187994902000000,"seq":770,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9ea2-cb16-727b-b598-dfd05d937604","at":1772187994902000000,"seq":771,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9ea3-63d0-7d4a-a7b9-b35cc82f8eb9","at":1772188034000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ea3-7b40-7546-9289-626f268364bd","at":1772188040000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ea3-8cd4-7f1e-bab8-87f71fc9711a","at":1772188044500000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9ea3-9a80-7f08-8d76-5bd5d3990e45","at":1772188048000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ea3-cd48-7e6b-abd0-de06fa4d21fb","at":1772188061000000000,"seq":776,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ea3-dce8-7218-a515-e691672d647f","at":1772188065000000000,"seq":777,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9ea3-f24f-7901-8903-5854cbc0117d","at":1772188070479000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9ea4-5c8f-7af9-bf60-51794e87728b","at":1772188097679000000,"seq":779,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c9ea4-a038-78a4-a6f1-bc6ec689b591","at":1772188115000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9ea4-fdf8-7d1c-b42b-d1682955f9d8","at":1772188139000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c9ea5-05c8-7dc4-9684-d1e7cbb1fa8f","at":1772188141000000000,"seq":782,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9ea5-5ae5-7c86-bc3b-77511909622f","at":1772188162789000000,"seq":783,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9ea5-5bb8-7ffb-8fd5-61671d05f0ee","at":1772188163000000000,"seq":784,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9eb7-21d0-7f64-8b52-49b6af92fe73","at":1772189327824000000,"seq":785,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c9eb7-2280-7a8a-b9f2-d0ea2fd82ad2","at":1772189328000000000,"seq":786,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9eb7-2a50-7feb-b628-ea362927df4d","at":1772189330000000000,"seq":787,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9eb7-2e38-7fb3-9a5d-e073e7cbd5f8","at":1772189331000000000,"seq":788,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ed1-dc59-7327-8fc6-d0122a6be592","at":1772191079513000000,"seq":789,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9ed2-91f0-7070-a340-f9e6f4c21b92","at":1772191126000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ed2-a5ef-70a1-b080-c0a84b744f52","at":1772191131119000000,"seq":791,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9ed2-e7e0-7d0b-9958-8cbc9e234567","at":1772191148000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9ed2-ebc8-79e3-b788-d82596c0249a","at":1772191149000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c9ed3-2780-72be-81c9-92298fda72c0","at":1772191164288000000,"seq":794,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9ed3-4988-7f39-bbaf-d67cc786a0a3","at":1772191173000000000,"seq":795,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c9ed3-5158-7042-a3c5-8a306592702b","at":1772191175000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ed3-af18-7ccc-89e1-181f95bf72a5","at":1772191199000000000,"seq":797,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9ed3-c2a0-7c7a-8d27-2fb481a62e3a","at":1772191204000000000,"seq":798,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9ed3-e1e0-775f-8022-ea45c4cf83c7","at":1772191212000000000,"seq":799,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ed3-ef78-7922-9382-a31a5e3a141e","at":1772191215480000000,"seq":800,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook deposit tracker synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019c9ed3-f180-7607-9e30-45371ccbaae2","at":1772191216000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9ed4-1890-7f8e-baba-61d855d91d92","at":1772191226000000000,"seq":802,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9ed4-2060-7855-9ab7-092b56dcf27d","at":1772191228000000000,"seq":803,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c9edd-f4ab-7df8-bb31-1ce09614bb44","at":1772191872171000000,"seq":804,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c9ede-9bf8-72db-bf62-130816d78230","at":1772191915000000000,"seq":805,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

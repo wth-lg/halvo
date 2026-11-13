@@ -1,0 +1,10 @@
+{"v":1,"id":"019bf4cb-1ce1-7f2d-906d-9da85451455c","at":1769338510561000000,"seq":399,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf4cb-1ce1-7ec8-a900-6afa6f5f99fb","at":1769338510561000000,"seq":400,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf4cb-3608-74e2-86f4-97fbf1ed415c","at":1769338517000000000,"seq":401,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf4cb-5f00-721b-8fc5-9f4af947489b","at":1769338527488000000,"seq":402,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf4cb-97b0-7641-95bb-2200cf3dc303","at":1769338542000000000,"seq":403,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bf4cc-47ac-704c-913d-dcd845688168","at":1769338587052000000,"seq":404,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bf4cc-a538-7500-b356-9bad3ee8f660","at":1769338611000000000,"seq":405,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf4cc-d800-78fb-9d04-d2cf6c3819ad","at":1769338624000000000,"seq":406,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bf4e1-e243-7fd4-bac2-733e53db07f2","at":1769340002883000000,"seq":407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bf4e1-f258-7cb5-9cea-89f43821d5bb","at":1769340007000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

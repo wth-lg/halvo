@@ -1,0 +1,16 @@
+{"v":1,"id":"019cffd2-cbc5-7f32-a9d8-1580abbb6c23","at":1773818530757000000,"seq":1073,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cffd2-cbc5-7868-b332-01a48f922d02","at":1773818530757000000,"seq":1074,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cffd2-d0a0-7acb-b37a-dfe1e0f00562","at":1773818532000000000,"seq":1075,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019cffd3-1ec0-7c5b-a8a8-6395b37a30e0","at":1773818552000000000,"seq":1076,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cffe5-371b-7b65-b09e-0a179880c14f","at":1773819737883000000,"seq":1077,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cffe5-56d0-740d-8494-e6ac5208f3d1","at":1773819746000000000,"seq":1078,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cffe5-b2d1-7542-a0ca-a7617ce7b1fd","at":1773819769553000000,"seq":1079,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cffe5-b2d1-7b51-89c0-02c7cc8e4617","at":1773819769553000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cffe5-bc60-7dc4-971e-1a819ccfacf1","at":1773819772000000000,"seq":1081,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cffe5-c430-7b9d-bf53-eea2d3534a57","at":1773819774000000000,"seq":1082,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cffe5-fec8-7aec-b0c4-f00055032994","at":1773819789000000000,"seq":1083,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe6-21f0-7362-a672-c7a0c14582ec","at":1773819798000000000,"seq":1084,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cffe6-6421-7827-8bf0-a9d446056b26","at":1773819814945000000,"seq":1085,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cffe6-6421-7eaf-ba4a-212b2ad5a99a","at":1773819814945000000,"seq":1086,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-14.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cffe6-c9e8-7af6-a7f2-1e9e0fc6d9e4","at":1773819841000000000,"seq":1087,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cffe7-27a8-7715-86c5-0f68098017b4","at":1773819865000000000,"seq":1088,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}

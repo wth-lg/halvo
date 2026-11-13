@@ -1,0 +1,28 @@
+{"v":1,"id":"019beee2-f75f-7807-be1c-d99f3a655cc0","at":1769239410527000000,"seq":406,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019beee2-f75f-7a3d-8269-2ff004f9f041","at":1769239410527000000,"seq":407,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019beee3-7e08-713e-8cf5-05ea3824fc1d","at":1769239445000000000,"seq":408,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019beeee-54f4-786c-9d02-b5d900ba2844","at":1769240155380000000,"seq":409,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019beeee-d078-74f8-b7e9-88481c755eab","at":1769240187000000000,"seq":410,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019beeef-4510-70da-9207-cc2e8e238ba6","at":1769240216848000000,"seq":411,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019beef0-1bcf-7153-9357-2bf02598a08a","at":1769240271823000000,"seq":412,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019beef0-bca8-7433-8366-3d467b00b990","at":1769240313000000000,"seq":413,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019beef0-dfd0-7773-8dfe-d75163854c77","at":1769240322000000000,"seq":414,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef1-0b09-733b-aa77-86eb363b4bc9","at":1769240333065000000,"seq":415,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019beef1-5500-77c7-8786-821faf29239a","at":1769240352000000000,"seq":416,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef1-5cd0-75a4-9256-ed53f361dafe","at":1769240354000000000,"seq":417,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019beef1-7440-776e-b607-9284b7a13dc0","at":1769240360000000000,"seq":418,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019beef4-d5be-7f25-b136-9640bb9043cd","at":1769240581566000000,"seq":419,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019beef5-5c40-74b4-ad69-b4c9cbd29288","at":1769240616000000000,"seq":420,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019beef5-9ea8-7364-a90d-27f8ab22f1bd","at":1769240633000000000,"seq":421,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef5-a2f2-7098-b2fb-bf7c43b17ff0","at":1769240634098000000,"seq":422,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement May - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019beef5-c1d0-7cee-b6e4-c51bdb2b1c3e","at":1769240642000000000,"seq":423,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019beef5-e8e0-7b5c-910a-e46dc0d981bb","at":1769240652000000000,"seq":424,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019beef6-4a88-7780-ad2e-37e5ef24f9a4","at":1769240677000000000,"seq":425,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019beef6-9f6c-7c2a-a815-7d95d5b91ee2","at":1769240698732000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019beef6-a460-73ad-a370-728dff9c69f9","at":1769240700000000000,"seq":427,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019beef6-c3a0-767f-972a-bb00e95842c1","at":1769240708000000000,"seq":428,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019beef7-09f0-7e81-a13e-5afbc2f534e5","at":1769240726000000000,"seq":429,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019beef7-11c0-71b3-b523-d93556113f7e","at":1769240728000000000,"seq":430,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019beef7-1bed-725d-b455-9f4922dbdaee","at":1769240730605000000,"seq":431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019beef7-2160-7728-95d6-4687f1029e12","at":1769240732000000000,"seq":432,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019beef7-67b0-7e74-8aa8-ce7d297e96fa","at":1769240750000000000,"seq":433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

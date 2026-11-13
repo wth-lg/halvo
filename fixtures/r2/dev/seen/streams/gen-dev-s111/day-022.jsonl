@@ -1,0 +1,12 @@
+{"v":1,"id":"019be4d7-55bd-7dd1-b32e-72b9a9d5c226","at":1769070876093000000,"seq":165,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be4d7-55bd-73ba-a321-89177ca536dd","at":1769070876093000000,"seq":166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be4d7-6118-7dfe-9b85-981f95aa0199","at":1769070879000000000,"seq":167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4d7-6500-7a8c-ab46-93cb2e0ac9a7","at":1769070880000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d7-74a0-7eb3-b724-78002ff23711","at":1769070884000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4d7-baf0-7ea0-bd0a-fe9c64d02832","at":1769070902000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019be4ec-8a1b-7925-914d-d6f5a4a37536","at":1769072265755000000,"seq":171,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be4ec-8a1b-727f-81e8-63dfd81abc07","at":1769072265755000000,"seq":172,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be4ec-c5a8-734c-8585-b05028f9f23b","at":1769072281000000000,"seq":173,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019be4ec-d548-76df-96fa-a8ad69696a90","at":1769072285000000000,"seq":174,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4ed-13c8-7fe4-925b-115ce30a6495","at":1769072301000000000,"seq":175,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019be4ed-42a8-7999-b66b-c8f727aa16a0","at":1769072313000000000,"seq":176,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

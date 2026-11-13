@@ -1,0 +1,32 @@
+{"v":1,"id":"019bb158-3e0e-79a1-871a-8e9c778b743c","at":1768206908942000000,"seq":273,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb158-3e0e-73c3-b1ae-bfa3d82ddb74","at":1768206908942000000,"seq":274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bb158-6170-7b97-bbd9-38e26a86bb61","at":1768206918000000000,"seq":275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bb159-3ab0-71e8-9c70-90b2ddfc167f","at":1768206973616000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bb159-9f89-7fa0-85f8-6ecfebd3c4c9","at":1768206999433000000,"seq":277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bb159-c8d0-76bc-94f8-999d184ddef9","at":1768207010000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb159-d488-7e55-bee0-efa49c626f4e","at":1768207013000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019bb15a-16f0-72af-ba1c-b27d0f2c4f72","at":1768207030000000000,"seq":280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15a-203b-710c-b40a-c70890ec27ab","at":1768207032379000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bb15a-22a8-7789-8a8a-b4f2e7112e32","at":1768207033000000000,"seq":282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15a-49b8-78c5-a095-1a49c036ada7","at":1768207043000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15a-5958-750d-80b6-9aef9e762796","at":1768207047000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bb15a-63e0-79e6-8315-8dcecad46443","at":1768207049696000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019bb15a-b718-7dd0-a0c4-c7ad1497a0ed","at":1768207071000000000,"seq":286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15a-d658-74cb-ad28-793f8c5b82f7","at":1768207079000000000,"seq":287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bb15b-2478-7e59-816a-fbc7b4db3445","at":1768207099000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bb15b-5b28-7a8a-b655-afaf01299350","at":1768207113000000000,"seq":289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15b-5e6d-7aef-88a1-e677d2df5bf4","at":1768207113837000000,"seq":290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bb15b-95c0-77b0-9de7-549b460a58ac","at":1768207128000000000,"seq":291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15b-d828-7b2b-9601-32639e0d7ccb","at":1768207145000000000,"seq":292,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb15b-f768-7d41-abff-e9b4768f962c","at":1768207153000000000,"seq":293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb15c-2648-74a9-ab5f-8085053052e4","at":1768207165000000000,"seq":294,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bb174-d495-72ec-99dd-ab6d9402f924","at":1768208782485000000,"seq":295,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bb174-da80-703d-acf4-eae1b872c68c","at":1768208784000000000,"seq":296,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bb174-e250-7a9a-8053-a0a93ed25a2a","at":1768208786000000000,"seq":297,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb174-f1f0-7753-bd7f-3181b16283ed","at":1768208790000000000,"seq":298,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb175-4bc8-7772-8141-369cbac245e4","at":1768208813000000000,"seq":299,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb182-1061-7b20-b3da-e27ae644e283","at":1768209649761000000,"seq":300,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bb182-1061-7cd4-91e1-83ca5044cd2b","at":1768209649761000000,"seq":301,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bb182-4800-715d-a7e9-ee92d0a8eda6","at":1768209664000000000,"seq":302,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bb182-5f70-7b26-a35c-da1d966c3a85","at":1768209670000000000,"seq":303,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb182-ad90-7d94-a71f-0f9917886d25","at":1768209690000000000,"seq":304,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

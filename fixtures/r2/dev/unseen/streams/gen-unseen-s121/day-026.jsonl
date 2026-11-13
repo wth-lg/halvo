@@ -1,0 +1,26 @@
+{"v":1,"id":"019bf93f-c832-7f6b-96e3-935cc86dbe2e","at":1769413265458000000,"seq":259,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf93f-c832-769a-bc4f-c45afc1172dd","at":1769413265458000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bf940-1c58-7435-ae37-bd9cb3c10520","at":1769413287000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf940-2fe0-7762-9cfb-9bf00fa9bb33","at":1769413292000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bf940-664a-701f-9016-05b600d8f1ba","at":1769413305930000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bf940-81e8-70be-84d9-c34fb7baebf9","at":1769413313000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bf940-d76e-7720-abe1-b52e28f8764f","at":1769413334894000000,"seq":265,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bf940-f330-7789-b5bd-df77922312f8","at":1769413342000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf940-fb00-76ec-9990-31d95357bca4","at":1769413344000000000,"seq":267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf941-1658-78f6-b21f-54fd44d21dc5","at":1769413351000000000,"seq":268,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf941-3d68-7ea6-b11f-a4a34442d2f6","at":1769413361000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf941-7800-71e8-b44b-701945f4dcc4","at":1769413376000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bf941-ba29-7f8a-ba21-ec5ecb7936cd","at":1769413392937000000,"seq":271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bf941-f8e8-7244-b368-94f040ba741c","at":1769413409000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bf942-1828-779a-a2a5-de35b4adaaed","at":1769413417000000000,"seq":273,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf942-1ff8-7b32-a2ec-e42f0abbac1e","at":1769413419000000000,"seq":274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf942-23e0-7c65-976d-853d52521231","at":1769413420000000000,"seq":275,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf942-31ae-7c3d-ab59-25a0e1a1bca3","at":1769413423534000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019bf942-3b50-7997-adb2-212ae25c7937","at":1769413426000000000,"seq":277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf942-4320-7113-857f-45c884593400","at":1769413428000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf942-8970-7895-bd87-6dea815fa5d3","at":1769413446000000000,"seq":279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf942-c9d6-741f-92b2-94f2dc34f473","at":1769413462486000000,"seq":280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bf943-2998-77e3-99c2-8d80579e9a7c","at":1769413487000000000,"seq":281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bf943-3eda-7ad5-8966-f72082f03601","at":1769413492442000000,"seq":282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019bf943-50a8-78e3-a19b-9f997fd849fd","at":1769413497000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf943-ea2e-7afb-9dbb-0e0dbf123ef2","at":1769413536302000000,"seq":284,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}

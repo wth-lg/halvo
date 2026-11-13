@@ -1,0 +1,47 @@
+{"v":1,"id":"019cbd01-e539-76a6-ab0b-2cca377faf78","at":1772697543993000000,"seq":941,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbd01-e539-7f20-a3b8-17289273d2a7","at":1772697543993000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cbd02-3f18-78ed-92df-ed79bd0af2a2","at":1772697567000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cbd02-f24a-75c8-add2-17c8443d98c5","at":1772697612874000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd02-f6b0-7d4f-8312-18919618ec1c","at":1772697614000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd03-0a38-7755-8e59-f6f12f60d9c8","at":1772697619000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd03-3174-7ba2-a8ae-217611c9106e","at":1772697629044000000,"seq":947,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd03-9ea8-7e6b-a39b-4ac7bd72a409","at":1772697657000000000,"seq":948,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cbd04-14df-774b-a8ab-6c59a90d46e7","at":1772697687263000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"coffee filters - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd04-2760-79b5-9910-757030af0e05","at":1772697692000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd04-3700-7969-bc92-4b2faad41b41","at":1772697696000000000,"seq":951,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cbd04-3ed0-75fc-a99e-32f2e009eb9a","at":1772697698000000000,"seq":952,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd04-5e10-7c66-b301-3ef35adf4f74","at":1772697706000000000,"seq":953,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd04-7198-79b6-8928-90bea7744c33","at":1772697711000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbd05-23d9-7108-b005-28278cc006c2","at":1772697756633000000,"seq":955,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd05-5fe0-7586-8ce3-3381a2c7be69","at":1772697772000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd05-9a78-7688-b9f0-7f7f5a1e05e7","at":1772697787000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd05-a55a-72d5-b120-6ab508490786","at":1772697789786000000,"seq":958,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd05-b5d0-778d-b19e-fe1c8ff48a0c","at":1772697794000000000,"seq":959,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd06-07d8-75e2-acda-f3e82b8b5f3f","at":1772697815000000000,"seq":960,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cbd06-30b0-701d-8593-9fbdf5646f1a","at":1772697825456000000,"seq":961,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019cbd07-0235-72ea-b0cb-f6aa9480a561","at":1772697879093000000,"seq":962,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cbd07-4ff8-7557-9a4f-10d6c5800ee7","at":1772697899000000000,"seq":963,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd07-53e0-7661-8768-6d0df1c733ed","at":1772697900000000000,"seq":964,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cbd07-6f38-78ab-a63e-5142325747f4","at":1772697907000000000,"seq":965,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd07-7320-79d8-ba9a-e10083b330ff","at":1772697908000000000,"seq":966,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd07-a3f5-7958-9f5a-cb4eedb5c1c2","at":1772697920501000000,"seq":967,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the airport - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cbd07-a9d0-70d5-bed5-4f92964cc472","at":1772697922000000000,"seq":968,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cbd07-ffc0-7720-b3ef-54b8d28357dc","at":1772697944000000000,"seq":969,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cbd08-3288-7d1d-a517-e05cb4b6a54e","at":1772697957000000000,"seq":970,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cbd08-4961-7a4c-b2ae-5c3cf44c1e6f","at":1772697962849000000,"seq":971,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cbd08-49f8-7910-ba9e-d73fa149c8d2","at":1772697963000000000,"seq":972,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cbd08-4de0-77e1-ae32-10094f219005","at":1772697964000000000,"seq":973,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cbd08-51c8-7786-9c99-4fe78a625452","at":1772697965000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cbd08-78d8-7081-bbed-b4e29c4c35a3","at":1772697975000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd08-bec0-7d78-890e-b0b7176e9521","at":1772697992896000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019cbd08-f1f0-7514-a519-b7689fadcc64","at":1772698006000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd09-2c88-7904-b931-f0f5655d0743","at":1772698021000000000,"seq":978,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cbd09-72d8-76f8-ac0e-dbc8b61cd283","at":1772698039000000000,"seq":979,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd20-b87b-7402-a895-7555098b4cc3","at":1772699564155000000,"seq":980,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cbd20-fe30-7525-be5c-95be25956302","at":1772699582000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd21-34e0-7c6e-9cea-15ba1cf5e157","at":1772699596000000000,"seq":982,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd31-8bde-74ac-a841-6def01c04bd3","at":1772700666846000000,"seq":983,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cbd31-8bde-7c7f-8ff5-1710f7695fc4","at":1772700666846000000,"seq":984,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cbd31-9448-7f03-8c69-95c1f3bb3558","at":1772700669000000000,"seq":985,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbd31-9830-7d2f-a79c-b51763562586","at":1772700670000000000,"seq":986,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cbd31-b388-7b63-aefb-94a6b5dd72cc","at":1772700677000000000,"seq":987,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

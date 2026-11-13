@@ -1,0 +1,24 @@
+{"v":1,"id":"019bac0f-a3d1-77cf-9295-1f939b15be57","at":1768118264785000000,"seq":231,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac0f-a3d1-7e20-8bc5-d6da00d96b17","at":1768118264785000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bac0f-a4a8-7fdc-a1a4-4b21dd7c5610","at":1768118265000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bac0f-a4a8-70a0-b642-67542021c255","at":1768118265000000000,"seq":234,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bac0f-b060-7c3f-8c4d-cacd850f52ce","at":1768118268000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac0f-db58-7bb7-983a-d7090af4a7bc","at":1768118279000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac18-7fbb-711c-9e20-47b8bf5fc46e","at":1768118845371000000,"seq":237,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bac18-ff30-7e30-8420-000f90a78552","at":1768118878000000000,"seq":238,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac19-2711-7746-a414-f524754a7979","at":1768118888209000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bac19-be98-7b13-9b66-d387ddc44645","at":1768118927000000000,"seq":240,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bac19-f0bb-713d-b735-fd100d6fdcf7","at":1768118939835000000,"seq":241,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the clinic - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bac1a-0100-7cb8-9b83-ea87d8e48f19","at":1768118944000000000,"seq":242,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac1a-7248-761b-9127-e3286eebbfa3","at":1768118973000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bac1a-aa37-7485-9a69-656a0f7d3c51","at":1768118987319000000,"seq":244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bac1a-bc80-7e86-824f-d1564ee01389","at":1768118992000000000,"seq":245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bac1a-f763-756a-8576-fc9085acff15","at":1768119007075000000,"seq":246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bac1b-02d0-73f7-bbbf-dbca0cef8aea","at":1768119010000000000,"seq":247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bac1b-1270-7f9f-9961-2823181a290a","at":1768119014000000000,"seq":248,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bac1b-1e28-76e9-8ebd-8968cefea8b3","at":1768119017000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac1b-4538-7f36-8f0f-600b675ec086","at":1768119027000000000,"seq":250,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bac1b-4d08-7a37-8a6d-11bffc8653fd","at":1768119029000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac25-8ea6-7d12-9fe1-8ad72cd4b2dd","at":1768119701158000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bac25-dc28-7a73-a72c-a880b3f53c30","at":1768119721000000000,"seq":253,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac25-e010-7c07-a99a-79f1d95c956a","at":1768119722000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

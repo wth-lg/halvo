@@ -1,0 +1,25 @@
+{"v":1,"id":"019c65bb-2794-7496-a084-d1457e9daa62","at":1771233290132000000,"seq":669,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65bb-2794-71df-be64-399dfdba6505","at":1771233290132000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c65bb-32c8-74c9-8c84-d69ab79ba5c1","at":1771233293000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c65bb-4a38-7e36-bde8-30f163978215","at":1771233299000000000,"seq":672,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65bb-9088-79cb-80d4-6716888dc40f","at":1771233317000000000,"seq":673,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65bb-a1a2-7ac0-9b36-86d17a4a8906","at":1771233321378000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c65bc-4820-7114-a7c3-c8f51e480b94","at":1771233364000000000,"seq":675,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65bc-9e10-7c03-b268-9dfd01bea3c4","at":1771233386000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c65bc-a240-759e-bed1-4d8d4814e605","at":1771233387072000000,"seq":677,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c65bc-f018-7825-96f6-0df6b8e25951","at":1771233407000000000,"seq":678,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c65bd-5306-7937-abed-be627aa5c24f","at":1771233432326000000,"seq":679,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c65bd-a7b0-7250-a22b-d317f9747da6","at":1771233454000000000,"seq":680,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65bd-e630-7ac1-9ecd-df43deeec690","at":1771233470000000000,"seq":681,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c65bd-f1e8-7f5d-8223-d00c7a833f42","at":1771233473000000000,"seq":682,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65be-1128-786f-a706-8501a7140323","at":1771233481000000000,"seq":683,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c65ca-8782-7de7-b622-45d363b5cdd9","at":1771234297730000000,"seq":684,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c65ca-8782-7782-a1d2-e5a38c8295bd","at":1771234297730000000,"seq":685,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c65cb-01a8-77d6-88fc-e6d221b22705","at":1771234329000000000,"seq":686,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65d6-48db-757e-9c5d-7f2a0632ca63","at":1771235068123000000,"seq":687,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65d6-48db-7df4-ac97-a232b15f8d6c","at":1771235068123000000,"seq":688,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c65d6-5418-7e73-a000-a482978b6cb5","at":1771235071000000000,"seq":689,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c65d6-7b28-7150-928c-ce26693a4c0e","at":1771235081000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65d6-adf0-71d7-b0b6-d8ba285201c6","at":1771235094000000000,"seq":691,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c65e6-866b-7f88-944f-146e156a3c75","at":1771236132459000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c65e6-e648-74c2-a16f-aa76824e5253","at":1771236157000000000,"seq":693,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

@@ -1,0 +1,31 @@
+{"v":1,"id":"019c12e6-91a1-7a44-9b8e-fd9dd4b819dc","at":1769843626401000000,"seq":517,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c12e6-91a1-78bf-a119-534789ca3869","at":1769843626401000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c12e6-da48-741c-9d1e-08e36c72c766","at":1769843645000000000,"seq":519,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c12e7-3420-7396-bc1c-86c5c8c8fa4e","at":1769843668000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c12e7-375e-7c8c-a8ae-1f7149136161","at":1769843668830000000,"seq":521,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c12e7-3bf0-7dcf-b27d-efcd17d07004","at":1769843670000000000,"seq":522,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c12e7-4b90-7723-baa4-e31bd6000a03","at":1769843674000000000,"seq":523,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c12e7-6eb8-78f8-8058-5c5b3495bfd2","at":1769843683000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c12e7-8628-7573-80ea-1f74351afcea","at":1769843689000000000,"seq":525,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c12e7-9b5e-7518-be75-b2ed10c32646","at":1769843694430000000,"seq":526,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c12e7-9b5e-71c3-97e9-dd3f0ca73c67","at":1769843694430000000,"seq":527,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c12e7-cc78-7562-a771-58d6df02fac6","at":1769843707000000000,"seq":528,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c12e7-dcfa-763d-9c1d-567926db86b9","at":1769843711226000000,"seq":529,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c12e7-dcfa-7a90-ba42-8405b0e974e8","at":1769843711226000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c12e8-5918-713b-a04d-67c08d62efb1","at":1769843743000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c12f0-a996-76d3-9521-2826f5f38bcf","at":1769844287894000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c12f0-ec68-7e9c-84e0-316850787c42","at":1769844305000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c12f1-03d8-7b9e-a143-3d0525661015","at":1769844311000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c12f1-4640-708d-b5c7-a06ad761ebe1","at":1769844328000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1305-621e-7b5d-aab4-026e378025a6","at":1769845645854000000,"seq":536,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1305-621e-7e1b-9527-3228e9d2ea6a","at":1769845645854000000,"seq":537,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1306-7344-7c25-8adf-618409a0da86","at":1769845715780000000,"seq":538,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1306-7344-76ce-a9e8-babdb1e64803","at":1769845715780000000,"seq":539,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c1306-cdf8-722a-a831-4a9b9cbb9650","at":1769845739000000000,"seq":540,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1307-1448-7aa9-bc5b-fc2594977180","at":1769845757000000000,"seq":541,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1307-1830-7a20-a91b-2e6931c88333","at":1769845758000000000,"seq":542,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c1307-5c5d-77dc-9cf0-a5b2f81035d3","at":1769845775453000000,"seq":543,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1307-5c5d-773d-9bc2-c5f515bde1ed","at":1769845775453000000,"seq":544,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1307-a4d0-7a7b-99c2-9610eb774663","at":1769845794000000000,"seq":545,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1307-b470-7ce8-91c4-89dde732100a","at":1769845798000000000,"seq":546,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1308-25b8-75f2-b404-1fd6bfc7913f","at":1769845827000000000,"seq":547,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}

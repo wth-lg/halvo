@@ -1,0 +1,28 @@
+{"v":1,"id":"019b9ce3-72e8-7ff1-8259-b19726e1fe2b","at":1767863710440000000,"seq":103,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9ce3-72e8-7351-a41a-46bc83637ca3","at":1767863710440000000,"seq":104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b9ce4-5b57-724a-8527-56b9b1f9acea","at":1767863769943000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b9ce4-5b90-74ba-b3dd-d064d1a21ff9","at":1767863770000000000,"seq":106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9ce4-6f18-7fb8-9aa2-c7edad21b10e","at":1767863775000000000,"seq":107,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9ce4-a5c8-7689-baa0-b72470b93122","at":1767863789000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019b9ce4-c9f5-71ac-b0e5-3e033a049c26","at":1767863798261000000,"seq":109,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019b9ce5-22c8-7cc2-8a3f-a4bdab9ef41d","at":1767863821000000000,"seq":110,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9ce5-5590-78b8-9beb-6afb8baacc14","at":1767863834000000000,"seq":111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b9cf7-8f7c-7863-ad1f-caeac4a23a94","at":1767865028476000000,"seq":112,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b9cf7-8f7c-77a8-9607-fb6365ae34ca","at":1767865028476000000,"seq":113,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b9cf7-bc80-7556-8f63-5f9d6b27eaf9","at":1767865040000000000,"seq":114,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cf7-d008-78f5-b04f-20b5d369e190","at":1767865045000000000,"seq":115,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cf7-fb00-7500-a4ce-13e5ee6cdef3","at":1767865056000000000,"seq":116,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b9cf8-0e88-7155-b803-1ccc686731cf","at":1767865061000000000,"seq":117,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b9cfb-6437-7238-a7e1-84e01d97c2cf","at":1767865279543000000,"seq":118,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b9cfb-6437-7559-8fea-eed4e5bc63c9","at":1767865279543000000,"seq":119,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b9cfb-71b8-7678-8864-9811c107b118","at":1767865283000000000,"seq":120,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b9cfb-8928-7170-9347-50d8a887051a","at":1767865289000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfb-d360-73a6-b933-1fc9264829c0","at":1767865308000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfb-e8af-7d19-9212-74f8362bd932","at":1767865313455000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b9cfc-2568-7aa7-aaa3-8aac4480a94f","at":1767865329000000000,"seq":124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9cfc-4c78-70fe-bae4-058a6e360d65","at":1767865339000000000,"seq":125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b9d13-f390-715d-a159-fbb87dd52f30","at":1767866889104000000,"seq":126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b9d13-faf8-76c1-bc9a-4f3d5f5037e7","at":1767866891000000000,"seq":127,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9d14-1650-7d3d-b04c-3f50f40745a4","at":1767866898000000000,"seq":128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9d14-2208-75ad-a6d9-60ac41d092cc","at":1767866901000000000,"seq":129,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b9d14-2208-765e-b304-e51e59761d98","at":1767866901000000000,"seq":130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

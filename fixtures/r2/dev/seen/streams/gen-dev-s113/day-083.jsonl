@@ -1,0 +1,15 @@
+{"v":1,"id":"019d1ea7-38c4-7bdc-910c-96932d86e734","at":1774335768772000000,"seq":1210,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d1ea7-38c4-78fe-b783-6a4bde4ccfe1","at":1774335768772000000,"seq":1211,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d1ea7-4178-7bf9-ac25-8a2ac1076bd2","at":1774335771000000000,"seq":1212,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d1ea7-7440-76f7-90ba-5ae21f47e18e","at":1774335784000000000,"seq":1213,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d1eaa-b7ac-7577-8810-cfc55241bf94","at":1774335997868000000,"seq":1214,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019d1eaa-db58-7e55-9783-7fefffc3c3f3","at":1774336007000000000,"seq":1215,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d1eab-44d0-70e5-a905-5d0478d62912","at":1774336034000000000,"seq":1216,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d1ebf-881c-7ab3-88fa-da50e817df1e","at":1774337361948000000,"seq":1217,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1ebf-881c-7786-9dbd-9a8f535576ea","at":1774337361948000000,"seq":1218,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1ebf-cab8-7699-b86f-52b6ccd52d2e","at":1774337379000000000,"seq":1219,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d1ec7-deae-7d15-a7d8-b289804cec8a","at":1774337908398000000,"seq":1220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec8-17b8-7291-9c77-9a7eb36eee3a","at":1774337923000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d1ec8-36f8-7073-be74-d1524c8b0729","at":1774337931000000000,"seq":1222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1ec8-6b85-733a-8c4e-d90d5a444936","at":1774337944453000000,"seq":1223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d1ec8-db08-7a1e-87cb-bc01720b8c60","at":1774337973000000000,"seq":1224,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

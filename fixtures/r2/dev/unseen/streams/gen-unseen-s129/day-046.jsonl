@@ -1,0 +1,17 @@
+{"v":1,"id":"019c602e-29b1-7d54-a99b-4e561cfc9639","at":1771140164017000000,"seq":505,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c602e-29b1-7958-a6a4-0b98817137f4","at":1771140164017000000,"seq":506,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c602f-3368-7106-bf09-610844f7068d","at":1771140232040000000,"seq":507,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c602f-3368-721d-b161-2506c6a8f8db","at":1771140232040000000,"seq":508,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c602f-3728-7385-952a-6d718dd337d9","at":1771140233000000000,"seq":509,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c602f-6dd8-7426-8d4e-467918446069","at":1771140247000000000,"seq":510,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c602f-6ecc-78c3-bfbf-995ecc5a9079","at":1771140247244000000,"seq":511,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c602f-6ecc-7429-892c-42e2dd83281b","at":1771140247244000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c602f-71c0-7457-9769-0d37600a889b","at":1771140248000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c602f-98d0-701a-a80f-a23963d74238","at":1771140258000000000,"seq":514,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c602f-b7a5-724a-9d1b-dcca62fdcfcc","at":1771140265893000000,"seq":515,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c602f-ead8-7e8a-9f7b-fab2afc3848e","at":1771140279000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c602f-fa78-7a98-bdf2-80f31627c902","at":1771140283000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6041-0e17-7483-bb9a-e13578fad075","at":1771141402135000000,"seq":518,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6041-2500-7b9a-816b-7e07b4a5122b","at":1771141408000000000,"seq":519,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c6041-3c70-7dab-9519-dcf683d4bcba","at":1771141414000000000,"seq":520,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6041-4828-781b-8e4a-2723ed092c86","at":1771141417000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

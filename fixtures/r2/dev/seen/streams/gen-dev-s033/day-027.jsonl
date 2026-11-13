@@ -1,0 +1,21 @@
+{"v":1,"id":"019bfe68-e4bc-703a-8998-df23d77095bd","at":1769499845820000000,"seq":293,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bfe68-e4bc-7f43-b9ad-6dd2044efd8f","at":1769499845820000000,"seq":294,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bfe69-0c80-7147-b9f3-2b41a95e599c","at":1769499856000000000,"seq":295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe69-1450-7acb-a40f-228420a966f0","at":1769499858000000000,"seq":296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019bfe69-3090-79d4-96c1-507c4d29bc1e","at":1769499865232000000,"seq":297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bfe69-3f48-7db7-bb5d-8add0e31703e","at":1769499869000000000,"seq":298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe69-4718-73cf-998b-0514053d9073","at":1769499871000000000,"seq":299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bfe69-7210-7870-ae73-142be5378260","at":1769499882000000000,"seq":300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe69-916f-759e-b419-d2515eb28861","at":1769499890031000000,"seq":301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bfe69-b478-75ce-9713-ac00094cabb0","at":1769499899000000000,"seq":302,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bfe69-bc48-7657-8a16-73084148d05b","at":1769499901000000000,"seq":303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bfe69-cbe8-7030-bde4-b5cc207fd2a4","at":1769499905000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bfe6a-14fa-7cce-9c6f-cbd6e0bbecab","at":1769499923706000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019bfe6a-6828-7c1b-a84e-267cc64f1e1c","at":1769499945000000000,"seq":306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bfe6a-b260-7e55-b81b-b7d9dbf29e71","at":1769499964000000000,"seq":307,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe85-7b32-7a50-85d5-b62ebc9cdb0f","at":1769501719346000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bfe85-cbe0-7cde-9660-4cef4d7cd5df","at":1769501740000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bfe86-1230-74bf-9bee-708c843ffd32","at":1769501758000000000,"seq":310,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bfe86-1de8-772d-98c0-b961d8c75637","at":1769501761000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe86-25b8-796a-8976-86fca78fc372","at":1769501763000000000,"seq":312,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bfe86-44f8-7d13-bc08-6b7c662e47c2","at":1769501771000000000,"seq":313,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

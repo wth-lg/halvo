@@ -1,0 +1,35 @@
+{"v":1,"id":"019bf967-3536-7764-a305-a67725696229","at":1769415849270000000,"seq":359,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bf967-3536-780e-b9ba-b29753a70729","at":1769415849270000000,"seq":360,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bf967-6308-7ab0-b5ee-77901156d42a","at":1769415861000000000,"seq":361,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf967-66f0-7325-a16a-1f390fbb79dc","at":1769415862000000000,"seq":362,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bf967-7690-76da-bd19-53f2bda66291","at":1769415866000000000,"seq":363,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bf976-7e17-797a-aa3f-ec949a9e0d71","at":1769416850967000000,"seq":364,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf976-7e17-7b72-aa59-1759894d4199","at":1769416850967000000,"seq":365,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bf976-b4e8-7c48-915b-3b1cfb5fbbd4","at":1769416865000000000,"seq":366,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf976-c488-7585-928e-da162b6c328d","at":1769416869000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bf977-06f0-70a5-9ca3-c057a8e27175","at":1769416886000000000,"seq":368,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf977-158c-7fef-a587-e4061573a59c","at":1769416889740000000,"seq":369,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bf977-1a78-75ef-9503-9001ca6e8c04","at":1769416891000000000,"seq":370,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf977-1e60-7e44-a9a3-d4c133a2a89a","at":1769416892000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bf977-b4d6-7d35-bcc0-57e776d1c7aa","at":1769416930518000000,"seq":372,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the hospital - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bf977-ca40-7a65-a209-738d455551ee","at":1769416936000000000,"seq":373,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf977-d210-774f-b2e0-d5c85e8bfab7","at":1769416938000000000,"seq":374,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf978-2800-7023-aa13-a486d9405e6b","at":1769416960000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bf978-3645-7629-9710-0255e7c3249c","at":1769416963653000000,"seq":376,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bf978-5ac8-7213-982b-d5113605285a","at":1769416973000000000,"seq":377,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf978-8d90-7075-9a41-d9789b3c179a","at":1769416986000000000,"seq":378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf978-d8ff-70c4-83e4-a2d02375c401","at":1769417005311000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bf979-7bd8-7e97-a1c7-b8235d5a5dd5","at":1769417047000000000,"seq":380,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf979-9879-7545-9bfd-59db3baab3e7","at":1769417054329000000,"seq":381,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bf979-b670-7492-b0ca-1fd884c41191","at":1769417062000000000,"seq":382,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf979-ed20-7dcc-8c32-1424a16e8182","at":1769417076000000000,"seq":383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf97a-8b75-755d-a5fb-787314a64531","at":1769417116533000000,"seq":384,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019bf97b-2d70-7e0e-9dc9-81530fd442a6","at":1769417158000000000,"seq":385,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf97b-3d10-7f50-bc4e-95a41c785c5b","at":1769417162000000000,"seq":386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf97b-44e0-7f0c-b43e-18ee4a0c9164","at":1769417164000000000,"seq":387,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bf97b-6808-77aa-a637-64b5ece645b8","at":1769417173000000000,"seq":388,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf97b-8634-7ffe-9001-d3171d5d31b1","at":1769417180724000000,"seq":389,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bf97b-b240-7558-91fe-5fa1c03aeb5c","at":1769417192000000000,"seq":390,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf97b-bdf8-7059-9119-578168b8672c","at":1769417195000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf97c-0c18-75ca-94c0-1f731ab962ce","at":1769417215000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bf97c-2388-7bbd-8a2e-2b09a12dc299","at":1769417221000000000,"seq":393,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

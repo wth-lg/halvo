@@ -1,0 +1,12 @@
+{"v":1,"id":"019cf082-8625-7f74-ba87-d669a04d12c4","at":1773561611813000000,"seq":1080,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf082-8625-7774-8307-a6edbe0f68c5","at":1773561611813000000,"seq":1081,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cf082-9680-78bb-8f50-da03ea34b50f","at":1773561616000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cf082-b9a8-7874-879b-995cdcc258d3","at":1773561625000000000,"seq":1083,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf082-c560-7b43-a515-a6d92390f910","at":1773561628000000000,"seq":1084,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf09a-db06-7eb7-a8bf-f74f1923fab4","at":1773563206406000000,"seq":1085,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf09a-db06-7345-a1df-63e06fa5b199","at":1773563206406000000,"seq":1086,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf09b-0c38-7192-a228-61e893bc597d","at":1773563219000000000,"seq":1087,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cf09e-a3c6-7369-aeeb-e528a5c69bc6","at":1773563454406000000,"seq":1088,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cf09f-0f90-7f6f-8b96-47fb9bea682c","at":1773563482000000000,"seq":1089,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019cf09f-2700-725a-a327-02b5e65371f2","at":1773563488000000000,"seq":1090,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf09f-7138-7540-ba06-b5f39bde5969","at":1773563507000000000,"seq":1091,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

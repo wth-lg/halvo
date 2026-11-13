@@ -1,0 +1,38 @@
+{"v":1,"id":"019d52ea-407a-7047-9494-746870e72931","at":1775212576890000000,"seq":1274,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52ea-407a-77eb-8db1-e3770f4fc2fc","at":1775212576890000000,"seq":1275,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d52ea-8f08-7ed5-b628-cbc7b4fe910f","at":1775212597000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d52ea-96d8-7749-9e67-5411954c24a8","at":1775212599000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52eb-40f1-7a19-a4bf-e25c6631e337","at":1775212642545000000,"seq":1278,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d52eb-40f1-7ecc-af93-d193e9a45b75","at":1775212642545000000,"seq":1279,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d52eb-5640-7fb5-954e-d49b4ddc67af","at":1775212648000000000,"seq":1280,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d52eb-7968-7cc5-aa17-ecbbd0a73f71","at":1775212657000000000,"seq":1281,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d52eb-aabf-7716-8498-b8683cab42b1","at":1775212669631000000,"seq":1282,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d52eb-aabf-7816-8544-eaa477ea8ffd","at":1775212669631000000,"seq":1283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"app_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d52eb-b400-7cfa-a1cb-956f779b372e","at":1775212672000000000,"seq":1284,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d52ec-11c0-762d-9829-789de49611b2","at":1775212696000000000,"seq":1285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d5303-a103-7719-a4cc-77dc3c5d8b21","at":1775214240003000000,"seq":1286,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d5303-c428-7373-aeca-9f329c6b6e93","at":1775214249000000000,"seq":1287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d5303-fad8-7526-8a10-6e7e16ed895c","at":1775214263000000000,"seq":1288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d5304-0a78-7cb8-afe7-c86ca6b508e5","at":1775214267000000000,"seq":1289,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d531c-292e-7251-8491-323e2150c779","at":1775215847726000000,"seq":1290,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d531c-7478-74d4-b4ff-a7d29c21bc30","at":1775215867000000000,"seq":1291,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d531c-f607-7b77-be09-61b1fa260340","at":1775215900167000000,"seq":1292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Work messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d531d-2440-7c28-8d54-54924c9a78a0","at":1775215912000000000,"seq":1293,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d531d-2828-7502-ab4a-e69c305f3699","at":1775215913000000000,"seq":1294,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d531d-37c8-7e33-b30d-ede852067bcc","at":1775215917000000000,"seq":1295,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d531d-4768-7698-9c8e-d33e2fc8af4e","at":1775215921000000000,"seq":1296,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d531d-b083-796b-91bd-e0c98dfb9f15","at":1775215947907000000,"seq":1297,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d531e-7818-764d-8905-05d41c47079a","at":1775215999000000000,"seq":1298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d531e-83d0-7393-bffe-2ba80787c113","at":1775216002000000000,"seq":1299,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d531e-8f88-7166-b313-34123a9dc966","at":1775216005000000000,"seq":1300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d531e-935c-7032-83b1-ebf60c1e2461","at":1775216005980000000,"seq":1301,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d531e-ce08-741b-9256-fa64e759d94c","at":1775216021000000000,"seq":1302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d531f-3398-7fa5-a522-944ca6cdbe7e","at":1775216047000000000,"seq":1303,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5324-83c1-7f51-bd05-0f304b82481c","at":1775216395201000000,"seq":1304,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d5324-8ac8-75f2-9fdb-6e755f87f1b0","at":1775216397000000000,"seq":1305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d5324-ec70-7e4b-9c99-6f92ee5703ee","at":1775216422000000000,"seq":1306,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5325-26b0-7216-affa-6b94495231ea","at":1775216436912000000,"seq":1307,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d5325-2af0-79e5-9e94-898535bcb15f","at":1775216438000000000,"seq":1308,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d5325-61a0-76ba-bdc2-3f11f928c737","at":1775216452000000000,"seq":1309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5325-7140-70b0-935a-aa075a24aa0f","at":1775216456000000000,"seq":1310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5325-8c98-7999-b12d-f29d3558604f","at":1775216463000000000,"seq":1311,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

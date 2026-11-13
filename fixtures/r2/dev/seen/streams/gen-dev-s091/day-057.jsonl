@@ -1,0 +1,20 @@
+{"v":1,"id":"019c996a-cbfc-7fb3-adb8-d6cf6e72e03c","at":1772100439036000000,"seq":789,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c996a-cbfc-7792-a2b6-2a7f5896f755","at":1772100439036000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c996b-1de0-7065-943b-623c8627dcfe","at":1772100460000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c996b-6430-7932-81ad-f2e6b3a5e827","at":1772100478000000000,"seq":792,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9985-d40d-7697-af29-e4a6fe13359c","at":1772102210573000000,"seq":793,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c9986-0498-70be-8f58-6e9f7cc56fb5","at":1772102223000000000,"seq":794,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c9986-3378-7f3d-b083-37c835fee0aa","at":1772102235000000000,"seq":795,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9986-3760-7880-a962-20fcaaa9084b","at":1772102236000000000,"seq":796,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c999c-44a1-713c-b080-b5c2b5a4b753","at":1772103681185000000,"seq":797,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c999c-7e80-705f-96a8-eea21a16878e","at":1772103696000000000,"seq":798,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c999c-b956-79ba-8493-e3fa45bbeb8f","at":1772103711062000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c999c-c8b8-71d2-9883-20a84c612bb6","at":1772103715000000000,"seq":800,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c999c-efc8-700d-a08f-6a8bd471bf6e","at":1772103725000000000,"seq":801,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c999c-f3b0-7ac5-8974-9338545820bf","at":1772103726000000000,"seq":802,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c999c-fd14-7091-8350-75d3c9f69157","at":1772103728404000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c999d-16d8-7464-b003-283c5e39b4cf","at":1772103735000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c999d-2a60-7701-b00f-9b274b9383d9","at":1772103740000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c999d-3230-7c73-8ed6-80b95b6637ad","at":1772103742000000000,"seq":806,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c999d-5ab8-7d0d-bb33-070df57f9697","at":1772103752376000000,"seq":807,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"household budget saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019c999d-c2b8-787e-9138-d25e220fba64","at":1772103779000000000,"seq":808,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}

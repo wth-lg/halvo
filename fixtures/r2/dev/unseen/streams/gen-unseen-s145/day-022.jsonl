@@ -1,0 +1,22 @@
+{"v":1,"id":"019be4c7-f1b5-7871-a43e-4bef139bfae9","at":1769069867445000000,"seq":312,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be4c7-f1b5-7d52-87bf-95a1c0030b37","at":1769069867445000000,"seq":313,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be4c8-3a30-7c0d-804c-6d0afdc00bb6","at":1769069886000000000,"seq":314,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019be4c8-5970-790c-bb1d-b7111829591a","at":1769069894000000000,"seq":315,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019be4db-3c43-7231-8e55-fe3387af9667","at":1769071131715000000,"seq":316,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be4db-3c43-79c8-9ee1-16aafc9b52d4","at":1769071131715000000,"seq":317,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019be4db-f7cc-7a6d-a1c9-f7876abe9318","at":1769071179724000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019be4dc-23d8-7d59-9556-e4e51aa83b47","at":1769071191000000000,"seq":319,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4dc-5a88-74f0-b6e1-68a958370b7b","at":1769071205000000000,"seq":320,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019be4dc-fcc1-7fee-a0ae-dc1ce5ac5bcb","at":1769071246529000000,"seq":321,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"blood pressure chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019be4dc-fe98-7ad7-ab40-e5b2dc025b85","at":1769071247000000000,"seq":322,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019be4dd-44e8-7376-be97-10dcae93d33d","at":1769071265000000000,"seq":323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019be4f8-dc38-7567-b901-8c94b4408508","at":1769073073208000000,"seq":324,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019be4f8-dc38-7ab6-a32e-6a47cdafc02d","at":1769073073208000000,"seq":325,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019be4f9-2d70-7f42-bdc3-e9e4cbde0f83","at":1769073094000000000,"seq":326,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4f9-44e0-7571-8b16-b43dfd10c593","at":1769073100000000000,"seq":327,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be4f9-5c50-720f-8dda-2a14ebb2df1a","at":1769073106000000000,"seq":328,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019be4f9-6fd8-7924-87f2-46a0098776ea","at":1769073111000000000,"seq":329,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019be4f9-9eb8-74a0-81a3-b4731cc9ef27","at":1769073123000000000,"seq":330,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019be505-1b00-737e-abfd-20fe592f96f8","at":1769073875712000000,"seq":331,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019be505-4b00-73b9-91c6-f45fa4962f4b","at":1769073888000000000,"seq":332,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019be505-a4d8-7aec-ab5e-5318461dd5ed","at":1769073911000000000,"seq":333,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

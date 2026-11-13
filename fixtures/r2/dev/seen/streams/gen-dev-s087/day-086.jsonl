@@ -1,0 +1,39 @@
+{"v":1,"id":"019d2edd-3eee-798e-9e2a-51c7983ba4bd","at":1774607744750000000,"seq":1267,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d2edd-3eee-770d-a16f-20cd2e8e1933","at":1774607744750000000,"seq":1268,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d2edd-4ba0-7bf5-b6b1-7a9f77592899","at":1774607748000000000,"seq":1269,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2edd-ad48-7094-890f-0f2d91404d4d","at":1774607773000000000,"seq":1270,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2edd-e3f8-7f7f-9c3f-dfe718f2bd2f","at":1774607787000000000,"seq":1271,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d2ef8-90ac-723d-95a6-8cd07a981147","at":1774609535148000000,"seq":1272,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2ef8-90ac-72e1-a75b-fb11ac0e58eb","at":1774609535148000000,"seq":1273,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2ef8-9fb8-7f83-9a6b-73c0fbff7d71","at":1774609539000000000,"seq":1274,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef8-ce98-7136-8ccc-2bd6fb96225f","at":1774609551000000000,"seq":1275,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d2ef8-e220-7016-811b-55fd310394b7","at":1774609556000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef8-f506-7ead-a06e-735cf310ba74","at":1774609560838000000,"seq":1277,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Rowan Place - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2ef9-14e8-729a-9ef3-eba3b29c6369","at":1774609569000000000,"seq":1278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef9-2488-74d8-bc76-e27159451c62","at":1774609573000000000,"seq":1279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ef9-4264-714e-8cbf-7e1038e86864","at":1774609580644000000,"seq":1280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2ef9-fb60-7b8d-be63-698e07c24b44","at":1774609628000000000,"seq":1281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2efa-0ee8-7d89-beb5-6f37fa626e10","at":1774609633000000000,"seq":1282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2efa-23de-7789-a401-2dd178acfa5f","at":1774609638366000000,"seq":1283,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2efa-4d68-70d4-8a90-0d41d0793539","at":1774609649000000000,"seq":1284,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2efa-64d8-7a6b-8a16-f51ba5c3245a","at":1774609655000000000,"seq":1285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2efa-97a0-721d-b82d-ba03fc55c3ff","at":1774609668000000000,"seq":1286,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2efa-9af5-7277-ac72-8ab48093a57e","at":1774609668853000000,"seq":1287,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019d2efa-a358-7b20-9bea-f4661de89130","at":1774609671000000000,"seq":1288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2efa-ab28-7aae-9b70-c22925673e0d","at":1774609673000000000,"seq":1289,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d2efa-b2f8-7918-8e4a-6803201ba5d1","at":1774609675000000000,"seq":1290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2efb-1c70-7ce1-ab50-0e0ecdb087fe","at":1774609702000000000,"seq":1291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2f01-8d73-7dbe-bda6-16a6ec9f35f4","at":1774610124147000000,"seq":1292,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d2f02-4478-7fe2-96a1-612d1bf77dd2","at":1774610171000000000,"seq":1293,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2f03-f9f6-7928-8d29-56f5b7905710","at":1774610282998000000,"seq":1294,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2f04-0d80-7b67-a3d0-0f7f3dac9876","at":1774610288000000000,"seq":1295,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2f04-ccca-7f5a-8c2d-9188c4dfbe19","at":1774610336970000000,"seq":1296,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2f04-f7e0-7fb3-bc85-58af9a1c50a4","at":1774610348000000000,"seq":1297,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2f05-0780-7970-bdc1-e1efff538f0c","at":1774610352000000000,"seq":1298,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d2f05-0b6e-71ae-89ef-a8a920c8518c","at":1774610353006000000,"seq":1299,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the school - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2f05-6540-7c63-b485-5c5cc8b3f57a","at":1774610376000000000,"seq":1300,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2f05-8480-7968-be0d-48671dc6bde5","at":1774610384000000000,"seq":1301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2f05-97a9-7124-a51a-cc1066d36e1f","at":1774610388905000000,"seq":1302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019d2f05-9808-7fdf-98f0-cad916d9ae0a","at":1774610389000000000,"seq":1303,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d2f05-de58-71e1-85e8-97719446a6dc","at":1774610407000000000,"seq":1304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2f06-1120-7f4a-88ab-ce4bb215cac5","at":1774610420000000000,"seq":1305,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

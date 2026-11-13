@@ -1,0 +1,9 @@
+{"v":1,"id":"019cccc8-eee0-7011-b13d-35a61b51e151","at":1772962246368000000,"seq":944,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cccc8-eee0-7adf-a3cf-a4513e2db44b","at":1772962246368000000,"seq":945,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cccc9-2420-76cc-8565-6e5adf4b430d","at":1772962260000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccc9-2eea-70b9-92ea-aa048896f94d","at":1772962262762000000,"seq":947,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cccc9-6750-730f-bb50-49816cc729e5","at":1772962277200000000,"seq":948,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Data used this month - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019cccc9-d000-7491-bf98-b63800bacae4","at":1772962304000000000,"seq":949,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cccd6-a3a3-7b6d-b003-0c7b84b8a1a2","at":1772963144611000000,"seq":950,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cccd6-a3a3-7217-80c6-08fd88e9ead7","at":1772963144611000000,"seq":951,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cccd6-c080-7eb1-b344-737a53b5fbf8","at":1772963152000000000,"seq":952,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}

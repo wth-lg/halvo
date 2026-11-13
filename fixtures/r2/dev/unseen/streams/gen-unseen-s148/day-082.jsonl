@@ -1,0 +1,13 @@
+{"v":1,"id":"019d1989-8ef4-71be-911a-c6ee13750727","at":1774249938676000000,"seq":1070,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1989-8ef4-78ed-be2c-f31ab12674d6","at":1774249938676000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d1989-cad0-7ded-a986-40e95efd9bb5","at":1774249954000000000,"seq":1072,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d198d-e9e4-7821-b373-3868c5d33e1e","at":1774250224100000000,"seq":1073,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d198e-1090-7048-9872-12f10a1dcb26","at":1774250234000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d198e-2030-7b67-b7dd-a47c7b09599a","at":1774250238000000000,"seq":1075,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d1993-7746-755f-83e8-df9a3ee954ba","at":1774250587974000000,"seq":1076,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d1993-8ae8-7127-b32f-9a8322e71a40","at":1774250593000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1993-e4c0-765a-916d-b77228441151","at":1774250616000000000,"seq":1078,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d1994-0fb8-79e5-88c2-35c61953765b","at":1774250627000000000,"seq":1079,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1994-64b5-7cc0-915b-05dd88a737ca","at":1774250648757000000,"seq":1080,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d1995-2ce0-70a0-89d9-92aaef8609b5","at":1774250700000000000,"seq":1081,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1995-4068-757e-a874-2dcfa9dc7a43","at":1774250705000000000,"seq":1082,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

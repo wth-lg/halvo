@@ -1,0 +1,15 @@
+{"v":1,"id":"019cbcd7-b340-72be-8d34-659177661f9e","at":1772694778688000000,"seq":914,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cbcd7-b340-70b7-a981-a6f1e092ad9c","at":1772694778688000000,"seq":915,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cbcd7-feb0-7b0d-9c50-8bb3e03b8f2f","at":1772694798000000000,"seq":916,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbcd8-0298-7d89-82b2-4d57fd12ded4","at":1772694799000000000,"seq":917,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cbcd8-048b-702c-85e0-896491a64fe1","at":1772694799499000000,"seq":918,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cbcd8-1620-780b-b428-6535e627101f","at":1772694804000000000,"seq":919,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cbcd8-6058-7343-8bc0-a95482b428b6","at":1772694823000000000,"seq":920,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbcd8-9708-73eb-a886-e8f3f678c69c","at":1772694837000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cbcd8-a7ef-7282-92e1-707e997ca2dc","at":1772694841327000000,"seq":922,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019cbcd8-aa90-73e3-b824-efe8c484cc36","at":1772694842000000000,"seq":923,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbcd9-0080-7c57-b6e0-5a705c4fe183","at":1772694864000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cbcd9-2790-752d-86b4-c597875bb5d3","at":1772694874000000000,"seq":925,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cbcee-0caa-7a4b-8d75-104cb8ff45be","at":1772696243370000000,"seq":926,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cbcee-3a18-7e9a-8056-af65ca14f47b","at":1772696255000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cbcee-6ce0-783c-95ab-a07eddc373b3","at":1772696268000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

@@ -1,0 +1,41 @@
+{"v":1,"id":"019c227d-6841-749b-9278-ba8bb5361272","at":1770105169985000000,"seq":365,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c227d-6841-72c1-89f4-dba7234b0368","at":1770105169985000000,"seq":366,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c227d-7020-75c2-a74b-db988bc5bdff","at":1770105172000000000,"seq":367,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c227d-eada-7de9-91cd-6fc9599e9009","at":1770105203418000000,"seq":368,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"School messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c227e-52b0-7184-8578-cf5e993038f6","at":1770105230000000000,"seq":369,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c227e-64d9-71d7-bd5d-9185d86c74ac","at":1770105234649000000,"seq":370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c227e-8578-7601-913f-5fbba3ac023f","at":1770105243000000000,"seq":371,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c227e-f2d8-7530-baca-84b00e8b049f","at":1770105271000000000,"seq":372,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c227f-0e30-7c3c-a607-d10d454b698c","at":1770105278000000000,"seq":373,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c227f-0ef8-79a4-b6ce-b04705dfa3d1","at":1770105278200000000,"seq":374,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019c227f-3158-7900-9918-54843bee6883","at":1770105287000000000,"seq":375,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c227f-3d10-7cb8-a2a4-4ae0b0b1a3f0","at":1770105290000000000,"seq":376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c227f-5868-7102-ade0-239596ad6969","at":1770105297000000000,"seq":377,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c227f-73c0-72eb-80fe-6edf8274d605","at":1770105304000000000,"seq":378,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c228b-4beb-7b18-a726-c2c4754f35e8","at":1770106080235000000,"seq":379,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c228b-9d08-7440-89e6-6e1a9c91be97","at":1770106101000000000,"seq":380,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c228b-d3b8-7c80-bc34-5638b5741760","at":1770106115000000000,"seq":381,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c228c-3343-706c-8354-5938c6c604a4","at":1770106139459000000,"seq":382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c228c-54a0-7885-b41b-9aaea07d9a0a","at":1770106148000000000,"seq":383,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c228c-8f38-73d4-9df7-d3d8a83e1c3e","at":1770106163000000000,"seq":384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c228c-a2c0-7f0e-a783-658781650599","at":1770106168000000000,"seq":385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c228c-cdb8-7abb-927e-1cb68a7a7bb3","at":1770106179000000000,"seq":386,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c228c-ec41-7737-8885-c1e29eb74f99","at":1770106186817000000,"seq":387,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c228c-ecf8-73ba-8ed6-dc4a90100fd5","at":1770106187000000000,"seq":388,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c228d-23a8-7c5d-9063-2af6d55a9388","at":1770106201000000000,"seq":389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c228d-d7aa-7040-90c0-cbd579a50a7c","at":1770106247082000000,"seq":390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c228d-eec8-787f-bccc-1972c162960a","at":1770106253000000000,"seq":391,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c228e-0250-7c04-93a7-b41ec9d9ba61","at":1770106258000000000,"seq":392,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c228e-1da8-78b3-9e16-5950bacff231","at":1770106265000000000,"seq":393,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c228e-48a0-791a-9240-42bad4902be3","at":1770106276000000000,"seq":394,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c228e-5458-7188-a869-2916c0c0200a","at":1770106279000000000,"seq":395,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2292-cd20-7882-af84-28524e10663e","at":1770106572064000000,"seq":396,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c2292-e068-73c8-bd5b-cf43f25013e5","at":1770106577000000000,"seq":397,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2292-f008-71ba-a9a9-78a2ae63bb40","at":1770106581000000000,"seq":398,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2296-3cbb-7fbb-8d6a-cd7b125275ce","at":1770106797243000000,"seq":399,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c2296-6e90-72cd-81a1-adc45ca2ef36","at":1770106810000000000,"seq":400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2296-84b4-7f3e-856e-fe08c03931d7","at":1770106815668000000,"seq":401,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Money overview - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c2296-9d70-73dc-8489-0791cf770833","at":1770106822000000000,"seq":402,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2296-d0c0-7b81-939b-56a35dc2f549","at":1770106835136000000,"seq":403,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"income by day - Kestrel Ledger","cut":false,"why":"title_change","site":{"domain":"kestrel-ledger.test","source":"address_field"}}}
+{"v":1,"id":"019c2296-fb30-738f-81f8-263f6376fed9","at":1770106846000000000,"seq":404,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2297-8000-7bca-8bd0-674cfb406735","at":1770106880000000000,"seq":405,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

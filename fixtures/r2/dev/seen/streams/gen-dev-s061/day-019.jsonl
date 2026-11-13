@@ -1,0 +1,14 @@
+{"v":1,"id":"019bd565-ddde-7f4a-a96a-54b7fb310290","at":1768811781598000000,"seq":225,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bd565-ddde-7101-bfec-9ddb609af01c","at":1768811781598000000,"seq":226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bd566-0298-7022-829c-530fb99875f2","at":1768811791000000000,"seq":227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd566-1df0-7c48-96a5-64c1971d6f4d","at":1768811798000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd566-73e0-786a-9a71-5127433b66e0","at":1768811820000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd566-9544-7da9-a92a-81efb2c95d1d","at":1768811828548000000,"seq":230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bd566-a2c0-7aee-b40e-96229996cdf5","at":1768811832000000000,"seq":231,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bd566-be18-7cc5-b812-31fb666e86e9","at":1768811839000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd567-2b0c-74a0-852d-79278d8c727d","at":1768811866892000000,"seq":233,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bd571-de0e-7d95-989c-e6b8310443e8","at":1768812568078000000,"seq":234,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bd571-fd00-742c-9ef0-1467bc75a4ba","at":1768812576000000000,"seq":235,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd572-5ea8-744a-988c-14bf17b2cb70","at":1768812601000000000,"seq":236,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd572-a4f8-70c8-be22-4feed94892d9","at":1768812619000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bd572-c820-7803-a7e4-8b47d4edca29","at":1768812628000000000,"seq":238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

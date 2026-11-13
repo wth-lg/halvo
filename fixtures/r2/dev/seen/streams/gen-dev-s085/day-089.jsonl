@@ -1,0 +1,20 @@
+{"v":1,"id":"019d3e53-8f93-7b82-8e7d-786092235307","at":1774867156883000000,"seq":1106,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3e53-8f93-7a8f-a58e-85b910b224f6","at":1774867156883000000,"seq":1107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d3e54-3f71-7450-a2a1-90151d6e5757","at":1774867201905000000,"seq":1108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d3e54-b500-7588-9df4-eec9b93ff3ef","at":1774867232000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e54-faaa-7904-81e0-0acf26e9a758","at":1774867249834000000,"seq":1110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Oak Square - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d3e55-68b0-72d5-9091-a7378209515b","at":1774867278000000000,"seq":1111,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d3e55-dde0-7d99-b32f-b6d4999bc06f","at":1774867308000000000,"seq":1112,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d3e56-045b-7403-92fd-1af56b9d1922","at":1774867317851000000,"seq":1113,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019d3e56-6a80-733a-bf0c-596b226e1995","at":1774867344000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e56-7638-7d6a-908e-b9cfcf042175","at":1774867347000000000,"seq":1115,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3e56-81f0-7ab4-b40b-b6af2a375c2d","at":1774867350000000000,"seq":1116,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d3e6c-1dd0-7e7c-b875-727e1abed4f7","at":1774868766160000000,"seq":1117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3e6c-4058-7747-8341-b423517678de","at":1774868775000000000,"seq":1118,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3e6c-6380-796e-9131-3700936b16d8","at":1774868784000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e6c-7320-7771-8742-9bd87245ceea","at":1774868788000000000,"seq":1120,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3e6c-9260-7a18-84e1-b3097f7611de","at":1774868796000000000,"seq":1121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e83-6b4d-7fdc-87cc-4c74f1542958","at":1774870293325000000,"seq":1122,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d3e83-71d8-78f1-ae45-a7144c4253bc","at":1774870295000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e83-79a8-7f4f-b692-66d18778f76f","at":1774870297000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e83-98e8-7e27-a67c-867884db55ec","at":1774870305000000000,"seq":1125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

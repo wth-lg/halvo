@@ -1,0 +1,33 @@
+{"v":1,"id":"019d522a-9018-7f48-80cd-6ac097fbfba6","at":1775200014360000000,"seq":1171,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d522a-9018-7767-8052-aea4d75fc910","at":1775200014360000000,"seq":1172,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d522a-aa08-75aa-ae5d-d93fe23b5cbe","at":1775200021000000000,"seq":1173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d522a-c178-7c4d-afab-f9928c8c9463","at":1775200027000000000,"seq":1174,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d522b-1f38-7eb0-8150-824cecb195de","at":1775200051000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019d522b-2708-733e-815d-4b653370fe9f","at":1775200053000000000,"seq":1176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d523a-2c02-76d4-9926-1fa91d90e0f9","at":1775201037314000000,"seq":1177,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d523a-af98-7ac0-90f8-0029f95964f8","at":1775201071000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d523a-fcf6-7bb5-a8e8-092551dafd03","at":1775201090806000000,"seq":1179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d523b-01a0-7b35-9b7a-13d5ad7b7688","at":1775201092000000000,"seq":1180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d523b-4bd8-7904-a700-18cce5ef5fe8","at":1775201111000000000,"seq":1181,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d523b-7ab8-7a0a-9a9d-8d386c0cb317","at":1775201123000000000,"seq":1182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d523b-ed9b-795f-94b2-b8f7c4117c11","at":1775201152411000000,"seq":1183,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d523c-16f8-7a6b-bf01-05bcd83490e2","at":1775201163000000000,"seq":1184,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d523c-5578-7e77-a8c7-dcbade3f897e","at":1775201179000000000,"seq":1185,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d523c-78a0-7d03-adcf-c4244e4ceb37","at":1775201188000000000,"seq":1186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d523c-8070-7129-953f-4e5a020cf9bb","at":1775201190000000000,"seq":1187,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d523c-b058-7274-9644-105a95cc6e6b","at":1775201202264000000,"seq":1188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d523c-b720-728d-8243-bd51e594790c","at":1775201204000000000,"seq":1189,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d523d-2c50-72a3-9bcf-d18e18c64586","at":1775201234000000000,"seq":1190,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5243-f4ab-7e26-a231-0e30dec5ccd8","at":1775201678507000000,"seq":1191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d5244-0250-7b5a-a127-1333ad291737","at":1775201682000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d525d-d27d-79fb-b463-98ee7d6c4d70","at":1775203373693000000,"seq":1193,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d525d-d27d-7bf0-8e17-e29e72e61e6f","at":1775203373693000000,"seq":1194,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d525e-3170-776d-adc6-3d26b94dbe55","at":1775203398000000000,"seq":1195,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d525e-6050-7600-bc40-45418d56ed4e","at":1775203410000000000,"seq":1196,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5265-8049-79b2-8f82-64b44fa3848a","at":1775203876937000000,"seq":1197,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d5265-8049-78c7-b8b1-62f1b163e854","at":1775203876937000000,"seq":1198,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d5265-9be0-7195-b765-72769f8781ac","at":1775203884000000000,"seq":1199,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5266-0558-7764-8c22-b3fac8e124c2","at":1775203911000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d5266-5b48-7096-b3d8-41e0851110b9","at":1775203933000000000,"seq":1201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d5266-759a-7eda-9625-677372907643","at":1775203939738000000,"seq":1202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019d5267-0340-76fd-bf2f-b9bfa5f1bc3b","at":1775203976000000000,"seq":1203,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

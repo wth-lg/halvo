@@ -1,0 +1,13 @@
+{"v":1,"id":"019cb829-661b-7b2a-907a-b8babd111559","at":1772616246811000000,"seq":1062,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb829-661b-7391-9ca4-01c717bc31f1","at":1772616246811000000,"seq":1063,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cb82a-3db0-7674-93b8-7ff9b4333d89","at":1772616302000000000,"seq":1064,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cb82a-4801-7c80-a984-89c95fb65225","at":1772616304641000000,"seq":1065,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cb82a-64c0-72da-8c05-e9787510dfab","at":1772616312000000000,"seq":1066,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb82a-7848-78a8-83a9-3e2e41912ee1","at":1772616317000000000,"seq":1067,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cb82a-8bd0-71ec-a4ac-2fa4fe198875","at":1772616322000000000,"seq":1068,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb82a-8fb8-7f5e-ba10-70aafd6cc413","at":1772616323000000000,"seq":1069,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb82a-9b70-7355-bf46-602074ce281b","at":1772616326000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb82a-bd27-759b-b1d5-21b1356da6a3","at":1772616334631000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019cb82a-ca50-7c41-ba53-5dff048cbc05","at":1772616338000000000,"seq":1072,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb82a-ed78-7364-a634-e34f1616d3d4","at":1772616347000000000,"seq":1073,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb82a-f548-7202-9b9f-7894ab9917fa","at":1772616349000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

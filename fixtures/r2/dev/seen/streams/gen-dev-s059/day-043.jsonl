@@ -1,0 +1,19 @@
+{"v":1,"id":"019c50ae-fe49-7cb6-be88-e743a516f6d1","at":1770880171593000000,"seq":662,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c50ae-fe49-7bc6-9cb5-b81f96f193bf","at":1770880171593000000,"seq":663,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c50af-4a18-714c-8ba3-7482f242a5a4","at":1770880191000000000,"seq":664,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c50b3-5a34-78f2-b11f-60173236c5da","at":1770880457268000000,"seq":665,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c50b3-ab30-7aec-bf7f-cd5691e5d15c","at":1770880478000000000,"seq":666,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50c4-cc9d-7aa3-9507-322c3284f50a","at":1770881600669000000,"seq":667,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c50c5-1438-7211-b44f-796c4c5d203f","at":1770881619000000000,"seq":668,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c50df-defd-7f3e-9a59-7ad9096de60d","at":1770883374845000000,"seq":669,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c50df-defd-794d-ad5f-1cd99906781b","at":1770883374845000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c50e0-06a8-797d-9b98-9f8299113e73","at":1770883385000000000,"seq":671,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c50e0-e9bf-7ce3-9c73-886a99a08b3d","at":1770883443135000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c50e1-1048-7cc6-9b56-04d2f04b7149","at":1770883453000000000,"seq":673,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c50e1-1430-745c-bbdd-838b6e1bfa0f","at":1770883454000000000,"seq":674,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c50e1-1c00-7b94-8027-c9335a2fd131","at":1770883456000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c50e1-6bd0-78d8-abb8-b37bf74738fd","at":1770883476432000000,"seq":676,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c50e1-9518-7f16-82d0-819afc3c0d83","at":1770883487000000000,"seq":677,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c50e1-a4b8-7dd2-b673-c649a628a837","at":1770883491000000000,"seq":678,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c50e1-bc28-7e0c-9a4a-7e1624387876","at":1770883497000000000,"seq":679,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c50e1-c7e0-78c0-b204-dc55b56c6999","at":1770883500000000000,"seq":680,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

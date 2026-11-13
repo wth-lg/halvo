@@ -1,0 +1,26 @@
+{"v":1,"id":"019bac2e-e138-7d3d-88c3-bcb4e71bab1a","at":1768120312120000000,"seq":198,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac2e-e138-70a2-8a5b-229bf77d225a","at":1768120312120000000,"seq":199,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bac2f-59d8-7948-afce-f0247aeb7226","at":1768120343000000000,"seq":200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac2f-5dc0-7055-aab9-b46db8c7de3f","at":1768120344000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac2f-c892-7875-aedf-356075659ce5","at":1768120371346000000,"seq":202,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bac2f-d6d8-7b45-9ac7-34f4082c638f","at":1768120375000000000,"seq":203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac2f-ea60-7f79-8087-0b1d67407d9c","at":1768120380000000000,"seq":204,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac2f-f618-77fc-8dbf-8ac821de5b63","at":1768120383000000000,"seq":205,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bac30-0237-70e9-be1a-ddff047e6ea6","at":1768120386103000000,"seq":206,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bac30-57c0-77be-b062-605ecd32b6d8","at":1768120408000000000,"seq":207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac30-5f90-7f13-8361-fd7a00ea76c6","at":1768120410000000000,"seq":208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac30-6378-7ad6-9258-f3a19e12e3be","at":1768120411000000000,"seq":209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bac30-d742-7ede-b6fc-22f5c67fccfc","at":1768120440642000000,"seq":210,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bac31-78d0-74da-8114-370df014f63b","at":1768120482000000000,"seq":211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac31-a71c-7514-abb1-dcd874161702","at":1768120493852000000,"seq":212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bac32-0d40-7984-aaa5-f6c6292618b2","at":1768120520000000000,"seq":213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac32-2c80-7221-8c04-4c4bfbbae3ab","at":1768120528000000000,"seq":214,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac32-7e88-7501-8733-5bd090718e0c","at":1768120549000000000,"seq":215,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac32-8e28-7fb4-b1f6-548514e5c643","at":1768120553000000000,"seq":216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac45-287b-7f4a-b978-6b4bf50536ec","at":1768121772155000000,"seq":217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bac45-6e30-7c3b-9a78-75192171759a","at":1768121790000000000,"seq":218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5f-94a2-78e1-b51f-37c21a935269","at":1768123503778000000,"seq":219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bac5f-a520-75d8-9902-8687dd8f7ebd","at":1768123508000000000,"seq":220,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac5f-acf0-7104-968e-2984ea157468","at":1768123510000000000,"seq":221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bac5f-c848-72e5-bcf6-25b93f66be41","at":1768123517000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac5f-e3a0-7369-8864-955cd138880a","at":1768123524000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

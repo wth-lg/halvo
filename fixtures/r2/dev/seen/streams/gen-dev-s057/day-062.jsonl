@@ -1,0 +1,21 @@
+{"v":1,"id":"019cb2ce-979c-7331-aec7-a5a980f670ce","at":1772526409628000000,"seq":819,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2ce-979c-7331-8795-93c9dbf3db8b","at":1772526409628000000,"seq":820,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"app_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ce-e348-7eef-9774-7ca0d747c2d9","at":1772526429000000000,"seq":821,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ce-e979-70ae-99a8-28af2ac66f5f","at":1772526430585000000,"seq":822,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Orders - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb2cf-5878-701d-b8ed-5d75188244ec","at":1772526459000000000,"seq":823,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb2cf-6fe8-7f28-a833-c70faa76f895","at":1772526465000000000,"seq":824,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb2cf-a5ac-736e-b9f5-cb7510a66224","at":1772526478764000000,"seq":825,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d0-2851-795f-bde2-1b59a887703c","at":1772526512209000000,"seq":826,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019cb2d0-2f50-75a2-914d-d6142b65fc24","at":1772526514000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2d0-69e8-7595-95d4-45a4c9f40aa1","at":1772526529000000000,"seq":828,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019cb2d0-75a0-7003-8496-ed1661907625","at":1772526532000000000,"seq":829,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2de-8a70-723f-850d-91961208bfdb","at":1772527454832000000,"seq":830,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cb2de-b610-71bc-9a29-46cb752164c0","at":1772527466000000000,"seq":831,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cb2df-2b40-75b0-a4e7-9eb1a63edaf3","at":1772527496000000000,"seq":832,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019cb2df-4e68-7fa8-a50e-d7a966e5bf26","at":1772527505000000000,"seq":833,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cb2f3-9f4b-72c6-b250-63322428fa44","at":1772528836427000000,"seq":834,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cb2f3-b8f8-7726-993d-1342ca1aa53c","at":1772528843000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2f4-0718-7ca4-a0cf-04a089d05de9","at":1772528863000000000,"seq":836,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2fd-b9e7-74b1-bfb4-3c00280de37c","at":1772529498599000000,"seq":837,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb2fd-d6d0-7ee0-9857-0017cc1fddbf","at":1772529506000000000,"seq":838,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb2fe-57b8-7637-afc5-794e48a22824","at":1772529539000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

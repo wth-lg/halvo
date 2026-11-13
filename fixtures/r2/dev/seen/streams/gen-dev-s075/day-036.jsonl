@@ -1,0 +1,48 @@
+{"v":1,"id":"019c2d40-a44d-7c64-b331-2e9e2f69dc26","at":1770285737037000000,"seq":508,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c2d40-a44d-7e89-93d1-1d7656742f50","at":1770285737037000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c2d41-1570-78f6-a58f-fe7e6a5096d2","at":1770285766000000000,"seq":510,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c2d41-2128-7135-9f39-90728e96bacb","at":1770285769000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d41-4352-7927-bfe6-727c06e41fb2","at":1770285777746000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c2d41-9270-7ac4-964b-46e74bb612ec","at":1770285798000000000,"seq":513,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d41-a9e0-71b3-b6bd-2ba91a1bcfd8","at":1770285804000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2d41-c7b6-791e-9a4d-06b7d9288e4b","at":1770285811638000000,"seq":515,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c2d41-e090-7464-b80a-b1260a2aeda4","at":1770285818000000000,"seq":516,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c2d41-f418-7690-a6b3-db9adb2f850a","at":1770285823000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d41-fbe8-746a-b111-e22dc16e52bc","at":1770285825000000000,"seq":518,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d59-a466-7c0f-a21f-96bbc72861b3","at":1770287375462000000,"seq":519,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d59-e118-7ab3-ac17-a9da33f7514c","at":1770287391000000000,"seq":520,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c2d5a-42c0-7795-a1c3-f5a452c601fc","at":1770287416000000000,"seq":521,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5a-4fa1-79e0-ac9f-2751feb7cfe6","at":1770287419297000000,"seq":522,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d5a-8910-7946-9dae-e9ac3357a1c8","at":1770287434000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c2d5a-9c98-7975-8cf1-18c9b9dfb509","at":1770287439000000000,"seq":524,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5a-ac38-751c-95cd-9aaf5976f546","at":1770287443000000000,"seq":525,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d5a-b408-7792-a397-959212ac08dc","at":1770287445000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5a-b5c7-7249-bf41-0869b047a4ef","at":1770287445447000000,"seq":527,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d5b-5048-75a4-ba45-24f84eb07253","at":1770287485000000000,"seq":528,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5b-5fe8-7d5e-ab2d-55d8af28214c","at":1770287489000000000,"seq":529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c2d5b-7b68-74b8-9244-86be503cb685","at":1770287496040000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c2d5c-2b08-7860-bf2a-ec9d06c92492","at":1770287541000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5c-77ae-72aa-a559-1c7e79699ce4","at":1770287560622000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d5c-c360-7a82-ba12-47d9b3412b05","at":1770287580000000000,"seq":533,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5c-cf18-704c-be16-ea33a1811194","at":1770287583000000000,"seq":534,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019c2d5c-e682-7848-9f21-4f90870a3814","at":1770287588994000000,"seq":535,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d5d-4830-7a64-90a6-e5e40ae534eb","at":1770287614000000000,"seq":536,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5d-6388-7776-a0b8-e0c7e1783a5a","at":1770287621000000000,"seq":537,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c2d5d-7af8-7ccf-91dd-ee4205c0a34a","at":1770287627000000000,"seq":538,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c2d5d-86b0-7f6f-a54d-b74341c81473","at":1770287630000000000,"seq":539,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c2d5d-a275-7016-8bbf-cdb16794dc90","at":1770287637109000000,"seq":540,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c2d5d-b978-75fc-805b-32c610ef2c40","at":1770287643000000000,"seq":541,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d5d-bd60-76a3-899c-81600d1f1736","at":1770287644000000000,"seq":542,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c2d5d-cd00-75d8-bb1b-844bd52c6da9","at":1770287648000000000,"seq":543,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d5d-d8b8-71b0-90d0-c65e29eeded9","at":1770287651000000000,"seq":544,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d65-6ce7-71d0-bfe4-9b002c11d51c","at":1770288147687000000,"seq":545,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2d65-b470-7507-850f-6aad490207a1","at":1770288166000000000,"seq":546,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c2d65-d218-7db6-8af9-027767ad13f5","at":1770288173592000000,"seq":547,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail folder Inbox - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2d66-4cc8-7147-8e19-d5f3aa5b5960","at":1770288205000000000,"seq":548,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d66-540a-705b-9fd2-ec611b2ab4fc","at":1770288206858000000,"seq":549,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New message - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2d66-a2b8-7dae-baad-e2ef4cbc8635","at":1770288227000000000,"seq":550,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c2d67-17e8-7aaa-8cd3-9fc164ef1957","at":1770288257000000000,"seq":551,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c2d67-23a0-78f3-ac98-ca64bcbf6016","at":1770288260000000000,"seq":552,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d67-2788-7494-b5bb-431b8c663e28","at":1770288261000000000,"seq":553,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c2d67-5465-7be3-912c-31a87d1692d4","at":1770288272485000000,"seq":554,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Message sent - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c2d67-9100-706a-90d6-27defc58ab4d","at":1770288288000000000,"seq":555,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

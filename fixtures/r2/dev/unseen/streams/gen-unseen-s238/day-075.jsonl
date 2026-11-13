@@ -1,0 +1,33 @@
+{"v":1,"id":"019cf5ec-0cb1-7718-9b29-167f5319c530","at":1773652413617000000,"seq":922,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf5ec-0cb1-7bc0-a15c-b5ab7e4b90e0","at":1773652413617000000,"seq":923,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ec-a7ff-7e28-a522-a3ed303d4843","at":1773652453375000000,"seq":924,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Maple Court - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ec-ba10-798f-9301-a424bae5986c","at":1773652458000000000,"seq":925,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf5ec-c5c8-72df-8636-2664cf3066db","at":1773652461000000000,"seq":926,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ec-d950-7351-97bd-7af50c755b94","at":1773652466000000000,"seq":927,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf5ec-dd38-7462-a960-362e04f3449a","at":1773652467000000000,"seq":928,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cf5ec-e06e-7757-aee4-77fa37c9c34e","at":1773652467822000000,"seq":929,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ed-0830-7f9c-b7b5-d949726e144a","at":1773652478000000000,"seq":930,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ed-5650-772a-93d6-39ec72b34188","at":1773652498000000000,"seq":931,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019cf5ed-6cdb-7537-8449-6162d211c319","at":1773652503771000000,"seq":932,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019cf5ed-a858-796b-a6cf-cece0f464b80","at":1773652519000000000,"seq":933,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf5ed-f678-7d27-9a90-6767b8f2550b","at":1773652539000000000,"seq":934,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5ee-0618-760a-ba30-4b89dab937bb","at":1773652543000000000,"seq":935,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf5f5-091a-7ce8-8531-ce6b1d151ecb","at":1773653002522000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cf5f5-5530-7143-ab1d-555acfcdefea","at":1773653022000000000,"seq":937,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf5f5-9798-7af1-8f1e-ac6c765a7912","at":1773653039000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cf605-ae5d-7c17-925d-2d57c25b2cc3","at":1773654093405000000,"seq":939,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cf605-ae5d-7c8a-aef7-172352689e00","at":1773654093405000000,"seq":940,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cf605-fae8-7dfb-8a04-11b4d43c8a9a","at":1773654113000000000,"seq":941,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cf606-3580-7fb1-916a-3ffba2d339a5","at":1773654128000000000,"seq":942,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019cf618-2f3c-7361-b578-cd07a9066071","at":1773655306044000000,"seq":943,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cf618-9c70-7224-bf8c-1ce6f56ef79e","at":1773655334000000000,"seq":944,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cf618-a828-7ea2-8926-76eb4483819d","at":1773655337000000000,"seq":945,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf618-b7c8-76e3-a043-f6d1f82ed42a","at":1773655341000000000,"seq":946,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cf618-f260-76af-9ed7-c8a7ee9db2ec","at":1773655356000000000,"seq":947,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf634-4ef0-7952-ab65-53be34371e4a","at":1773657149168000000,"seq":948,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf634-4ef0-7975-b226-444ab97d8497","at":1773657149168000000,"seq":949,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf634-5de8-7428-9888-dfb68cde8043","at":1773657153000000000,"seq":950,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf634-7d28-7fd2-9d96-569421dbaf25","at":1773657161000000000,"seq":951,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf634-c378-7374-ab0a-f8436078df0c","at":1773657179000000000,"seq":952,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf634-d6f6-77fd-8115-28075480dece","at":1773657183990000000,"seq":953,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf635-5fb8-7a61-b565-a9e522b7baac","at":1773657219000000000,"seq":954,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

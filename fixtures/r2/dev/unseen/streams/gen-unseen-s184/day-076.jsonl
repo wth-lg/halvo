@@ -1,0 +1,19 @@
+{"v":1,"id":"019cfb4c-f22e-729f-9b01-06899b4b54e5","at":1773742649902000000,"seq":1064,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cfb4c-f22e-7321-9c8f-1961966e093e","at":1773742649902000000,"seq":1065,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cfb4d-40b0-7bf3-88f1-9fdc8618f24d","at":1773742670000000000,"seq":1066,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb4d-4880-7959-95ab-66501d604f49","at":1773742672000000000,"seq":1067,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019cfb4d-d930-7648-ace3-6ab63361ff53","at":1773742709040000000,"seq":1068,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"School messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cfb4e-7d18-77ba-91e4-a8f3a32b6747","at":1773742751000000000,"seq":1069,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb4e-dec0-7a99-9e38-808c2614c69b","at":1773742776000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb4e-df3b-73ac-9857-4831152fb39b","at":1773742776123000000,"seq":1071,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cfb4f-4068-7782-a8f0-0bd7fa63dbaf","at":1773742801000000000,"seq":1072,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019cfb4f-57d8-749d-80fc-a485bdad6121","at":1773742807000000000,"seq":1073,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cfb4f-6b60-73c3-bc3a-bd490b630d68","at":1773742812000000000,"seq":1074,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb4f-9e28-7a53-b540-bb689c67e433","at":1773742825000000000,"seq":1075,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cfb4f-bfd3-73c2-9c49-16542f62ad2a","at":1773742833619000000,"seq":1076,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019cfb4f-d8c0-71b6-aaca-1b240430e786","at":1773742840000000000,"seq":1077,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb4f-ffd0-7f08-a24f-e3d92f42fb35","at":1773742850000000000,"seq":1078,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfb57-15c9-7328-8f48-0b4d96520a3a","at":1773743314377000000,"seq":1079,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cfb57-3f48-7267-8b5f-4ff255957f0e","at":1773743325000000000,"seq":1080,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cfb57-79e0-74a9-a995-dae40c7ed53f","at":1773743340000000000,"seq":1081,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cfb57-eb28-7841-b2f0-7c2538821d57","at":1773743369000000000,"seq":1082,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

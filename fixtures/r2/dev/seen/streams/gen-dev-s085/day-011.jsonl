@@ -1,0 +1,16 @@
+{"v":1,"id":"019babf1-b22c-7ea9-b356-b0c27fa24983","at":1768116302380000000,"seq":213,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019babf1-b22c-7396-beb9-5c64bd452f14","at":1768116302380000000,"seq":214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019babf2-2db0-72d1-a021-0027c780092a","at":1768116334000000000,"seq":215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babf2-4138-7984-9327-0912ffe785b0","at":1768116339000000000,"seq":216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac00-7603-7d06-bf88-5eeeaa73ab3f","at":1768117270019000000,"seq":217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bac01-0e48-797a-9ed1-1636c358b06d","at":1768117309000000000,"seq":218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bac01-502b-7f87-ad44-461d636b946e","at":1768117325867000000,"seq":219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019bac01-8378-7e9a-9331-51530d0b0da7","at":1768117339000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bac01-a6a0-7f55-9d14-534f88175e9f","at":1768117348000000000,"seq":221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac01-c9c8-7b21-97ed-6d7662d1349b","at":1768117357000000000,"seq":222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac0e-17bd-7b76-9d96-7241d5fa6c1d","at":1768118163389000000,"seq":223,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bac0e-17bd-726d-8040-367699dd0ba1","at":1768118163389000000,"seq":224,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bac0e-3190-7a5f-9c74-5d101a9e6e65","at":1768118170000000000,"seq":225,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bac0e-3d48-70c0-92cf-fabb21a36a2f","at":1768118173000000000,"seq":226,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac0e-58a0-7efd-8cbd-4ac95f85278e","at":1768118180000000000,"seq":227,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bac0e-9b08-74a6-bc96-46d606c147ca","at":1768118197000000000,"seq":228,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

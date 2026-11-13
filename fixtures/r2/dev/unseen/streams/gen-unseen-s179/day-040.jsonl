@@ -1,0 +1,4 @@
+{"v":1,"id":"019c4205-e4ce-7449-9c8c-8a2875c0b59b","at":1770634208462000000,"seq":554,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c4205-e4ce-78a6-924c-78f493ba84a9","at":1770634208462000000,"seq":555,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c4206-3cd8-7238-8be5-8293e92f3995","at":1770634231000000000,"seq":556,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c4206-6fa0-7a70-b828-67eb93dda1a6","at":1770634244000000000,"seq":557,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

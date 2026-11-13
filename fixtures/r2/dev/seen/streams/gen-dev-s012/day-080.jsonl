@@ -1,0 +1,29 @@
+{"v":1,"id":"019d0fdf-a1cf-7d21-9188-5c966f6cf3a9","at":1774087807439000000,"seq":1257,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fdf-a1cf-7954-aff9-89b4ab104860","at":1774087807439000000,"seq":1258,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d0fdf-b788-7d82-83b5-45837ba54864","at":1774087813000000000,"seq":1259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fdf-ea50-74fc-bbb8-97fa25fae417","at":1774087826000000000,"seq":1260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fdf-ef63-7934-b473-f0365fddc62d","at":1774087827299000000,"seq":1261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"My sheets - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d0fdf-fdd8-73c3-bc30-dbbf2116b2bb","at":1774087831000000000,"seq":1262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fdf-fdd8-7df9-a40d-43ac12730760","at":1774087831000000000,"seq":1263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d0fe0-01c0-72e5-a1fc-66e623992e33","at":1774087832000000000,"seq":1264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fe0-9e00-7ac3-9f6a-f92840e71044","at":1774087872000000000,"seq":1265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0fe0-ad3a-7c9c-9ade-2406b9c98beb","at":1774087875898000000,"seq":1266,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0fe0-ad3a-7962-a532-e0f172754807","at":1774087875898000000,"seq":1267,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0fe0-c8f8-7ea0-acfd-117a25bef9e8","at":1774087883000000000,"seq":1268,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fe0-ffa8-7a44-b725-aed82f93bbf6","at":1774087897000000000,"seq":1269,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d0fe0-fff0-75e7-b83e-9146c5de492c","at":1774087897072000000,"seq":1270,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fe0-fff0-78a9-a801-c525d7dca179","at":1774087897072000000,"seq":1271,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d0fe1-0f48-7d24-8508-6a9c03fb18b2","at":1774087901000000000,"seq":1272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d0fe1-9fd0-7542-8d82-de50cd022e46","at":1774087938000000000,"seq":1273,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d0fe1-da6e-751f-9993-6e950eaf4a92","at":1774087953006000000,"seq":1274,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"meter log saved - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
+{"v":1,"id":"019d0fe2-1118-781d-9bc9-85c88ac15e3e","at":1774087967000000000,"seq":1275,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0fe2-20b8-7cfe-a364-4db7fa95c43a","at":1774087971000000000,"seq":1276,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fe2-6708-7a3f-8561-b77b38cdc070","at":1774087989000000000,"seq":1277,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ffc-0ed6-7051-95c5-017cd0050d77","at":1774089670358000000,"seq":1278,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0ffc-1158-749b-9cbc-abf0ca9a60e1","at":1774089671000000000,"seq":1279,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0ffc-6b30-751a-8d26-93763fcae6ac","at":1774089694000000000,"seq":1280,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d0ffc-8a70-7d31-8916-45f4556a5d0e","at":1774089702000000000,"seq":1281,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0ffd-d490-77af-b253-120f5bdcf1f4","at":1774089786512000000,"seq":1282,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d0ffe-1110-71a8-b3b8-75113b2fce0d","at":1774089802000000000,"seq":1283,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d0ffe-3050-74f7-834d-a2535175f7c0","at":1774089810000000000,"seq":1284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d0ffe-4f90-756e-9d14-37e09b57491d","at":1774089818000000000,"seq":1285,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

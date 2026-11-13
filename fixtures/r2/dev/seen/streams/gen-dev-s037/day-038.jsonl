@@ -1,0 +1,39 @@
+{"v":1,"id":"019c36f5-dab0-707a-b1f5-5102d521016a","at":1770448607920000000,"seq":561,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c36f5-dab0-7e98-8c48-19c6f141264f","at":1770448607920000000,"seq":562,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c36f6-2538-7420-8f1c-a4bd2e0cc28c","at":1770448627000000000,"seq":563,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c36f6-43bf-7fc6-940d-e5f2d728d43b","at":1770448634815000000,"seq":564,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c36f6-9e50-7557-bb12-d5e8ebe85838","at":1770448658000000000,"seq":565,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c36f6-d118-71c5-aec9-b3123401e55f","at":1770448671000000000,"seq":566,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c36f6-e843-7d22-8a19-ca01052da322","at":1770448676931000000,"seq":567,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c36f7-3a90-7cef-8704-c0c204d72e0c","at":1770448698000000000,"seq":568,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c370f-bd90-7e02-a695-d947c749fbe5","at":1770450304400000000,"seq":569,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c370f-bd90-7fb7-b43b-a4ab95f292e2","at":1770450304400000000,"seq":570,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c370f-cba0-7c35-933c-1022dea34cb2","at":1770450308000000000,"seq":571,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3710-3130-745b-b2e3-28148adefe88","at":1770450334000000000,"seq":572,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3710-3ce8-7cc9-bb2f-7e253e7b6dce","at":1770450337000000000,"seq":573,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c3710-4693-7ff2-bfb4-290d6c9c3cc0","at":1770450339475000000,"seq":574,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c3710-5458-75a1-a6d2-234da74958e6","at":1770450343000000000,"seq":575,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3710-5c28-7eaa-8c9b-f2e56c2aa4d0","at":1770450345000000000,"seq":576,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3710-63f8-7a3e-93d4-0b432c8857cb","at":1770450347000000000,"seq":577,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c3710-7e2d-70ee-9b54-453ab58bfcf8","at":1770450353709000000,"seq":578,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019c3710-7f50-770a-94cf-e4f1929c21f2","at":1770450354000000000,"seq":579,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3710-8338-7b2e-95c6-478f789511e7","at":1770450355000000000,"seq":580,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c3710-8b08-7c75-95cb-566219aff50d","at":1770450357000000000,"seq":581,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3710-e8c8-7f2f-878f-189f1cd9bfe7","at":1770450381000000000,"seq":582,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3710-fa23-78db-ae54-7f5f801c69aa","at":1770450385443000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease renewal offer for Flat 2 - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c3711-2748-7527-bfa0-4da2d1af0501","at":1770450397000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3711-7d38-7588-aa6e-b84adea9336b","at":1770450419000000000,"seq":585,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3711-8cd8-79c5-b41f-a59421e0909c","at":1770450423000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3711-ac18-786c-85df-ac26be8cd1e4","at":1770450431000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c3711-e79f-7fd4-b807-0be6ece4daf4","at":1770450446239000000,"seq":588,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review new lease terms - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c3712-0208-7a9b-af25-2e61c8ecae85","at":1770450453000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3712-5028-7428-a5dd-f76d7e4cc046","at":1770450473000000000,"seq":590,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3712-a35d-7f75-ba17-c0ee774c34a6","at":1770450494301000000,"seq":591,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign lease renewal - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c3712-ec68-7c70-9fda-260f96dc2d49","at":1770450513000000000,"seq":592,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3712-f438-783d-bec7-dd6114b6e470","at":1770450515000000000,"seq":593,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3712-fff0-7f40-89b9-56e1ee9be2cf","at":1770450518000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c3713-0f90-7e9d-adc8-fddbfbd755ba","at":1770450522000000000,"seq":595,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3713-4258-7f1e-86a3-dfa76daf8b43","at":1770450535000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3713-679d-7e7d-9de4-471de1443db7","at":1770450544541000000,"seq":597,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Renewal submitted - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019c3713-9460-7023-afc8-4d0820649a69","at":1770450556000000000,"seq":598,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3713-afb8-796b-9942-b3478a3ce30d","at":1770450563000000000,"seq":599,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

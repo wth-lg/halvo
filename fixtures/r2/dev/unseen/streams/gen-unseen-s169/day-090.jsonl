@@ -1,0 +1,8 @@
+{"v":1,"id":"019d433d-400b-7ae3-b438-3e8795a50f0c","at":1774949580811000000,"seq":1472,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d433d-400b-7594-bbab-b5d063edb564","at":1774949580811000000,"seq":1473,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d433d-7778-751d-8ae5-659afa45090e","at":1774949595000000000,"seq":1474,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d433d-aa40-704f-9eff-f81b76345863","at":1774949608000000000,"seq":1475,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d433d-ef29-7358-86b8-533ac54edb10","at":1774949625641000000,"seq":1476,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019d433e-0418-72b8-850f-1a2d79832c1b","at":1774949631000000000,"seq":1477,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d433e-36e0-7b20-bad2-79bbc0453d1d","at":1774949644000000000,"seq":1478,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d433e-4a68-7333-8f97-10cc6c96df32","at":1774949649000000000,"seq":1479,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

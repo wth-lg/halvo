@@ -1,0 +1,27 @@
+{"v":1,"id":"019d0fd1-4163-7038-b6da-6aaa4ea59872","at":1774086865251000000,"seq":1123,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0fd1-4163-74e2-a2ae-f5ac1759c498","at":1774086865251000000,"seq":1124,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0fd1-5008-7bc7-a51c-d3534cf0f091","at":1774086869000000000,"seq":1125,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fd1-6f48-7447-8870-7bd6ff6510d5","at":1774086877000000000,"seq":1126,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019d0fd1-b17c-75b4-8dbd-1df29408bbe2","at":1774086893948000000,"seq":1127,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0fd1-b17c-70b0-80e6-556d896a8fee","at":1774086893948000000,"seq":1128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d0fd1-f030-754b-a0d2-698c0b2fc850","at":1774086910000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fd2-3e50-7b73-8c04-01239e14d00c","at":1774086930000000000,"seq":1130,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d0fd2-80b8-7cc7-bdd7-d4bc04c6029e","at":1774086947000000000,"seq":1131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fd2-9ac3-73ab-8b37-c0b8275a4e57","at":1774086953667000000,"seq":1132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view this week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d0fd2-ee18-7812-aad5-62d6fc09b3e2","at":1774086975000000000,"seq":1133,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0fd2-f5e8-711b-841c-7c82acf532d2","at":1774086977000000000,"seq":1134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0fd3-01a0-7ef3-88dc-68fcf0537b5b","at":1774086980000000000,"seq":1135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d0fd3-0588-74b8-954c-23f9c722dcf7","at":1774086981000000000,"seq":1136,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fd3-4183-7d9b-a3ea-14904d3aaafa","at":1774086996355000000,"seq":1137,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d0fd3-5b78-776c-817b-3f15ea6bd1a6","at":1774087003000000000,"seq":1138,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fd3-7ab8-7087-8a93-21cac27506b5","at":1774087011000000000,"seq":1139,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0fd3-ccc0-75bf-a676-b8d358b23278","at":1774087032000000000,"seq":1140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d0fd3-df12-74d9-984c-f7d0e834ad29","at":1774087036690000000,"seq":1141,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019d0fd4-3e08-7148-a633-f0e9e3516b2b","at":1774087061000000000,"seq":1142,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fd4-49c0-7f7d-91ec-0204492e001f","at":1774087064000000000,"seq":1143,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fd4-8890-7d23-8793-86d3c4c92d94","at":1774087080080000000,"seq":1144,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0fd4-8890-7adb-a9ec-d446efb1da90","at":1774087080080000000,"seq":1145,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-east.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0fd4-9010-7761-87f2-1e46077ee6c0","at":1774087082000000000,"seq":1146,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d0fd4-93f8-743c-a157-f8c5c01a3f22","at":1774087083000000000,"seq":1147,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0fd4-97e0-7a70-8699-6bcd341a3dd3","at":1774087084000000000,"seq":1148,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d0fd4-a398-7c55-9e54-285f6c9335a6","at":1774087087000000000,"seq":1149,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

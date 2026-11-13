@@ -1,0 +1,9 @@
+{"v":1,"id":"019ba232-15d8-7dcd-9875-ea080178c1a7","at":1767952750040000000,"seq":147,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba232-15d8-7937-8df2-446bec4192e0","at":1767952750040000000,"seq":148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba232-38d8-7f18-b963-5e3678c34f9e","at":1767952759000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ba233-b943-7c53-8b47-049bdafe9ce3","at":1767952857411000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ba234-0d98-72cf-bc2a-409b7756ecc4","at":1767952879000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ba234-c591-75a0-8041-2b45dd9cb27b","at":1767952926097000000,"seq":152,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019ba234-dca0-7566-8212-d063ab0a4ea7","at":1767952932000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019ba23b-c44b-7d0a-bce2-70773f10dc9e","at":1767953384523000000,"seq":154,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ba23c-5a98-76fe-9438-3f0f096a3f5b","at":1767953423000000000,"seq":155,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

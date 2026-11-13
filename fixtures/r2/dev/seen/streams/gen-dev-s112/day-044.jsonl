@@ -1,0 +1,11 @@
+{"v":1,"id":"019c565e-f0ba-7956-b37b-27f2d5172fbb","at":1770975588538000000,"seq":771,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c565e-f0ba-7326-b515-fc0347bca5f1","at":1770975588538000000,"seq":772,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c565e-f288-714a-8935-e8fef023a95b","at":1770975589000000000,"seq":773,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c565f-2168-72ed-830f-bbf8d69e33a1","at":1770975601000000000,"seq":774,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c5679-9509-7623-89e6-70154e78dfde","at":1770977334537000000,"seq":775,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c5679-9509-799a-8412-79e53a7ce9f8","at":1770977334537000000,"seq":776,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c5679-d170-7b75-b946-79870d4ac608","at":1770977350000000000,"seq":777,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c567a-0c08-7c78-abc5-36498f85b17b","at":1770977365000000000,"seq":778,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c567a-2378-724a-9dd3-7fc1a24ac628","at":1770977371000000000,"seq":779,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c567a-701f-75d5-94d6-98da5b76a787","at":1770977390623000000,"seq":780,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c567a-a460-7223-b5ea-79609ca7cfdd","at":1770977404000000000,"seq":781,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":9}}

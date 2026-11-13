@@ -1,0 +1,21 @@
+{"v":1,"id":"019b8318-0d48-7439-af8d-406eb18a6b37","at":1767430950216000000,"seq":19,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8318-0d48-7f86-b2b4-3aba0c0a0190","at":1767430950216000000,"seq":20,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b8318-ef55-7ed9-9177-ee872321eca9","at":1767431008085000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b8318-f2e8-7af4-9a07-0ce2b9704c73","at":1767431009000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8318-fea0-78e8-9d4a-08f7b5d5c0d8","at":1767431012000000000,"seq":23,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8319-3168-7fa0-8bca-398128e826b4","at":1767431025000000000,"seq":24,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8319-4cc5-714d-b679-fecf1f630edc","at":1767431032005000000,"seq":25,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b831a-2780-725b-9b69-74b33ba0e7ba","at":1767431088000000000,"seq":26,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b831a-500d-7a9b-ade0-95d9db3b1dcd","at":1767431098381000000,"seq":27,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019b831a-5660-7ebd-8c9e-eafa62ccc7c1","at":1767431100000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019b831a-6dd0-7863-be54-71701685a3f6","at":1767431106000000000,"seq":29,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b831a-a480-7f37-bf22-0fa715ed110f","at":1767431120000000000,"seq":30,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8331-6bca-7f1b-b5cd-af15a1cfbeae","at":1767432612810000000,"seq":31,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8331-6c88-7d5c-be68-6cfd0d17a45a","at":1767432613000000000,"seq":32,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8331-9398-7681-be88-b4ce29c9c574","at":1767432623000000000,"seq":33,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8331-9b68-7314-ae3a-5cde2f04133f","at":1767432625000000000,"seq":34,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8331-c660-7258-a226-75aae8cc4d21","at":1767432636000000000,"seq":35,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b8331-ed70-792f-a9cd-3f29a116fa51","at":1767432646000000000,"seq":36,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8338-9dfb-73d2-9263-c0aef9246cc6","at":1767433084411000000,"seq":37,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b8338-b3d0-7384-8223-b91688c5bd9e","at":1767433090000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b8339-86c0-7b82-a990-83109c4796c1","at":1767433144000000000,"seq":39,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

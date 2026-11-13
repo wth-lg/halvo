@@ -1,0 +1,47 @@
+{"v":1,"id":"019b7e32-248a-7447-ad7c-958a2df471d2","at":1767348774026000000,"seq":36,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e32-248a-702e-af72-c1ec97a445dc","at":1767348774026000000,"seq":37,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7e32-3fc8-706b-8424-f5bf0aadc500","at":1767348781000000000,"seq":38,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b7e32-76ce-76f8-b6c9-d9772d58dced","at":1767348795086000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"March water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7e32-7e48-7ace-897f-5ce606b45281","at":1767348797000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b7e32-d820-70f3-9174-19038ad71f13","at":1767348820000000000,"seq":41,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b7e32-ff4f-7404-bcf8-c75e8433b764","at":1767348830031000000,"seq":42,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7e33-1a88-7f06-8c77-70399de42efb","at":1767348837000000000,"seq":43,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e33-2258-7006-b2c6-8464dea9afed","at":1767348839000000000,"seq":44,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e33-31f8-7f22-8a76-c33663a02b0c","at":1767348843000000000,"seq":45,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7e33-b9cb-70da-bab5-2c3b25571ae6","at":1767348877771000000,"seq":46,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019b7e33-f548-7aa9-97c6-91dbc36df1e1","at":1767348893000000000,"seq":47,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e34-5ec0-7d66-a169-d41d3d2aff67","at":1767348920000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b7e3f-7555-73fc-a684-88a093f80af0","at":1767349646677000000,"seq":49,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7e3f-7555-7c35-b6fc-9f8b5518ab33","at":1767349646677000000,"seq":50,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7e3f-7e68-757e-98b9-e34721ab8eef","at":1767349649000000000,"seq":51,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b7e3f-b518-7bff-97c4-d71963ec8e8b","at":1767349663000000000,"seq":52,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019b7e3f-cd43-7f18-b9d8-1564237f6114","at":1767349669187000000,"seq":53,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e3f-cd43-7ede-a7b6-19ecb933edff","at":1767349669187000000,"seq":54,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019b7e40-2278-78ff-ae6d-cfb653460013","at":1767349691000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e40-2e30-729f-980f-0fc52c8b9dcd","at":1767349694000000000,"seq":56,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b7e40-4988-7c1c-b874-0f4ebea2e283","at":1767349701000000000,"seq":57,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e40-8420-7eb6-9499-22f0c7a23ebe","at":1767349716000000000,"seq":58,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b7e40-8bf0-7fbb-8476-ecbeec2781bf","at":1767349718000000000,"seq":59,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b7e40-974d-7aa4-88c4-fa12b78f0378","at":1767349720909000000,"seq":60,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b7e40-974d-7fa7-a074-6e48f152fb0c","at":1767349720909000000,"seq":61,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b7e40-9f78-770c-b20c-2ff00a7406fe","at":1767349723000000000,"seq":62,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e40-c688-7a21-a716-c2c5668dd2e6","at":1767349733000000000,"seq":63,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019b7e58-7f43-74d9-a1e1-e041e9530e9e","at":1767351287619000000,"seq":64,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b7e58-d2c8-7e18-ab69-86cae7dda577","at":1767351309000000000,"seq":65,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e59-1148-7fe3-888e-f4a2bb2cb35e","at":1767351325000000000,"seq":66,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b7e6a-29e2-71e7-8fd3-d62e3a1746a2","at":1767352445410000000,"seq":67,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e6a-29e2-72fb-9614-6cd9bf7d8adb","at":1767352445410000000,"seq":68,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b7e6a-3bd0-7095-ac18-5c406ad7fe23","at":1767352450000000000,"seq":69,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e6a-8608-7770-ba54-e5a383b4138f","at":1767352469000000000,"seq":70,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e6a-8cc6-77f2-8864-f29c5e4a65c2","at":1767352470726000000,"seq":71,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b7e6a-cc58-7837-8686-e30d3b0a7955","at":1767352487000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e6a-dcc2-74b3-93f2-deb42de829f0","at":1767352491202000000,"seq":73,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b7e6b-35d0-7109-b757-6bdfd0b8bf6f","at":1767352514000000000,"seq":74,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e6b-7068-7c88-96ed-1cdec709d23b","at":1767352529000000000,"seq":75,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b7e76-fd29-79d9-ab43-f29bbe6121c8","at":1767353285929000000,"seq":76,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7e77-18c8-781c-a386-1c021d7e04b1","at":1767353293000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b7e77-3038-7809-942b-111fadb91d99","at":1767353299000000000,"seq":78,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b7e7e-c9c6-7bab-a66b-3688d7e6e721","at":1767353797062000000,"seq":79,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019b7e7f-2f18-7904-9a11-5500910260fd","at":1767353823000000000,"seq":80,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e7f-5628-73b7-8cc3-83929a4a78f7","at":1767353833000000000,"seq":81,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e7f-69b0-72d3-802e-66d48a277943","at":1767353838000000000,"seq":82,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

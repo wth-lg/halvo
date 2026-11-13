@@ -1,0 +1,20 @@
+{"v":1,"id":"019d1a1e-5b2d-71c5-a869-06bc94a8e066","at":1774259690285000000,"seq":1027,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d1a1e-5b2d-7aee-8bef-e1461fed3173","at":1774259690285000000,"seq":1028,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d1a1e-94a8-7b65-92fc-28036a20664d","at":1774259705000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a1e-ac18-7843-99c5-e795975203bd","at":1774259711000000000,"seq":1030,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019d1a21-8c5e-7026-b32a-8a391e118301","at":1774259899486000000,"seq":1031,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d1a21-e450-76d2-8bba-80e28842973a","at":1774259922000000000,"seq":1032,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a21-ffa8-7e80-8512-0a93b46c4bdd","at":1774259929000000000,"seq":1033,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a25-c4d9-70f0-ad37-4fa1555616a3","at":1774260176089000000,"seq":1034,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d1a25-c868-7c82-8357-01bf18242ac8","at":1774260177000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d1a26-39b0-7b73-a353-61dded9c30b5","at":1774260206000000000,"seq":1036,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a26-3d98-7dfe-a317-9a8568b045e8","at":1774260207000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a26-c53b-7bbf-a2f9-457623a20540","at":1774260241723000000,"seq":1038,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d1a26-ce20-7195-bb53-e22f5ee16d70","at":1774260244000000000,"seq":1039,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d1a26-f918-7b44-9f0d-0fefc59edd56","at":1774260255000000000,"seq":1040,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d1a27-2028-7c61-9dcc-a93281a30309","at":1774260265000000000,"seq":1041,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a27-4c07-725b-a020-948f676527db","at":1774260276231000000,"seq":1042,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d1a27-6678-7800-9c49-8558920ffb04","at":1774260283000000000,"seq":1043,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d1a27-dbac-75f5-a158-7cd1e712a94f","at":1774260313004000000,"seq":1044,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item plant pots - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019d1a28-06a0-75e9-8e4f-45914b835c1d","at":1774260324000000000,"seq":1045,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d1a28-1a28-7d58-a42c-6c62e5fd8228","at":1774260329000000000,"seq":1046,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

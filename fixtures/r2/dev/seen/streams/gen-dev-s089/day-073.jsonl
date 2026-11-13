@@ -1,0 +1,17 @@
+{"v":1,"id":"019ceba0-adee-7fca-a199-e45559702c8c","at":1773479701998000000,"seq":984,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceba0-adee-772d-bb67-6bdca540f5fa","at":1773479701998000000,"seq":985,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ceba0-ec70-7770-b2ec-65b71f0012f3","at":1773479718000000000,"seq":986,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ceba1-32c0-7749-ae1e-25d7d5967dc8","at":1773479736000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba1-7910-7e0f-a5c2-dae16f2aa66a","at":1773479754000000000,"seq":988,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceba1-a408-73d5-a92f-d7808b8db5a3","at":1773479765000000000,"seq":989,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceba1-abd8-792b-9c24-f90f42915286","at":1773479767000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbb-9f09-7cd4-81f1-e306a54b665a","at":1773481467657000000,"seq":991,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cebbb-d328-71be-9a0f-c8b761cd66e2","at":1773481481000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebbb-ea98-7024-87e6-a28c2dafd50f","at":1773481487000000000,"seq":993,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019cebc4-810b-7d9d-85e7-0259381017c8","at":1773482049803000000,"seq":994,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cebc4-d7c0-75d1-a639-9e46d02f6727","at":1773482072000000000,"seq":995,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebc4-ef30-7eee-bbfb-7372859d3d30","at":1773482078000000000,"seq":996,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cebd6-6337-7261-b181-c4bb6ec26c5a","at":1773483221815000000,"seq":997,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebd6-b933-742b-93da-41f38c4afd69","at":1773483243827000000,"seq":998,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
+{"v":1,"id":"019cebd6-c598-7675-a03e-86ba0f689df1","at":1773483247000000000,"seq":999,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cebd7-0030-73e6-8782-b80fc834641e","at":1773483262000000000,"seq":1000,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

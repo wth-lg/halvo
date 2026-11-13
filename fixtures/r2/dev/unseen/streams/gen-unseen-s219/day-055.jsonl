@@ -1,0 +1,36 @@
+{"v":1,"id":"019c8ec0-1fcc-7d31-b58f-36b93ece0c09","at":1771921481676000000,"seq":768,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8ec0-1fcc-73d9-a29f-4a43d0a24945","at":1771921481676000000,"seq":769,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c8ec0-a809-7cfc-9624-1175be57639b","at":1771921516553000000,"seq":770,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c8ec0-a9c8-7723-8255-1a79b7b3f408","at":1771921517000000000,"seq":771,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8ec0-d0d8-77c6-9038-0b9b7b8f49b3","at":1771921527000000000,"seq":772,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ec1-5990-738a-bc68-1f387234d140","at":1771921562000000000,"seq":773,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ec1-68e7-733f-add4-1116a23e176c","at":1771921565927000000,"seq":774,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details light bulbs - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019c8ec1-74e8-7277-9eaf-4c6840c7120e","at":1771921569000000000,"seq":775,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c8ec1-9428-7215-b536-e94b8f5fe235","at":1771921577000000000,"seq":776,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c8ec4-5cae-7789-9f3e-2b7745025ac0","at":1771921759406000000,"seq":777,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8ec4-66d0-7304-a9be-cf69970ee674","at":1771921762000000000,"seq":778,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ec4-6ab8-7440-8f32-583b3c8c9934","at":1771921763000000000,"seq":779,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8ec4-7670-759a-bb2a-d4d5e8e540f6","at":1771921766000000000,"seq":780,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8ec4-95b0-7a31-a87f-4eec0e25f535","at":1771921774000000000,"seq":781,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ed0-cad3-78ff-b152-a660036df800","at":1771922574035000000,"seq":782,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8ed0-cad3-77d1-b3c3-769d6c9da7bb","at":1771922574035000000,"seq":783,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8ed0-f990-782b-83cf-e6aba1b75758","at":1771922586000000000,"seq":784,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ed1-3428-7b19-8ce5-fe7b5a75fc99","at":1771922601000000000,"seq":785,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ed1-3810-77a8-9e7a-52df0ec7ef60","at":1771922602000000000,"seq":786,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c8ed1-47b0-7d01-aba6-d45e995cfc50","at":1771922606000000000,"seq":787,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c8ed1-9da0-7d75-99a6-41b83eafa3e2","at":1771922628000000000,"seq":788,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c8ee1-3ec2-7ae5-96d6-a8446937943c","at":1771923652290000000,"seq":789,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8ee1-3ec2-75cb-910a-49b12b30ecea","at":1771923652290000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c8ee1-4d40-7195-b78a-fda92bb911f8","at":1771923656000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee1-60c8-766f-aa7c-efa7431c6971","at":1771923661000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c8ee1-64b0-7340-b46c-8fb404ea3b59","at":1771923662000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee1-be88-780a-80c4-07da82b07734","at":1771923685000000000,"seq":794,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c8ee9-84cc-7074-b59b-d694105299af","at":1771924194508000000,"seq":795,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c8ee9-84cc-7eee-ad55-3e758f33e1e8","at":1771924194508000000,"seq":796,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c8ee9-9270-735f-ba70-76243dfa3957","at":1771924198000000000,"seq":797,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c8ee9-a210-728e-9280-11f5048fd25d","at":1771924202000000000,"seq":798,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8ee9-bd68-779a-a414-e7589989d276","at":1771924209000000000,"seq":799,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c8ee9-d8c0-7649-b86d-efd4c202d47a","at":1771924216000000000,"seq":800,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c8eea-222b-70d8-97eb-b285f0ea1b84","at":1771924234795000000,"seq":801,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-9.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c8eea-4df0-795b-bff5-770fa67404a3","at":1771924246000000000,"seq":802,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c8eea-f5e8-7261-b8d9-99928f5a46b9","at":1771924289000000000,"seq":803,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

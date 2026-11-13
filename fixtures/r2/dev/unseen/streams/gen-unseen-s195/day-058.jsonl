@@ -1,0 +1,62 @@
+{"v":1,"id":"019c9e33-c887-790c-ae4b-7325dfb50090","at":1772180719751000000,"seq":698,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e33-c887-7219-b022-f832765b0e22","at":1772180719751000000,"seq":699,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c9e33-dd08-7ad3-92af-bb0b3cdcdd87","at":1772180725000000000,"seq":700,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e34-4a68-7bd6-b527-da8d3f809754","at":1772180753000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c9e34-7560-70e2-9894-352e62d6fabd","at":1772180764000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e34-9566-7089-96da-a7bcfef3ea17","at":1772180772198000000,"seq":703,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c9e34-9c70-7331-8dba-c1cd3b4424a6","at":1772180774000000000,"seq":704,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e34-d708-7d5a-a435-416097371709","at":1772180789000000000,"seq":705,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c9e34-daf0-7d71-ac47-c64af6e7b7e7","at":1772180790000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e34-ef8c-77f2-a49b-fb77a7f4f30c","at":1772180795276000000,"seq":707,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Willow Mews - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c9e35-05e8-7770-a6e0-1b19ec4cdf1c","at":1772180801000000000,"seq":708,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e35-f040-7890-bc1f-38925313f1f5","at":1772180860992000000,"seq":709,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019c9e36-9070-7191-a616-37a01c12010f","at":1772180902000000000,"seq":710,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9e36-a3f8-7d6e-85bd-770d0d023d90","at":1772180907000000000,"seq":711,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9e38-da14-7846-a9bb-fd9ccee9e362","at":1772181051924000000,"seq":712,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c9e38-ede8-7251-9cfa-036fe7026c67","at":1772181057000000000,"seq":713,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e39-0558-7aae-8adc-7ddedb42b556","at":1772181063000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e39-1110-7492-88ef-2c673c0b4b43","at":1772181066000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c9e39-3050-768f-89c9-ecb0db1bac7e","at":1772181074000000000,"seq":716,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c9e39-3820-7813-8fe9-3ea116af2fdd","at":1772181076000000000,"seq":717,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9e3c-cb0f-7f30-a141-d94e000ba3bc","at":1772181310223000000,"seq":718,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c9e3c-cb0f-7dd0-b3ff-100095a43a8e","at":1772181310223000000,"seq":719,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c9e3c-ce18-713f-8768-1571535a53cb","at":1772181311000000000,"seq":720,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c9e3c-f910-79dc-bb07-e26fb6f3be66","at":1772181322000000000,"seq":721,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c9e41-85fe-7550-bd26-f575b0c9df95","at":1772181620222000000,"seq":722,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c9e41-85fe-7e0a-92a1-bf5a7737c2c9","at":1772181620222000000,"seq":723,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9e41-94c0-71ba-aa0a-5ea49030d489","at":1772181624000000000,"seq":724,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e41-be10-791d-a92f-2f200fdf7e44","at":1772181634576000000,"seq":725,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9e41-cf58-74fb-8e45-2d9a554b4c28","at":1772181639000000000,"seq":726,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e41-e6c8-7a3e-8ae4-d9582b33686f","at":1772181645000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e42-0220-7b7d-bb47-7ce722d69ff4","at":1772181652000000000,"seq":728,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9e42-1d78-7097-aeb8-f8cb9f46f8bc","at":1772181659000000000,"seq":729,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c9e42-c7de-7cf7-b8fd-8d1a9ab4f801","at":1772181702622000000,"seq":730,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 3 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9e42-d8f8-70fe-b0bb-4afb91e82a3e","at":1772181707000000000,"seq":731,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9e42-e898-7c3e-b067-305029c4d00c","at":1772181711000000000,"seq":732,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e43-1b60-7d0a-9267-47a2e08b2283","at":1772181724000000000,"seq":733,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c9e43-4c1b-7a23-8c19-ebd80b2a40ee","at":1772181736475000000,"seq":734,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019c9e43-bf70-7596-93f9-2da30f91b290","at":1772181766000000000,"seq":735,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c9e44-30b8-7cec-9de2-f6eb953a5dd1","at":1772181795000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9e4e-fcb7-7f03-84b1-503f3ba67308","at":1772182502583000000,"seq":737,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c9e4f-40c0-7818-8067-e6b7903ba9ce","at":1772182520000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c9e4f-b98d-78dd-9e20-5a3e46c76f91","at":1772182550925000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c9e50-0be0-71a6-a6b2-b8f23c730ad5","at":1772182572000000000,"seq":740,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c9e50-b5ee-714a-8eb8-1d7b4b89f066","at":1772182615534000000,"seq":741,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c9e50-d318-79bd-ae76-b8cf83e26b18","at":1772182623000000000,"seq":742,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e50-f258-7b1a-8b06-672783d0606a","at":1772182631000000000,"seq":743,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e50-fe10-7c99-939e-7171d7e63dd9","at":1772182634000000000,"seq":744,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c9e51-0327-73ed-8a6a-6179735ecf45","at":1772182635303000000,"seq":745,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c9e51-3c90-7387-9017-2434e176cbdb","at":1772182650000000000,"seq":746,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c9e51-86c8-79c8-ab53-997d31a2a5b3","at":1772182669000000000,"seq":747,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e51-9386-7d20-9739-576aeccb8870","at":1772182672262000000,"seq":748,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c9e51-b5a8-7486-8550-48d0d3cbf526","at":1772182681000000000,"seq":749,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e51-bd78-7066-9963-7248b4e578ca","at":1772182683000000000,"seq":750,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c9e51-d4e8-739b-9970-ad29ff118344","at":1772182689000000000,"seq":751,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c9e52-6958-71cc-9ef2-ea35c145a58e","at":1772182727000000000,"seq":752,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e52-7c6f-7e46-ab69-6fc53ba9699f","at":1772182731887000000,"seq":753,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c9e52-a008-76da-817c-0fb2373d55ca","at":1772182741000000000,"seq":754,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c9e58-81e7-77d5-9150-4cff990aa6d5","at":1772183126503000000,"seq":755,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c9e58-ce10-7c37-a1b9-da1cbd43edcf","at":1772183146000000000,"seq":756,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c9e58-ed50-7695-b7c8-84f2dbe5e021","at":1772183154000000000,"seq":757,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c9e59-1848-7ae7-b652-bedc16d91181","at":1772183165000000000,"seq":758,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c9e59-27e8-7eb0-8f6c-22bff05d4345","at":1772183169000000000,"seq":759,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

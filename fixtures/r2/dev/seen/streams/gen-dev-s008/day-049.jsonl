@@ -1,0 +1,22 @@
+{"v":1,"id":"019c6fca-4cfc-735a-8115-7de931ec099a","at":1771402054908000000,"seq":598,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6fca-4cfc-76b7-82c7-b9e5865992ae","at":1771402054908000000,"seq":599,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6fca-8bd8-70a2-960a-506726b2601c","at":1771402071000000000,"seq":600,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c6fca-bb7a-7d88-981e-7384bb6b34b2","at":1771402083194000000,"seq":601,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6fca-e5b0-7cc9-945b-c83580756587","at":1771402094000000000,"seq":602,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fca-fd20-77b7-9528-83c5bb26595c","at":1771402100000000000,"seq":603,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c6fcb-1563-784b-a0cf-5fb4d317070a","at":1771402106211000000,"seq":604,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6fcb-7a20-76da-b9bf-4090175cf2f0","at":1771402132000000000,"seq":605,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6fcb-85d8-7d00-b1be-e71a6c41b34d","at":1771402135000000000,"seq":606,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c6fd0-1c11-7a94-9d56-f8d3487fc709","at":1771402435601000000,"seq":607,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6fd0-4c80-7748-988b-80959614f420","at":1771402448000000000,"seq":608,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c6fe1-6711-7085-88f4-7a28ce02e907","at":1771403568913000000,"seq":609,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6fe1-6711-7976-931f-d7a23c447419","at":1771403568913000000,"seq":610,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6fe1-7708-7dd8-bf4d-4bbdd941986d","at":1771403573000000000,"seq":611,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6fe1-bd58-7a68-a5e1-d6330ff1b53c","at":1771403591000000000,"seq":612,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6ff2-46aa-7800-accf-7f7a5abee422","at":1771404674730000000,"seq":613,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6ff2-46aa-77ed-b927-8a97ae40e6ac","at":1771404674730000000,"seq":614,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6ff2-8e08-7bb8-9651-b3b824e4113a","at":1771404693000000000,"seq":615,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c6ff3-13a4-724b-bd4e-a6a781fc1cb8","at":1771404727204000000,"seq":616,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6ff3-3600-7b4f-873d-89436a98d98d","at":1771404736000000000,"seq":617,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c6ff3-39e8-7446-9766-06c4f4bb21b9","at":1771404737000000000,"seq":618,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6ff3-3dd0-7780-9851-a36a766da7b2","at":1771404738000000000,"seq":619,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

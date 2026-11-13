@@ -1,0 +1,24 @@
+{"v":1,"id":"019c1858-f090-7d48-a0ee-fbbaafa19081","at":1769935007888000000,"seq":437,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1858-f090-7e27-a1f3-acd35be410a7","at":1769935007888000000,"seq":438,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c1859-23c8-773d-878a-85a601ff9416","at":1769935021000000000,"seq":439,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c1859-3b38-742a-849a-87586d3f9467","at":1769935027000000000,"seq":440,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c186b-2486-795f-9cd9-1a015e384108","at":1769936200838000000,"seq":441,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c186b-2486-7e56-a8db-88dc3a142056","at":1769936200838000000,"seq":442,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c186b-b998-7824-84ce-cbd810618859","at":1769936239000000000,"seq":443,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c186b-e490-71b2-bf76-68f7dd06d330","at":1769936250000000000,"seq":444,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c186d-b786-7dfa-9b39-2b06b4b3a6a4","at":1769936369542000000,"seq":445,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c186d-b786-7f3f-94d9-b536bce9c64b","at":1769936369542000000,"seq":446,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c186e-5b57-71f8-9b2e-42376fd42db1","at":1769936411479000000,"seq":447,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c186e-78b8-792b-b27e-735527874e11","at":1769936419000000000,"seq":448,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c186e-8088-71ff-ae22-0a05bce7fc48","at":1769936421000000000,"seq":449,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c186e-9028-7c39-9a1b-5fea40d66f54","at":1769936425000000000,"seq":450,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c186e-9be0-7a21-ba6a-ee02ef1e673b","at":1769936428000000000,"seq":451,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c186e-b98b-78d2-a2d2-09fc163ae117","at":1769936435595000000,"seq":452,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c186e-e230-7659-8656-2ecd538d1942","at":1769936446000000000,"seq":453,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c186f-0940-752c-a514-5a3be61d5e84","at":1769936456000000000,"seq":454,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c186f-2498-7375-a6cd-0e40b8c4bdd5","at":1769936463000000000,"seq":455,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c186f-3290-7544-b6ab-a3aca3ffaa36","at":1769936466576000000,"seq":456,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for stapler - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019c186f-4f90-76ff-8ec3-0de7ca610c99","at":1769936474000000000,"seq":457,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c186f-7a88-795e-87d0-8b814d9640d5","at":1769936485000000000,"seq":458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019c186f-c8a8-7459-a504-d745b84fb249","at":1769936505000000000,"seq":459,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c186f-cc90-785f-8309-1840ae64264f","at":1769936506000000000,"seq":460,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

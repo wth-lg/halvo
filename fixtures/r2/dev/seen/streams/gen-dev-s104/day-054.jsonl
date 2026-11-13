@@ -1,0 +1,26 @@
+{"v":1,"id":"019c8967-75ba-7b9c-9242-b185f5d1ffc8","at":1771831784890000000,"seq":690,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c8967-75ba-7390-a14a-5d21529bc7ea","at":1771831784890000000,"seq":691,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c8981-4858-7bc9-8709-bef3ac713e41","at":1771833477208000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c8981-5340-7751-9279-66e8270d6a3c","at":1771833480000000000,"seq":693,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c8983-6a24-7bd0-a119-d379f7cacb54","at":1771833616932000000,"seq":694,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c8983-c440-73c3-af96-f9b6428de2bf","at":1771833640000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019c8983-dbb0-7798-8f48-b97ca016ee68","at":1771833646000000000,"seq":696,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8984-2c66-71af-a373-1b5ba4044a88","at":1771833666662000000,"seq":697,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c8984-4cf8-794a-83e2-ccbbdffa3736","at":1771833675000000000,"seq":698,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c8984-9f00-7627-8570-2545de8ea938","at":1771833696000000000,"seq":699,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c8984-a6d0-7cba-b765-d0ebc3386c20","at":1771833698000000000,"seq":700,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c8984-b3a3-7968-b444-42816f983619","at":1771833701283000000,"seq":701,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019c8984-be40-7a48-9090-6413b905f3ca","at":1771833704000000000,"seq":702,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c8984-d5b0-7865-849d-1c271d444914","at":1771833710000000000,"seq":703,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c898a-6634-7144-93e3-c82210318f64","at":1771834074676000000,"seq":704,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c898a-82d0-72bc-875c-a026fcad20c4","at":1771834082000000000,"seq":705,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c898a-a9e0-7c83-902f-b98c1c375ed9","at":1771834092000000000,"seq":706,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c898b-1b28-7f59-a600-da648066d94f","at":1771834121000000000,"seq":707,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c898b-3a68-7e0d-94c5-edbad56b660e","at":1771834129000000000,"seq":708,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a0-c4a9-7715-8972-4adaa43523e2","at":1771835540649000000,"seq":709,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c89a0-c4a9-77b8-8c24-bbdad6c20991","at":1771835540649000000,"seq":710,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c89a0-cdd8-7468-93da-5def3a61b1ec","at":1771835543000000000,"seq":711,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a0-e930-738c-af88-fad4f90e41dc","at":1771835550000000000,"seq":712,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a1-6630-754e-871d-e244cf6d8c6a","at":1771835582000000000,"seq":713,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c89a1-6859-79a7-b8de-d7a92c9d8c4c","at":1771835582553000000,"seq":714,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c89a1-c008-758b-9f5a-d8c64934167d","at":1771835605000000000,"seq":715,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

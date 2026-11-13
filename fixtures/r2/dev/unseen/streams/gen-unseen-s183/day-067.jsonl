@@ -1,0 +1,21 @@
+{"v":1,"id":"019ccce4-b6c3-7d85-9540-2effcc077b0c","at":1772964067011000000,"seq":923,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ccce4-b6c3-7d0e-b5e2-f3642d253bce","at":1772964067011000000,"seq":924,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ccce4-be88-73d6-84c9-1b78339996da","at":1772964069000000000,"seq":925,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccce5-08c0-7644-838a-c5dff735d42f","at":1772964088000000000,"seq":926,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ccce5-1d50-711e-9731-01e08b06e6a2","at":1772964093264000000,"seq":927,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ccce5-4740-7dc1-b126-a51cbe07eeec","at":1772964104000000000,"seq":928,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ccce5-7238-7b65-8205-d63cc17777c1","at":1772964115000000000,"seq":929,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ccce5-b4a0-70e4-8b4b-cb94003eee81","at":1772964132000000000,"seq":930,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ccd00-7691-7486-82e1-b0340c99e68e","at":1772965885585000000,"seq":931,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019ccd00-d5f0-7fef-95d9-436ed9b0b7d4","at":1772965910000000000,"seq":932,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd00-ed60-77e7-b515-e8e1f926ee60","at":1772965916000000000,"seq":933,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd01-04d0-73e4-b8c4-b5c24bccbbc5","at":1772965922000000000,"seq":934,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019ccd07-7acf-7604-8c0f-c6bb8316e80e","at":1772966345423000000,"seq":935,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ccd07-7acf-7d0b-8e3e-c75c0dd1733d","at":1772966345423000000,"seq":936,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ccd07-80f8-7721-856c-204e2beea333","at":1772966347000000000,"seq":937,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ccd07-a038-74c9-bf08-a5bd8a57ce22","at":1772966355000000000,"seq":938,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ccd07-cf18-72a0-9e44-29ac812fbb10","at":1772966367000000000,"seq":939,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ccd11-1237-7cee-921f-63f69cc68c99","at":1772966974007000000,"seq":940,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ccd11-3170-7826-aecd-0e32151a5677","at":1772966982000000000,"seq":941,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ccd11-4110-7578-b206-c26f5d8752bf","at":1772966986000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ccd11-9700-7b37-af2b-05e0a78a0552","at":1772967008000000000,"seq":943,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

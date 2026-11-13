@@ -1,0 +1,24 @@
+{"v":1,"id":"019bc083-5c78-7013-bd7e-2d5042d2e49a","at":1768461393016000000,"seq":246,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc083-5c78-780a-9192-0bcbc4a36dd0","at":1768461393016000000,"seq":247,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bc083-b258-737e-9aa2-299d60b2032e","at":1768461415000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc084-69a6-7b32-b019-02b02c007a76","at":1768461461926000000,"seq":249,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board next week - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bc084-d750-78a3-bced-2330c10b9eac","at":1768461490000000000,"seq":250,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc084-fa78-7d07-b1a5-d4808b56a4d2","at":1768461499000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bc085-01d6-7bb2-929f-2334b74493dd","at":1768461500886000000,"seq":252,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bc085-0e00-7d40-9afe-05b50f27a26b","at":1768461504000000000,"seq":253,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc085-2958-7dac-8421-41357496d295","at":1768461511000000000,"seq":254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc085-4c80-75fa-9822-74e35cb66ce5","at":1768461520000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bc085-b768-718a-9f07-fcba6553b40a","at":1768461547368000000,"seq":256,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019bc086-2f10-72d3-a311-dc11072e8ec4","at":1768461578000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bc0a0-abd1-76b0-adfa-034dee94215e","at":1768463313873000000,"seq":258,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc0a0-abd1-7ac1-a604-9a50d3c04f0c","at":1768463313873000000,"seq":259,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc0a0-d360-783b-aa1a-49aa07c8222c","at":1768463324000000000,"seq":260,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0a0-ead0-7a74-8e29-93dd8e5e547f","at":1768463330000000000,"seq":261,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0b3-ecd4-7104-859e-376b87465bfb","at":1768464575700000000,"seq":262,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bc0b4-5f48-7fb9-b07f-1201a0682947","at":1768464605000000000,"seq":263,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0b4-8a40-78ee-a2f3-e5f51a8c0f68","at":1768464616000000000,"seq":264,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019bc0b4-95f8-7451-9451-b052749c4acf","at":1768464619000000000,"seq":265,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0b4-a1b0-7960-9d69-659188bc2ee5","at":1768464622000000000,"seq":266,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019bc0c7-17bd-73a8-9dea-fe11955b4c22","at":1768465831869000000,"seq":267,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc0c7-17bd-7a21-b8c8-f04b57e3c3c3","at":1768465831869000000,"seq":268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bc0c7-7600-7dad-9555-2898bebe50cb","at":1768465856000000000,"seq":269,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

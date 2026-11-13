@@ -1,0 +1,47 @@
+{"v":1,"id":"019c6586-b798-75b6-8c9f-ccbf3189430b","at":1771229853592000000,"seq":808,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6586-b798-7330-9776-fde8c855bcdb","at":1771229853592000000,"seq":809,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c6586-e428-76cd-8f43-57d507600d0f","at":1771229865000000000,"seq":810,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c6597-4540-756e-8296-372c327678d6","at":1771230938432000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c6597-d932-76cf-8155-e4fd4a8908cc","at":1771230976306000000,"seq":812,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
+{"v":1,"id":"019c6598-60b8-75d5-aa85-768331582794","at":1771231011000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6598-9380-79fb-a821-ea35d9dc8c43","at":1771231024000000000,"seq":814,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c65a6-a6e6-7394-a475-a8abe1f428d5","at":1771231946470000000,"seq":815,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c65a6-a6e6-7ead-8c7f-b4014f5ab8c0","at":1771231946470000000,"seq":816,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c65a6-a8f8-71cc-b16e-08de7138c5f0","at":1771231947000000000,"seq":817,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65a6-c068-7070-a6d2-35982736b224","at":1771231953000000000,"seq":818,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65a6-dfa8-7e60-9e4c-c52669844edf","at":1771231961000000000,"seq":819,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c65a6-f330-7be1-b2ab-35eb96d3cdfb","at":1771231966000000000,"seq":820,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c65bf-ef30-770e-b6b3-4d6556ecad1d","at":1771233603376000000,"seq":821,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c65bf-f1a0-7c0e-aac2-91dcc9b5ac9f","at":1771233604000000000,"seq":822,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c0-37f0-7a31-8b56-85cd2956ccf3","at":1771233622000000000,"seq":823,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c65c0-4146-7883-b6f1-81c755391718","at":1771233624390000000,"seq":824,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c65c0-62e8-7158-8556-b7c6d882692a","at":1771233633000000000,"seq":825,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65c0-95b0-7003-808c-21368547f2ff","at":1771233646000000000,"seq":826,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c65c0-d048-7598-afe7-17059c16cc24","at":1771233661000000000,"seq":827,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c65c1-0ae0-7cf9-a30d-0f28081964dd","at":1771233676000000000,"seq":828,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019c65cb-7546-702c-a4cb-9cfac037b7e6","at":1771234358598000000,"seq":829,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c65cb-7546-7cbe-b9d1-a99d29a85558","at":1771234358598000000,"seq":830,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c65cb-d498-72ca-9aea-b1c47509947c","at":1771234383000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c65cc-251f-7bb1-a9e1-1cec5c0c28e7","at":1771234403615000000,"seq":832,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c65cc-5968-72f5-9c50-50eb04409d31","at":1771234417000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65cc-d280-7c03-922a-c1e5a5188775","at":1771234448000000000,"seq":834,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65cd-0930-71b4-a948-fd11fa42b5de","at":1771234462000000000,"seq":835,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65cd-18d0-790e-94af-398c01af64e0","at":1771234466000000000,"seq":836,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c65cd-201e-763b-b674-e97180233b20","at":1771234467870000000,"seq":837,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"steps trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019c65cd-5f20-7409-872f-7d4e22d2980c","at":1771234484000000000,"seq":838,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65cd-6ec0-7f0b-a8c2-7046374559e0","at":1771234488000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c65d0-7676-75dd-a909-9ea30a9e0dd3","at":1771234686582000000,"seq":840,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c65d0-ce08-7701-9495-1108ea46ee23","at":1771234709000000000,"seq":841,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65d1-00d0-7ac0-8f07-7aa77e8a0237","at":1771234722000000000,"seq":842,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65dd-25b8-7c8b-ae26-bd624d7ecfaf","at":1771235517880000000,"seq":843,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c65dd-4958-7878-b15b-e6e7c2304190","at":1771235527000000000,"seq":844,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c65dd-653c-7c55-a5dd-3d16eeca9038","at":1771235534140000000,"seq":845,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening queue for Cedar House - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c65de-08c0-74b8-9e69-8b4b432f154e","at":1771235576000000000,"seq":846,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019c65de-4739-751b-b716-470997afdbf8","at":1771235591993000000,"seq":847,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant check report - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c65de-8d90-78ed-9ebb-3db69b4cc6b2","at":1771235610000000000,"seq":848,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c65de-cff8-7884-ac42-8b2a4eebb28d","at":1771235627000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c65de-df98-7910-98b7-d175b9ffeb15","at":1771235631000000000,"seq":850,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c65de-e9e6-7890-84fb-c359f35ee487","at":1771235633638000000,"seq":851,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Check outcome saved - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
+{"v":1,"id":"019c65df-7408-78c0-8be8-dfc6c18d239c","at":1771235669000000000,"seq":852,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65df-9b18-7d5a-b846-d4f5c985f173","at":1771235679000000000,"seq":853,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c65df-aea0-7314-8764-7e3cb9b0906b","at":1771235684000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

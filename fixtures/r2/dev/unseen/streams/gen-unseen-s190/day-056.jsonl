@@ -1,0 +1,16 @@
+{"v":1,"id":"019c93ba-071c-71f1-8b9e-15a7691929c6","at":1772004968220000000,"seq":909,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c93ba-071c-77bb-9755-e1a7cfdd556c","at":1772004968220000000,"seq":910,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c93ba-11f8-7023-b403-af2aa364bc15","at":1772004971000000000,"seq":911,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c93d4-2376-76bd-b509-457fc6ef947d","at":1772006679414000000,"seq":912,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c93d4-6c10-7d00-9b8c-ac0e673f7c8c","at":1772006698000000000,"seq":913,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c93d4-8768-7cb2-be69-b0caa691c635","at":1772006705000000000,"seq":914,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c93d4-9708-72b6-a048-5e344f5de8ab","at":1772006709000000000,"seq":915,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c93d5-b8b0-7452-9507-5f0768b03cba","at":1772006783152000000,"seq":916,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c93d5-b8b0-770f-b9e0-0ddcb07af053","at":1772006783152000000,"seq":917,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c93d5-c7b8-78e1-99c9-686a10d2f8ee","at":1772006787000000000,"seq":918,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019c93d6-0a20-7ff4-875e-7f824810aa50","at":1772006804000000000,"seq":919,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93d6-b43b-7968-bd52-a8a22b63a35c","at":1772006847547000000,"seq":920,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019c93d7-17a8-79dd-81bc-959d06e3cb24","at":1772006873000000000,"seq":921,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c93d7-1b90-78a7-b35c-be0126dca334","at":1772006874000000000,"seq":922,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c93d7-2f18-79b6-84c2-f44aceb5f4e4","at":1772006879000000000,"seq":923,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c93d7-42a0-7614-a68f-9232a616f7de","at":1772006884000000000,"seq":924,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

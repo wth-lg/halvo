@@ -1,0 +1,22 @@
+{"v":1,"id":"019d47fa-ae7a-7d24-9994-291ad9ed18a7","at":1775029104250000000,"seq":971,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d47fa-ae7a-78f9-930a-ec796cdde497","at":1775029104250000000,"seq":972,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d47fa-c4f0-789b-bd45-1efd102145f5","at":1775029110000000000,"seq":973,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d47fa-d878-7e56-ad09-03dab52d98d5","at":1775029115000000000,"seq":974,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d47fb-0758-7fc6-89e3-5930451056a6","at":1775029127000000000,"seq":975,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4811-128f-76e3-bf15-c540113e6a0b","at":1775030571663000000,"seq":976,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lanternbox sign in - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d4811-2380-7be4-a812-5f795c9b4f98","at":1775030576000000000,"seq":977,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4811-580b-7cf5-8458-ff5b352f8f2f","at":1775030589451000000,"seq":978,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mailbox Club - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d4811-d348-7d2b-a567-530a481fc743","at":1775030621000000000,"seq":979,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4811-eab8-7eac-93fa-fd8f98d0783e","at":1775030627000000000,"seq":980,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d4811-eea0-794b-b686-fd17b031d7eb","at":1775030628000000000,"seq":981,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4812-247d-7a92-9345-fbc66b4397f5","at":1775030641789000000,"seq":982,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d4812-3108-7352-8f15-deb8d259c39f","at":1775030645000000000,"seq":983,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d4812-9e68-7f9e-9030-efaf813e24df","at":1775030673000000000,"seq":984,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4812-a84b-7738-9831-d8dc51f4865b","at":1775030675531000000,"seq":985,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conversation archived - Lanternbox Mail","cut":false,"why":"title_change","site":{"domain":"lanternbox-mail.test","source":"address_field"}}}
+{"v":1,"id":"019d4812-cd48-793a-991f-8b6c2c61ae66","at":1775030685000000000,"seq":986,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d4812-d130-77fd-9685-cf8d5001f77f","at":1775030686000000000,"seq":987,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d4812-dce8-7dba-a5bd-3c908a958488","at":1775030689000000000,"seq":988,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d481a-e08b-7159-9f08-12f35ca573be","at":1775031214219000000,"seq":989,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d481b-8b90-71b6-ae41-207c3ec9eb7f","at":1775031258000000000,"seq":990,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4831-3efc-7a15-a7c8-6b70d68831a2","at":1775032680188000000,"seq":991,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d4831-9818-74c0-bec1-f66cf0c905e9","at":1775032703000000000,"seq":992,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

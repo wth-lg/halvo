@@ -1,0 +1,21 @@
+{"v":1,"id":"019cc27e-5581-7e8a-8e8c-2bbed79d0175","at":1772789585281000000,"seq":1107,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cc27e-5581-7a4c-88fd-23eb59532d37","at":1772789585281000000,"seq":1108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc27e-6408-7afa-af4e-bcb9584ee774","at":1772789589000000000,"seq":1109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc27e-6bd8-7ea8-86cb-e962d1b85323","at":1772789591000000000,"seq":1110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cc27e-ecc0-775b-a99f-178d566e84e1","at":1772789624000000000,"seq":1111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc298-7d76-7be1-857b-da00da3285ce","at":1772791299446000000,"seq":1112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019cc298-9af8-75a5-8908-e827471c64bc","at":1772791307000000000,"seq":1113,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019cc299-2f68-74e1-84b7-0db06686cee7","at":1772791345000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc299-5a60-7cad-8f9a-dd18f76a61c0","at":1772791356000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2b1-4a67-74bc-9695-ef4f0d3234e1","at":1772792924775000000,"seq":1116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cc2b1-cb65-744b-8e58-6c7cf1130fd0","at":1772792957797000000,"seq":1117,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Map - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cc2b1-cc30-78da-a0ab-222a57ec06a8","at":1772792958000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cc2b2-5100-7529-9a09-5193400652dc","at":1772792992000000000,"seq":1119,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2b2-5cb8-72ee-9e5c-309686e0aa1d","at":1772792995000000000,"seq":1120,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2b2-6526-7e5c-ba86-4224033ea5c1","at":1772792997158000000,"seq":1121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip to the market - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cc2b2-ba78-7c48-ba3d-533ec1b0d687","at":1772793019000000000,"seq":1122,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cc2b3-0898-7902-8cad-55075879a086","at":1772793039000000000,"seq":1123,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cc2b3-4ffb-7218-921e-e45b0de6d2c2","at":1772793057275000000,"seq":1124,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trip booked - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
+{"v":1,"id":"019cc2b3-6a40-76b2-aaf4-148a014d058a","at":1772793064000000000,"seq":1125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cc2b3-75f8-799e-9b89-d5d16789b2f2","at":1772793067000000000,"seq":1126,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cc2b3-81b0-758b-bc50-1852485d62bb","at":1772793070000000000,"seq":1127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

@@ -1,0 +1,20 @@
+{"v":1,"id":"019bc11a-e72b-7e4f-8fc7-ad0b2a9483f4","at":1768471324459000000,"seq":179,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc11a-e72b-7f4b-998a-36bdc5c2b08c","at":1768471324459000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bc11b-0888-71f3-b1d2-aca9e86054a4","at":1768471333000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc11b-4af0-770e-9ead-6191f0d40083","at":1768471350000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc11b-4ed8-7033-b915-5de665ab64e8","at":1768471351000000000,"seq":183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019bc11b-6a7e-7018-83bb-6d081e8c7ec2","at":1768471358078000000,"seq":184,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipts - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bc11b-75e8-7bea-80b0-085b427b731f","at":1768471361000000000,"seq":185,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bc11b-7db8-70df-90c2-f9a51aa889f0","at":1768471363000000000,"seq":186,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc11b-9140-77cb-9297-d2eb68756989","at":1768471368000000000,"seq":187,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bc11b-b2ad-7c92-aabf-52833ea350b2","at":1768471376557000000,"seq":188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bc11c-2ba8-79b3-a10a-fdced9aaaec5","at":1768471407528000000,"seq":189,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019bc133-7582-703b-965a-d1915f042b04","at":1768472933762000000,"seq":190,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bc134-3339-71d3-86ef-4c968e718ab9","at":1768472982329000000,"seq":191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019bc134-68a0-728f-a315-2adcfc172e02","at":1768472996000000000,"seq":192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc134-7840-7410-8abe-ae79fa7c66cc","at":1768473000000000000,"seq":193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc134-baa8-7945-bee5-955b901760df","at":1768473017000000000,"seq":194,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bc134-d218-791f-9207-fbe52e59e973","at":1768473023000000000,"seq":195,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc138-d0fa-798d-9f9e-f1e5413a6638","at":1768473284858000000,"seq":196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bc139-0068-72c3-af8a-2910e90cc3dc","at":1768473297000000000,"seq":197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc139-6dc8-7304-b0ac-13af49e33d5f","at":1768473325000000000,"seq":198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

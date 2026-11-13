@@ -1,0 +1,14 @@
+{"v":1,"id":"019bcffe-c845-75f7-a5c9-d1a0942a877d","at":1768721139781000000,"seq":228,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcffe-c845-7b85-975c-b944a554bb54","at":1768721139781000000,"seq":229,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bcffe-cd08-75fb-9b15-39b075c9a1f2","at":1768721141000000000,"seq":230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcfff-3a68-79ca-87fb-2bd801702705","at":1768721169000000000,"seq":231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcfff-6bd1-70b0-94e1-25aae4f48cbd","at":1768721181649000000,"seq":232,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019bd000-1140-7345-9eb0-2b64f7b2f3d7","at":1768721224000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bd000-1528-7072-911c-55133cb7bab6","at":1768721225000000000,"seq":234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bd000-3080-7952-9e57-217e4b422172","at":1768721232000000000,"seq":235,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bd015-0dd6-7144-ab60-028848243efb","at":1768722599382000000,"seq":236,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bd015-0dd6-7e4e-8f28-272a9c521daa","at":1768722599382000000,"seq":237,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bd015-1428-7ef3-a27d-ae4b27dfd664","at":1768722601000000000,"seq":238,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bd015-1810-7dfe-a836-488bc81bcc3d","at":1768722602000000000,"seq":239,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bd015-23c8-774a-9296-2e017685ff66","at":1768722605000000000,"seq":240,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019bd015-4ad8-7917-bb44-316a84bf6313","at":1768722615000000000,"seq":241,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

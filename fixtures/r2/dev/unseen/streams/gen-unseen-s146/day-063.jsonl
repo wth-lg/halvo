@@ -1,0 +1,14 @@
+{"v":1,"id":"019cb7d0-7403-7ae7-b7ee-866071337fde","at":1772610417667000000,"seq":871,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb7d0-7403-75ca-8265-f12a79e6423a","at":1772610417667000000,"seq":872,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cb7d0-7550-76ac-a3aa-689d507ff570","at":1772610418000000000,"seq":873,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019cb7d0-7d20-745a-8181-280ca6768987","at":1772610420000000000,"seq":874,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019cb7d0-84f0-7d67-b9a7-2fc1e080e693","at":1772610422000000000,"seq":875,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7d0-9490-7306-9bcd-a4348bab5e40","at":1772610426000000000,"seq":876,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7d0-a818-737e-a381-63da8853ac92","at":1772610431000000000,"seq":877,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019cb7db-2b1b-7149-8242-e7b6e8c9282d","at":1772611119899000000,"seq":878,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb7db-2b1b-7e1f-9535-219bbc6f8edd","at":1772611119899000000,"seq":879,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cb7db-b050-7093-8c22-d9035e07aec0","at":1772611154000000000,"seq":880,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019cb7db-b585-73aa-be27-b9fb347e0819","at":1772611155333000000,"seq":881,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019cb7db-cba8-7142-9122-7239bec703f6","at":1772611161000000000,"seq":882,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb7dc-19c8-7172-81a1-03cae9b4652b","at":1772611181000000000,"seq":883,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cb7dc-5848-77f3-870e-e0319bfb2c30","at":1772611197000000000,"seq":884,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

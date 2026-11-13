@@ -1,0 +1,33 @@
+{"v":1,"id":"019d3367-4f28-7f84-a3b6-2eda822e8816","at":1774683901736000000,"seq":1369,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3367-4f28-7c0c-be07-9094ffec4492","at":1774683901736000000,"seq":1370,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3367-5030-7c7b-a67f-e5c67cc172b0","at":1774683902000000000,"seq":1371,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3367-5be8-7b7b-a9e2-ea051d280769","at":1774683905000000000,"seq":1372,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3367-9e50-7e7d-b6c6-ad65a64f3777","at":1774683922000000000,"seq":1373,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d336c-5e5a-720e-b73b-82c69eb951ca","at":1774684233306000000,"seq":1374,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d336c-5e5a-7f13-83b0-af4e6df5fd9b","at":1774684233306000000,"seq":1375,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019d336c-8438-78f1-b9d3-ec49b95eb556","at":1774684243000000000,"seq":1376,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d3376-6edb-70b3-b0bc-81f6550fb66a","at":1774684892891000000,"seq":1377,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d3376-86b8-7468-ac6e-bdab759288f2","at":1774684899000000000,"seq":1378,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3376-a210-7efe-8bee-2b595c72f334","at":1774684906000000000,"seq":1379,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3376-b44b-7a63-9ac9-48dbf04b1d3f","at":1774684910667000000,"seq":1380,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d3376-dca8-7df3-910d-f186bf27ad26","at":1774684921000000000,"seq":1381,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d3377-22f8-717c-9be0-1ef469e172c9","at":1774684939000000000,"seq":1382,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d3377-2eb0-751e-802a-1f8f675e5e07","at":1774684942000000000,"seq":1383,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d3377-6a70-7748-8674-d871fe27336f","at":1774684957296000000,"seq":1384,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019d3377-7500-70bb-8cbf-eb59ea5550c3","at":1774684960000000000,"seq":1385,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d3377-abb0-7619-9050-0699ff28a540","at":1774684974000000000,"seq":1386,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3377-de78-77f9-b47c-9f6d895933e4","at":1774684987000000000,"seq":1387,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d337e-8c36-7519-8e5f-a66b072f8f09","at":1774685424694000000,"seq":1388,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d337f-29a8-7440-99a1-1a11d786af0b","at":1774685465000000000,"seq":1389,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d337f-5153-71a2-8926-ec0a608b9373","at":1774685475155000000,"seq":1390,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d3380-45cb-7644-97e0-2b59673fe10b","at":1774685537739000000,"seq":1391,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d3380-45cb-74de-b778-76eafc63cb76","at":1774685537739000000,"seq":1392,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d3380-5670-7410-aa1f-8ef020879152","at":1774685542000000000,"seq":1393,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3380-5a58-79fb-a923-ebd21c1aa858","at":1774685543000000000,"seq":1394,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d3380-6228-7bd6-877c-ada6e4a9da48","at":1774685545000000000,"seq":1395,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d3380-75b0-73de-8e6c-8b4a09f3eee1","at":1774685550000000000,"seq":1396,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3380-8d17-78a1-9e06-525caa956754","at":1774685555991000000,"seq":1397,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3380-8d17-7396-85b3-ef5582b9a6aa","at":1774685555991000000,"seq":1398,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the station - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019d3381-2d48-7c30-aa07-84209a4b103d","at":1774685597000000000,"seq":1399,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019d3381-5c28-790f-9e27-9422a0d2822e","at":1774685609000000000,"seq":1400,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3381-6bc8-7820-8090-ae69e5f96172","at":1774685613000000000,"seq":1401,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

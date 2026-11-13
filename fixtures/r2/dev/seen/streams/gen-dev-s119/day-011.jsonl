@@ -1,0 +1,25 @@
+{"v":1,"id":"019bac6e-ef37-76bf-807a-c3752a87fef8","at":1768124510007000000,"seq":131,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac6e-ef37-70ce-a52a-a907cdb3cd1c","at":1768124510007000000,"seq":132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bac6f-3d50-7e49-8a3c-0d7d4634665d","at":1768124530000000000,"seq":133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019bac6f-5677-7c4f-a30a-b6a2eb705ab0","at":1768124536439000000,"seq":134,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant pipeline - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bac6f-7018-7797-987f-8e3e0aeab033","at":1768124543000000000,"seq":135,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac6f-7bd0-7820-b6d7-bade0483a8a7","at":1768124546000000000,"seq":136,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bac6f-8788-7923-b0f8-d7e7410b8591","at":1768124549000000000,"seq":137,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bac6f-e689-7211-be22-0fcbc3bfdf11","at":1768124573321000000,"seq":138,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant profile for Linden Walk - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bac6f-ed18-7a0f-a992-247ddb66de88","at":1768124575000000000,"seq":139,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bac70-4308-7db3-880f-c98a39e3e7af","at":1768124597000000000,"seq":140,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac70-4ad8-7fb7-aed3-fb2d55ff6fb2","at":1768124599000000000,"seq":141,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac70-5a78-7adb-a523-89fe684e2a0b","at":1768124603000000000,"seq":142,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bac70-6676-7758-850e-220e431e1bfc","at":1768124606070000000,"seq":143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant approved - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019bac70-a4b0-7e63-9958-149227c05dba","at":1768124622000000000,"seq":144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bac85-bf3b-770f-9f17-3df08e0f7ca7","at":1768126005051000000,"seq":145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bac85-fd88-7ba8-bae7-e4a91b7c1fe2","at":1768126021000000000,"seq":146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac86-2498-7e4a-b622-257b6307f9a4","at":1768126031000000000,"seq":147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bac93-6104-7523-960e-80c009e727db","at":1768126898436000000,"seq":148,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bac93-a5a0-70aa-9348-e5e5392bbcb0","at":1768126916000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac93-dc50-7267-bf70-3c8ccdccad92","at":1768126930000000000,"seq":150,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac9c-699e-738c-a21e-f5abfffc8c63","at":1768127490462000000,"seq":151,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bac9c-6fa0-7461-8034-02a988cdff17","at":1768127492000000000,"seq":152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bac9c-7f40-7c2b-ada7-c6cf8312f96b","at":1768127496000000000,"seq":153,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bac9c-92c8-7572-8d96-26def7f09b8d","at":1768127501000000000,"seq":154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bac9c-f088-70da-b9e5-a529ecbaa06c","at":1768127525000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

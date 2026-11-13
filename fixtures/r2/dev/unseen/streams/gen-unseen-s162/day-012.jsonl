@@ -1,0 +1,16 @@
+{"v":1,"id":"019bb1d7-6eb6-734d-819e-48aa32fd3788","at":1768215244470000000,"seq":94,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bb1d7-6eb6-770c-9a30-c8e2ee830f17","at":1768215244470000000,"seq":95,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1d8-14d8-7d99-a442-591422203464","at":1768215287000000000,"seq":96,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1d8-43b8-7d96-bfbc-6be57ce39662","at":1768215299000000000,"seq":97,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1d8-6ad9-7dcf-b6b0-7454198b4eb7","at":1768215309017000000,"seq":98,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bb1d8-a178-7724-8d85-10e86dcc6788","at":1768215323000000000,"seq":99,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb1d8-a948-75e4-915b-1511d3cf6eac","at":1768215325000000000,"seq":100,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1d8-bdd4-7033-822e-dd9f41754f12","at":1768215330260000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applications for Birch Row - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1d9-2a30-715c-8492-eaf17b86abae","at":1768215358000000000,"seq":102,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019bb1d9-605f-7ef7-ad67-4915f279b51d","at":1768215371871000000,"seq":103,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Applicant file - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1d9-64c8-7f90-892b-77efcf8517f3","at":1768215373000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1da-37b8-75e3-ace9-c966dae294f5","at":1768215427000000000,"seq":105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bb1da-61d2-7a9d-bf02-c51d0c03dad1","at":1768215437778000000,"seq":106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Decision recorded - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
+{"v":1,"id":"019bb1da-6698-7152-91a5-46155e1b3374","at":1768215439000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bb1da-8da8-74fb-b52f-cb5a41b865db","at":1768215449000000000,"seq":108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bb1da-9d48-7b17-8dd2-6ab62450bcac","at":1768215453000000000,"seq":109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

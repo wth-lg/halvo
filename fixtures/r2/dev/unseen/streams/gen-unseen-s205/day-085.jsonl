@@ -1,0 +1,20 @@
+{"v":1,"id":"019d2955-da49-76ca-8aa7-2c4a4c62a9e7","at":1774514985545000000,"seq":1321,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2955-da49-798c-8c41-8ecc5e59fa97","at":1774514985545000000,"seq":1322,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d2955-ef98-79be-bbc4-69af78e42eae","at":1774514991000000000,"seq":1323,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019d2956-0708-7145-9897-e66c73152349","at":1774514997000000000,"seq":1324,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2956-2cfc-7976-b4fd-5bdc473e7d3c","at":1774515006716000000,"seq":1325,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview this week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d2956-41a0-7017-89d2-91cc7f32805f","at":1774515012000000000,"seq":1326,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2956-4d58-7524-9e30-90fb2addfe17","at":1774515015000000000,"seq":1327,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2956-5140-7780-a1ff-ea59f9c8db32","at":1774515016000000000,"seq":1328,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2956-88a1-7760-915d-92e09b209baa","at":1774515030177000000,"seq":1329,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d2956-d961-70e5-9b10-28eeb0541551","at":1774515050849000000,"seq":1330,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d2957-89c0-7fe8-a2bb-5a2fc3dcb07e","at":1774515096000000000,"seq":1331,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2957-9e94-79dc-8aac-3bd279cfe538","at":1774515101332000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
+{"v":1,"id":"019d2957-c070-7508-a64d-01cf9e786718","at":1774515110000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2957-dbc8-7169-ba5e-5907c3789039","at":1774515117000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019d2957-e780-711e-a27b-4651ec2f2bf8","at":1774515120000000000,"seq":1335,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2958-2b46-7acf-99fb-f6542c93e179","at":1774515137350000000,"seq":1336,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019d296e-8994-7f63-a466-3b5ce4f3c65c","at":1774516603284000000,"seq":1337,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d296e-8994-7dd4-8427-ec0f689f0b0b","at":1774516603284000000,"seq":1338,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d296e-b370-7f93-8428-78f339ab4c9c","at":1774516614000000000,"seq":1339,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019d296e-b758-7d12-a0a5-9e59e29e76c7","at":1774516615000000000,"seq":1340,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

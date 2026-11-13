@@ -1,0 +1,30 @@
+{"v":1,"id":"019c46cc-8598-71d9-ade3-351b3db5f575","at":1770714334616000000,"seq":600,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c46cc-8598-7f83-9265-e48f6ffa0c11","at":1770714334616000000,"seq":601,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c46cc-9aa0-79ec-a758-5984c136979f","at":1770714340000000000,"seq":602,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c46cc-ae28-7c46-acd6-3d19404f4d1b","at":1770714345000000000,"seq":603,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c46cd-13b8-7f1c-bedc-ed495385d2d3","at":1770714371000000000,"seq":604,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46cd-3d7a-7efb-89b3-ee3e6e5fae81","at":1770714381690000000,"seq":605,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c46cd-7948-72e7-bccd-e5909f6f0141","at":1770714397000000000,"seq":606,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019c46cd-9c70-7a63-b96c-3e9735ed8871","at":1770714406000000000,"seq":607,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46cd-a440-7c3a-8f34-f6f0479eeb98","at":1770714408000000000,"seq":608,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46d4-3ec8-7e82-bc6b-436dd467ac16","at":1770714840776000000,"seq":609,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c46d4-4b60-739c-a876-136ec98ddb1c","at":1770714844000000000,"seq":610,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c46ef-28ea-76b6-8a4b-6b3f422a6b06","at":1770716604650000000,"seq":611,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c46ef-28ea-7a91-a6f2-ce9cf14ee323","at":1770716604650000000,"seq":612,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c46ef-4988-785e-97ab-6dcc87b8f53c","at":1770716613000000000,"seq":613,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c46ef-6fdc-7270-9fae-f77240e33a69","at":1770716622812000000,"seq":614,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c46ef-7098-7e11-9962-49a1ca0741a5","at":1770716623000000000,"seq":615,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46ef-7c50-7bf1-ae8c-ec3a37f731bb","at":1770716626000000000,"seq":616,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46ef-97a8-7fb0-a739-d22a97d9da22","at":1770716633000000000,"seq":617,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c46ef-b27c-7430-833b-a5296e00dae8","at":1770716639868000000,"seq":618,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Family - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c46ef-da10-7224-bac7-93575bed1a2e","at":1770716650000000000,"seq":619,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c46ef-e1e0-7134-b26a-f62615f3bdf7","at":1770716652000000000,"seq":620,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c46f0-274b-755b-af36-233de60c49cb","at":1770716669771000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Open message - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c46f0-3000-74ea-97ff-1910048b8649","at":1770716672000000000,"seq":622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c46f0-62c8-75d7-9a91-815c0916f9c2","at":1770716685000000000,"seq":623,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c46f0-7a38-7fd1-9692-3ea13337ac57","at":1770716691000000000,"seq":624,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c46f0-8dc0-7cc9-8fc7-bff7a861729c","at":1770716696000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c46f0-9186-7703-a93a-d7e465710f81","at":1770716696966000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reply sent - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
+{"v":1,"id":"019c46f0-9d60-71bf-b744-9651b526cca3","at":1770716700000000000,"seq":627,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c46f0-bca0-7b8b-a6fe-8e27ebf87289","at":1770716708000000000,"seq":628,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c46f0-bca0-7a61-a6a5-eff462ef0190","at":1770716708000000000,"seq":629,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

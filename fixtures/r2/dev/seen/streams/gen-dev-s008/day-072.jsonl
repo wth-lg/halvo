@@ -1,0 +1,11 @@
+{"v":1,"id":"019ce6d6-2984-7538-9c21-44ee225e8572","at":1773399320964000000,"seq":936,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce6d6-2984-7d5d-9586-61886374ff3a","at":1773399320964000000,"seq":937,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019ce6d6-48e8-764c-8314-38dad5c03cec","at":1773399329000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019ce6d6-50b8-7855-80a3-748a5cfd4344","at":1773399331000000000,"seq":939,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ce6d6-dd58-727b-be55-f81790a11424","at":1773399367000000000,"seq":940,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce6ed-1a7c-71ab-a7be-6d3309c18030","at":1773400824444000000,"seq":941,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ce6ed-6eb0-76e1-ad76-db756f8613e5","at":1773400846000000000,"seq":942,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce6ed-e7c8-7ffc-a0b5-9d2e48b765df","at":1773400877000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ce6ee-2adf-7511-affa-3d5dc5a19e7e","at":1773400894175000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ce6ee-35e8-7530-b0a3-3bc3e09e270b","at":1773400897000000000,"seq":945,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ce6ee-3db8-73d6-bb2b-76eb962e0e4a","at":1773400899000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

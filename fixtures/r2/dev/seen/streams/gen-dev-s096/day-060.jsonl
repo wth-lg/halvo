@@ -1,0 +1,59 @@
+{"v":1,"id":"019ca89f-c7cb-790a-969a-59fbeee35d5d","at":1772355569611000000,"seq":802,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca89f-c7cb-7f21-96c3-1b9c2a998b96","at":1772355569611000000,"seq":803,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Netherby Broadband","cut":false,"why":"app_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ca89f-d508-7621-9771-9bc8c99ddb7f","at":1772355573000000000,"seq":804,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca89f-ec78-714e-bf49-5228b40e7e71","at":1772355579000000000,"seq":805,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ca8a0-0cf6-721e-9e71-1f55bbe479ea","at":1772355587318000000,"seq":806,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Your December broadband bill - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ca8a0-3e80-7152-96d1-0a9104ab892c","at":1772355600000000000,"seq":807,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca8a0-4e20-7618-a47f-0e2420dc79f2","at":1772355604000000000,"seq":808,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ca8a0-4e20-74bb-8e08-2c2002b9fda3","at":1772355604000000000,"seq":809,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca8a0-576e-7984-88f7-69bd72cfa3ec","at":1772355606382000000,"seq":810,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment details - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ca8a0-fde8-7e4e-a7d0-f83c9423beac","at":1772355649000000000,"seq":811,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ca8a0-ff58-7e2b-8747-bbf47c8026ab","at":1772355649368000000,"seq":812,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Broadband payment complete - Netherby Broadband","cut":false,"why":"title_change","site":{"domain":"netherby-broadband.test","source":"address_field"}}}
+{"v":1,"id":"019ca8a1-09a0-7074-b5ae-3087305fffae","at":1772355652000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8a1-3498-7300-84e3-a0d2ae461cc3","at":1772355663000000000,"seq":814,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8a1-adb0-75e0-a8f9-fba46cdeb41d","at":1772355694000000000,"seq":815,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca8ad-8c5d-70bc-afb3-22c8f9ede01b","at":1772356471901000000,"seq":816,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca8ad-8c5d-7f57-abe2-728c47c46ca7","at":1772356471901000000,"seq":817,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca8ad-c370-7a1f-add7-913272556e1c","at":1772356486000000000,"seq":818,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019ca8ad-cb40-71e1-a765-0c2c10d3bcd2","at":1772356488000000000,"seq":819,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8ad-ea80-784d-bd0b-5d4929d2d872","at":1772356496000000000,"seq":820,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8c2-d088-75ea-bc85-fbd62c5a0b81","at":1772357865608000000,"seq":821,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca8c2-d088-7945-ad14-cf615a05beff","at":1772357865608000000,"seq":822,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"app_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca8c2-e598-70d4-859d-8534ac4ccd63","at":1772357871000000000,"seq":823,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019ca8c2-f920-7c6a-a94b-9ea2e69751e6","at":1772357876000000000,"seq":824,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8c3-3123-7bb7-a859-9e745498b4d1","at":1772357890339000000,"seq":825,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca8c3-6680-7ebb-a01d-dac444eb3479","at":1772357904000000000,"seq":826,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca8c3-6a68-71c7-a4fc-d644cdfcbf61","at":1772357905000000000,"seq":827,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ca8c3-75c8-75fa-aae2-04e523202910","at":1772357907912000000,"seq":828,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"wool socks - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca8c3-9948-7c17-b225-8d3005a7ed7e","at":1772357917000000000,"seq":829,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8c3-efa0-7b11-833c-9b5db855bec4","at":1772357939104000000,"seq":830,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca8c4-02c0-7b2c-b7ba-7db54006b861","at":1772357944000000000,"seq":831,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8c4-2200-738a-8cb3-0785a46dfd51","at":1772357952000000000,"seq":832,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ca8c4-4140-7d57-999f-54dbbfbce6ad","at":1772357960000000000,"seq":833,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019ca8c4-8790-7a81-8f6b-570f69f42b79","at":1772357978000000000,"seq":834,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca8c4-cf93-76f8-97e5-d43126eb084c","at":1772357996435000000,"seq":835,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with card 4242 4242 4242 4242 - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca8c4-fcc0-793d-8a79-bf32e0d48899","at":1772358008000000000,"seq":836,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ca8c5-4ec8-7593-9944-0b0b79bb448f","at":1772358029000000000,"seq":837,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8c5-7c54-782b-8069-969e04735364","at":1772358040660000000,"seq":838,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order placed - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019ca8c5-ac88-71b4-b5a4-12d6ab96758d","at":1772358053000000000,"seq":839,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8c5-c010-7a16-968c-87dce36e1ca2","at":1772358058000000000,"seq":840,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8de-767f-7e92-90b5-e48acad6a16f","at":1772359677567000000,"seq":841,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ca8de-767f-71ca-a3ec-7f5efa61e0f3","at":1772359677567000000,"seq":842,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ca8de-b6b0-7644-9972-24d72558e0db","at":1772359694000000000,"seq":843,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ca8de-ca38-7256-890b-82ddb74e2a7f","at":1772359699000000000,"seq":844,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ca8f6-5a3c-7178-8649-9fc5b91ed27c","at":1772361243196000000,"seq":845,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ca8f6-5a3c-7d5f-96af-094e38cad52f","at":1772361243196000000,"seq":846,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ca8f6-9be0-7b1c-b54c-f46a17a02c71","at":1772361260000000000,"seq":847,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8f6-c456-7652-a441-e8d6b93c1c20","at":1772361270358000000,"seq":848,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ca8f6-cac0-7714-a9eb-06ebcad136db","at":1772361272000000000,"seq":849,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8f7-1cc8-7b19-be92-1f2f7012458b","at":1772361293000000000,"seq":850,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019ca8f7-8640-7361-9e17-3aeaab2e366c","at":1772361320000000000,"seq":851,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ca8f7-b9d6-740c-b305-f3737b6a1b9a","at":1772361333206000000,"seq":852,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ca8f7-c0d8-7eb4-9dbd-ee9cedffe855","at":1772361335000000000,"seq":853,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca8f7-efb8-717a-9425-7cc115096938","at":1772361347000000000,"seq":854,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8f7-f3a0-7f29-b6d7-701552e8b082","at":1772361348000000000,"seq":855,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ca8f8-3c1a-7e50-a080-5da5e7f89878","at":1772361366554000000,"seq":856,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019ca8f8-70a0-7abc-9607-9e5376bac325","at":1772361380000000000,"seq":857,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8f8-8bf8-79b3-b330-7a56034d0da3","at":1772361387000000000,"seq":858,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ca8f8-9f80-72f2-a203-613308e91260","at":1772361392000000000,"seq":859,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ca8f8-ab38-74af-8dfd-624f26b67dd7","at":1772361395000000000,"seq":860,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

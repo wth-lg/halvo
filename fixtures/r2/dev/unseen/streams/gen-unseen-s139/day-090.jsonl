@@ -1,0 +1,53 @@
+{"v":1,"id":"019d42cc-d19c-76dd-8c95-1809fe5d07ee","at":1774942212508000000,"seq":1144,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d42cc-d19c-73a4-b93e-4df7da953bc3","at":1774942212508000000,"seq":1145,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d42cc-d388-772b-86a2-4db1efba9fd9","at":1774942213000000000,"seq":1146,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42cc-e328-7edd-9e07-45b51834296c","at":1774942217000000000,"seq":1147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019d42cd-0a38-746b-b899-76dabe575fa5","at":1774942227000000000,"seq":1148,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d42cf-b41c-778a-a9bf-2eeece835369","at":1774942401564000000,"seq":1149,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d42cf-eb99-75c0-90a1-a7f51cf59770","at":1774942415769000000,"seq":1150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d42d0-0008-7d4f-9f84-50321ea5f361","at":1774942421000000000,"seq":1151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42d0-1390-7196-b180-6848f39bf783","at":1774942426000000000,"seq":1152,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42d0-9f52-7830-bddb-f78d7a777c05","at":1774942461778000000,"seq":1153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d42d1-34a0-7442-aad2-34708e4d6153","at":1774942500000000000,"seq":1154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d42d1-3888-7951-8876-53607f63e3dc","at":1774942501000000000,"seq":1155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42d1-4440-7ac8-964f-40ef7b44da71","at":1774942504000000000,"seq":1156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42d1-5287-7c5b-8e75-33d42c45215f","at":1774942507655000000,"seq":1157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d42d1-7320-7a76-95b2-4268482c9e13","at":1774942516000000000,"seq":1158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42d1-7708-7c50-b4f2-0002b2749764","at":1774942517000000000,"seq":1159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d42d1-94b5-7d77-ae9f-4575be1a6c95","at":1774942524597000000,"seq":1160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"School messages - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d42d1-ccf8-7719-b80d-86859ee15a4e","at":1774942539000000000,"seq":1161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42d1-d8b0-7f0f-9150-1a7e3e889525","at":1774942542000000000,"seq":1162,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42d1-ec38-741f-8206-5b250464b2e4","at":1774942547000000000,"seq":1163,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019d42d1-f7f0-76f8-815f-11dbaba03bc5","at":1774942550000000000,"seq":1164,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019d42d2-8878-7cdf-ba3f-3d362d8820b5","at":1774942587000000000,"seq":1165,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d42d2-9263-7da8-9675-befe32e3df9f","at":1774942589539000000,"seq":1166,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reading a message - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d42d2-a7b8-75cc-a102-2a2d08c9cd1f","at":1774942595000000000,"seq":1167,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d42d2-cec8-7eb7-98e5-601f5cb610c0","at":1774942605000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42d2-cec8-7b1a-8ce1-b1918eccc94c","at":1774942605000000000,"seq":1169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d42d2-ec0e-77be-90d0-bad4419808c1","at":1774942612494000000,"seq":1170,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Answer delivered - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
+{"v":1,"id":"019d42d3-1130-739c-ba31-69b6068fce81","at":1774942622000000000,"seq":1171,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d42d3-3c28-76d7-b2c2-19fc7b6dcf00","at":1774942633000000000,"seq":1172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42d3-47e0-7e5b-bfbc-fc5a21e48eae","at":1774942636000000000,"seq":1173,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d42d3-640c-7db1-863a-3ad77d93854c","at":1774942643212000000,"seq":1174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d42d4-3628-7470-8380-3bffaa598142","at":1774942697000000000,"seq":1175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42e4-23ff-7eb9-b136-31942096b7d8","at":1774943740927000000,"seq":1176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d42e4-9978-767f-97c3-2c214e42b605","at":1774943771000000000,"seq":1177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d42e4-dbe0-7ec3-97d6-d2196ea71aed","at":1774943788000000000,"seq":1178,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019d42fd-6d85-714b-b991-94ba178a0fbe","at":1774945398149000000,"seq":1179,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d42fe-20a0-7ce8-8d8d-540b228efed8","at":1774945444000000000,"seq":1180,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42fe-76a5-79bb-8b28-847f7656dbe7","at":1774945466021000000,"seq":1181,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d42fe-91e8-79fe-89fa-ed1e05fd96be","at":1774945473000000000,"seq":1182,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d42fe-bce0-72ec-aed4-1cbe7d8bb3a9","at":1774945484000000000,"seq":1183,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019d42ff-35f8-7614-8dc1-f6a80c924e70","at":1774945515000000000,"seq":1184,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d42ff-58c5-7986-bf77-96260be0533b","at":1774945523909000000,"seq":1185,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 9 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d42ff-8fd0-7d3c-8dd3-6ad0bd98ecc3","at":1774945538000000000,"seq":1186,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d42ff-9b88-72ea-a85a-78cc65ba3223","at":1774945541000000000,"seq":1187,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4300-1c59-7f29-965b-91fec5e4376a","at":1774945573977000000,"seq":1188,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019d4300-2c10-7740-8ae1-e85771b4de25","at":1774945578000000000,"seq":1189,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d4300-33e0-7abd-afc0-f9ae0d550591","at":1774945580000000000,"seq":1190,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d4300-5320-7c1b-8703-1b957473b228","at":1774945588000000000,"seq":1191,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d4300-5708-7dfb-bd85-d517521de61c","at":1774945589000000000,"seq":1192,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d4301-6607-736f-9ed0-aa043a087127","at":1774945658375000000,"seq":1193,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4301-6607-7ffa-8e26-30090538f6a6","at":1774945658375000000,"seq":1194,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4301-7c00-74ba-bb72-3049779887e1","at":1774945664000000000,"seq":1195,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019d4301-c250-7150-bd3d-13decc4b0cd3","at":1774945682000000000,"seq":1196,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}

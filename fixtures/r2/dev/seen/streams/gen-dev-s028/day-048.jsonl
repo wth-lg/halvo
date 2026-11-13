@@ -1,0 +1,11 @@
+{"v":1,"id":"019c6b24-771d-78bd-a529-8ec05f864923","at":1771324077853000000,"seq":804,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6b24-771d-7cdb-a020-6ac8296b4b1c","at":1771324077853000000,"seq":805,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c6b3c-f6e4-70d5-a1e1-2afd899dedca","at":1771325683428000000,"seq":806,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6b3c-f6e4-7736-b89a-33887c30d193","at":1771325683428000000,"seq":807,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6b3d-1860-713f-a202-57d9bee67691","at":1771325692000000000,"seq":808,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c6b3d-2030-7335-97ff-bfed9239859a","at":1771325694000000000,"seq":809,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019c6b3d-56e0-7f43-813e-ac6bcd77204e","at":1771325708000000000,"seq":810,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c6b3d-a8e8-7561-a2ac-7f006680f04e","at":1771325729000000000,"seq":811,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6b3d-bd7b-7ec4-b91c-12bddcb47f4c","at":1771325734267000000,"seq":812,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c6b3d-eb50-7a88-9a2d-28cd2972cdc4","at":1771325746000000000,"seq":813,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019c6b3d-faf0-7f83-887a-45d4d29378ae","at":1771325750000000000,"seq":814,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

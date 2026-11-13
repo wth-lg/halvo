@@ -1,0 +1,11 @@
+{"v":1,"id":"019cebfe-63fc-7848-bc82-19d22d49aaff","at":1773485843452000000,"seq":808,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cebfe-63fc-734d-ac40-a1fd1c2685ab","at":1773485843452000000,"seq":809,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cebfe-79a8-715c-a475-271f42a8d1a0","at":1773485849000000000,"seq":810,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebfe-7d90-753c-ab4b-2362565647ff","at":1773485850000000000,"seq":811,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebfe-98e8-7b08-9298-e20008c7f844","at":1773485857000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019cebfe-b219-7cd6-8e68-a2bd48de00dd","at":1773485863449000000,"seq":813,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Today - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cebff-10d0-719c-8697-8b5f35c85889","at":1773485887696000000,"seq":814,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"sleep chart - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019cebff-2970-734c-a780-49e8d09e6a89","at":1773485894000000000,"seq":815,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cebff-3528-7182-95da-bec3a0d4553f","at":1773485897000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebff-48b0-7f47-ba19-be43fecfc6f5","at":1773485902000000000,"seq":817,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebff-5080-7e4e-89de-82a133d55ce3","at":1773485904000000000,"seq":818,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

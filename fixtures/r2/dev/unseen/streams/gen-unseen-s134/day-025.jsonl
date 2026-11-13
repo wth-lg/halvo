@@ -1,0 +1,19 @@
+{"v":1,"id":"019bf42a-1aff-7b53-a2a2-e7ae9974f34b","at":1769327958783000000,"seq":302,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bf42a-1aff-75f3-9b62-702de9f58108","at":1769327958783000000,"seq":303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bf42a-1fc0-7325-a43b-04c50e53c47b","at":1769327960000000000,"seq":304,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bf42a-2790-7b77-9be8-35cda05f80d3","at":1769327962000000000,"seq":305,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf442-5dc0-7987-941c-e9f474127352","at":1769329548736000000,"seq":306,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019bf442-85d8-7ad2-bd59-06f9462e983f","at":1769329559000000000,"seq":307,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bf443-ff31-7691-9e94-7cb221607edf","at":1769329655601000000,"seq":308,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf444-3770-7521-8973-6f622784b249","at":1769329670000000000,"seq":309,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf444-3770-7948-9d72-f9172e8c7ec9","at":1769329670000000000,"seq":310,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019bf444-81a8-794f-8016-d4ab1b67de33","at":1769329689000000000,"seq":311,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf444-88e9-773b-87b1-da5a15acc156","at":1769329690857000000,"seq":312,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbooks - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf444-a8b8-786b-8f65-5ae552b15d46","at":1769329699000000000,"seq":313,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bf444-e350-7cd6-bde0-f10fe9556f0d","at":1769329714000000000,"seq":314,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bf444-fa11-7553-a41c-9133defb9f07","at":1769329719825000000,"seq":315,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf445-3558-76ce-871d-228c80be3e5d","at":1769329735000000000,"seq":316,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bf445-4110-7e43-9bbe-07ea2cfe9532","at":1769329738000000000,"seq":317,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bf445-4a0f-73d5-bc3d-34dd4e24cda9","at":1769329740303000000,"seq":318,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Workbook repairs list synced - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019bf445-a6a0-7e0e-959c-03a1d8acf4fa","at":1769329764000000000,"seq":319,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bf445-c9c8-71fb-9267-79ceaa4030dd","at":1769329773000000000,"seq":320,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

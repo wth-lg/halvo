@@ -1,0 +1,14 @@
+{"v":1,"id":"019c5619-f5ab-7664-9749-19c7d4e2a511","at":1770971067819000000,"seq":614,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c5619-f5ab-7f22-b207-0b49917f5227","at":1770971067819000000,"seq":615,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c5619-f660-70f3-93a9-11154bd02a87","at":1770971068000000000,"seq":616,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c5619-fa48-75cb-9f30-d2860050b752","at":1770971069000000000,"seq":617,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c561a-4c50-789c-a678-36c4ee3c8abe","at":1770971090000000000,"seq":618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c561d-1843-787e-ab2d-9327ed06f065","at":1770971273283000000,"seq":619,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c561d-9fe0-79ac-aa2d-7f17b7aad9a9","at":1770971308000000000,"seq":620,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c561d-d251-7a3c-88b9-9f589aab7469","at":1770971320913000000,"seq":621,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c561d-f5d0-7eb1-835e-537fbde9cd75","at":1770971330000000000,"seq":622,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c561d-f5d0-744f-9fb4-53943a7ebf8a","at":1770971330000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c561e-1cec-7705-84b5-47b7bd700808","at":1770971340012000000,"seq":624,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item garden gloves - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
+{"v":1,"id":"019c561e-6b00-769d-bc86-a34a8de89258","at":1770971360000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c561e-c8c0-7143-b89e-9f2f2a841a08","at":1770971384000000000,"seq":626,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c561e-d860-754c-b309-7efa5432c9df","at":1770971388000000000,"seq":627,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}

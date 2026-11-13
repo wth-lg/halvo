@@ -1,0 +1,24 @@
+{"v":1,"id":"019babf6-b8f3-7356-bef7-af81c896532b","at":1768116631795000000,"seq":250,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019babf6-b8f3-7225-8ff8-0b6f0da59e57","at":1768116631795000000,"seq":251,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019babf6-cd48-70cf-a49f-940cebd18fbb","at":1768116637000000000,"seq":252,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019babf7-1073-7369-b50d-aa8c561fb0a0","at":1768116654195000000,"seq":253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Request a lease change - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019babf7-1398-77af-9c51-c2b9e55b85d0","at":1768116655000000000,"seq":254,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babf7-1f50-75b8-b4bc-3ee7f63a6744","at":1768116658000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babf7-84e0-7808-94d5-c03894335a02","at":1768116684000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019babf7-9d98-74c7-a964-671761e61271","at":1768116690328000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change details for Apartment 14 - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019babf7-ea70-766c-aa91-926e90ebc027","at":1768116710000000000,"seq":258,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019babf8-05ba-752b-acfe-48c66efbe0da","at":1768116716986000000,"seq":259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lease change request sent - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
+{"v":1,"id":"019babf8-4c18-7e08-a843-cc32b57e0c4c","at":1768116735000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babf8-5fa0-7058-8edf-3d8e9a64a62d","at":1768116740000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019babf8-6770-7fd7-9ff2-044a383594ac","at":1768116742000000000,"seq":262,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019babfa-e8f9-7d40-9dc7-1ac0fdff0b5f","at":1768116906233000000,"seq":263,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019babfa-e8f9-7a85-abc3-47b0450c635e","at":1768116906233000000,"seq":264,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019babfa-ebf8-7cd9-abc7-c64ec1d8645e","at":1768116907000000000,"seq":265,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019babfb-af48-7637-b879-e0cfab5eb8ca","at":1768116957000000000,"seq":266,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019bac12-8275-7784-afb5-a77c607de750","at":1768118452853000000,"seq":267,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bac12-8275-7279-a232-60024d434e7f","at":1768118452853000000,"seq":268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bac12-9a78-7f64-b6f0-8c1528d88fa0","at":1768118459000000000,"seq":269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bac12-c570-74dd-84da-76f312b6ab8a","at":1768118470000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019bac12-d510-7224-af4d-d7c44746456b","at":1768118474000000000,"seq":271,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac12-f450-7e54-8a1c-10fde4f04e4a","at":1768118482000000000,"seq":272,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bac13-1f48-7452-aab6-105d0206ab7c","at":1768118493000000000,"seq":273,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

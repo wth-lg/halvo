@@ -1,0 +1,16 @@
+{"v":1,"id":"019d2eb7-2a76-7dc5-a954-313a471cc95d","at":1774605249142000000,"seq":1094,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2eb7-2a76-74a8-b7d0-2ad05185d9df","at":1774605249142000000,"seq":1095,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb7-e950-7856-9e8b-7c10bca8a039","at":1774605298000000000,"seq":1096,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eb8-3af1-780d-b0f5-35af97917104","at":1774605318897000000,"seq":1097,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"May rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb8-3b58-7534-bcc5-5f2b968de41e","at":1774605319000000000,"seq":1098,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eb8-5a98-7843-8ade-19f28329042f","at":1774605327000000000,"seq":1099,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eb8-9534-7aaa-b830-f11cc1d925a0","at":1774605342004000000,"seq":1100,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb9-7d1f-7e58-bba1-405f5ea6d02d","at":1774605401375000000,"seq":1101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019d2eb9-9318-70a5-993e-baaaf22990be","at":1774605407000000000,"seq":1102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d2eba-1400-7750-a282-3287aae4a9b5","at":1774605440000000000,"seq":1103,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2eba-3ef8-75a5-8445-cf336f4e7f49","at":1774605451000000000,"seq":1104,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2eba-6608-7abe-a399-65518a4fad88","at":1774605461000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2ed3-fe44-7caa-a29d-979e2f5735c1","at":1774607138372000000,"seq":1106,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019d2ed4-4708-7a2b-ad20-23ea76dab6cb","at":1774607157000000000,"seq":1107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019d2ed4-6648-7503-8e22-8690566ab14a","at":1774607165000000000,"seq":1108,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2ed4-a0e0-74ef-8820-032bfcf0b93e","at":1774607180000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

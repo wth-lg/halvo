@@ -1,0 +1,36 @@
+{"v":1,"id":"019c6586-ec81-7b87-b9e3-0c2b2680e271","at":1771229867137000000,"seq":707,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6586-ec81-7c5f-8f9e-c557b8e23f8d","at":1771229867137000000,"seq":708,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c6587-0b38-7e90-9a8d-33ceb3aede6b","at":1771229875000000000,"seq":709,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6587-0f20-7b59-883f-7ab4c4070811","at":1771229876000000000,"seq":710,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6587-bb00-7ee0-a486-cab558b54724","at":1771229920000000000,"seq":711,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c658a-2738-7a00-abaa-8c51764856ea","at":1771230078776000000,"seq":712,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c658a-2c00-7115-94c7-f0c14f0adece","at":1771230080000000000,"seq":713,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019c658a-6698-7ce6-b5e1-18dc07b6c701","at":1771230095000000000,"seq":714,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c658a-81f0-7660-b9ec-c497ce1adc9f","at":1771230102000000000,"seq":715,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c658a-acbf-7f3a-8c5d-661391cdcede","at":1771230112959000000,"seq":716,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c658a-b0d0-753c-b8ea-c8507c2fa7a5","at":1771230114000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c658a-bc88-7cac-900b-ec88d0c1eda5","at":1771230117000000000,"seq":718,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c658b-2c91-7bbe-8907-55afc1cf118c","at":1771230145681000000,"seq":719,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the harbour - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c658b-acd1-7322-ac4c-b7146359b8ce","at":1771230178513000000,"seq":720,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019c658c-3f40-759a-9bd0-a124ff6ed6ff","at":1771230216000000000,"seq":721,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c658c-4328-7c9a-b463-5c19bad4f4e2","at":1771230217000000000,"seq":722,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6592-3dbc-76a1-bf51-e8c1d86709c7","at":1771230608828000000,"seq":723,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c6593-05a0-7b15-be07-3a8049b22328","at":1771230660000000000,"seq":724,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6593-1400-7a02-acbc-1c158968a9e8","at":1771230663680000000,"seq":725,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview next week - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c6593-1540-7867-8c90-1bfe46c4940d","at":1771230664000000000,"seq":726,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6593-1d10-7b75-9ade-f3513e7a4217","at":1771230666000000000,"seq":727,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6593-e25b-7b3d-9dc1-458eb3543d90","at":1771230716507000000,"seq":728,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c6593-e25b-74a3-b9f1-ceaedb8835f5","at":1771230716507000000,"seq":729,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c6594-8088-7f6c-b419-48c87873cc7a","at":1771230757000000000,"seq":730,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6594-8470-761e-897c-f9832e652bf3","at":1771230758000000000,"seq":731,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6594-9be0-7220-aa64-1c1bd3ab9724","at":1771230764000000000,"seq":732,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6594-9be0-7146-82da-19dd9c51ab28","at":1771230764000000000,"seq":733,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c6594-e08b-769b-b4bb-dbb7e67d0345","at":1771230781579000000,"seq":734,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6594-e08b-7ab1-8170-b0cbb02f8f26","at":1771230781579000000,"seq":735,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c6594-f1d0-7e3c-8852-882b3b9bdde4","at":1771230786000000000,"seq":736,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c6595-8258-7f37-8b45-534b6a823cc8","at":1771230823000000000,"seq":737,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c6595-8258-7721-8825-10332ba70e96","at":1771230823000000000,"seq":738,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c6595-b008-7209-a007-764bc271365e","at":1771230834696000000,"seq":739,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019c6595-b520-7b9b-9018-f2abf8ae8be1","at":1771230836000000000,"seq":740,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6595-bcf0-73cf-8e10-88faf2120e1b","at":1771230838000000000,"seq":741,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6596-7870-7776-b3eb-874981edfd26","at":1771230886000000000,"seq":742,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

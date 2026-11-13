@@ -1,0 +1,22 @@
+{"v":1,"id":"019d3e4d-94c3-790e-8369-33136bbdf711","at":1774866764995000000,"seq":1206,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d3e4d-94c3-7636-9c0d-3c3612f4ed39","at":1774866764995000000,"seq":1207,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4d-a468-73e3-82ae-336899f4d214","at":1774866769000000000,"seq":1208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d3e4d-e2e8-733b-be89-0baf5b13cc79","at":1774866785000000000,"seq":1209,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4d-f670-7716-8de2-c937ecd1d2f3","at":1774866790000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4d-fb09-78b8-aa0e-c158df40feaa","at":1774866791177000000,"seq":1211,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent balance October - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4e-0228-7f36-a218-f479294cc5bc","at":1774866793000000000,"seq":1212,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3e4e-9dda-7e10-9b66-4e729e108d7e","at":1774866832858000000,"seq":1213,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm rent transfer - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4e-9e68-79db-b035-c9aaa18b33ca","at":1774866833000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4f-9098-7f5b-abf3-fc43dbf5260c","at":1774866895000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019d3e4f-91f1-7b23-96c3-e467dde55db8","at":1774866895345000000,"seq":1216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent transfer scheduled - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019d3e4f-ee58-7aa7-8839-87953c7feb72","at":1774866919000000000,"seq":1217,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e4f-f240-78ec-b3a9-392ba2bf887b","at":1774866920000000000,"seq":1218,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d3e50-05c8-76e1-b544-73e5c826209c","at":1774866925000000000,"seq":1219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e65-c1b1-7e3d-9e2e-4167a3288874","at":1774868349361000000,"seq":1220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3e65-c430-7695-9b93-6bd6d8445eb4","at":1774868350000000000,"seq":1221,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019d3e65-cfe8-76aa-9955-5787962774a8","at":1774868353000000000,"seq":1222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e66-0698-7155-a8fc-55b33a977c04","at":1774868367000000000,"seq":1223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e78-627a-771d-9465-554e4c3a4218","at":1774869570170000000,"seq":1224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d3e78-ee70-787a-a863-64d081c8951e","at":1774869606000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e79-05e0-717a-825a-08989abaee64","at":1774869612000000000,"seq":1226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d3e79-09c8-7149-9a58-d80e8511245e","at":1774869613000000000,"seq":1227,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

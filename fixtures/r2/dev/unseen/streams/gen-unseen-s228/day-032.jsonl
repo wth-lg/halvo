@@ -1,0 +1,10 @@
+{"v":1,"id":"019c188f-40cc-7560-a059-a0fc701ca98b","at":1769938567372000000,"seq":425,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c188f-40cc-7d05-858c-406352cef14f","at":1769938567372000000,"seq":426,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1890-4aad-7936-b541-4838585c6f9b","at":1769938635437000000,"seq":427,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Day view next week - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1890-c5f8-7454-bf3f-c0ed45a5e433","at":1769938667000000000,"seq":428,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1890-ed08-7f5f-b09f-cc251df1f007","at":1769938677000000000,"seq":429,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019c1891-1030-7d0c-80a6-09c9a7c0e70c","at":1769938686000000000,"seq":430,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1891-4231-7acb-8e52-9b97dff7bb70","at":1769938698801000000,"seq":431,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past reminders - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1891-b5ba-7dda-8200-3749a71b3b6b","at":1769938728378000000,"seq":432,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Reminders cleared - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c1891-b828-74fb-9a1b-66c329d4bb0c","at":1769938729000000000,"seq":433,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1892-6fc0-76dd-8127-71db9ab5bc4c","at":1769938776000000000,"seq":434,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

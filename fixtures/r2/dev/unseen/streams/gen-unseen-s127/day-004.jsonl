@@ -1,0 +1,42 @@
+{"v":1,"id":"019b8859-8e9c-7d66-bc76-8466660f5c3f","at":1767519129244000000,"seq":68,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8859-8e9c-7854-8b32-becd64b080eb","at":1767519129244000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b885a-5fad-7624-af5c-eb25f7976ec1","at":1767519182765000000,"seq":70,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b885a-aad0-7dfb-96be-62e56ab67b24","at":1767519202000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b885a-d1e0-75ef-810a-2bc82171b12e","at":1767519212000000000,"seq":72,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b885b-5165-7b8a-8e2f-bbcc70ae2733","at":1767519244645000000,"seq":73,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b885b-52c8-71b2-825f-ba496ec5f1d9","at":1767519245000000000,"seq":74,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019b885b-6268-7ba7-96b4-a1d42a228658","at":1767519249000000000,"seq":75,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b885b-6650-7524-9e9b-d7464b2a7283","at":1767519250000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b885b-8978-78e8-a387-296aa7befb3c","at":1767519259000000000,"seq":77,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b885b-b9d6-7e4e-9864-e476e56daa89","at":1767519271382000000,"seq":78,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b885b-eb20-7715-b3ac-1e462f592287","at":1767519284000000000,"seq":79,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b885b-eb20-7836-9f50-7ea447cc34ea","at":1767519284000000000,"seq":80,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b885c-339b-745a-a63b-c23e22b9ac39","at":1767519302555000000,"seq":81,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b885c-77c0-72da-9049-81df046590eb","at":1767519320000000000,"seq":82,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b885c-ba28-75ed-85aa-81458698e220","at":1767519337000000000,"seq":83,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b885c-d580-7cfe-9811-05b83ea59488","at":1767519344000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b885c-e520-7231-a965-f42e9993b801","at":1767519348000000000,"seq":85,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b885c-feee-757e-81b1-2e970f0cc85f","at":1767519354606000000,"seq":86,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019b885d-1018-701b-97f9-bcb506577d15","at":1767519359000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b885d-17e8-7c5b-ad9b-b01b36280a25","at":1767519361000000000,"seq":88,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019b885d-2b70-7222-b62e-5197184389b3","at":1767519366000000000,"seq":89,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019b885d-3ef8-760d-aa0a-869210275169","at":1767519371000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b885d-a0a0-75c6-bf37-900cc7a2128d","at":1767519396000000000,"seq":91,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8866-7690-777d-8bb9-264065fa5115","at":1767519975056000000,"seq":92,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b8866-7a40-721e-8161-45678e397b79","at":1767519976000000000,"seq":93,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8866-9d68-7bdd-a30b-cefb4fd4e006","at":1767519985000000000,"seq":94,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b8866-c098-7f38-ac6b-214b78a97d67","at":1767519994008000000,"seq":95,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8866-c098-7d13-93f4-73abb02acd02","at":1767519994008000000,"seq":96,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8866-c860-734b-9b22-05570a58b97f","at":1767519996000000000,"seq":97,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8866-dfd0-7500-9a0e-2707f168b2d9","at":1767520002000000000,"seq":98,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019b8867-02f8-700f-b15b-ef1e2edf44fb","at":1767520011000000000,"seq":99,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b8867-37a7-7aea-8acb-683c9204f16c","at":1767520024487000000,"seq":100,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8867-37a7-7635-97d7-c00f943ee6d2","at":1767520024487000000,"seq":101,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"app_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b8867-58e8-70d9-9da0-73a7c6bedc6c","at":1767520033000000000,"seq":102,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8867-6c70-7f49-b38c-50d90a90c35b","at":1767520038000000000,"seq":103,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8867-ce18-7eb7-b4cd-d78908f760ae","at":1767520063000000000,"seq":104,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b8867-f465-7cc7-8883-2f3334317caf","at":1767520072805000000,"seq":105,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b8868-3f60-7141-98df-a9e257e6c094","at":1767520092000000000,"seq":106,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8868-7228-7855-bdda-183590c214a1","at":1767520105000000000,"seq":107,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8868-79df-7155-b783-253529c225b3","at":1767520106975000000,"seq":108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019b8868-7de0-7ebb-9f38-2e88c3daf485","at":1767520108000000000,"seq":109,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

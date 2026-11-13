@@ -1,0 +1,34 @@
+{"v":1,"id":"019bdff1-bbff-7ca6-8c63-c1c84d067349","at":1768988720127000000,"seq":224,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bdff1-bbff-737a-9608-fe7fdb6da927","at":1768988720127000000,"seq":225,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bdff2-6f30-749c-92bf-a0865f188c16","at":1768988766000000000,"seq":226,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bdff2-a762-7eaf-af47-57e52985a956","at":1768988780386000000,"seq":227,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"June rent statement - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bdff2-d4c0-77a8-94d1-59203ac52c86","at":1768988792000000000,"seq":228,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff2-dc90-722e-8fa4-b323d0623143","at":1768988794000000000,"seq":229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff3-22c8-746a-9403-962d73a6c03e","at":1768988811976000000,"seq":230,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Submit rent payment - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bdff3-7cb8-762c-903f-eee8d11d94fb","at":1768988835000000000,"seq":231,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff3-9810-7b10-8921-8596863df08b","at":1768988842000000000,"seq":232,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff3-af80-71ad-bd1d-69766df02be3","at":1768988848000000000,"seq":233,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdff3-cec0-7876-8893-6e2fecf41a4b","at":1768988856000000000,"seq":234,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdff3-d837-749a-9af3-4038198e0e7a","at":1768988858423000000,"seq":235,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent payment submitted - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
+{"v":1,"id":"019bdff3-de60-7c8d-b430-7fb2a2506d1e","at":1768988860000000000,"seq":236,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdff4-a598-7230-befc-8366dfd4652d","at":1768988911000000000,"seq":237,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdff4-bd08-7c4b-9d6f-c2ac45092c6d","at":1768988917000000000,"seq":238,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bdffc-a98d-71df-8b1f-252cafa2def3","at":1768989436301000000,"seq":239,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bdffc-eeb0-772f-8095-fafa45b65b5e","at":1768989454000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdffd-40b8-757e-aee5-c586930c8027","at":1768989475000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdffd-6a6a-7f87-905b-a4df91b6cda6","at":1768989485674000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Calendar for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bdffd-9a90-79a4-8e72-ee3e45e38899","at":1768989498000000000,"seq":243,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bdffd-a6f5-7a90-8afc-46a18ba6683f","at":1768989501173000000,"seq":244,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Edit event - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bdffd-d528-7423-8c8a-e89b1a399be3","at":1768989513000000000,"seq":245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bdffd-e0e0-79ce-bac6-6bde0c3be7c9","at":1768989516000000000,"seq":246,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdffd-e8b0-72bd-ab97-9824e25afebe","at":1768989518000000000,"seq":247,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bdffe-4670-74b9-b8e5-684c8070defe","at":1768989542000000000,"seq":248,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019bdffe-8cc0-723c-8225-4723abb1995c","at":1768989560000000000,"seq":249,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdffe-9a23-76c9-86ba-6f95789933c5","at":1768989563427000000,"seq":250,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Event removed - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019bdffe-e698-7faa-9ca3-3e9ad6e85fad","at":1768989583000000000,"seq":251,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bdffe-fa20-7ddf-8312-c4f076cb7f02","at":1768989588000000000,"seq":252,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019be00a-a5bb-78ab-96b4-35c48cc12ea2","at":1768990352827000000,"seq":253,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019be00a-aa50-7a87-a892-d3c782daf9f5","at":1768990354000000000,"seq":254,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019be00a-b608-7b19-9976-287987413948","at":1768990357000000000,"seq":255,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be00a-b608-71da-b3d1-b2b64ec5f99b","at":1768990357000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019be00b-1b98-754e-a5fe-6218ab35f710","at":1768990383000000000,"seq":257,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

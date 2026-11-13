@@ -1,0 +1,22 @@
+{"v":1,"id":"019b8851-b0f2-75f3-ab7b-b53286390d78","at":1767518613746000000,"seq":65,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8851-b0f2-728c-ac8e-5e543d2238b4","at":1767518613746000000,"seq":66,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b8851-bda8-767e-b4d5-24db79f1b11e","at":1767518617000000000,"seq":67,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8852-5dd0-72d0-9d7a-d8df28b2fd74","at":1767518658000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019b8852-61b8-7cd0-923d-61a15b680856","at":1767518659000000000,"seq":69,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8864-af27-7186-85aa-27b3c8875c22","at":1767519858471000000,"seq":70,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b8864-b908-74d2-908d-6ff0df226f63","at":1767519861000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8864-e400-7bee-b3b4-cb8f2528cb95","at":1767519872000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8865-14d7-7840-b287-859efc8a3cd2","at":1767519884503000000,"seq":73,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Results for desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b8865-1ab0-7738-8041-311dd2c534c0","at":1767519886000000000,"seq":74,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019b8865-1e98-7bd2-a65e-270fa9c50642","at":1767519887000000000,"seq":75,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8865-39f0-7b21-bd70-b6f745b95937","at":1767519894000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019b8865-a2f3-71d8-988d-a8e797e7dc83","at":1767519920883000000,"seq":77,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"desk lamp - Pinecart","cut":false,"why":"title_change","site":{"domain":"pinecart.test","source":"address_field"}}}
+{"v":1,"id":"019b8866-0ce0-78e2-8bc8-36e692fd552e","at":1767519948000000000,"seq":78,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8866-2838-7e84-ad42-1da25beff684","at":1767519955000000000,"seq":79,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8866-3008-7d8e-bd28-1e250c6795df","at":1767519957000000000,"seq":80,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8872-c980-7575-b07e-7e90a1a24d9d","at":1767520782720000000,"seq":81,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b8873-43b0-7dfa-bb5a-dafca23da531","at":1767520814000000000,"seq":82,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8873-5350-7310-a09d-9f568c9598c1","at":1767520818000000000,"seq":83,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8873-ad28-7aa0-9643-278543475b1e","at":1767520841000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b888e-24ea-7599-857c-fc4bb3bf679b","at":1767522575594000000,"seq":85,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b888e-97c8-7d24-bfe5-408680b9954a","at":1767522605000000000,"seq":86,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

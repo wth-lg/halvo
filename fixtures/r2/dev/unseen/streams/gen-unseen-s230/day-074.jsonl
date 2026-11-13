@@ -1,0 +1,47 @@
+{"v":1,"id":"019cf073-caf9-7bfd-8510-2c6d65370a94","at":1773560646393000000,"seq":1001,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cf073-caf9-777e-ab1c-8b428b0d7bbb","at":1773560646393000000,"seq":1002,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cf073-d910-7c8c-986a-8b9ee8716f0b","at":1773560650000000000,"seq":1003,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019cf074-a8a5-7cbb-947b-0c541e3b140c","at":1773560703141000000,"seq":1004,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cf074-ac00-7556-9316-d7e8c9d01668","at":1773560704000000000,"seq":1005,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cf074-cb40-77a7-8349-e680956feb7f","at":1773560712000000000,"seq":1006,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf074-f250-7719-a0b9-f80a930f333b","at":1773560722000000000,"seq":1007,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cf075-1960-7839-b593-24d4582879b3","at":1773560732000000000,"seq":1008,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf075-38ec-7121-99ab-3c2f9589ce0c","at":1773560740076000000,"seq":1009,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for printer paper - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cf075-e480-7664-ac15-b2d494e6f996","at":1773560784000000000,"seq":1010,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf075-f420-74e7-8f32-3fb1d32f6d7c","at":1773560788000000000,"seq":1011,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf076-37f3-70ce-ab1f-7eba3b364e26","at":1773560805363000000,"seq":1012,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Trolley - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cf076-55c8-751f-873f-1e90409869e9","at":1773560813000000000,"seq":1013,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019cf076-7120-7ade-8b3a-a16380f1b10e","at":1773560820000000000,"seq":1014,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf076-7508-7519-8ef7-4b20a2f11182","at":1773560821000000000,"seq":1015,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf076-df71-7d5b-86b1-4c12d7841f1e","at":1773560848241000000,"seq":1016,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Paying by card 4242 4242 4242 4242 - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cf076-f208-7143-beb6-6644e99a2131","at":1773560853000000000,"seq":1017,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf076-fdc0-7ba1-83c7-6df45ba0967b","at":1773560856000000000,"seq":1018,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019cf077-6b74-77a6-8c19-2bd18dd73e1a","at":1773560884084000000,"seq":1019,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Order receipt - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
+{"v":1,"id":"019cf077-a9a0-7465-88e3-72b0377066f0","at":1773560900000000000,"seq":1020,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf077-c4f8-7f33-a453-c81d7c5c9554","at":1773560907000000000,"seq":1021,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cf077-ccc8-74ef-a369-0e62ff63780e","at":1773560909000000000,"seq":1022,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf077-d0b0-7183-9bf4-1007f10f7f63","at":1773560910000000000,"seq":1023,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf084-f47c-7c1d-8b93-506433e61aac","at":1773561771132000000,"seq":1024,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019cf085-1338-7f3a-b75e-bb5ae079fca2","at":1773561779000000000,"seq":1025,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf085-1ef0-71ec-a1d2-e34ed1b74182","at":1773561782000000000,"seq":1026,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf085-4218-7141-90ba-681bb719d8b8","at":1773561791000000000,"seq":1027,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cf08b-b88c-7d64-87aa-d6c01ce0a1d2","at":1773562214540000000,"seq":1028,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cf08c-3f28-7de6-ac36-49f50dc52805","at":1773562249000000000,"seq":1029,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cf08c-9130-760c-bf72-967f7a0d4e49","at":1773562270000000000,"seq":1030,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf08c-9518-7bfd-8b29-3190f81e1e2e","at":1773562271000000000,"seq":1031,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf08c-b741-7040-83d7-ab11e8135cd0","at":1773562279745000000,"seq":1032,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cf08d-bc19-789c-b413-9553ac0dfbbe","at":1773562346521000000,"seq":1033,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cf08d-c5c8-7d0d-9a8d-00417684541d","at":1773562349000000000,"seq":1034,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf08e-3af8-71c0-9d25-14548127aba7","at":1773562379000000000,"seq":1035,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf08e-67a9-721c-8913-f76b1d755fbb","at":1773562390441000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cf08e-df08-7a53-b394-3d42ef1ee926","at":1773562421000000000,"seq":1037,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf08e-df08-775f-bb16-8d4fd93666b2","at":1773562421000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cf08e-eea8-7b31-abcb-a5baf5eaab63","at":1773562425000000000,"seq":1039,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf08f-0230-7948-85f2-3ed992ab926c","at":1773562430000000000,"seq":1040,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cf08f-65d8-7c3f-beeb-80aaffe238af","at":1773562455512000000,"seq":1041,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019cf08f-6ba8-7e27-bcce-97581f10a844","at":1773562457000000000,"seq":1042,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cf08f-7378-706f-98a2-3fde5e8519ea","at":1773562459000000000,"seq":1043,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cf08f-8318-792a-a563-167a10737fd5","at":1773562463000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019cf08f-fe71-718d-b84d-fc202393df0e","at":1773562494577000000,"seq":1045,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
+{"v":1,"id":"019cf090-abf8-7b3d-b8e4-dc726ac6d7ab","at":1773562539000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cf090-c368-7d8e-be62-209c3bcab40a","at":1773562545000000000,"seq":1047,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

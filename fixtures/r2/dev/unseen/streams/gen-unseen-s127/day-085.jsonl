@@ -1,0 +1,35 @@
+{"v":1,"id":"019d2962-d085-701c-aad4-048f2a9a2482","at":1774515835013000000,"seq":1196,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d2962-d085-7061-9abd-a5802b4fc5e0","at":1774515835013000000,"seq":1197,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d2962-d848-7e14-ba13-3323d8f32ea1","at":1774515837000000000,"seq":1198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2963-2668-73b3-b4ff-508d140009a5","at":1774515857000000000,"seq":1199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d2963-3dd8-70a6-9b0f-12de882b51f7","at":1774515863000000000,"seq":1200,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2967-b3b9-7613-abda-eca586f55e8f","at":1774516155321000000,"seq":1201,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2967-ba48-7e63-9c23-fc7ca4711208","at":1774516157000000000,"seq":1202,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2968-0c50-7699-be04-4df30d6bdaa1","at":1774516178000000000,"seq":1203,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2968-0c50-7b65-be22-fec84fa9cef8","at":1774516178000000000,"seq":1204,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019d2968-89d4-75c6-8889-61d67591e361","at":1774516210132000000,"seq":1205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2968-8d38-766d-918e-bbfc7fe840c7","at":1774516211000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2968-b448-7c22-9633-10b2a3c3a96f","at":1774516221000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2968-c7d0-7ffd-b19d-d98e4755b9aa","at":1774516226000000000,"seq":1208,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2968-d1b2-7cc3-8d3f-86549d3f023e","at":1774516228530000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details bath towels - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
+{"v":1,"id":"019d2969-67f8-7471-8af4-6dc9d5e6a009","at":1774516267000000000,"seq":1210,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d2969-7f68-7f41-a4fc-2e3ba6042b85","at":1774516273000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2976-5f42-78fc-b1dc-cfb75dc7ce9c","at":1774517116738000000,"seq":1212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rider login - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d2976-77b8-7796-acf2-80c3c0c4ede4","at":1774517123000000000,"seq":1213,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019d2977-198b-7c5a-a68e-8606c6324d03","at":1774517164427000000,"seq":1214,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Plan a ride - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d2977-1bc8-729b-9e3a-1b8e13519436","at":1774517165000000000,"seq":1215,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2977-2f50-72ee-99f2-599bd68be2be","at":1774517170000000000,"seq":1216,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2977-3720-7760-b87c-5f353b413cf9","at":1774517172000000000,"seq":1217,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2977-46c0-70e4-8d0f-bb3f77a80a30","at":1774517176000000000,"seq":1218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019d2977-4e90-7ce7-89d3-5b4350eec472","at":1774517178000000000,"seq":1219,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2977-570c-7d7d-b207-08e8e975fa4e","at":1774517180172000000,"seq":1220,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride options to the park - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d2977-7988-7b5e-a75a-1380148b4105","at":1774517189000000000,"seq":1221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d2977-7988-7512-818d-67d945cf86a2","at":1774517189000000000,"seq":1222,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019d2977-8540-7403-b0ca-c48e33194f63","at":1774517192000000000,"seq":1223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2977-8928-7ffe-9ba0-94c028115a22","at":1774517193000000000,"seq":1224,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019d2977-a868-7314-9e1e-c3e8e434b9ce","at":1774517201000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2978-43e4-7ad9-b6c0-39ecb7f49a9b","at":1774517240804000000,"seq":1226,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride reserved - Trundle Transit","cut":false,"why":"title_change","site":{"domain":"trundle-transit.test","source":"address_field"}}}
+{"v":1,"id":"019d2978-7b58-7764-9b92-b24a7a5d4296","at":1774517255000000000,"seq":1227,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2987-42ba-7756-b597-8d13613ecc76","at":1774518223546000000,"seq":1228,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019d2987-5420-7db4-8db5-779903799018","at":1774518228000000000,"seq":1229,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d2988-1f40-7040-9b44-029a55a3cf18","at":1774518280000000000,"seq":1230,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

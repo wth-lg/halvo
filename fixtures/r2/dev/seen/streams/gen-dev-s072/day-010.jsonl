@@ -1,0 +1,14 @@
+{"v":1,"id":"019ba706-e7e3-7802-b6cd-f7fa75660045","at":1768033806307000000,"seq":80,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ba706-e7e3-771a-8484-354080b95d3d","at":1768033806307000000,"seq":81,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ba707-b1d0-79b0-beac-481167316004","at":1768033858000000000,"seq":82,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba707-e6bc-7d54-bad1-8831bf2969af","at":1768033871548000000,"seq":83,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ba708-9078-7071-8f95-3e4bbc0ce0a1","at":1768033915000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba708-c728-7d42-b46b-6c3f5bfdf58b","at":1768033929000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba708-dae3-70cf-95d8-8e64daa5df09","at":1768033934051000000,"seq":86,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019ba708-fdd8-7de6-902c-b37b00fd64dc","at":1768033943000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ba70b-9782-76a6-8f51-ece3e504b8c4","at":1768034113410000000,"seq":88,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019ba70b-9782-78cc-9d54-8413c39f8702","at":1768034113410000000,"seq":89,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019ba70b-99d0-7f0c-a68f-232c30492ca9","at":1768034114000000000,"seq":90,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019ba70b-b528-71e1-93d0-e238539fe888","at":1768034121000000000,"seq":91,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":18}}
+{"v":1,"id":"019ba70b-b910-7e29-803e-cae4eaa5e1e8","at":1768034122000000000,"seq":92,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019ba70b-dc38-708a-9420-d7cbeef25a8b","at":1768034131000000000,"seq":93,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

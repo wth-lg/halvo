@@ -1,0 +1,54 @@
+{"v":1,"id":"019b8d91-3a87-7630-a54a-d659a4198ce2","at":1767606663815000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d91-3a87-73e2-94fa-5289ed8198f9","at":1767606663815000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b8d91-6a20-7172-90e2-0427e0f9dde6","at":1767606676000000000,"seq":2,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019b8d91-8960-7776-b75d-8c99a6c0dfb8","at":1767606684000000000,"seq":3,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8da9-eed5-72cf-95c2-e4759897bf94","at":1767608282837000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b8daa-2628-7774-9455-127810d93055","at":1767608297000000000,"seq":5,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8daa-31e0-74a0-b171-9282e3b15d8e","at":1767608300000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8daa-344e-77e0-828d-ec77169e6434","at":1767608300622000000,"seq":7,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b8daa-64a8-78d8-a4fa-c0c997a851ee","at":1767608313000000000,"seq":8,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8daa-8bb8-7a98-953e-029b63e7c5bf","at":1767608323000000000,"seq":9,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019b8daa-8eae-7300-bca5-b46dc5419908","at":1767608323758000000,"seq":10,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Ride to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b8dab-74d0-737d-a96c-2a8e9f45fa09","at":1767608382672000000,"seq":11,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm pickup - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b8dab-7a00-724d-9b9e-5d81e6c6a213","at":1767608384000000000,"seq":12,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dab-c820-7d85-95ea-7bc4b3f8f0d3","at":1767608404000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b8dab-da9c-700d-9ff1-1719b68ec665","at":1767608408732000000,"seq":14,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Driver on the way - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019b8dac-02b8-7e7e-9261-c39d6cea3a72","at":1767608419000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b8dc2-6dcd-7981-ac3b-a4ad3ef6d7ef","at":1767609888205000000,"seq":16,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019b8dc2-7ecb-7746-aeed-50e546e79568","at":1767609892555000000,"seq":17,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b8dc2-7ecb-773b-836e-b81365ffa2fd","at":1767609892555000000,"seq":18,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b8dc3-3820-7b5f-9303-7452ad295136","at":1767609940000000000,"seq":19,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b8dc3-5274-7a6a-a81f-a7eb674810c9","at":1767609946740000000,"seq":20,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8dc3-8a28-7f8e-a67d-63a470cd3b13","at":1767609961000000000,"seq":21,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc3-a198-7d84-8f46-ef26ca9f93d4","at":1767609967000000000,"seq":22,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc4-15a9-7659-83c9-30a87aee2045","at":1767609996713000000,"seq":23,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8dc4-39f0-7380-ae97-1d6ebb87a4e4","at":1767610006000000000,"seq":24,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc4-5160-778e-ac55-ef30896e58e7","at":1767610012000000000,"seq":25,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc4-af20-7d8d-b837-fd02a3eb7249","at":1767610036000000000,"seq":26,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019b8dc4-c4e9-7b10-8f40-3cd465cc52b3","at":1767610041577000000,"seq":27,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8dc4-e5d0-7196-8a64-bd5a4cd06ac5","at":1767610050000000000,"seq":28,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019b8dc5-2838-7dba-97eb-e4c2e2585658","at":1767610067000000000,"seq":29,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b8dc5-551b-70c5-b641-96e42e3c28bc","at":1767610078491000000,"seq":30,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8dc5-7658-74ba-8d91-efc7282a4154","at":1767610087000000000,"seq":31,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc6-1a68-7ff4-ae97-76653692bb8e","at":1767610129000000000,"seq":32,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b8dc6-319f-7dbd-8cc8-35c7f32e6a32","at":1767610134943000000,"seq":33,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8dc6-5cd0-7597-9c63-0e529123706c","at":1767610146000000000,"seq":34,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b8dc6-60b8-734b-a477-a64c28ecfb64","at":1767610147000000000,"seq":35,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc6-d9d0-7ab7-810b-9e70a9b54080","at":1767610178000000000,"seq":36,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019b8dc6-e1a0-711c-92c8-bad798080888","at":1767610180000000000,"seq":37,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc7-3ac5-7133-96a1-9c922b22384b","at":1767610202821000000,"seq":38,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8dc7-5ea0-7374-8624-aa4081e9dbea","at":1767610212000000000,"seq":39,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b8dc7-81c8-729b-87c6-5a83edd5ad2a","at":1767610221000000000,"seq":40,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b8dc7-b0a8-7995-a318-33c5a6f4b3cf","at":1767610233000000000,"seq":41,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8dc7-b220-7a16-86cb-26278b2ec751","at":1767610233376000000,"seq":42,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8dc8-1638-7038-bb19-b44df315c78c","at":1767610259000000000,"seq":43,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b8dc8-58a0-7448-84cb-8a9b983df858","at":1767610276000000000,"seq":44,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019b8dc8-b726-74f0-8c63-49339fd64259","at":1767610300198000000,"seq":45,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8dc8-dd70-74af-97a5-65b51305a59b","at":1767610310000000000,"seq":46,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc8-f0f8-76b0-a275-849bf61f1465","at":1767610315000000000,"seq":47,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019b8dc9-1bf0-7a35-a14d-f67cde0fbe5a","at":1767610326000000000,"seq":48,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8dc9-1fd8-7b5c-850d-b01c4484f88d","at":1767610327000000000,"seq":49,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019b8dc9-b756-783a-a520-1a98b63b1edf","at":1767610365782000000,"seq":50,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b8dca-0650-7c0d-88a7-251fe5fca0e5","at":1767610386000000000,"seq":51,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b8dca-2d60-72e3-a4c8-5f298651bfd8","at":1767610396000000000,"seq":52,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019b8dca-48d0-7b1c-b299-08752d785b0e","at":1767610403024000000,"seq":53,"kind":"run_mark","app":null,"p":{"edge":"end"}}

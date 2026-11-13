@@ -1,0 +1,11 @@
+{"v":1,"id":"019d0589-4e69-7bc8-9544-c0d2452aaa8f","at":1773914377833000000,"seq":1031,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d0589-4e69-7ed0-9958-30f7f6f4f0c5","at":1773914377833000000,"seq":1032,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d0589-56e0-7aae-b5f3-12d76a0f2c4c","at":1773914380000000000,"seq":1033,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0589-6e50-7c6b-b967-941c457046e3","at":1773914386000000000,"seq":1034,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019d0589-a8e8-7db1-99cb-53cbe6d1857f","at":1773914401000000000,"seq":1035,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019d059b-347a-7825-9f8d-37cbac4a1cf6","at":1773915550842000000,"seq":1036,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d059b-347a-7213-85bd-a40078a56e83","at":1773915550842000000,"seq":1037,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d059b-3ce8-7360-8ff1-51a0dc5db2bc","at":1773915553000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019d059b-c8f9-7131-b4c4-4f47465b3158","at":1773915588857000000,"seq":1039,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for this week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
+{"v":1,"id":"019d059b-ecb0-7489-8d5e-3e7edf523211","at":1773915598000000000,"seq":1040,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d059c-42a0-7e27-8f7e-f0c3d0c696a3","at":1773915620000000000,"seq":1041,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

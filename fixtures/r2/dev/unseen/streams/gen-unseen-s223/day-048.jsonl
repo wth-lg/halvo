@@ -1,0 +1,16 @@
+{"v":1,"id":"019c6aea-2dd1-7344-be11-116b99b1105d","at":1771320258001000000,"seq":583,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c6aea-2dd1-736f-aebd-b0db566bcbaf","at":1771320258001000000,"seq":584,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c6aea-31b8-7d33-8ae9-81e41108fd4a","at":1771320259000000000,"seq":585,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c6aea-4540-7f8b-b261-078312cb667e","at":1771320264000000000,"seq":586,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aea-50f8-7e8e-bff1-5f7ba9540e56","at":1771320267000000000,"seq":587,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c6aea-58c8-7322-be86-c0ad315dd646","at":1771320269000000000,"seq":588,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6aea-7bf0-7428-af9e-8022953fdacc","at":1771320278000000000,"seq":589,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019c6af9-aca9-7e5c-bfc4-24ceae6e9917","at":1771321273513000000,"seq":590,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c6af9-b278-7e2b-acfb-07fd1798d9bc","at":1771321275000000000,"seq":591,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afb-b4e6-7797-990e-0a98690c7c1e","at":1771321406694000000,"seq":592,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6afc-0050-7efc-8883-f6038d5d6bca","at":1771321426000000000,"seq":593,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afc-0820-7ba8-99ed-14df3f971be4","at":1771321428000000000,"seq":594,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019c6afc-2693-7905-a23f-91c88f03efc4","at":1771321435795000000,"seq":595,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
+{"v":1,"id":"019c6afc-4e70-7462-9343-106072a3ee5a","at":1771321446000000000,"seq":596,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afc-61f8-79af-89af-37459a4627bc","at":1771321451000000000,"seq":597,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c6afc-c788-7fd3-968e-297359ab717b","at":1771321477000000000,"seq":598,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}

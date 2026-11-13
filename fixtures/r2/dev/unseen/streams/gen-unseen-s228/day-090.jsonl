@@ -1,0 +1,16 @@
+{"v":1,"id":"019d4387-e631-73f5-9ab7-c38ff2b61bce","at":1774954473009000000,"seq":1200,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019d4387-e631-7c89-bb43-650c751ed4b5","at":1774954473009000000,"seq":1201,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019d4387-ea10-7266-955d-86c9f92467f0","at":1774954474000000000,"seq":1202,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
+{"v":1,"id":"019d4388-20c0-7890-af6b-95025ebb4e92","at":1774954488000000000,"seq":1203,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019d4399-5b0f-7e28-9f2d-041401168345","at":1774955617039000000,"seq":1204,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d4399-5b0f-7f34-8780-24c907335177","at":1774955617039000000,"seq":1205,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019d4399-a520-770b-a05b-fa74dd6760e2","at":1774955636000000000,"seq":1206,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019d4399-f728-7ad9-8c7f-0cfce7d68b60","at":1774955657000000000,"seq":1207,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019d439a-60a0-717a-a78d-b934f1ed0cd1","at":1774955684000000000,"seq":1208,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d43a0-8e2e-749f-afa7-96630d3a7aac","at":1774956088878000000,"seq":1209,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d43a1-7908-7f4e-befb-eced3a8bf055","at":1774956149000000000,"seq":1210,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d43a1-7cf0-71fa-9491-7a1b41292489","at":1774956150000000000,"seq":1211,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d43a1-9230-7f83-bce4-96676a0a2904","at":1774956155440000000,"seq":1212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Shared with me - Tallyleaf","cut":false,"why":"title_change","site":{"domain":"tallyleaf.test","source":"address_field"}}}
+{"v":1,"id":"019d43a1-d2e0-7873-a02e-82ece7af09b2","at":1774956172000000000,"seq":1213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d43a1-ea50-7871-9ed9-dbe0e3d96e90","at":1774956178000000000,"seq":1214,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d43a2-01c0-72a5-91fb-24ed80dbd177","at":1774956184000000000,"seq":1215,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

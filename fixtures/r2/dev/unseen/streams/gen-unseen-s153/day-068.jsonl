@@ -1,0 +1,20 @@
+{"v":1,"id":"019cd17d-3c24-7eb9-862f-da1bb432f6db","at":1773041171492000000,"seq":934,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd17d-3c24-78d4-aa2e-57a5c0a6943e","at":1773041171492000000,"seq":935,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cd17d-5d60-7897-8e96-3ae95e92c12a","at":1773041180000000000,"seq":936,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd18d-5a59-775e-8381-18f7ba4ac3c6","at":1773042227801000000,"seq":937,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cd18d-c880-74ac-948a-540e9a235951","at":1773042256000000000,"seq":938,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd18d-c999-7e31-8878-41c1b68a20f4","at":1773042256281000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Electricity statement June - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cd18e-da64-7dc7-9e1f-9d6c6499174c","at":1773042326116000000,"seq":940,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Make a payment - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cd18f-1488-750b-ae10-1388e3391807","at":1773042341000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cd18f-2fe0-72f2-8762-32ae144f1ece","at":1773042348000000000,"seq":942,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cd18f-6e60-73f3-b4e6-d2df6f238457","at":1773042364000000000,"seq":943,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd18f-b4ff-73bb-a5fc-70281d6a67c2","at":1773042382079000000,"seq":944,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Payment confirmed - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
+{"v":1,"id":"019cd18f-ef48-7059-8b6d-4cefa13a1a09","at":1773042397000000000,"seq":945,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd190-02d0-71f4-97a0-34c67a1da385","at":1773042402000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1a6-661f-7d28-ba50-f10e2ea8f498","at":1773043869215000000,"seq":947,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd1a6-661f-7ad7-bd68-ef73c8e07876","at":1773043869215000000,"seq":948,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd1a6-9810-7eb0-b803-b61f49c696f0","at":1773043882000000000,"seq":949,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1a6-9bf8-758c-b9b1-e77c49bb0d3d","at":1773043883000000000,"seq":950,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
+{"v":1,"id":"019cd1a7-3afa-7eaf-8908-43768f748b8c","at":1773043923706000000,"seq":951,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019cd1a7-4008-7587-9bf6-e5f430020829","at":1773043925000000000,"seq":952,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd1a7-7e88-74b7-b002-3c6338914316","at":1773043941000000000,"seq":953,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

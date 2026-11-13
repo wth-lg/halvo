@@ -1,0 +1,21 @@
+{"v":1,"id":"019bcb05-4fb0-74f0-bcd1-9814c7bbd4b6","at":1768637681584000000,"seq":205,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcb05-4fb0-729e-abb2-63a9bde07c79","at":1768637681584000000,"seq":206,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcb05-5538-7f0d-8f37-5d4a5b415297","at":1768637683000000000,"seq":207,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019bcb05-9b88-70d1-b283-b389a67ac4e7","at":1768637701000000000,"seq":208,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb05-e5c0-70ac-bb17-fb28fb6ca869","at":1768637720000000000,"seq":209,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
+{"v":1,"id":"019bcb09-27e9-7ac5-99b0-a6b7893cb0f7","at":1768637933545000000,"seq":210,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bcb09-29b0-7659-ba4c-7ab520319315","at":1768637934000000000,"seq":211,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb09-6448-7836-bd1c-45018f287c9a","at":1768637949000000000,"seq":212,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019bcb0e-bb7b-748e-8c38-74664629628e","at":1768638299003000000,"seq":213,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bcb0f-1938-7a3b-ad9e-9464292680bd","at":1768638323000000000,"seq":214,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":17}}
+{"v":1,"id":"019bcb11-db45-7e38-a6f8-281e21f1bb5d","at":1768638503749000000,"seq":215,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb11-db45-797c-9c38-665d659c1ab8","at":1768638503749000000,"seq":216,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bcb12-e274-7ea8-ba93-9d98d471e6ed","at":1768638571124000000,"seq":217,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bcb13-3bd0-7219-b75b-5e441ba19c40","at":1768638594000000000,"seq":218,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb13-41c4-77a2-b735-a35a94f3a76f","at":1768638595524000000,"seq":219,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bcb13-4f58-77ce-987d-d36f97d83920","at":1768638599000000000,"seq":220,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019bcb13-7280-7016-818b-a37a987c1ca7","at":1768638608000000000,"seq":221,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb13-7a50-7804-90f6-aa20b87a1048","at":1768638610000000000,"seq":222,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcb13-91c0-729b-b4c2-7b15b2300d5d","at":1768638616000000000,"seq":223,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb1f-f0c0-71b4-b229-9661802212ee","at":1768639426752000000,"seq":224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bcb20-3038-7aab-8d80-5fd83db8b462","at":1768639443000000000,"seq":225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}

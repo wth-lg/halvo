@@ -1,0 +1,15 @@
+{"v":1,"id":"019be9f5-bc16-7414-b9fa-a9ce0457cae9","at":1769156754454000000,"seq":334,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019be9f5-bc16-7947-8e9a-f71de75019ab","at":1769156754454000000,"seq":335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019be9f5-f100-71c5-8b85-9e881aa0afde","at":1769156768000000000,"seq":336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f6-1bf8-7864-a513-86c5b61b7f89","at":1769156779000000000,"seq":337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f6-52a8-7ebe-be94-aa3d2b59e894","at":1769156793000000000,"seq":338,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019be9f6-ccfb-7787-a2e3-3567b978915d","at":1769156824315000000,"seq":339,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule overview two weeks out - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019be9f6-e330-780a-b2f2-25866bab79a5","at":1769156830000000000,"seq":340,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f6-e718-7efd-8b4c-cbc2e2d0778b","at":1769156831000000000,"seq":341,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019be9f7-342e-784c-a50e-33950a27899b","at":1769156850734000000,"seq":342,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicting events - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019be9f7-fd52-7fe7-990d-a9dc32519299","at":1769156902226000000,"seq":343,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Conflicts resolved - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
+{"v":1,"id":"019be9f8-3af0-7fd2-83a6-2e0b1d42ef70","at":1769156918000000000,"seq":344,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bea09-7922-7af3-baa3-40de3d881a49","at":1769158048034000000,"seq":345,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019bea09-9458-7353-9375-61525468a83a","at":1769158055000000000,"seq":346,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bea09-bf50-7ec9-9c27-804ea3f69129","at":1769158066000000000,"seq":347,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bea09-f600-7e06-a637-c2edc4fee6c8","at":1769158080000000000,"seq":348,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

@@ -1,0 +1,31 @@
+{"v":1,"id":"019c1338-7050-7b95-a3d8-bba5aac98444","at":1769848991824000000,"seq":275,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1338-7050-7f44-b2cc-4a423c277719","at":1769848991824000000,"seq":276,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019c1338-7100-7587-9b9e-fed3e454b0b4","at":1769848992000000000,"seq":277,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1338-74e8-7f37-9a76-bd248d5d67b2","at":1769848993000000000,"seq":278,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1338-fda0-7e42-a139-df8a6b1b4cec","at":1769849028000000000,"seq":279,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
+{"v":1,"id":"019c1344-5b9e-7fc5-9bb4-ab3be5703411","at":1769849772958000000,"seq":280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c1345-1bce-70f7-a56a-bcc27386cef8","at":1769849822158000000,"seq":281,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c1345-55c8-739a-b7af-59bfcdfa6db0","at":1769849837000000000,"seq":282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c1345-7120-7474-a070-e82d1c96f7e5","at":1769849844000000000,"seq":283,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1345-8c78-779a-99c3-4ccda4488040","at":1769849851000000000,"seq":284,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1345-f6e3-7b15-80e4-17327b33184e","at":1769849878243000000,"seq":285,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c1346-4be0-7d8e-9163-3179d5c7c618","at":1769849900000000000,"seq":286,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c1346-5798-747b-b9a2-f19ac0a3992f","at":1769849903000000000,"seq":287,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c1346-5b80-7c02-ba5b-1715704c23eb","at":1769849904000000000,"seq":288,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1346-af56-714c-821c-974bc5194755","at":1769849925462000000,"seq":289,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019c1346-e050-743e-b556-1f90239ee718","at":1769849938000000000,"seq":290,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c1347-45e0-7fbd-91eb-1800288125f1","at":1769849964000000000,"seq":291,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c1349-d1c9-7303-8002-02e9843175c1","at":1769850130889000000,"seq":292,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c1349-d1c9-70e8-821a-a9750d0142c8","at":1769850130889000000,"seq":293,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c1349-da08-72bf-902f-b8896f5d45c3","at":1769850133000000000,"seq":294,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c134a-2828-78cb-9226-c1a5cad3f83b","at":1769850153000000000,"seq":295,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
+{"v":1,"id":"019c134a-33e0-73b5-a75f-652abc0b95c4","at":1769850156000000000,"seq":296,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c134a-9970-70e7-86e2-c3c9cd9a55f7","at":1769850182000000000,"seq":297,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c1362-f806-713f-9f80-d56832f99ba2","at":1769851779078000000,"seq":298,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c1362-f806-7dc6-ac0f-c9610872d155","at":1769851779078000000,"seq":299,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1363-6518-7b9f-8d51-94f368f4e80f","at":1769851807000000000,"seq":300,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1363-8070-7bc1-83b7-8d057f11d3c7","at":1769851814000000000,"seq":301,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c1363-9bc8-71d6-bc14-de89f9b01ceb","at":1769851821000000000,"seq":302,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1363-c7c9-7f09-9800-db8859430e33","at":1769851832265000000,"seq":303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019c1363-da48-757e-8fd5-0b7ab393b553","at":1769851837000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c1369-4c8e-7df8-b548-c2b6d3894a9a","at":1769852193934000000,"seq":305,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}

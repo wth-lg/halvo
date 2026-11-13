@@ -1,0 +1,21 @@
+{"v":1,"id":"019bc07c-f4be-71d7-9437-7cd6a3581c6d","at":1768460973246000000,"seq":192,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bc07c-f4be-7bda-842c-418ca4d4bf85","at":1768460973246000000,"seq":193,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bc07d-3248-76d9-87c4-fa3ddc7a579a","at":1768460989000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc07d-9fa8-77d6-84ad-be4ca66e2f32","at":1768461017000000000,"seq":195,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019bc07d-d727-79c5-b0c2-b4c7f487e0e7","at":1768461031207000000,"seq":196,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019bc07d-e210-70e6-b9d1-0db42af944fe","at":1768461034000000000,"seq":197,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc07d-e5f8-7c74-9d08-b78e77a42b6f","at":1768461035000000000,"seq":198,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc07e-10f0-7d27-81bb-6f4253eb1e84","at":1768461046000000000,"seq":199,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019bc080-898c-7e85-a81f-7e9df048aef0","at":1768461207948000000,"seq":200,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019bc080-bc88-77ce-9191-206237adefaf","at":1768461221000000000,"seq":201,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019bc096-bd58-726c-a89a-5c8f0f4ade5a","at":1768462663000000000,"seq":202,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bc096-bd58-7526-94a9-9d5fabc2b10b","at":1768462663000000000,"seq":203,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bc096-f7f0-7f82-bfd6-7098fbf7af01","at":1768462678000000000,"seq":204,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc097-1730-7df9-8da3-935c232cb114","at":1768462686000000000,"seq":205,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0aa-7ca6-7230-b654-dcbc195a7c11","at":1768463957158000000,"seq":206,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bc0aa-a700-782e-a8d5-7447230edd6f","at":1768463968000000000,"seq":207,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0aa-f138-7f66-8040-2df8fa84cb1a","at":1768463987000000000,"seq":208,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019bc0aa-f908-716a-bb55-244acb8d3561","at":1768463989000000000,"seq":209,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0ab-7018-7f58-8548-bb0c79a653e6","at":1768464019480000000,"seq":210,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019bc0ac-29b8-70f8-ae7c-dbdf837d4ca6","at":1768464067000000000,"seq":211,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bc0ac-50c8-715e-a125-8233025880ed","at":1768464077000000000,"seq":212,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

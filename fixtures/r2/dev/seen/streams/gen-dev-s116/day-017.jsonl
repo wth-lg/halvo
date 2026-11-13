@@ -1,0 +1,18 @@
+{"v":1,"id":"019bcb96-21a7-73bf-a730-8bea651660b7","at":1768647172519000000,"seq":256,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcb96-21a7-7fe2-8738-3e4ddea883e9","at":1768647172519000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019bcb96-2b58-7510-903b-bf186758dcdd","at":1768647175000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bcb96-3710-7ff4-8749-8ba33d8bbf95","at":1768647178000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb96-7978-7520-a644-b55c2b2d4d12","at":1768647195000000000,"seq":260,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcb96-90e8-7280-a2b9-e5c7133c2b36","at":1768647201000000000,"seq":261,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcbad-9c46-7d9d-b89d-7076fb6e02b3","at":1768648711238000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bcbae-76cf-7d47-b57b-af33245c2174","at":1768648767183000000,"seq":263,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bcbae-a110-73bd-880a-61d922edfc98","at":1768648778000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcbae-ef30-7bd6-8418-1650dc1e08f4","at":1768648798000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcbae-fae8-7108-8637-ca55b680182c","at":1768648801000000000,"seq":266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcbaf-7bd0-7fa1-830b-2758896e0d90","at":1768648834000000000,"seq":267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcbaf-8063-7832-944e-2d2a3e117082","at":1768648835171000000,"seq":268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"weight trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
+{"v":1,"id":"019bcbaf-8f58-7d80-962c-d2f5fb13cc49","at":1768648839000000000,"seq":269,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019bcbb0-5690-7c65-9895-8ae02a9b37dd","at":1768648890000000000,"seq":270,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bcbb2-2ba6-7eb2-abeb-334e41668eac","at":1768649010086000000,"seq":271,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019bcbb2-2ba6-71e7-91a2-c3f6005ea5b6","at":1768649010086000000,"seq":272,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019bcbb2-6db8-70ce-93cd-917291758631","at":1768649027000000000,"seq":273,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

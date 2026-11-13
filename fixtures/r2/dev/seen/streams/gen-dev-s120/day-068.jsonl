@@ -1,0 +1,14 @@
+{"v":1,"id":"019cd221-5b50-7358-a98a-40af30d69281","at":1773051927376000000,"seq":1040,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cd221-5b50-7a89-a6e7-ffc157223303","at":1773051927376000000,"seq":1041,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd221-dac0-7206-b105-779493b1f93e","at":1773051960000000000,"seq":1042,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cd222-24f8-754e-a3b3-8c4524e39920","at":1773051979000000000,"seq":1043,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd22c-5c21-7610-99f3-a8c7e0595e51","at":1773052648481000000,"seq":1044,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cd22c-69e0-707c-9550-3125a0df4c04","at":1773052652000000000,"seq":1045,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cd22c-8150-7427-b2b3-774bcc90b840","at":1773052658000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cd22c-8920-78f8-9e58-2ef6e79bafb7","at":1773052660000000000,"seq":1047,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cd22c-94d8-737c-a131-9d3b6a1686e9","at":1773052663000000000,"seq":1048,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cd230-a6eb-7c8d-a91a-3970d8ca8785","at":1773052929771000000,"seq":1049,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cd230-a6eb-7a8c-bc88-41a939611fa2","at":1773052929771000000,"seq":1050,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019cd230-a7d0-75ce-8c87-76377660f1dd","at":1773052930000000000,"seq":1051,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019cd230-afa0-759f-bfde-530b6169bf98","at":1773052932000000000,"seq":1052,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019cd231-1918-7f3f-aab6-7e6ab6c8bf59","at":1773052959000000000,"seq":1053,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

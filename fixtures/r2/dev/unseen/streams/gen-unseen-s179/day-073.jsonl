@@ -1,0 +1,36 @@
+{"v":1,"id":"019ceb7a-e1ec-7a47-b414-b05e8932ba13","at":1773477224940000000,"seq":1035,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ceb7a-e1ec-736c-8cfb-f31df89e4e6b","at":1773477224940000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
+{"v":1,"id":"019ceb7a-ede0-7e37-9684-31886444fa2a","at":1773477228000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb7b-1108-74fc-bbb9-3012d9615374","at":1773477237000000000,"seq":1038,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb7b-18d8-73b3-99dd-56f167916fc5","at":1773477239000000000,"seq":1039,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceb7b-20a8-7e51-a6c2-2679e47eb181","at":1773477241000000000,"seq":1040,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019ceb7b-4ba0-7967-99db-231756e8c6cc","at":1773477252000000000,"seq":1041,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019ceb8b-5290-7c46-9bf3-7f3541d6dd18","at":1773478302352000000,"seq":1042,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ceb8c-3b90-7cbb-a4e9-980b600be620","at":1773478362000000000,"seq":1043,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019ceb8c-4b30-7975-bdca-812816d19c09","at":1773478366000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb8c-62fc-7f7e-9c45-5a2497d89178","at":1773478372092000000,"seq":1045,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"New applications - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ceb8c-a120-7e14-8662-8147ee0059b3","at":1773478388000000000,"seq":1046,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019ceb8d-70f2-75af-bd0a-95f0cc6c0ff1","at":1773478441202000000,"seq":1047,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Review application for Hazel Lane - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ceb8d-9350-7bfe-8421-ad27c4e8fa17","at":1773478450000000000,"seq":1048,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019ceb8d-be48-7179-a94b-93af55bbc542","at":1773478461000000000,"seq":1049,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb8d-e319-70ee-b9ec-5922769923b2","at":1773478470425000000,"seq":1050,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Approve or decline - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
+{"v":1,"id":"019ceb8e-3378-75ad-bb88-92c4264a461b","at":1773478491000000000,"seq":1051,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceb8e-6a28-7937-b786-6e8d609e60ae","at":1773478505000000000,"seq":1052,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ceb8e-9cf0-7de3-a70e-03fce7c66193","at":1773478518000000000,"seq":1053,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ceba9-7b4d-7c81-b072-18437f8bb296","at":1773480278861000000,"seq":1054,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019ceba9-7fc0-7f0a-bbf9-024c8ecad9bf","at":1773480280000000000,"seq":1055,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ceba9-f108-7bc5-afa5-a822290fc5f1","at":1773480309000000000,"seq":1056,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebaa-2ba0-7028-9615-7915d29e6e17","at":1773480324000000000,"seq":1057,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019cebaa-6c6d-7570-9240-79c418fbd07b","at":1773480340589000000,"seq":1058,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"January water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cebaa-75d8-749e-b903-8e45cbf93739","at":1773480343000000000,"seq":1059,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019cebaa-8d48-7a7c-a582-ab876bfa67b0","at":1773480349000000000,"seq":1060,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebaa-9518-7b8e-84c5-8bf507c23b22","at":1773480351000000000,"seq":1061,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cebab-235e-79e4-b3df-673a4d0041cb","at":1773480387422000000,"seq":1062,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your water bill - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cebab-2988-7d95-9d2a-9aec586f3be1","at":1773480389000000000,"seq":1063,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebab-77a8-7499-a0bd-f2f7a7a90747","at":1773480409000000000,"seq":1064,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019cebab-a2a0-746e-8a36-9a0e2e0065c1","at":1773480420000000000,"seq":1065,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cebab-aa70-7f01-8283-e0207ea526c6","at":1773480422000000000,"seq":1066,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019cebab-ba10-7dfc-8205-c05eb6d361e3","at":1773480426000000000,"seq":1067,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cebab-bc0b-7fb0-9250-23da7da15c23","at":1773480426507000000,"seq":1068,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water payment received - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
+{"v":1,"id":"019cebbd-a10a-7095-bfd0-cd8f1e1b6095","at":1773481599242000000,"seq":1069,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
+{"v":1,"id":"019cebbd-dab0-7eac-aadb-da229cecf830","at":1773481614000000000,"seq":1070,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

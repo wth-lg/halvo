@@ -1,0 +1,38 @@
+{"v":1,"id":"019c3c76-0145-7b47-9642-241eab915819","at":1770540892485000000,"seq":501,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c3c76-0145-7a45-aeb0-d68f23171b45","at":1770540892485000000,"seq":502,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c3c76-70a8-73d3-b127-4893e4a0e4b3","at":1770540921000000000,"seq":503,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c3c76-7878-7019-97e7-c88ab2a1508c","at":1770540923000000000,"seq":504,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c76-8fe8-72c5-b22c-ced7c8d4b665","at":1770540929000000000,"seq":505,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c3c76-a758-700e-9174-593ad177d78c","at":1770540935000000000,"seq":506,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c88-bea1-756e-9987-ce092f8e0568","at":1770542120609000000,"seq":507,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c3c89-0678-743b-b712-5adead2c0bfb","at":1770542139000000000,"seq":508,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c3c89-3940-7feb-9bf3-c39bee6ae910","at":1770542152000000000,"seq":509,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019c3c89-6050-70e9-b8f0-c42477bb75be","at":1770542162000000000,"seq":510,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c98-ba77-711c-b59f-052d5ecd9947","at":1770543168119000000,"seq":511,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c3c98-ba77-72f0-85d0-272b7f740357","at":1770543168119000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c3c98-f0b0-7fc9-87fb-b9105bd58fa1","at":1770543182000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019c3c98-f8a4-765b-ae97-636eb22ad4fe","at":1770543184036000000,"seq":514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in February - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c3c99-5a28-78bf-9758-e64d44d3e9ea","at":1770543209000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c99-8908-7803-a8f7-a2c4b284a4cf","at":1770543221000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c99-acfc-7afa-a34f-52c82bd1b79a","at":1770543230204000000,"seq":517,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c3c99-f280-7cdb-8628-354c94a65518","at":1770543248000000000,"seq":518,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c3c9a-38d0-718c-8595-5ee08b59ccb2","at":1770543266000000000,"seq":519,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3c9a-b1c3-77f8-b745-08785e1233ea","at":1770543296963000000,"seq":520,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c3c9b-07d8-7e69-b2e3-24ce7bf520be","at":1770543319000000000,"seq":521,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3c9b-1b60-70c7-82aa-20221339834f","at":1770543324000000000,"seq":522,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c9b-2718-7077-b89c-ab68582cb966","at":1770543327000000000,"seq":523,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3c9b-5dc8-7f34-8b45-f8deb4060203","at":1770543341000000000,"seq":524,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c3ca5-e28b-7c07-a9f6-3a126a6fba44","at":1770544030347000000,"seq":525,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019c3ca5-f4b8-7035-a01a-e9b44d2c6313","at":1770544035000000000,"seq":526,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ca6-2398-7b69-9c76-f2f10136bc07","at":1770544047000000000,"seq":527,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3ca9-6843-74f9-83df-958f2ee663fa","at":1770544261187000000,"seq":528,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c3ca9-7b10-7fb5-912e-75160a828b22","at":1770544266000000000,"seq":529,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019c3ca9-a12b-773c-a45b-6d3d4e2d62cb","at":1770544275755000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c3ca9-e870-79ed-8d8d-ec97bd790dd2","at":1770544294000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3caa-0b98-7b86-a94a-a8daede191fe","at":1770544303000000000,"seq":532,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c3caa-32a8-726e-af67-5d05585f4211","at":1770544313000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c3caa-3d7a-71b7-8496-431c3f269886","at":1770544315770000000,"seq":534,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"bond fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
+{"v":1,"id":"019c3caa-4e00-73e3-85c2-cdc2e22cb936","at":1770544320000000000,"seq":535,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c3caa-51e8-7e67-bbb6-a27ed1111407","at":1770544321000000000,"seq":536,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c3caa-7128-7ff1-b2a8-e86327fc290c","at":1770544329000000000,"seq":537,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c3cab-24d8-7393-b47e-e9d63eac9879","at":1770544375000000000,"seq":538,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

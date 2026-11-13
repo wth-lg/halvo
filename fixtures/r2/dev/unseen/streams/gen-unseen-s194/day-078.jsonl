@@ -1,0 +1,11 @@
+{"v":1,"id":"019d0594-4b2b-77dc-959f-8a41c060930e","at":1773915097899000000,"seq":1124,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019d0594-4b2b-7f88-8461-1bac9a5b7d77","at":1773915097899000000,"seq":1125,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d0594-b508-7789-86ef-c7f4e23b3904","at":1773915125000000000,"seq":1126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019d0594-e306-79c4-9c2c-11cdf4d7be4c","at":1773915136774000000,"seq":1127,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Book a cab - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d0595-87f8-7b6b-b2fb-291f76fa670f","at":1773915179000000000,"seq":1128,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019d0595-9e0d-7324-a29f-e8b894b34e1a","at":1773915184653000000,"seq":1129,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab quote to the gym - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d0595-ca60-752b-9df4-ae1d8b2e015f","at":1773915196000000000,"seq":1130,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019d0595-ce48-7ee8-abde-58b189c16d81","at":1773915197000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019d0595-d623-76a6-b0cf-2af1cb262978","at":1773915199011000000,"seq":1132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Cab confirmed - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
+{"v":1,"id":"019d0595-ed88-79cd-b110-c4e9e34c00c5","at":1773915205000000000,"seq":1133,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019d0596-04f8-70a5-a75c-36e4d2b3ec75","at":1773915211000000000,"seq":1134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

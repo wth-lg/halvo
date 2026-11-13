@@ -1,0 +1,19 @@
+{"v":1,"id":"019b7e53-0a01-7381-843f-04f374cf7a79","at":1767350929921000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b7e53-0a01-72c7-8f55-7c0fd08ff166","at":1767350929921000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e53-25a8-75b7-bc72-f86a17f882da","at":1767350937000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e53-d188-792e-9881-3028115633e5","at":1767350981000000000,"seq":3,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e66-4c20-70c3-86fe-49edfdb011c8","at":1767352192032000000,"seq":4,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019b7e66-6370-7fed-b5e9-74b8bcea0d93","at":1767352198000000000,"seq":5,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e66-d0d0-793a-a9aa-95d01d688a55","at":1767352226000000000,"seq":6,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e66-f010-73c6-b53a-1b3e8160a543","at":1767352234000000000,"seq":7,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e7a-7ab8-7f30-9cf0-e85a7fcebe35","at":1767353514680000000,"seq":8,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b7e7a-be60-7c9f-ad51-f2f2d0f71ddf","at":1767353532000000000,"seq":9,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e7a-c248-7de9-9f89-b7809c93cccc","at":1767353533000000000,"seq":10,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019b7e7b-4718-70f3-8b58-559efd67df85","at":1767353567000000000,"seq":11,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e7b-579a-7d4c-9054-fe6f00832035","at":1767353571226000000,"seq":12,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b7e7b-8980-7bd7-9c74-f2ae4d3031ab","at":1767353584000000000,"seq":13,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b7e7b-9150-76da-b30c-c8c3673dc178","at":1767353586000000000,"seq":14,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b7e7b-e740-7cb1-8591-676cf2957b46","at":1767353608000000000,"seq":15,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
+{"v":1,"id":"019b7e7b-eab4-7d59-a246-156103252da4","at":1767353608884000000,"seq":16,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019b7e7c-0e50-7b8e-8bce-a1529080af45","at":1767353618000000000,"seq":17,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":16}}
+{"v":1,"id":"019b7e7c-9ed8-733c-9d8e-9b6c45f63944","at":1767353655000000000,"seq":18,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

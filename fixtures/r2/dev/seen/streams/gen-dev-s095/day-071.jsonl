@@ -1,0 +1,32 @@
+{"v":1,"id":"019ce16d-d7be-74e9-ad63-7c5296246356","at":1773308598206000000,"seq":1103,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019ce16d-d7be-78c1-96d2-2a6abadaad81","at":1773308598206000000,"seq":1104,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce16e-4450-77f7-ad1f-b2aeec0fe01c","at":1773308626000000000,"seq":1105,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16e-82d0-72ba-bb89-f60d1b568889","at":1773308642000000000,"seq":1106,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019ce16e-86e0-79ec-9971-af18536eeaf5","at":1773308643040000000,"seq":1107,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas invoice for July - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce16e-a9e0-7149-be2b-766af975a060","at":1773308652000000000,"seq":1108,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16e-cd08-783a-badf-c32468965eb3","at":1773308661000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019ce16e-f418-75cc-9ddd-25f194a65084","at":1773308671000000000,"seq":1110,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce16f-4a08-7922-925d-e4624cb0d9b6","at":1773308693000000000,"seq":1111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16f-5d24-74ff-94ee-75f0266d2b4f","at":1773308697892000000,"seq":1112,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay gas invoice - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce16f-84a0-70f9-8aa1-cb7137451526","at":1773308708000000000,"seq":1113,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019ce16f-9440-7d32-bf29-730555b3261c","at":1773308712000000000,"seq":1114,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16f-a3e0-7f98-beb8-0f67d24dfc50","at":1773308716000000000,"seq":1115,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce16f-e60c-7448-816a-debcaf48d9b5","at":1773308732940000000,"seq":1116,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas payment receipt - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
+{"v":1,"id":"019ce170-0d58-7456-9efa-389d805a5ec8","at":1773308743000000000,"seq":1117,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce170-20e0-7b44-8606-47546db417d9","at":1773308748000000000,"seq":1118,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":2}}
+{"v":1,"id":"019ce170-24c8-7f36-9244-2652543a815e","at":1773308749000000000,"seq":1119,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce170-4020-79b5-ad6a-809ff50a6c76","at":1773308756000000000,"seq":1120,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019ce174-ac83-7c66-8fda-c5fe9c438082","at":1773309045891000000,"seq":1121,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce174-d7e8-7e5c-8bfe-ba243ee29313","at":1773309057000000000,"seq":1122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce175-0b85-7b33-89a2-76d04baed997","at":1773309070213000000,"seq":1123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in January - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce175-5100-7475-9670-12221afbdbf4","at":1773309088000000000,"seq":1124,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019ce175-7fe0-792c-81fa-a4759cb1844a","at":1773309100000000000,"seq":1125,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce175-9a7f-72cb-a9b9-cf5113495563","at":1773309106815000000,"seq":1126,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce175-e188-784f-923d-1ae7764970bc","at":1773309125000000000,"seq":1127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce176-2008-7359-a878-ee1f8663c116","at":1773309141000000000,"seq":1128,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019ce176-27d8-7417-88cc-d449ba827055","at":1773309143000000000,"seq":1129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce176-a633-7349-a3a4-3a39d232e007","at":1773309175347000000,"seq":1130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019ce176-d3b8-7f24-b9bc-db73ab58d4f9","at":1773309187000000000,"seq":1131,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019ce177-0e50-7d14-922e-d37c5ac22cd1","at":1773309202000000000,"seq":1132,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019ce177-54a0-75b8-b436-583a2b4f5402","at":1773309220000000000,"seq":1133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019ce177-6c10-749d-b053-db67a3ad7426","at":1773309226000000000,"seq":1134,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

@@ -1,0 +1,34 @@
+{"v":1,"id":"019c89a7-213d-7a6b-b0b5-2f045dc20ae4","at":1771835957565000000,"seq":686,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89a7-213d-7cc4-af88-c4aaeb4cb1c7","at":1771835957565000000,"seq":687,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Tenant sign in - Larkspur Lettings","cut":false,"why":"app_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c89a7-af90-763d-b2e5-0db9016c55ec","at":1771835994000000000,"seq":688,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a8-161f-737f-8961-9b746dbffcc9","at":1771836020255000000,"seq":689,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent due in March - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c89a8-d0a0-7817-86fd-15bf14d73f3b","at":1771836068000000000,"seq":690,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a8-fb98-74f4-bcbf-a7c4e5faa795","at":1771836079000000000,"seq":691,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c89a9-241b-7bb6-901f-d76fd0b8b205","at":1771836089371000000,"seq":692,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay rent - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c89a9-2a78-74e7-aa8c-b89fd67b890b","at":1771836091000000000,"seq":693,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89a9-3e00-7850-890d-8075a2cdf957","at":1771836096000000000,"seq":694,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019c89a9-5570-72c2-9939-d0e929e53587","at":1771836102000000000,"seq":695,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89a9-7a92-7fa9-9948-e48708e50517","at":1771836111506000000,"seq":696,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rent paid - Larkspur Lettings","cut":false,"why":"title_change","site":{"domain":"larkspur-lettings.test","source":"address_field"}}}
+{"v":1,"id":"019c89a9-c2d0-7f2f-bf9c-bdb8f9ada1ed","at":1771836130000000000,"seq":697,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
+{"v":1,"id":"019c89a9-de28-76ff-a2ee-0f927e2b2f84","at":1771836137000000000,"seq":698,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c89a9-e210-71fa-a548-b03c9874e710","at":1771836138000000000,"seq":699,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89b4-6a64-79a8-aaa9-84b61572e8fb","at":1771836828260000000,"seq":700,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c89b4-a3f8-74e8-a31b-1f490ae2cc53","at":1771836843000000000,"seq":701,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":12}}
+{"v":1,"id":"019c89b4-b780-7ab1-9c87-3e3f4bc01f51","at":1771836848000000000,"seq":702,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
+{"v":1,"id":"019c89c1-5eb8-7d64-8966-12a4d748e1fc","at":1771837677240000000,"seq":703,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019c89c1-5eb8-78a8-9db4-194782171ad5","at":1771837677240000000,"seq":704,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
+{"v":1,"id":"019c89c1-80f0-7f65-9687-8d100123244d","at":1771837686000000000,"seq":705,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c89c2-01d8-7f36-a63b-b80bb659819d","at":1771837719000000000,"seq":706,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c2-09a8-7e58-9325-b8f90cfb298f","at":1771837721000000000,"seq":707,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c2-1116-71bb-a4da-df9a3de7c3ea","at":1771837722902000000,"seq":708,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-2.pdf - Export as PDF","cut":false,"why":"title_change"}}
+{"v":1,"id":"019c89c2-2cd0-7b03-a526-7d3784b2f29c","at":1771837730000000000,"seq":709,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
+{"v":1,"id":"019c89c2-30b8-7b4a-98e9-5bdd12d34d65","at":1771837731000000000,"seq":710,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c2-3888-75c0-bf3d-2338752e4745","at":1771837733000000000,"seq":711,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c89c2-7ed8-75b4-b01c-57bdd476c524","at":1771837751000000000,"seq":712,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c2-8e78-7519-a4cd-470fae3cdb1b","at":1771837755000000000,"seq":713,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
+{"v":1,"id":"019c89c4-b111-7a22-8767-ed0f95c92f3e","at":1771837894929000000,"seq":714,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c89c4-b111-745e-a33a-41142e21772b","at":1771837894929000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019c89c4-bd10-7aad-bf4d-60eca98b0706","at":1771837898000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c4-ccb0-7d50-92f0-fec89741576c","at":1771837902000000000,"seq":717,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c89c4-f3c0-7fac-9ed6-f67bdaf88aee","at":1771837912000000000,"seq":718,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019c89c4-f7a8-7bc3-9b9c-f626bc6759fd","at":1771837913000000000,"seq":719,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

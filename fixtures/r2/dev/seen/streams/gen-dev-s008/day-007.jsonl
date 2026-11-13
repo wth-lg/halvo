@@ -1,0 +1,18 @@
+{"v":1,"id":"019b974a-8c07-7043-a9cc-2b1541bc1d87","at":1767769803783000000,"seq":83,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b974a-8c07-7580-bfd0-70aed41ffa99","at":1767769803783000000,"seq":84,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b974a-dee8-7ca1-914a-a99887de3df3","at":1767769825000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
+{"v":1,"id":"019b974d-0e48-7ad6-bafb-722c2eef1fe7","at":1767769968200000000,"seq":86,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b974d-30a8-796f-a2ac-9e1f12d690ff","at":1767769977000000000,"seq":87,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b974d-5ba0-7133-a0ae-b5f8ce2d63bf","at":1767769988000000000,"seq":88,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b974d-e961-7b36-a285-483b0e1b9f39","at":1767770024289000000,"seq":89,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
+{"v":1,"id":"019b974e-3a48-759f-adc0-0cf261ffe88c","at":1767770045000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
+{"v":1,"id":"019b9751-0e9d-75be-b74e-c037abdf1e37","at":1767770230429000000,"seq":91,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
+{"v":1,"id":"019b9751-1c90-7e34-a31a-d15efd82879a","at":1767770234000000000,"seq":92,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9751-43a0-78c5-b72d-6154a0dc889a","at":1767770244000000000,"seq":93,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b9751-4b70-7ddc-baec-63e95b05267e","at":1767770246000000000,"seq":94,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b9751-5b10-7707-b7bf-fbbe7261e081","at":1767770250000000000,"seq":95,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019b976c-2740-7469-adb7-be5afd5f223f","at":1767772006208000000,"seq":96,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019b976c-2740-74b0-bc26-d8f102c0f03c","at":1767772006208000000,"seq":97,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b976c-2a58-7b5a-8369-391038191c2c","at":1767772007000000000,"seq":98,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b976c-41c8-771b-9903-f405ee202c12","at":1767772013000000000,"seq":99,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
+{"v":1,"id":"019b976c-70a8-7148-96a4-783aabb9f164","at":1767772025000000000,"seq":100,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}

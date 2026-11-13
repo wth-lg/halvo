@@ -1,0 +1,21 @@
+{"v":1,"id":"019cb2ba-7399-7f4c-8ec2-b8dbac4e2448","at":1772525089689000000,"seq":1034,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019cb2ba-7399-73d9-bee1-1b842df9d7fb","at":1772525089689000000,"seq":1035,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ba-9410-7507-b512-0995a0af5c9f","at":1772525098000000000,"seq":1036,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ba-ab62-73a1-b899-8470ca77c58c","at":1772525103970000000,"seq":1037,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Week board the week after - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cb2ba-ab80-7e5d-846f-7c9ccd136493","at":1772525104000000000,"seq":1038,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb2ba-bf08-79f9-b003-3d37eb161871","at":1772525109000000000,"seq":1039,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
+{"v":1,"id":"019cb2ba-c2f0-70d5-ab05-b00bc5e0c6ce","at":1772525110000000000,"seq":1040,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ba-c6d8-7006-8167-3c74ffd9f527","at":1772525111000000000,"seq":1041,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019cb2ba-cac0-73c6-a29b-4aa6a9e4d002","at":1772525112000000000,"seq":1042,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2ba-e256-72aa-a946-6c7e91c07307","at":1772525118038000000,"seq":1043,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Duplicate entries - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cb2bb-5378-741c-8b51-61c5fe2c78d3","at":1772525147000000000,"seq":1044,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2bb-6318-7cce-9717-e86c22662426","at":1772525151000000000,"seq":1045,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2bb-7cb1-7784-a58c-a720a6b45f9f","at":1772525157553000000,"seq":1046,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Entries merged - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
+{"v":1,"id":"019cb2bb-8258-738e-911e-b4a0ba94c2ea","at":1772525159000000000,"seq":1047,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019cb2bb-ad50-7bbd-821f-2b4e793d0a24","at":1772525170000000000,"seq":1048,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2bb-f788-742c-b019-73428ab30460","at":1772525189000000000,"seq":1049,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019cb2cc-fbf1-7c39-8a8b-d349cf602320","at":1772526304241000000,"seq":1050,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
+{"v":1,"id":"019cb2cd-8b88-7e4a-845e-1be7a95ff8ad","at":1772526341000000000,"seq":1051,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019cb2cd-be50-7ff0-a27f-b45fd74023f6","at":1772526354000000000,"seq":1052,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
+{"v":1,"id":"019cb2e0-001f-7cdc-8daf-10531d8b2622","at":1772527550495000000,"seq":1053,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
+{"v":1,"id":"019cb2e0-001f-76cc-866d-3fdb11445b6e","at":1772527550495000000,"seq":1054,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
