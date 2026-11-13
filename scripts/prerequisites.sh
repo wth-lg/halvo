@@ -863,6 +863,28 @@ EOF
   [ "$(count 'curl ' "$case_dir/calls")" = 0 ] || problems="$problems; a download ran"
   verdict "$name"
 
+  name='the pnpm archive served at the address of the platform package is refused: npm installs nothing'
+  new_backend_case backend-platform-is-the-archive
+  cp "$case_dir/assets/pnpm-12.14.0.tgz" "$platform_asset"
+  run_ensure_backend fails
+  [ "$(count "curl $platform_url" "$case_dir/calls")" = 1 ] || problems="$problems; the platform package was not downloaded once"
+  expect_platform_refused
+  verdict "$name"
+
+  name='a pin of another version than 12.14.0 reads the entry of that version and installs its two files'
+  new_backend_case backend-another-pinned-version
+  printf 'the pnpm 12.15.0 archive of a case\n' >"$case_dir/assets/pnpm-12.15.0.tgz"
+  printf 'the pnpm 12.15.0 binary of a case\n' >"$case_dir/assets/exe.$case_platform-12.15.0.tgz"
+  printf '{\n  "packageManager": "pnpm@12.15.0+sha512.%s"\n}\n' "$(sha512_of "$case_dir/assets/pnpm-12.15.0.tgz")" >"$case_dir/repo/backend/package.json"
+  write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")" "@pnpm/exe.$case_platform@12.15.0" "$(integrity_of "$case_dir/assets/exe.$case_platform-12.15.0.tgz")"
+  sed 's/echo 12.14.0/echo 12.15.0/' "$case_dir/pnpm" >"$case_dir/pnpm.new"
+  mv "$case_dir/pnpm.new" "$case_dir/pnpm"
+  chmod +x "$case_dir/pnpm"
+  run_ensure_backend ok
+  [ "$(count "--offline --omit=optional --no-update-notifier $repo_dir/backend/.tools/downloads/pnpm-12.15.0.tgz $repo_dir/backend/.tools/downloads/pnpm-exe.$case_platform-12.15.0.tgz" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install the two files of 12.15.0"
+  [ "$(count "curl https://registry.npmjs.org/@pnpm/exe.$case_platform/-/exe.$case_platform-12.15.0.tgz" "$case_dir/calls")" = 1 ] || problems="$problems; the platform package of 12.15.0 was not downloaded"
+  verdict "$name"
+
   name='a host for which this script names no platform package of pnpm stops the step before any download'
   new_backend_case backend-no-platform
   cat >"$case_dir/stubs/uname" <<'EOF'
@@ -877,6 +899,7 @@ EOF
   expect_nothing_installed
   [ "$(count 'curl ' "$case_dir/calls")" = 0 ] || problems="$problems; a download ran"
   [ "$(count 'no platform package of pnpm matches FreeBSD amd64' "$case_dir/output")" = 1 ] || problems="$problems; no line named the host"
+  [ "$(count 'install pnpm 12.14.0 yourself and put it on your PATH, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; the line did not say what to do"
   verdict "$name"
 
   name='each host that the script knows gets the name of its platform package, and another host gets none'
@@ -915,15 +938,14 @@ EOF
   other=$(integrity_of "$case_dir/two")
   lock_file=$case_dir/repo/backend/pnpm-lock.yaml
   lock_reads() {
-    if got=$(pnpm_lock_integrity "$lock_file" '@pnpm/exe.p@1.0.0'); then
-      got=${got#value }
+    if answer=$(pnpm_lock_integrity "$lock_file" '@pnpm/exe.p@1.0.0'); then
+      got="value ${answer#value }"
     else
-      got="no value ($got)"
+      got="no value"
     fi
-    case "$1:$got" in
-      ":no value ("*) ;;
-      *) [ "$got" = "$1" ] || problems="$problems; $2 gave '$got'" ;;
-    esac
+    wanted="no value"
+    [ -z "$1" ] || wanted="value $1"
+    [ "$got" = "$wanted" ] || problems="$problems; $2 gave '$got' ($answer)"
   }
   write_lock '@pnpm/exe.p@1.0.0' "$good"
   lock_reads "$good" 'the entry of the first document'
@@ -1175,6 +1197,23 @@ EOF
   printf '  bad: [\n' >"$case_dir/insert"
   lock_variant after '    optional: true'
   lock_reads '' 'a line that no YAML reader reads'
+  printf "\r  '@pnpm/exe.q@1.0.0':\n    resolution: {integrity: sha512-%s}\n\n" "$other" >"$case_dir/insert"
+  lock_variant after '    libc: [glibc]'
+  lock_reads '' 'a lone carriage return after the entry'
+  printf -- "---\t\npackages:\n\n  '@pnpm/exe.q@1.0.0':\n    resolution: {integrity: sha512-%s}\n\n" "$other" >"$case_dir/insert"
+  lock_variant after '      '"'"'@pnpm/exe.p'"'"': 1.0.0'
+  lock_reads '' 'a marker with a tab after it inside the first document'
+  printf '    cpu: [arm64] # resolution: {integrity: sha512-%s}\n    resolution: {integrity: sha512-%s}\n' "$good" "$other" >"$case_dir/insert"
+  lock_variant replace "$resolution_line"
+  lock_reads '' 'a resolution in a comment of the line under the entry'
+  printf '    resolution: {integrity: sha512-%s==}\n' "$(printf '%s' "$good" | cut -c1-85)" >"$case_dir/insert"
+  lock_variant replace "$resolution_line"
+  lock_reads '' 'a value of 85 characters'
+  for spaces in '   ' '     ' '      '; do
+    printf '%sresolution: {integrity: sha512-%s}\n' "$spaces" "$good" >"$case_dir/insert"
+    lock_variant replace "$resolution_line"
+    lock_reads '' "a resolution line at ${#spaces} spaces"
+  done
   verdict "$name"
 
   name='a failed fetch of the pinned tools fails the step, and one line says what to do'
