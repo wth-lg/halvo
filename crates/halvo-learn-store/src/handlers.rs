@@ -65,7 +65,8 @@ impl CoordinatorAnswer {
 /// handler (`halvo_agent_store::runner` and `halvo_agent_store::coordinator`) but a `put_playbook` of a replay
 /// run and the read `list_refinements`, which they answer themselves; they hold the facts of each run in memory,
 /// serve learned targets in the reply of `load_steps`, and make at most one typed commit of the family `learn`
-/// for a request, after the agent store's own.
+/// for a request, after the agent store's own. A run holds at most one admitted proposal for each step: a second
+/// admitted proposal for a step of a run replaces the first, and a refused one leaves the first in place.
 pub struct LearnHandlers {
     pub(crate) ids: Ids,
     pub(crate) facts: BTreeMap<RunId, RunFacts>,
