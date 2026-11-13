@@ -265,6 +265,74 @@ mod tests {
         );
     }
 
+    const WAITS: &str = "this pins what the head says; the rule waits for a ruling (CT-8 E9, \
+                         evidence/eng-manager/draft-rulings-control2-round3.md)";
+
+    #[test]
+    fn e9_recorded_beside_a_stopped_or_failed_keyboard_or_screen_line_is_pinned_as_the_head_gives_it(
+    ) {
+        use crate::proto::{Reason, SourceLine, SourceName, SourceState};
+        for state in [
+            SourceState::Stopped { by_user: false },
+            SourceState::Stopped { by_user: true },
+            SourceState::Failed {
+                reason: Reason::Permission,
+                error: None,
+            },
+        ] {
+            let keyboard = [SourceLine {
+                name: SourceName::Keyboard,
+                state: state.clone(),
+            }];
+            assert_eq!(
+                texts_of(&recorded(Platform::Windows, &switches(&[]), &keyboard)),
+                vec![
+                    "Typing is being observed. Pause capture to stop it.",
+                    "Screen activity is not recorded."
+                ],
+                "a Windows keyboard line {state:?} and no screen line: {WAITS}"
+            );
+            let screen = [SourceLine {
+                name: SourceName::Screen,
+                state: state.clone(),
+            }];
+            for platform in [Platform::Macos, Platform::Windows] {
+                assert!(
+                    texts_of(&recorded(platform, &switches(&[]), &screen)).contains(
+                        &"Screen activity is being recorded although the setting is off. Pause capture to stop it."
+                    ),
+                    "{platform:?}, a screen line {state:?} beside its switch off: {WAITS}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn e9_the_password_sentence_of_windows_with_no_guard_beside_a_running_keyboard_is_pinned_as_the_head_gives_it(
+    ) {
+        use crate::proto::{SourceName, SourceState};
+        let mut f = sample_status(Platform::Windows).into_fields();
+        assert_eq!(f.password_guard, PasswordGuard::None);
+        let keyboard = f
+            .sources
+            .iter()
+            .position(|s| s.name == SourceName::Keyboard)
+            .unwrap();
+        f.sources[keyboard].state = SourceState::Running;
+        f.enabled_sources = vec![
+            SourceName::Foreground,
+            SourceName::Keyboard,
+            SourceName::Pointer,
+            SourceName::WindowTitle,
+        ];
+        let status = DaemonStatus::new(f).unwrap();
+        assert_eq!(
+            texts(&status).passwords,
+            "Halvo observes no typing on Windows in this version, so it records nothing that you type into a password field.",
+            "{WAITS}"
+        );
+    }
+
     fn texts_of(recorded: &[Recorded]) -> Vec<&'static str> {
         recorded.iter().map(|r| r.text).collect()
     }
