@@ -598,3 +598,76 @@ fn a_poll_made_after_a_mutation_was_answered_and_taken_first_is_not_replaced_by_
     );
     assert!(!views.take_poll(4, &Ok(sample_status(Platform::Macos))));
 }
+
+#[test]
+fn a_service_of_another_version_reads_update_the_app_and_never_not_running_or_paused() {
+    let cases: [(Answer, &str); 3] = [
+        (
+            || ClientError::ReplyOfAnotherVersion { version: 2 },
+            "reply of another version",
+        ),
+        (
+            || {
+                ClientError::ValueUnknownToV1(
+                    "frozen"
+                        .parse::<Capture>()
+                        .expect_err("a value that v1 does not know"),
+                )
+            },
+            "value unknown to v1",
+        ),
+        (
+            || {
+                ClientError::Daemon(halvo_control::proto::ErrorReply {
+                    code: halvo_control::proto::ErrorCode::UnsupportedVersion,
+                    message: "unsupported version".to_string(),
+                })
+            },
+            "the daemon refused this version",
+        ),
+    ];
+    for (answer, name) in cases {
+        let test = app_answering(answer, "another-version");
+        assert_eq!(test.poll().service, Service::AnotherVersion, "{name}");
+        let view = call(&test, "capture_status", json!({})).expect("a view");
+        assert_eq!(view["service"], json!("another_version"), "{name}");
+        for key in ["desired", "capture", "store", "texts"] {
+            assert_eq!(view[key], Value::Null, "{name}: {key}");
+        }
+        assert_eq!(
+            call(&test, "set_capture_state", json!({ "capture": "paused" })),
+            Err(json!({ "error": "update_the_app" })),
+            "{name}"
+        );
+        let labels = tray::labels(&test.poll());
+        assert_eq!(labels.status_text, "Update Halvo", "{name}");
+        assert!(!labels.tooltip.contains("not running") && !labels.tooltip.contains("paused"));
+    }
+}
+
+#[test]
+fn a_broken_reply_stays_a_broken_reply_and_not_an_update() {
+    let test = app_answering(|| ClientError::Protocol("a frame".to_string()), "broken");
+    assert_eq!(test.poll().service, Service::StatusRefused);
+    assert_eq!(
+        call(&test, "set_capture_state", json!({ "capture": "paused" })),
+        Err(json!({ "error": "broken_reply" }))
+    );
+}
+
+#[test]
+fn a_delete_with_no_id_while_the_store_opens_is_busy_and_deletes_nothing() {
+    let opening = status_with(Platform::Macos, |f| {
+        store(f, StoreState::Opening, None, None);
+        f.capture = Capture::Starting;
+        f.capture_reason = None;
+        f.store_id = None;
+    });
+    let test = app_on(ScriptedDaemon::new(opening), "opening-busy");
+    test.poll();
+    assert_eq!(
+        call(&test, "delete_all", json!({ "storeId": null })),
+        Err(json!({ "error": "busy" }))
+    );
+    assert_eq!(test.daemon.status().fields().store, StoreState::Opening);
+}

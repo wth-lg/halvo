@@ -39,7 +39,11 @@ fn source(f: &mut StatusFields, name: SourceName, state: SourceState) {
         .iter_mut()
         .find(|line| line.name == name)
         .expect("the source has a line");
-    *line = SourceLine { name, state };
+    *line = SourceLine {
+        name,
+        state,
+        unstopped: false,
+    };
 }
 
 pub fn stopped(f: &mut StatusFields) {
@@ -98,6 +102,7 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
         ("held-unreachable", none(Service::HeldUnreachable)),
         ("status-refused", none(Service::StatusRefused)),
         ("unsupported", none(Service::Unsupported)),
+        ("another-version", none(Service::AnotherVersion)),
         ("running", of(sample_status(mac))),
         ("running-windows", of(sample_status(Platform::Windows))),
         (

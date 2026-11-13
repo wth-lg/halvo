@@ -18,6 +18,7 @@ pub enum Service {
     HeldUnreachable,
     StatusRefused,
     Unsupported,
+    AnotherVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -247,6 +248,9 @@ pub fn read_error(error: &ClientError) -> Reading {
         ClientError::Unreachable { .. } => (Service::NotRunning, None),
         ClientError::DataDirInUse { .. } => (Service::HeldUnreachable, None),
         ClientError::StateDoesNotHoldTogether(_) => (Service::StatusRefused, None),
+        ClientError::ReplyOfAnotherVersion { .. } | ClientError::ValueUnknownToV1(_) => {
+            (Service::AnotherVersion, Some(ActionError::UpdateTheApp))
+        }
         ClientError::PeerRejected(_) => (Service::HeldUnreachable, Some(ActionError::PeerRejected)),
         ClientError::Deadline { seconds } => (
             Service::HeldUnreachable,
@@ -258,7 +262,15 @@ pub fn read_error(error: &ClientError) -> Reading {
             (Service::StatusRefused, Some(ActionError::BrokenReply))
         }
         ClientError::Daemon(reply) => (
-            Service::StatusRefused,
+            match reply.code {
+                ErrorCode::UnsupportedVersion | ErrorCode::UnsupportedOp => Service::AnotherVersion,
+                ErrorCode::Busy
+                | ErrorCode::InvalidArgument
+                | ErrorCode::StoreUnavailable
+                | ErrorCode::StateFile
+                | ErrorCode::Internal
+                | ErrorCode::PeerRejected => Service::StatusRefused,
+            },
             Some(match reply.code {
                 ErrorCode::Busy => ActionError::Busy,
                 ErrorCode::InvalidArgument => ActionError::InvalidArgument,

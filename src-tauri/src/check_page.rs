@@ -22,12 +22,13 @@ pub fn reads() -> Vec<&'static str> {
 }
 
 /// The services that the page can show once a status has been read.
-pub const SERVICES: [&str; 5] = [
+pub const SERVICES: [&str; 6] = [
     "running",
     "not_running",
     "held_unreachable",
     "status_refused",
     "unsupported",
+    "another_version",
 ];
 
 /// The line that the check prints for `seen`, the JSON text of the probe's

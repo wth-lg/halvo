@@ -64,6 +64,11 @@ pub fn labels(view: &StatusView) -> TrayLabels {
             "Capture state unclear",
             "Halvo cannot rely on what its capture service reported",
         ),
+        (Service::AnotherVersion, _) => line(
+            "Halvo",
+            "Update Halvo",
+            "Halvo's capture service is of another version",
+        ),
         (Service::Unsupported, _) => line(
             "Halvo",
             "Capture not available on Windows yet",
@@ -257,6 +262,7 @@ mod tests {
             Service::HeldUnreachable,
             Service::StatusRefused,
             Service::Unsupported,
+            Service::AnotherVersion,
         ] {
             let texts = labels(&StatusView::without_status(service));
             for text in [texts.title, texts.tooltip, texts.status_text] {

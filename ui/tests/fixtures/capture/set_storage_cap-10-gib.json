@@ -100,7 +100,8 @@
         "text": "Screen activity is not recorded."
       }
     ],
-    "storage": "Halvo keeps at most 10 GB and removes the oldest days first when it reaches that."
+    "storage": "Halvo keeps at most 10 GB and removes the oldest days first when it reaches that.",
+    "typed_ahead": "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password."
   },
   "window": {
     "first_report_day": 7,

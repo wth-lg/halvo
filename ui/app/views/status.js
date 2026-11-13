@@ -25,6 +25,7 @@
     held_unreachable: w.HELD_UNREACHABLE,
     status_refused: w.STATUS_REFUSED,
     unsupported: w.UNSUPPORTED,
+    another_version: w.ERROR_UPDATE,
   };
   var CAPTURE = {
     running: w.CAPTURE_RUNNING,

@@ -23,6 +23,7 @@ const HEADINGS = {
   held_unreachable: "Halvo's capture service is not answering. Capture may still be running. Halvo keeps trying.",
   status_refused: "Halvo's capture service reported a state that Halvo cannot rely on. Capture may be running.",
   unsupported: "Capture is not available on Windows in this version.",
+  another_version: "Halvo's capture service is of another version. Update Halvo.",
 };
 const CAPTURE = {
   running: "Halvo is capturing",
@@ -190,4 +191,24 @@ test("RR-app-ui-11: with a lost grant whose source still runs the banner does no
   assert.doesNotMatch(runningSource.text("lost-banner"), /macOS/);
   const stoppedSource = await openPage({ replies: { capture_status: () => fixture("capture_status-lost-grant-source-stopped"), onboarding_state: () => lost } });
   assert.match(stoppedSource.text("lost-banner"), /has stopped/);
+});
+
+test("control-2b: a service of another version reads update Halvo, with none of the four claims and never not running", async () => {
+  const p = await page(fixture("capture_status-another-version"));
+  assert.equal(p.text("state"), "Halvo's capture service is of another version. Update Halvo.");
+  assert.deepEqual(FOUR.filter((w) => visibleText(p.document.body).includes(w)), []);
+  assert.doesNotMatch(visibleText(p.document.body), /Capture service not running/);
+  assert.equal(p.byId("toggle").disabled, true);
+  assert.equal(p.window.Halvo.service(), "another_version");
+});
+
+test("control-2b: the sentence typed_ahead stands under the password sentence when the status gives it, and not otherwise", async () => {
+  const mac = await page(fixture("capture_status-running"));
+  const limits = mac.byId("keeps-limits").children.map((el) => el.textContent);
+  const passwords = fixture("capture_status-running").texts.passwords;
+  const typed = fixture("capture_status-running").texts.typed_ahead;
+  assert.ok(typed, "the macOS fixture holds typed_ahead");
+  assert.equal(limits.indexOf(typed), limits.indexOf(passwords) + 1);
+  const win = await page(fixture("capture_status-running-windows"));
+  assert.equal(win.byId("keeps-limits").children.some((el) => el.textContent === typed), false);
 });

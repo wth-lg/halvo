@@ -22,7 +22,7 @@
     );
     others.replaceChildren.apply(
       others,
-      [t.passwords, t.backup_limit, t.limits]
+      [t.passwords, t.typed_ahead, t.backup_limit, t.limits]
         .filter(function (line) {
           return typeof line === "string" && line !== "";
         })
