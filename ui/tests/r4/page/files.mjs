@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 const NAMES = [
   'setTimeout',
@@ -38,6 +38,18 @@ const OTHER_STRUCTURE = [
   join('ui', 'tests', 'r4', 'agents', 'structure'),
   join('tools', 'r4-page', 'sample'),
 ];
+
+function filesUnder(dir) {
+  const out = [];
+  const visit = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) visit(join(d, e.name));
+      else out.push(relative(dir, join(d, e.name)).split(sep).join('/'));
+    }
+  };
+  visit(dir);
+  return out;
+}
 
 /** The states of a fixture directory, read from the names of its state files and fixed nowhere else. */
 export function statesOf(dir) {
@@ -179,7 +191,7 @@ export function fileRules(repo, acornDir) {
     lines.push('files features=malformed');
     return { lines, cause: 'features' };
   }
-  const views = readdirSync(join(repo, VIEWS_DIR)).filter((f) => f.endsWith('.js')).sort();
+  const views = filesUnder(join(repo, VIEWS_DIR)).sort();
   const total = { syntax: 0, template: 0, names: 0, deny: 0 };
   let unrun = 0;
   for (const v of views) {
@@ -207,8 +219,14 @@ export function fileRules(repo, acornDir) {
   }
   lines.push('acts states=' + Object.keys(acts.acts).length + ' unknown=' + acts.unknown);
   const snaps = existsSync(join(repo, SNAPSHOTS_DIR)) ? readdirSync(join(repo, SNAPSHOTS_DIR)).filter((f) => !f.startsWith('.')) : [];
-  const missing = states.filter((s) => !snaps.includes(s + '.txt')).length;
-  const stale = snaps.filter((f) => !f.endsWith('.txt') || !states.includes(f.slice(0, -4))).length;
+  let missing = states.filter((s) => !snaps.includes(s + '.txt')).length;
+  let stale = snaps.filter((f) => !f.endsWith('.txt') || !states.includes(f.slice(0, -4))).length;
+  const items = Object.keys(readJson(join(repo, 'ui', 'tests', 'r4', 'needs', 'items.json')));
+  for (const [dir, names] of [[OTHER_STRUCTURE[0], [...states, ...items]], [OTHER_STRUCTURE[1], states]]) {
+    const have = existsSync(join(repo, dir)) ? readdirSync(join(repo, dir)).filter((f) => !f.startsWith('.')) : [];
+    missing += names.filter((s) => !have.includes(s + '.txt')).length;
+    stale += have.filter((f) => !f.endsWith('.txt') || !names.includes(f.slice(0, -4))).length;
+  }
   let spread = 0;
   let read = 0;
   for (const dir of [SNAPSHOTS_DIR, ...OTHER_STRUCTURE]) {

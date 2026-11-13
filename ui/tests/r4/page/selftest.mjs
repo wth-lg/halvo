@@ -15,6 +15,7 @@ const COPIED = [
   join('tools', 'r4-page', 'package.json'),
   join('ui', 'tests', 'r4', 'needs', 'structure'),
   join('ui', 'tests', 'r4', 'agents', 'structure'),
+  join('ui', 'tests', 'r4', 'needs', 'items.json'),
   join('tools', 'r4-page', 'sample'),
 ];
 
@@ -47,6 +48,17 @@ const FILE_CASES = [
   ['a-state-without-structure-file', 'structure', (d) => cpSync(join(d, FIXTURES_DIR, 'state-ten.json'), join(d, FIXTURES_DIR, 'state-ten_again.json'))],
   ['a-structure-file-without-state', 'structure', (d) => writeFileSync(join(d, SNAPSHOTS_DIR, 'gone.txt'), '- {"role":"main"}\n')],
   ['a-structure-file-of-another-name', 'structure', (d) => renameSync(join(d, SNAPSHOTS_DIR, 'ten.txt'), join(d, SNAPSHOTS_DIR, 'ten.text'))],
+  ['a-view-file-in-a-subdirectory', 'unrun', (d) => {
+    mkdirSync(join(d, VIEWS_DIR, 'parts'), { recursive: true });
+    writeFileSync(join(d, VIEWS_DIR, 'parts', 'helper.js'), '(function () {})();\n');
+  }],
+  ['a-view-file-of-another-kind', 'unrun', (d) => writeFileSync(join(d, VIEWS_DIR, 'extra.mjs'), '(function () {})();\n')],
+  ['words-in-a-file-in-a-subdirectory', 'names', (d) => {
+    mkdirSync(join(d, VIEWS_DIR, 'parts'), { recursive: true });
+    writeFileSync(join(d, VIEWS_DIR, 'parts', 'helper.js'), 'document.body.innerHTML = 1;\n');
+  }],
+  ['a-needs-structure-file-missing', 'structure', (d) => renameSync(join(d, 'ui', 'tests', 'r4', 'needs', 'structure', 'card.txt'), join(d, 'ui', 'tests', 'r4', 'needs', 'card.txt'))],
+  ['a-stale-agents-structure-file', 'structure', (d) => writeFileSync(join(d, 'ui', 'tests', 'r4', 'agents', 'structure', 'ghost.txt'), '- {"role":"main"}\n')],
   ['a-spread-text-node', 'spread', (d) => append(d, join(SNAPSHOTS_DIR, 'ten.txt'), '- {"0":"W","1":"h"}\n')],
   ['a-spread-text-node-of-a-view', 'spread', (d) => append(d, join('ui', 'tests', 'r4', 'agents', 'structure', 'ten.txt'), '  - {"0":"x"}\n')],
   ['acts-of-an-unknown-state', 'acts', (d) => writeFileSync(join(d, ACTS_FILE), '{"no_such_state":[{"act":"open_card","param":"1"}]}\n')],
@@ -141,7 +153,7 @@ const OK_LINE = ' violations=0 review=0 keyboard=ok structure=same size=ok modes
 function writeRecord(dir, change = (l) => l, cause = null) {
   const states = statesOf(join(dir, FIXTURES_DIR));
   const lines = [
-    ...states.map((s) => 'page state=' + s + ' views=agents' + OK_LINE + ' region=ok'),
+    ...plan(join(dir, FIXTURES_DIR), states).map((r) => 'page state=' + r.state + ' views=' + r.label + OK_LINE + ' region=ok'),
     ...states.map((s) => 'needs page state=' + s + OK_LINE),
     'page states=' + states.length + OK_LINE,
   ];
@@ -149,7 +161,9 @@ function writeRecord(dir, change = (l) => l, cause = null) {
 }
 
 function recordFault(dir) {
-  return readRecord(dir, statesOf(join(dir, FIXTURES_DIR)), stampOf(dir, listOf(dir)).stamp).fault || 'pass';
+  const states = statesOf(join(dir, FIXTURES_DIR));
+  const labels = Object.fromEntries(plan(join(dir, FIXTURES_DIR), states).map((r) => [r.state, r.label]));
+  return readRecord(dir, states, stampOf(dir, listOf(dir)).stamp, labels).fault || 'pass';
 }
 
 const RECORD_CASES = [
@@ -176,6 +190,9 @@ const RECORD_CASES = [
   ['record-without-a-needs-run-of-a-state', 'states', (d) => writeRecord(d, (l) => l.filter((x) => !x.startsWith('needs page state=ten ')))],
   ['record-with-a-run-that-missed', 'result', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page state=ten ') ? x + ' misses=2:focus_unseen' : x)))],
   ['record-with-a-region-that-missed', 'result', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page state=ten ') ? x.replace('region=ok', 'region=miss') : x)))],
+  ['record-of-a-confirmation-state-with-one-view', 'views', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page state=needs_confirm_page ') ? x.replace('views=both', 'views=agents') : x)))],
+  ['record-with-failed-values-and-no-miss-name', 'result', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page state=card ') ? x.replace('keyboard=ok', 'keyboard=miss') : x)))],
+  ['record-whose-joined-line-shows-a-miss', 'result', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page states=') ? x.replace('structure=same', 'structure=differ') : x)))],
   ['record-with-a-second-stamp', 'no_stamp', (d) => writeRecord(d, (l) => [...l, 'stamp=' + '0'.repeat(64)])],
   ['record-whose-line-counts-fewer-states', 'states', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page states=') ? x.replace(/states=\d+/, 'states=1') : x)))],
 ];
@@ -306,6 +323,24 @@ export async function pageCases({ repo, work, report, log }) {
     said = 'error_' + String((err && (err.code || err.name)) || 'unknown').replace(/[^A-Za-z0-9_]/g, '_');
   }
   report('a-status-change-that-adds-no-say', 'caught', said);
+  const SAY_CASES = [
+    ['a-region-rebuilt-at-a-status-change', 'agents:rebuilt', (t) => swap(t, '    says.forEach(function (s) {\n', "    if (says.length) {\n      var fresh = el('div', 'r4a-say', null);\n      fresh.setAttribute('role', 'status');\n      status.parentNode.replaceChild(fresh, status);\n      status = fresh;\n    }\n    says.forEach(function (s) {\n")],
+    ['a-region-hidden-once-it-holds-a-say', 'agents:hidden', css('.r4a-say:not(:empty){display:none}')],
+    ['a-say-set-as-markup', 'agents:markup', (t) => swap(t, "      status.appendChild(el('p', null, s));\n", "      var said = el('p', null, null);\n      said['inner' + 'HTML'] = s;\n      status.appendChild(said);\n")],
+  ];
+  for (const [name, miss, plant] of SAY_CASES) {
+    const ui = join(work, 'ui-' + name);
+    let got;
+    try {
+      cpSync(join(repo, 'ui', 'app'), join(ui, 'app'), { recursive: true });
+      writeFileSync(join(ui, 'app', 'views', 'agents.js'), plant(agents));
+      const r = await sayRule(harness, await harness.serve({ ui, fixtures: fx }), fx, statesOf(fx));
+      got = r.misses.includes(miss) ? 'caught' : 'missed';
+    } catch (err) {
+      got = 'error_' + String((err && (err.code || err.name)) || 'unknown').replace(/[^A-Za-z0-9_]/g, '_');
+    }
+    report(name, 'caught', got);
+  }
   const kept = await sayRule(harness, controlOrigin, fx, statesOf(fx));
   report('say-control-of-the-unchanged-view', 'pass', kept.read === 1 && kept.misses.length === 0 ? 'pass' : 'fail');
 }

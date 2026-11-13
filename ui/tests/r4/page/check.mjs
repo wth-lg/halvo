@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FIXTURES_DIR, fileRules, statesOf } from './files.mjs';
 import { RECORD_FILE, pushLine, readRecord, recordText, rotation, stampOf } from './record.mjs';
-import { joined, pageCheck } from './run.mjs';
+import { joined, pageCheck, plan } from './run.mjs';
 
 const USAGE =
   'usage: node ui/tests/r4/page/check.mjs files --repo DIR --acorn DIR | page --repo DIR [--write] | record --repo DIR | push --repo DIR --commit SHA --own K --needs M | selftest --repo DIR --acorn DIR';
@@ -71,7 +71,8 @@ if (command === 'files') {
   if (rest.length !== 8 || !/^[0-9a-f]{40}$/.test(commit || '') || own === null || needsCount === null) refuse();
   const all = statesOf(join(repo, FIXTURES_DIR));
   const { stamp, files } = stampOf(repo);
-  const rec = readRecord(repo, all, stamp);
+  const labels = Object.fromEntries(plan(join(repo, FIXTURES_DIR), all).map((r) => [r.state, r.label]));
+  const rec = readRecord(repo, all, stamp, labels);
   console.log('page record fault=' + (rec.fault || 'none') + ' stamp=' + stamp + ' files=' + files + (rec.browser ? ' recorded_' + rec.browser.replace(/^browser /, '').replace(' ', ' recorded_') : ''));
   if (rec.fault) {
     console.log('check result=record');

@@ -41,7 +41,7 @@ async function regionsOf(page, ids) {
         count: found.length,
         polite: found.every((e) => e.getAttribute('aria-live') === null || e.getAttribute('aria-live') === 'polite'),
         marked: found.filter((e) => e.r4pageMark === 'kept').length,
-        text: found.length === 1 ? found[0].textContent : null,
+        shown: found.every((e) => e.checkVisibility({ visibilityProperty: true }) && !e.closest('[aria-hidden="true"]')),
       };
       for (const e of found) e.r4pageMark = 'kept';
     }
@@ -66,30 +66,70 @@ export async function regionRule(harness, h, views) {
     const a = after[id];
     if (!b || b.count !== 1) misses.push(id + ':count');
     else if (!b.polite) misses.push(id + ':not_polite');
+    else if (!b.shown || !a || !a.shown) misses.push(id + ':hidden');
     else if (!a || a.count !== 1 || a.marked !== 1) misses.push(id + ':rebuilt');
   }
   return { read: ids.length, misses };
 }
 
-function flip(snapshot) {
-  const row = snapshot.rows[0];
-  const status = row.status === 'off' ? 'all_set' : 'off';
-  return { ...snapshot, seq: snapshot.seq + 1, rows: snapshot.rows.map((r, i) => (i === 0 ? { ...r, status, say: 'The region holds this.' } : r)) };
+export const MARKUP = '<b data-x="1">x</b>&amp;';
+const ACTING = ['run_now', 'stop', 'switch_off', 'switch_on'];
+
+function flip(snapshot, agent) {
+  return {
+    ...snapshot,
+    seq: snapshot.seq + 1,
+    rows: snapshot.rows.map((r) => (r.agent === agent ? { ...r, status: r.status === 'off' ? 'all_set' : 'off', say: MARKUP } : r)),
+  };
+}
+
+function regionNow(id) {
+  const heading = document.getElementById('view-' + id);
+  const found = heading ? [...heading.closest('section').querySelectorAll('[role="status"]')] : [];
+  const e = found.length === 1 ? found[0] : null;
+  return {
+    count: found.length,
+    marked: found.filter((x) => x.r4pageMark === 'kept').length,
+    text: e ? e.textContent : null,
+    shown: Boolean(e && e.checkVisibility({ visibilityProperty: true }) && !e.closest('[aria-hidden="true"]')),
+    markup: document.querySelectorAll('[data-x]').length,
+  };
 }
 
 /** A reply that changes the first row's status adds that row's say to the agents view's one region (contracts.md I9.2). */
 export async function sayRule(harness, origin, fixtures, states) {
-  const state = states.find((s) => (json(join(fixtures, 'state-' + s + '.json')).snapshot.rows || []).length > 0);
-  if (!state || !REGIONS.includes('agents')) return { read: 0, misses: [] };
-  const first = json(join(fixtures, 'state-' + state + '.json')).snapshot;
-  const h = await harness.open({ origin, replies: [{ state: first }, { state: flip(first) }], views: [AGENTS] });
+  if (!REGIONS.includes('agents')) return { read: 0, misses: [] };
+  let first = null;
+  let row = null;
+  for (const s of states) {
+    const snap = json(join(fixtures, 'state-' + s + '.json')).snapshot;
+    row = (snap.rows || []).find((r) => (r.controls || []).some((c) => ACTING.includes(c.control)));
+    if (row) {
+      first = snap;
+      break;
+    }
+  }
+  if (!first) return { read: 0, misses: ['agents:no_state'] };
+  const control = row.controls.find((c) => ACTING.includes(c.control)).control;
+  const replies = [{ state: first }, { call: 'agents_control', args: { agent: row.agent, action: control }, reply: { ok: 'yes' } }, { state: flip(first, row.agent) }];
+  const h = await harness.open({ origin, replies, views: [AGENTS] });
   try {
-    const r = await h.page.evaluate(() => {
+    await h.page.evaluate(() => {
       const heading = document.getElementById('view-agents');
-      const found = heading ? [...heading.closest('section').querySelectorAll('[role="status"]')] : [];
-      return { count: found.length, text: found.length === 1 ? found[0].textContent : null };
+      for (const e of heading ? heading.closest('section').querySelectorAll('[role="status"]') : []) e.r4pageMark = 'kept';
     });
-    return { read: 1, misses: r.count === 1 && r.text === 'The region holds this.' ? [] : ['agents:say'] };
+    await harness.act(h, { act: control, param: row.agent });
+    await harness.settled(h);
+    const r = await h.page.evaluate(regionNow, 'agents');
+    const misses = [];
+    if (r.count !== 1) misses.push('agents:count');
+    else {
+      if (r.marked !== 1) misses.push('agents:rebuilt');
+      if (!r.shown) misses.push('agents:hidden');
+      if (r.text !== MARKUP) misses.push('agents:say');
+      if (r.markup !== 0) misses.push('agents:markup');
+    }
+    return { read: 1, misses };
   } finally {
     await h.close();
   }

@@ -4,6 +4,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { KEYS, joined } from './run.mjs';
 
+const PASSED = ['violations=0', 'keyboard=ok', 'structure=same', 'size=ok', 'modes=ok', 'markup=ok'];
+
 export const RECORD_FILE = join('ui', 'tests', 'r4', 'page', 'record.txt');
 const RECORD_PATH = 'ui/tests/r4/page/record.txt';
 
@@ -39,7 +41,7 @@ export function recordText({ stamp, files, browser, lines, cause }) {
 }
 
 /** Reads the committed record against the states and the stamp of the head: returns the fault that holds, or null. */
-export function readRecord(repo, states, stamp) {
+export function readRecord(repo, states, stamp, labels) {
   const path = join(repo, RECORD_FILE);
   if (!existsSync(path)) return { fault: 'missing' };
   const lines = readFileSync(path, 'utf8').replace(/\r/g, '').split('\n').filter(Boolean);
@@ -55,9 +57,11 @@ export function readRecord(repo, states, stamp) {
   if (ownStates.length !== states.length || ownStates.some((s, i) => s !== states[i])) return { fault: 'states' };
   if (states.some((s) => !needs.some((l) => stateOf(l) === s))) return { fault: 'states' };
   if ([...own, ...needs].some((l) => / misses=|region=miss/.test(l))) return { fault: 'result' };
+  if (own.some((l) => (/ views=(\S+)/.exec(l) || [])[1] !== labels[stateOf(l)])) return { fault: 'views' };
   const browser = lines.find((l) => l.startsWith('browser name=')) || 'browser -';
   const joinedLine = lines.filter((l) => l.startsWith('page states='));
   if (joinedLine.length !== 1 || joinedLine[0].split(' ')[1] !== 'states=' + states.length) return { fault: 'states' };
+  if ([...own, ...needs, joinedLine[0]].some((l) => !PASSED.every((kv) => (' ' + l + ' ').includes(' ' + kv + ' ')))) return { fault: 'result' };
   return { fault: null, browser, line: joinedLine[0], own: own.length, needs: needs.length };
 }
 
