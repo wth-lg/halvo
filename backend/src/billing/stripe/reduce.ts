@@ -91,6 +91,7 @@ export function reduceEvent(value: unknown): ProviderEvent | null {
       customerId,
       state: stateOfStatus(status),
       period: periodOf(object),
+      endedAt: isWhole(object.ended_at) ? object.ended_at * 1000 : null,
     };
   }
   return { kind: "ignored" };

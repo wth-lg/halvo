@@ -684,7 +684,7 @@ async function runCounted(ctx, cell, variant, runNo, withKill) {
     const began = Date.now();
     let result;
     try {
-      result = await runOnce(ctx, cell, variant, runNo, withKill, attempt);
+      result = await (ctx.runOnce ?? runOnce)(ctx, cell, variant, runNo, withKill, attempt);
     } catch (error) {
       const text = String(error?.stack ?? error);
       const violations = error?.afterKill ? [{ clause: "integrity", id: null, detail: `the run failed after the kill: ${text.split("\n")[0]}` }] : [];
@@ -693,13 +693,22 @@ async function runCounted(ctx, cell, variant, runNo, withKill) {
     }
     const last = attempt + 1 >= ctx.cfg.attempts;
     const neverCounted = last && !(result.counted && !result.error);
-    if (ctx.stopAtFirstViolation && (result.violations.length > 0 || neverCounted)) ctx.halted = true;
+    const lostTheCrossing = result.facts?.crossed === false;
+    if (ctx.stopAtFirstViolation && (result.violations.length > 0 || neverCounted || lostTheCrossing)) ctx.halted = true;
     if ((result.counted && !result.error) || last || ctx.halted) {
       ctx.progress(result, discarded.length);
       return { ...result, discarded };
     }
     if (result.error) ctx.progress(result, discarded.length);
-    discarded.push({ key: result.key, error: result.error, ms: result.ms, openAtKill: result.facts?.openAtKill ?? null, streamAtKill: result.facts?.streamAtKill ?? null, violations: result.violations });
+    discarded.push({
+      key: result.key,
+      error: result.error,
+      ms: result.ms,
+      openAtKill: result.facts?.openAtKill ?? null,
+      streamAtKill: result.facts?.streamAtKill ?? null,
+      crossed: result.facts?.crossed ?? null,
+      violations: result.violations,
+    });
   }
 }
 

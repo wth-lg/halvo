@@ -162,7 +162,8 @@ AnswerJson(a) ==
 HoldJson(h) ==
     Obj(<<KV("state", Str(h.state)), KV("amount", Num(h.amount)), KV("period", Num(h.period)),
           KV("interval", Num(h.interval)), KV("expiresAt", Num(h.expiresAt)), KV("mark", Bool(h.mark)),
-          KV("cost", OrNull(h.cost)), KV("overrun", Num(h.overrun)), KV("late", Bool(h.late))>>)
+          KV("cost", OrNull(h.cost)), KV("overrun", Num(h.overrun)), KV("late", Bool(h.late)),
+          KV("voidAtExpiry", Bool(h.voidAtExpiry))>>)
 
 CapJson(c) ==
     IF ~c.set THEN "null"
