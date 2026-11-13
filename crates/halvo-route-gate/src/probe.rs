@@ -310,14 +310,18 @@ mod tests {
         many.others == one.others
     }
 
+    fn window_line(name: &str, window: &Window) -> String {
+        format!(
+            "window {name} first_calls={} first_bytes={} other_calls={} other_bytes={}",
+            window.first.0, window.first.1, window.others.0, window.others.1
+        )
+    }
+
     fn print_windows(start: (u64, u64), windows: [(&str, &Window); 2]) {
         let end = first_thread();
         let on_first = this_thread() == FIRST_THREAD.load(Ordering::SeqCst);
         for (name, window) in windows {
-            println!(
-                "window {name} first_calls={} first_bytes={} other_calls={} other_bytes={}",
-                window.first.0, window.first.1, window.others.0, window.others.1
-            );
+            println!("{}", window_line(name, window));
         }
         println!(
             "first_thread start_calls={} start_bytes={} end_calls={} end_bytes={} \
@@ -455,6 +459,8 @@ mod tests {
             ("started", started),
             ("sized", sized),
         ] {
+            println!("{}", window_line(&format!("{name}:rounds=1"), &one.0));
+            println!("{}", window_line(&format!("{name}:rounds=many"), &many.0));
             assert!(
                 !the_same_count(&one.0, &many.0),
                 "{name}: 1 round {:?}, many rounds {:?}",
@@ -616,6 +622,7 @@ mod tests {
         let size = 1 << 20;
         FIRST_THREAD.store(this_thread(), Ordering::SeqCst);
         let (window, _) = allocations(&apart, || black_box(vec![0_u8; size]));
+        println!("{}", window_line("mark-moved", &window));
         let size = size as u64;
         assert!(
             window.first.0 >= 1 && window.first.1 >= size && window.first.1 < 2 * size,
@@ -658,6 +665,18 @@ mod tests {
         assert_eq!(
             refused.downcast_ref::<String>().map(String::as_str),
             Some(ON_THE_FIRST_THREAD)
+        );
+    }
+
+    #[test]
+    fn a_window_line_names_each_count() {
+        let window = Window {
+            first: (1, 2),
+            others: (3, 4),
+        };
+        assert_eq!(
+            window_line("w", &window),
+            "window w first_calls=1 first_bytes=2 other_calls=3 other_bytes=4"
         );
     }
 
