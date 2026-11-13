@@ -356,8 +356,24 @@ judge() {
       if (low ~ listed) { problem(where, "lists backend as a member" fix_md); return }
       words(s)
     }
+    function arm_globs(s,   n, pat, out, w) {
+      if (path !~ /\.(sh|bash)$/ && index(path, ".githooks/") != 1) return s
+      if (match(s, arm_cont)) n = length(s)
+      else if (match(s, arm_re)) n = RLENGTH
+      else return s
+      pat = substr(s, 1, n)
+      out = ""
+      while (match(pat, arm_word)) {
+        w = substr(pat, RSTART, RLENGTH)
+        if (w ~ /[*?[]/) gsub(/./, " ", w)
+        out = out substr(pat, 1, RSTART - 1) w
+        pat = substr(pat, RSTART + RLENGTH)
+      }
+      return out pat substr(s, n + 1)
+    }
     function line_of(s,   rest, off, tok, before, pos) {
       chain_mode = 0
+      s = arm_globs(s)
       s = normal(s)
       if (side == "app") {
         app_line(s)
@@ -478,6 +494,9 @@ judge() {
       operand = "(^|[;&|(`$ \t])(cat|cp|mv|ln|ls|find|rsync|du)([ \t]+-[A-Za-z0-9-]+)*[ \t]+" bk "([ \t;&|)]|$)"
       archive = "(^|[;&|(`$ \t])(tar|zip)([ \t]+[^ \t;&|]+)*[ \t]+" bk "([ \t;&|)]|$)"
       string_re = "\"[^\"]*\"|" q "[^" q "]*" q "|`[^`]*`"
+      arm_word = "[^ \t()|;&<>$`]+"
+      arm_re = "^[ \t]*" arm_word "([ \t]*[|][ \t]*" arm_word ")*[ \t]*[)]"
+      arm_cont = "^[ \t]*" arm_word "([ \t]*[|][ \t]*" arm_word ")*[ \t]*[|][ \t]*\\\\[ \t]*\r?$"
       fix_top = "; rename the file, or reword the string so that it spells no path of the other side, or ask for a ruling"
       sep_gap = "^[ \t]*(,|\\)[ \t]*\\.[ \t]*join[ \t]*\\(|/)[ \t]*$"
       defaults = "\\$\\{[a-z_][a-z0-9_]*:?[-=?+][ \t]*" word "\\}"
@@ -810,6 +829,15 @@ known-limit-<name> of the self-test:
   known limit unread-variable: in backend/, a variable that the file assigns twice or from another form than the five: a climb after it is placed by the index alone, so a path that the index does not track passes.
   known limit bare-operand: the bare word backend as an operand of a command outside the list above, such as stat backend.
   known limit bracket-glob: a bracket glob such as [b]ackend/x.
+A case arm's pattern is not read as a path (P7-88): the shell holds the
+pattern against a word and never opens it against the file system, so it
+reads no file. In a shell script (.sh, .bash, or a file under .githooks/), a
+line that starts with words joined by | and closed by ) is read as an arm: a
+glob word of its pattern is not read, a literal word is read as before, and
+everything after the parenthesis is read as code by every rule. A line of
+such words that ends in | and a backslash is read as the first line of a
+pattern. A line that only looks like an arm, as the closing line of a
+command substitution that began on an earlier line, is read as an arm too.
 
 Exit status: 0 PASS, 1 FAIL. --self-test runs its cases on throwaway
 repositories under TMPDIR and removes them when it ends.
@@ -1521,6 +1549,24 @@ cat "$TOP/crates/halvo-capture/src/lib.rs"' 'backend/scripts/top.sh:2: reads cra
   pass_with p785-limit-a-lone-top-level-file-name backend/gate/lib/manifest.mjs 'const manifest = readFileSync(join(directory, "Cargo.toml"), "utf8");' 'read:backend/gate/lib/manifest.mjs'
   pass_with p785-limit-a-path-without-its-extension backend/src/peek.ts 'import { x } from "crates/halvo-capture/src/lib";' 'read:backend/src/peek.ts'
   pass_with p785-limit-a-path-that-backend-also-tracks backend/spikes/s4/run.sh 'echo "packages are missing: run sh scripts/prerequisites.sh first" >&2' 'read:backend/spikes/s4/run.sh'
+
+  pass_with p788-the-line-of-script-31-passes scripts/r2/ci.d/31-fixture-server.sh 'kind_of() {
+  case $1 in
+    */test/*) return 0 ;;
+  esac
+  return 1
+}' 'read:scripts/r2/ci.d/31-fixture-server.sh'
+  case_with p788-an-arm-with-a-read-after-its-parenthesis scripts/sort.sh 'case $1 in
+  */test/*) cat backend/test/ledger/cases.ts ;;
+esac' 'scripts/sort.sh:2: reads under backend/: backend/test/ledger/cases.ts by backend/test/ledger/cases.ts'
+  case_with p788-a-for-loop-over-the-glob scripts/count.sh 'for f in */test/*; do wc -l "$f"; done' 'scripts/count.sh:1: reads under backend/'
+  case_with p788-a-command-with-the-glob-as-an-argument scripts/count2.sh 'wc -l */test/*' 'scripts/count2.sh:1: reads under backend/'
+  pass_with p788-an-arm-whose-pattern-spans-two-lines scripts/sort2.sh 'case $1 in
+  */test/* | \
+  */spec/*) return 0 ;;
+esac' 'read:scripts/sort2.sh'
+  case_with p788-a-parenthesis-in-a-command-substitution-is-code scripts/count3.sh 'files=$(ls */test/*)' 'scripts/count3.sh:1: reads under backend/'
+  case_with p788-a-case-word-under-backend-is-read scripts/word.sh 'case backend/test/ledger/cases.ts in' 'scripts/word.sh:1: '
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
