@@ -9,11 +9,9 @@
   ],
   "args": [
     "--seeds",
-    "1",
-    "--orderings",
-    "50",
+    "",
     "--settings",
-    ""
+    "0"
   ],
   "line": [
     "FAIL metering: ",

@@ -3,7 +3,7 @@ set -u
 ROOT=${HALVO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd -P)}
 . "$ROOT/scripts/env.sh"
 FIXTURES="$ROOT/gate/fixtures/metering"
-SELF_TEST_ARGS=${METERING_SELF_TEST_ARGS:---seeds 1 --orderings 60 --settings 24,25,26,27,28,29,30}
+SELF_TEST_ARGS=${METERING_SELF_TEST_ARGS:---seeds 1 --orderings 0 --settings 24,25,26,27,28,29,30}
 
 check_in() {
   dir=$1

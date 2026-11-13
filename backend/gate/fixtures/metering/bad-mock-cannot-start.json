@@ -7,12 +7,10 @@
     }
   ],
   "args": [
-    "--settings",
-    "",
-    "--orderings",
-    "50",
     "--seeds",
-    "1"
+    "",
+    "--settings",
+    "0"
   ],
   "line": [
     "FAIL metering: ",

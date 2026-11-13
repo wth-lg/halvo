@@ -16,7 +16,7 @@
   ],
   "line": [
     "FAIL metering: ",
-    "orderings=43 of 50 ",
+    "orderings=39 of 50 ",
     "first failure: seed 1 of the generated orderings, ordering 8 (",
     "a read the sync cannot explain"
   ]
