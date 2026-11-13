@@ -1,9 +1,10 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The tests that tools/fixture-server/tests.txt lists at HEAD for the job pass under node --test, which gets the listed test files by name, and the site data checker accepts every file of tools/fixture-server/sites/ that HEAD lists and counts at least 4 services for each seed category and 6 of the category other; the check fails when a listed test is renamed, removed, skipped or failing, when a test file of the list is not in HEAD, when a test file at HEAD under tools/fixture-server/ but variants/ is not in the list, when a test passes that the list does not hold, when a line of the list stands twice, or when a tracked file differs from HEAD after node --test or after the checker, but it does not hold against code that runs in the job before its reads and writes what it reads (a test file, the list, node on the PATH), a test that keeps its name with another body, an untracked file, or the job's environment (ruling S-53).
+# rule: The tests that tools/fixture-server/tests.txt lists at HEAD for the job pass under node --test, which gets the listed test files by name, and the site data checker accepts every file of tools/fixture-server/sites/ that HEAD lists and counts at least 4 services for each seed category and 6 of the category other; the check fails when a listed test is renamed, removed, skipped or failing, when a test file of the list is not in HEAD, when a test file at HEAD under tools/fixture-server/ but variants/ is not in the list, when a test passes that the list does not hold, when a line of the list stands twice, when a line of the list or of the removal record tools/fixture-server/tests-removed.txt of the first parent stands in neither of them at HEAD or a line stands in both at HEAD, or when a tracked file differs from HEAD after node --test or after the checker, but it does not hold against code that runs in the job before its reads and writes what it reads (a test file, the list, node on the PATH), a test that keeps its name with another body, a test that leaves the list into the removal record (a landing's diff shows it by name), an untracked file, or the job's environment (ruling S-53).
 set -u
 name=31-fixture-server
 list_path=tools/fixture-server/tests.txt
+removed_path=tools/fixture-server/tests-removed.txt
 cr=$(printf '\r')
 nl='
 '
@@ -108,6 +109,63 @@ is_test_file() {
     *.test | *-test | *_test | test-* | test) return 0 ;;
   esac
   return 1
+}
+
+show_or_empty() {
+  if git cat-file -e "$1:$2" 2>/dev/null; then
+    git show "$1:$2" >"$3" 2>/dev/null || return 1
+  else
+    : >"$3" || return 1
+  fi
+  return 0
+}
+
+removal_record() {
+  show_or_empty HEAD "$removed_path" "$1/removed.txt" || { cause="the removal record at HEAD cannot be read"; return 1; }
+  if ! git rev-parse -q --verify 'HEAD^1^{commit}' >/dev/null 2>&1; then
+    shallow_file=$(git rev-parse --git-path shallow) || { cause="git cannot name the shallow file of the clone"; return 1; }
+    head_id=$(git rev-parse HEAD) || { cause="git cannot name HEAD"; return 1; }
+    if [ -f "$shallow_file" ] && grep -q -x -F -e "$head_id" "$shallow_file"; then
+      cause="the first parent of HEAD is not in this clone: fetch it (fetch-depth 2 or more on actions/checkout)"
+      return 1
+    fi
+    record_line='removal record: no first parent, nothing lost'
+    return 0
+  fi
+  if ! git cat-file -e "HEAD^1:$list_path" 2>/dev/null; then
+    record_line='removal record: the first parent holds no list, nothing lost'
+    return 0
+  fi
+  show_or_empty 'HEAD^1' "$list_path" "$1/parent-list.txt" || { cause="the list of the first parent cannot be read"; return 1; }
+  show_or_empty 'HEAD^1' "$removed_path" "$1/parent-removed.txt" || { cause="the removal record of the first parent cannot be read"; return 1; }
+  if ! result=$(awk -v cr="$cr" '
+    { sub(cr "$", "") }
+    $0 == "" { next }
+    FILENAME == ARGV[1] || FILENAME == ARGV[2] { if (!($0 in old)) { old[$0] = 1; order[++n] = $0 }; next }
+    FILENAME == ARGV[3] { listed[$0] = 1; next }
+    { if (!($0 in recorded)) { recorded[$0] = 1; record[++r] = $0 } }
+    END {
+      for (i = 1; i <= r; i++) if (record[i] in listed) { print "both " record[i]; exit }
+      for (i = 1; i <= n; i++) if (!(order[i] in listed) && !(order[i] in recorded)) { print "lost " order[i]; exit }
+      printf "ok %d %d\n", n, r
+    }
+  ' "$1/parent-list.txt" "$1/parent-removed.txt" "$1/tests.txt" "$1/removed.txt"); then
+    cause="the lists of HEAD and of its first parent cannot be compared"
+    return 1
+  fi
+  case $result in
+    'both '*)
+      cause="the line '${result#both }' stands in the list and in the record at HEAD"
+      return 1
+      ;;
+    'lost '*)
+      cause="the line '${result#lost }' of the first parent's list or record is neither in the list nor in the record at HEAD"
+      return 1
+      ;;
+  esac
+  rest=${result#ok }
+  record_line="removal record: lines of the first parent=${rest%% *} recorded=${rest#* } lost=0"
+  return 0
 }
 
 judge_list() {
@@ -284,8 +342,10 @@ measure() {
   git diff --quiet HEAD -- || fail "a tracked file differs from HEAD after the checker"
   judge "$test_code" "$art/node-test.txt" "$check_code" "$art/check-sites.txt" "$art/check-sites.err" "$files" || fail "$cause"
   judge_list "$art/required.txt" "$art/node-test.txt" || fail "$cause"
+  removal_record "$art" || fail "$cause"
   printf 'node --test: tests=%s pass=%s listed=%s\n' "$t_tests" "$t_pass" "$listed"
   printf 'checker: files=%s password_pages=%s card_pages=%s\n' "$c_files" "$c_password" "$c_card"
+  printf '%s\n' "$record_line"
   printf 'PASS %s\n' "$name"
 }
 
@@ -379,6 +439,34 @@ make_repo() {
   printf 'c\n' >"$repo/tools/fixture-server/c.test.mjs"
   printf 'windows c.test.mjs windows only test\n' >>"$repo/$list_path"
   git -C "$repo" add -A && git -C "$repo" commit -q -m otherjob || exit 2
+  removed=$repo/tools/fixture-server/tests-removed.txt
+  a_lines='all a.test.mjs first test\nall a.test.mjs second test\n'
+  b_lines='all b.test.mjs third test\nwindows b.test.mjs windows test\n'
+  for branch in t3 t3record t3partial; do
+    git -C "$repo" checkout -q -b "$branch" main && git -C "$repo" rm -q tools/fixture-server/b.test.mjs || exit 2
+    printf %b "$a_lines" >"$repo/$list_path"
+    case $branch in
+      t3record) printf %b "$b_lines" >"$removed" ;;
+      t3partial) printf 'all b.test.mjs third test\n' >"$removed" ;;
+    esac
+    git -C "$repo" add -A && git -C "$repo" commit -q -m "$branch" || exit 2
+  done
+  git -C "$repo" checkout -q -b both main || exit 2
+  printf 'all a.test.mjs first test\n' >"$removed"
+  git -C "$repo" add -A && git -C "$repo" commit -q -m both || exit 2
+  git -C "$repo" checkout -q -b recorddrop t3record || exit 2
+  printf 'all b.test.mjs third test\n' >"$removed"
+  git -C "$repo" commit -q -a -m recorddrop || exit 2
+  git -C "$repo" checkout -q -b back t3record || exit 2
+  printf 'b\n' >"$repo/tools/fixture-server/b.test.mjs"
+  printf %b "$a_lines$b_lines" >"$repo/$list_path"
+  : >"$removed"
+  git -C "$repo" add -A && git -C "$repo" commit -q -m back || exit 2
+  git -C "$repo" checkout -q -b nolistchild nolist || exit 2
+  printf %b "$a_lines$b_lines" >"$repo/$list_path"
+  git -C "$repo" add -A && git -C "$repo" commit -q -m nolistchild || exit 2
+  git clone -q --depth 1 --branch t3record "file://$repo" "$work/shallow" || exit 2
+  git -C "$repo" checkout -q main || exit 2
   for branch in newfile:c.test.mjs testdir:test/helper.mjs variants:variants/x.test.mjs; do
     mkdir -p "$repo/tools/fixture-server/test" "$repo/tools/fixture-server/variants" || exit 2
     git -C "$repo" checkout -q -b "${branch%%:*}" main || exit 2
@@ -411,12 +499,13 @@ measure_cases() {
   touched=$repo/tools/fixture-server/a.test.mjs
   { printf 'ok 1 - first test\nok 2 - second test\nok 3 - third test\n'; summary 3 3 0 0 0 0; } >"$work/tap-list"
   { printf 'ok 1 - first test\nok 2 - second test\n'; summary 2 2 0 0 0 0; } >"$work/tap-narrowed"
+  cp "$work/tap-narrowed" "$work/tap-a" || exit 2
   { printf 'ok 1 - first test\nok 2 - second test\nok 3 - third test renamed\n'; summary 3 3 0 0 0 0; } >"$work/tap-renamed"
   { printf 'ok 1 - first test\nok 2 - second test\nok 3 - third test\nok 4 - fourth test\n'; summary 4 4 0 0 0 0; } >"$work/tap-extra"
   { printf 'ok 1 - first test\nok 2 - second test\nok 3 - third test\nok 4 - windows test\n'; summary 4 4 0 0 0 0; } >"$work/tap-windows"
 
   run_measure measure-passes main macos tap-list check-ok
-  verdict measure-passes PASS ''
+  verdict measure-passes PASS 'removal record: no first parent, nothing lost'
   run_measure measure-passes-on-windows main windows tap-windows check-ok
   verdict measure-passes-on-windows PASS ''
   run_measure test-file-deleted-by-a-commit gone macos tap-list check-ok
@@ -446,6 +535,26 @@ measure_cases() {
   verdict file-of-the-other-job-is-run-too PASS ''
   run_measure test-file-under-variants-is-another-runs variants macos tap-list check-ok
   verdict test-file-under-variants-is-another-runs PASS ''
+  only_a=tools/fixture-server/a.test.mjs
+  run_measure t3-file-and-its-lines-taken-out t3 macos tap-a check-ok '' '' "$only_a"
+  verdict t3-file-and-its-lines-taken-out FAIL "the line 'all b.test.mjs third test' of the first parent"
+  run_measure t3-lines-into-the-record t3record macos tap-a check-ok '' '' "$only_a"
+  verdict t3-lines-into-the-record PASS 'removal record: lines of the first parent=4 recorded=2 lost=0'
+  run_measure t3-one-line-missing-from-the-record t3partial macos tap-a check-ok '' '' "$only_a"
+  verdict t3-one-line-missing-from-the-record FAIL "the line 'windows b.test.mjs windows test' of the first parent"
+  run_measure line-in-the-record-and-the-list both macos tap-list check-ok
+  verdict line-in-the-record-and-the-list FAIL "the line 'all a.test.mjs first test' stands in the list and in the record"
+  run_measure line-out-of-the-record-not-into-the-list recorddrop macos tap-a check-ok '' '' "$only_a"
+  verdict line-out-of-the-record-not-into-the-list FAIL "the line 'windows b.test.mjs windows test' of the first parent"
+  run_measure lines-back-from-the-record back macos tap-list check-ok
+  verdict lines-back-from-the-record PASS 'removal record: lines of the first parent=4 recorded=0 lost=0'
+  run_measure parent-without-a-list nolistchild macos tap-list check-ok
+  verdict parent-without-a-list PASS 'removal record: the first parent holds no list, nothing lost'
+  kept=$repo
+  repo=$work/shallow
+  run_measure parent-not-in-a-shallow-clone t3record macos tap-a check-ok '' '' "$only_a"
+  repo=$kept
+  verdict parent-not-in-a-shallow-clone FAIL 'fetch it'
   run_measure services-count-not-the-file-count main macos tap-list check-services-count
   verdict services-count-not-the-file-count FAIL 'another number of files'
   run_measure tracked-file-changed-by-the-tests main macos tap-list check-ok "$touched"
