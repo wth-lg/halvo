@@ -457,7 +457,25 @@ browser's tree runs, the adopted ones among them and every process that a living
 after the first process has ended. A table that could not be read is not an empty one: the guard
 keeps the port and reads again every 2 ms, and when the table stays unread for 300 s it ends with
 exit 3 and the line `guard_end cause=table_unread` (`relay::guard_loop`). The executor's stop waits
-for it. A failed accept does not end
+for it.
+
+The browser does not always end by itself when its pipe closes. Under load on the development Mac
+it reads the pipe closed in the second of a hard kill of its driver (`Connection terminated while
+reading from pipe`), begins its shutdown, its helpers end, and its own process then waits idle and
+does not end: in one call 2 of 10 still ran at 300 s and one ended at 234 s (CP-145 (1), the cause
+read in CP-148). So the executor gives the guard its own number and start time beside the
+browser's (CP-148). While the executor runs the guard ends nothing. When the executor no longer runs
+and a process of the browser's tree still does, the guard waits `GRACE` (3 s) so that a browser that
+ends by itself may do so, then asks each process of the run that still runs to end (SIGTERM on
+macOS, by number and start time in the table of that moment, the creation time read again; on
+Windows there is no asking), ends by force each one that still runs `TERM_WAIT` (2 s) later, reads the
+table until none runs, keeps the port `PORT_MARGIN` (1 s, longer than one pass of the row's watch on
+the loaded Mac, whose longest pass was 476 ms) and only then exits. It ends no process whose number
+another process took. When it ended processes it writes `guard_ended` in the run's temporary
+directory (`ended_by=guard ms=... asked=... forced=...`). A hard kill of the guard as well leaves the
+browser to itself; that is a named limit. On Windows the trial starts the browser with a handle list
+and no job object, so there too the browser ends by itself when its pipe handles close, and the
+guard's rule ends only what still runs after its grace. A failed accept does not end
 the relay's accept loop (`ACCEPT_PAUSE`), so the listener stays open while the relay lives.
 
 ### The checks of a session (CP-89 (c))
@@ -524,8 +542,11 @@ the class. The counts themselves do not change.
   `free_first` (the port free while a process ran), `tree_left` (a process still runs at the cap)
   or `left_behind` (the tree read gone, and the row's end found or left a process); `open` with
   `one_pass` when both events were first seen in one pass, or `table_unread` when the table could
-  not be read at the cap. The run line gives `result`, `cause`, `gone_ms`, `free_ms` and
-  `max_gap_ms`. A call with a miss prints its cell line; a call with an open kill and no miss prints
+  not be read at the cap. A browser that the relay's guard ended after its executor was gone (see
+  The guard of the relay's port) is no process that the row had to end: such a kill reads ok when
+  the order held and nothing is left. The run line gives `result`, `cause`, `gone_ms`, `free_ms`,
+  `max_gap_ms` and `ended_by` (`guard ended_ms=<ms>`, `self`, or `row` for the row's end at the
+  cap). A call with a miss prints its cell line; a call with an open kill and no miss prints
   `notrun ... cause=watch_open` in place of it.
 - `org_debugging` and `org_proxy` (`--rows org`): the caller sets the organisation's setting before
   the call and takes it away after it: the scratch workflow writes `RemoteDebuggingAllowed` off or
