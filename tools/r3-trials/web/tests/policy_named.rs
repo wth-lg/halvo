@@ -32,12 +32,14 @@ fn read(tag: &str, text: &str, name: &str, value: &str) -> String {
 
 /// The kept text with its three lines of the setting replaced by `rows`.
 fn with_rows(rows: &str) -> String {
+    // a checkout on Windows gives the kept text CR LF line breaks; the rows are found on LF ones
+    let kept = KEPT.replace("\r\n", "\n");
     let joined = NAME_LINES.join("\n");
     assert!(
-        KEPT.contains(&joined),
+        kept.contains(&joined),
         "the kept text no longer holds the setting's lines"
     );
-    KEPT.replace(&joined, rows)
+    kept.replace(&joined, rows)
 }
 
 #[test]
@@ -46,7 +48,7 @@ fn the_kept_edge_page_names_the_setting_by_the_value_that_ends_it() {
     assert!(line.contains("named=yes"), "{line}");
     let crlf = read(
         "kept-crlf",
-        &KEPT.replace('\n', "\r\n"),
+        &KEPT.replace("\r\n", "\n").replace('\n', "\r\n"),
         "RemoteDebuggingAllowed",
         "0",
     );
