@@ -87,6 +87,13 @@ impl LastTitle {
         self.0 = seen;
         true
     }
+
+    /// Whether `title` of `window` is a title to emit: not empty, and new
+    /// against the last one read, an empty one included, so that a return to
+    /// a window after one with no title emits its title again.
+    pub(crate) fn shows_new(&mut self, window: usize, title: &str) -> bool {
+        self.is_new(window, title) && !title.trim().is_empty()
+    }
 }
 
 struct TitleState {
@@ -184,7 +191,7 @@ fn emit_front_title(front: HWND, time: u32) {
     let title = read_window_title(front);
     TITLE_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
-            if title.trim().is_empty() || !state.last.is_new(front.0 as usize, &title) {
+            if !state.last.shows_new(front.0 as usize, &title) {
                 return;
             }
             let app = resolve_front(front).and_then(|front| front.path);
@@ -354,6 +361,16 @@ mod tests {
         assert!(last.is_new(2, "Inbox"));
         assert!(last.is_new(2, "Inbox (1)"));
         assert!(last.is_new(1, "Inbox"));
+    }
+
+    #[test]
+    fn a_return_after_a_window_with_no_title_emits_the_title_again() {
+        let mut last = LastTitle::default();
+        assert!(last.shows_new(1, "Inbox"));
+        assert!(!last.shows_new(2, ""));
+        assert!(!last.shows_new(2, "   "));
+        assert!(last.shows_new(1, "Inbox"));
+        assert!(!last.shows_new(1, "Inbox"));
     }
 
     #[test]

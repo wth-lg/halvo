@@ -161,7 +161,7 @@ unsafe extern "system" fn on_fault(pointers: *mut ExceptionPointers) -> i32 {
             line.text(&[if c < 128 { c as u8 } else { b'?' }]);
         }
         line.text(b" offset=");
-        line.hex(record.address as usize - module as usize);
+        line.hex((record.address as usize).wrapping_sub(module as usize));
     } else {
         line.text(b" module=<none> offset=");
         line.hex(record.address as usize & 0xFFFF);
@@ -179,8 +179,11 @@ unsafe extern "system" fn on_fault(pointers: *mut ExceptionPointers) -> i32 {
             core::ptr::null_mut(),
         );
     }
+    FAULT_LINES_WRITTEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     0
 }
+
+static FAULT_LINES_WRITTEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 struct CountingAllocator;
 
@@ -236,17 +239,16 @@ fn allocations_of(body: impl FnOnce()) -> u64 {
         .unwrap_or(0)
 }
 
-#[test]
-#[ignore = "functional: calls the fault handler of the functional check"]
-fn the_fault_line_allocates_nothing() {
-    let control = allocations_of(|| {
-        std::hint::black_box(Box::new(7u64));
-    });
+/// One call of the fault handler for a fault at `address`: the allocations it
+/// made on this thread, the lines it wrote and its answer.
+fn one_fault(address: *mut core::ffi::c_void) -> (u64, u32, i32) {
+    use std::sync::atomic::Ordering::SeqCst;
+    FAULT_LINES.store(0, SeqCst);
     let mut record = ExceptionRecord {
         code: 0xC000_0005,
         flags: 0,
         record: core::ptr::null_mut(),
-        address: on_fault as *mut core::ffi::c_void,
+        address,
         params: 0,
         info: [0; 15],
     };
@@ -254,25 +256,51 @@ fn the_fault_line_allocates_nothing() {
         record: &mut record,
         context: core::ptr::null_mut(),
     };
-    let before = FAULT_LINES.load(std::sync::atomic::Ordering::SeqCst);
+    let before = FAULT_LINES_WRITTEN.load(SeqCst);
     let mut answer = -1;
-    let handler = allocations_of(|| {
+    let allocations = allocations_of(|| {
         // SAFETY: `pointers` and `record` are live locals shaped as the system
         // passes them, and the handler reads them only during the call.
         answer = unsafe { on_fault(&mut pointers) };
     });
-    let lines = FAULT_LINES.load(std::sync::atomic::Ordering::SeqCst) - before;
+    (
+        allocations,
+        FAULT_LINES_WRITTEN.load(SeqCst) - before,
+        answer,
+    )
+}
+
+#[test]
+#[ignore = "functional: calls the fault handler of the functional check"]
+fn the_fault_line_allocates_nothing() {
+    let control = allocations_of(|| {
+        std::hint::black_box(Box::new(7u64));
+    });
+    let (in_module, lines, answer) = one_fault(on_fault as *mut core::ffi::c_void);
+    let (at_zero, zero_lines, zero_answer) = one_fault(core::ptr::null_mut());
     say(
         "fault-line",
-        format!("allocations_of_one_box={control} allocations_of_the_handler={handler} fault_lines_written={lines}"),
+        format!(
+            "allocations_of_one_box={control} allocations_of_the_handler={in_module} \
+             fault_lines_written={lines} allocations_at_address_zero={at_zero} \
+             fault_lines_written_at_address_zero={zero_lines}"
+        ),
     );
     assert_eq!(
         control, 1,
         "INCONCLUSIVE: the counting allocator did not count a box"
     );
-    assert_eq!(lines, 1, "INCONCLUSIVE: the handler wrote no fault line");
-    assert_eq!(answer, 0, "the handler must let the search go on");
-    assert_eq!(handler, 0, "the fault line allocated");
+    assert_eq!(
+        (lines, zero_lines),
+        (1, 1),
+        "INCONCLUSIVE: the handler wrote no fault line"
+    );
+    assert_eq!(
+        (answer, zero_answer),
+        (0, 0),
+        "the handler must let the search go on"
+    );
+    assert_eq!((in_module, at_zero), (0, 0), "the fault line allocated");
 }
 
 fn install_fault_line() {
