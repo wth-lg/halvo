@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,28 +71,9 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -133,28 +103,30 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: U4.9 scratch only, the unit's tests at the base and the review's Windows cases at the head
+        if: always()
+        continue-on-error: true
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          git fetch --no-tags --depth=1 origin 537faf2750e34916605a114b67cbda8934283fca; echo "u49: fetch of the base exited $?"
+          git worktree add --detach ../u49-base HEAD; echo "u49: work tree at the base exited $?"
+          (cd ../u49-base && git checkout 537faf2750e34916605a114b67cbda8934283fca -- crates/halvo-agent-client/src/proc.rs crates/halvo-agent-client/src/api.rs crates/halvo-agent-client/src/sys/macos.rs crates/halvo-agent-client/src/sys/windows.rs); echo "u49: library of the base checked out, exit $?"
+          (cd ../u49-base && git status --porcelain)
+          (cd ../u49-base && CARGO_TARGET_DIR=../u49-target cargo test -p halvo-agent-client --locked --no-fail-fast --test handles --test environment > ../u49-base.txt 2>&1; echo "u49: cargo test at the base exited $?")
+          grep -E '^test |^test result|panicked at|could not compile' ../u49-base.txt
+          git worktree add --detach ../u49-cases HEAD; echo "u49: work tree of the cases exited $?"
+          printf '%s' 'Ly8gY2FzZTogd2luZG93cy1jb25zb2xlCi8vIGtpbmQ6IGFwcGVuZAovLyB0YXJnZXQ6IGNyYXRlcy9oYWx2by1hZ2VudC1jbGllbnQvdGVzdHMvaGFuZGxlcy5ycwovLyBmaWx0ZXI6IC0tdGVzdCBoYW5kbGVzIGNhc2VfdGhlX3J1bm5lcl9ob2xkc19ub19jb25uZWN0aW9uX3RvX3RoZV9jb25zb2xlX29mX3RoZV9saWJyYXJ5Ci8vIHN5c3RlbTogd2luZG93cwovLyBleHBlY3Q6IGNhc2VfdGhlX3J1bm5lcl9ob2xkc19ub19jb25uZWN0aW9uX3RvX3RoZV9jb25zb2xlX29mX3RoZV9saWJyYXJ5IGZhaWxzIHdpdGggWyJyZWxhdGl2ZSBtYWRlPXllcyIsICJyZWxhdGl2ZSBtYWRlPXllcyJdOiBzcmMvc3lzL3dpbmRvd3MucnMgYHN0YXJ0YCBwYXNzZXMgbmVpdGhlciBDUkVBVEVfTk9fV0lORE9XIG5vciBERVRBQ0hFRF9QUk9DRVNTLCBzbyB0aGUgcnVubmVyIGlzIGF0dGFjaGVkIHRvIHRoZSBob3N0J3MgY29uc29sZSAoYSBDb25EcnYgY29ubmVjdGlvbiB0aGF0IHRoZSBoYW5kbGUgbGlzdCBkb2VzIG5vdCBjb3ZlcikgYW5kIG9wZW5zIENPTk9VVCQgYW5kIENPTklOJCBvZiBpdC4KCiNbY2ZnKHdpbmRvd3MpXQojW3Rlc3RdCmZuIGNhc2VfdGhlX3J1bm5lcl9ob2xkc19ub19jb25uZWN0aW9uX3RvX3RoZV9jb25zb2xlX29mX3RoZV9saWJyYXJ5KCkgewogICAgdXNlIHN0ZDo6b3M6OndpbmRvd3M6OnByb2Nlc3M6OkNvbW1hbmRFeHQ7CiAgICBjb25zdCBDUkVBVEVfTkVXX0NPTlNPTEU6IHUzMiA9IDB4MDAwMF8wMDEwOwogICAgbGV0IGRpciA9IGNvbW1vbjo6c2NyYXRjaCgiY29uc29sZSIpOwogICAgbGV0IHNjcmlwdCA9IFNjcmlwdDo6bmV3KAogICAgICAgICZkaXIsCiAgICAgICAgJlsKICAgICAgICAgICAgImhlbGxvIiwKICAgICAgICAgICAgIndyaXRlLXJlbGF0aXZlIENPTk9VVCQiLAogICAgICAgICAgICAid3JpdGUtcmVsYXRpdmUgQ09OSU4kIiwKICAgICAgICAgICAgImxvZyBwcm9iZWQiLAogICAgICAgICAgICAiZXhpdCAwIiwKICAgICAgICBdLAogICAgKTsKICAgIC8vIFRoZSBob3N0IGdldHMgYSBjb25zb2xlIG9mIGl0cyBvd24sIGFzIGFuIGFwcCBzdGFydGVkIGZyb20gYSBjb25zb2xlIGhhcyBvbmU7IGl0cyBzdGFuZGFyZCBzdHJlYW1zIHN0YXkgcGlwZXMuCiAgICBsZXQgbXV0IGNoaWxkID0gQ29tbWFuZDo6bmV3KGNvbW1vbjo6cGVlcigpKQogICAgICAgIC5hcmcoImhvc3QiKQogICAgICAgIC5hcmcoZGlyLmpvaW4oImRhdGEiKSkKICAgICAgICAuYXJnKCZzY3JpcHQucGF0aCkKICAgICAgICAuYXJnKGRpci5qb2luKCJvd25lci5sb2ciKSkKICAgICAgICAuc3RkaW4oU3RkaW86Om51bGwoKSkKICAgICAgICAuc3Rkb3V0KFN0ZGlvOjpwaXBlZCgpKQogICAgICAgIC5zdGRlcnIoU3RkaW86OnBpcGVkKCkpCiAgICAgICAgLmNyZWF0aW9uX2ZsYWdzKENSRUFURV9ORVdfQ09OU09MRSkKICAgICAgICAuc3Bhd24oKQogICAgICAgIC51bndyYXAoKTsKICAgIGxldCBvdXQgPSBjYXB0dXJlZChjaGlsZC5zdGRvdXQudGFrZSgpLnVud3JhcCgpKTsKICAgIGxldCBfZXJyID0gY2FwdHVyZWQoY2hpbGQuc3RkZXJyLnRha2UoKS51bndyYXAoKSk7CiAgICBsZXQgaG9zdCA9IEhvc3QgewogICAgICAgIGNoaWxkLAogICAgICAgIGRpcjogZGlyLmNsb25lKCksCiAgICB9OwogICAgYXNzZXJ0ISgKICAgICAgICB3YWl0X3VudGlsKFNIT1JULCB8fCBzY3JpcHQubG9nKCkuY29udGFpbnMoInByb2JlZCIpKSwKICAgICAgICAidGhlIHJ1bm5lciBwcm9iZWQ6IHt9OyB0aGUgaG9zdCBwcmludGVkIHs6P30iLAogICAgICAgIHNjcmlwdC5sb2coKSwKICAgICAgICBTdHJpbmc6OmZyb21fdXRmOF9sb3NzeSgmb3V0LmxvY2soKS51bndyYXAoKSkKICAgICk7CiAgICBsZXQgbWFkZTogVmVjPFN0cmluZz4gPSBzY3JpcHQKICAgICAgICAubG9nKCkKICAgICAgICAubGluZXMoKQogICAgICAgIC5maWx0ZXIofGx8IGwuc3RhcnRzX3dpdGgoInJlbGF0aXZlIG1hZGU9IikpCiAgICAgICAgLm1hcChzdHI6OnRvX293bmVkKQogICAgICAgIC5jb2xsZWN0KCk7CiAgICBkcm9wKGhvc3QpOwogICAgYXNzZXJ0X2VxISgKICAgICAgICBtYWRlLAogICAgICAgIHZlYyFbInJlbGF0aXZlIG1hZGU9bm8iLCAicmVsYXRpdmUgbWFkZT1ubyJdLAogICAgICAgICJ0aGUgcnVubmVyIG9wZW5lZCBDT05PVVQkIGFuZCBDT05JTiQgb2YgdGhlIGNvbnNvbGUgb2YgdGhlIGxpYnJhcnkncyBwcm9jZXNzIgogICAgKTsKfQo=' | base64 -d >> ../u49-cases/crates/halvo-agent-client/tests/handles.rs; echo "u49: case 1 appended to crates/halvo-agent-client/tests/handles.rs, exit $?"
+          printf '%s' 'Ly8gY2FzZTogd2luZG93cy1zdGQtc3Bhd24tcmFjZQovLyBraW5kOiBhcHBlbmQKLy8gdGFyZ2V0OiBjcmF0ZXMvaGFsdm8tYWdlbnQtY2xpZW50L3Rlc3RzL2hhbmRsZXMucnMKLy8gZmlsdGVyOiAtLXRlc3QgaGFuZGxlcyBjYXNlX2FfcHJvY2Vzc190aGF0X2Fub3RoZXJfdGhyZWFkX3N0YXJ0c19kdXJpbmdfYV9zdGFydF9ob2xkc19ub25lX29mX3RoZV9ydW5uZXJzX2hhbmRsZXMKLy8gc3lzdGVtOiB3aW5kb3dzCi8vIGV4cGVjdDogY2FzZV9hX3Byb2Nlc3NfdGhhdF9hbm90aGVyX3RocmVhZF9zdGFydHNfZHVyaW5nX2Ffc3RhcnRfaG9sZHNfbm9uZV9vZl90aGVfcnVubmVyc19oYW5kbGVzIGZhaWxzIHdpdGggc29tZSBzdXNwZW5kZWQgY21kLmV4ZSBob2xkaW5nIDEgdG8gMyBoYW5kbGVzIG1vcmUgdGhhbiB0aGUgbGVhc3Q6IHNyYy9zeXMvd2luZG93cy5ycyBgcGlwZWAgYW5kIGBudWxsX2RldmljZWAgbWFrZSB0aGUgcnVubmVyJ3MgdHdvIHBpcGUgZW5kcyBhbmQgaXRzIE5VTCBoYW5kbGUgaW5oZXJpdGFibGUgaW4gdGhlIGxpYnJhcnkncyBwcm9jZXNzLCBhbmQgYSBzdGQ6OnByb2Nlc3M6OkNvbW1hbmQ6OnNwYXduIG9uIGFub3RoZXIgdGhyZWFkIChiSW5oZXJpdEhhbmRsZXMgVFJVRSwgbm8gaGFuZGxlIGxpc3QsIGEgbG9jayB0aGF0IHRoZSBsaWJyYXJ5IGRvZXMgbm90IHRha2UpIGluaGVyaXRzIHRoZW0gd2hpbGUgYSBzdGFydCBpcyB1bmRlciB3YXksIHNvIHRoYXQgcHJvY2VzcyBob2xkcyB0aGUgcnVubmVyJ3MgbGluay4KCiNbY2ZnKHdpbmRvd3MpXQojW3Rlc3RdCmZuIGNhc2VfYV9wcm9jZXNzX3RoYXRfYW5vdGhlcl90aHJlYWRfc3RhcnRzX2R1cmluZ19hX3N0YXJ0X2hvbGRzX25vbmVfb2ZfdGhlX3J1bm5lcnNfaGFuZGxlcygpIHsKICAgIHVzZSBzdGQ6OmZmaTo6Y192b2lkOwogICAgdXNlIHN0ZDo6b3M6OndpbmRvd3M6OmlvOjpBc1Jhd0hhbmRsZTsKICAgIHVzZSBzdGQ6Om9zOjp3aW5kb3dzOjpwcm9jZXNzOjpDb21tYW5kRXh0OwogICAgdXNlIHN0ZDo6c3luYzo6YXRvbWljOjp7QXRvbWljQm9vbCwgT3JkZXJpbmd9OwogICAgI1tsaW5rKG5hbWUgPSAibnRkbGwiKV0KICAgIGV4dGVybiAic3lzdGVtIiB7CiAgICAgICAgZm4gTnRRdWVyeUluZm9ybWF0aW9uUHJvY2VzcygKICAgICAgICAgICAgcHJvY2VzczogKm11dCBjX3ZvaWQsCiAgICAgICAgICAgIGNsYXNzOiB1MzIsCiAgICAgICAgICAgIGluZm86ICptdXQgY192b2lkLAogICAgICAgICAgICBsZW46IHUzMiwKICAgICAgICAgICAgcmV0dXJuZWQ6ICptdXQgdTMyLAogICAgICAgICkgLT4gaTMyOwogICAgfQogICAgY29uc3QgUFJPQ0VTU19IQU5ETEVfSU5GT1JNQVRJT046IHUzMiA9IDUxOwogICAgY29uc3QgQ1JFQVRFX1NVU1BFTkRFRDogdTMyID0gMHgwMDAwXzAwMDQ7CiAgICBjb25zdCBDUkVBVEVfTk9fV0lORE9XOiB1MzIgPSAweDA4MDBfMDAwMDsKICAgIC8vIFRoZSBudW1iZXIgb2YgaGFuZGxlcyBpbiBhIHByb2Nlc3MncyB0YWJsZSwgYnkgUFJPQ0VTU19IQU5ETEVfU05BUFNIT1RfSU5GT1JNQVRJT04sIHdob3NlIGZpcnN0IGZpZWxkIGl0IGlzLgogICAgZm4gaGFuZGxlX2NvdW50KGNoaWxkOiAmQ2hpbGQpIC0+IE9wdGlvbjx1c2l6ZT4gewogICAgICAgIGxldCBtdXQgYnVmID0gdmVjIVswdTY0OyA1MTJdOwogICAgICAgIGxvb3AgewogICAgICAgICAgICBsZXQgbXV0IGdvdCA9IDB1MzI7CiAgICAgICAgICAgIGxldCBzdGF0dXMgPSB1bnNhZmUgewogICAgICAgICAgICAgICAgTnRRdWVyeUluZm9ybWF0aW9uUHJvY2VzcygKICAgICAgICAgICAgICAgICAgICBjaGlsZC5hc19yYXdfaGFuZGxlKCksCiAgICAgICAgICAgICAgICAgICAgUFJPQ0VTU19IQU5ETEVfSU5GT1JNQVRJT04sCiAgICAgICAgICAgICAgICAgICAgYnVmLmFzX211dF9wdHIoKS5jYXN0KCksCiAgICAgICAgICAgICAgICAgICAgKGJ1Zi5sZW4oKSAqIDgpIGFzIHUzMiwKICAgICAgICAgICAgICAgICAgICAmbXV0IGdvdCwKICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgfTsKICAgICAgICAgICAgaWYgc3RhdHVzID49IDAgewogICAgICAgICAgICAgICAgcmV0dXJuIFNvbWUoYnVmWzBdIGFzIHVzaXplKTsKICAgICAgICAgICAgfQogICAgICAgICAgICBsZXQgc21hbGwgPSBtYXRjaGVzIShzdGF0dXMgYXMgdTMyLCAweEMwMDBfMDAwNCB8IDB4QzAwMF8wMDIzIHwgMHg4MDAwXzAwMDUpOwogICAgICAgICAgICBpZiBzbWFsbCAmJiBidWYubGVuKCkgPCAoMSA8PCAyMCkgewogICAgICAgICAgICAgICAgbGV0IHdhbnQgPSAoZ290IGFzIHVzaXplIC8gOCArIDEpLm1heChidWYubGVuKCkgKiAyKTsKICAgICAgICAgICAgICAgIGJ1Zi5yZXNpemUod2FudCwgMCk7CiAgICAgICAgICAgICAgICBjb250aW51ZTsKICAgICAgICAgICAgfQogICAgICAgICAgICByZXR1cm4gTm9uZTsKICAgICAgICB9CiAgICB9CiAgICBsZXQgcmlnID0gY29tbW9uOjpSaWc6Om5ldygic3RkLXNwYXduLXJhY2UiKTsKICAgIGxldCBzdG9wID0gQXJjOjpuZXcoQXRvbWljQm9vbDo6bmV3KGZhbHNlKSk7CiAgICBsZXQgY291bnRzID0gQXJjOjpuZXcoTXV0ZXg6Om5ldyhWZWM6Ojx1c2l6ZT46Om5ldygpKSk7CiAgICBsZXQgc3Bhd25lciA9IHsKICAgICAgICBsZXQgc3RvcCA9IEFyYzo6Y2xvbmUoJnN0b3ApOwogICAgICAgIGxldCBjb3VudHMgPSBBcmM6OmNsb25lKCZjb3VudHMpOwogICAgICAgIHRocmVhZDo6c3Bhd24obW92ZSB8fCB7CiAgICAgICAgICAgIGxldCBzaGVsbCA9IHN0ZDo6ZW52Ojp2YXJfb3MoIkNvbVNwZWMiKQogICAgICAgICAgICAgICAgLnVud3JhcF9vcl9lbHNlKHx8IHIiQzpcV2luZG93c1xTeXN0ZW0zMlxjbWQuZXhlIi5pbnRvKCkpOwogICAgICAgICAgICB3aGlsZSAhc3RvcC5sb2FkKE9yZGVyaW5nOjpTZXFDc3QpIHsKICAgICAgICAgICAgICAgIGxldCBPayhtdXQgYykgPSBDb21tYW5kOjpuZXcoJnNoZWxsKQogICAgICAgICAgICAgICAgICAgIC5hcmdzKFsiL2MiLCAiZXhpdCJdKQogICAgICAgICAgICAgICAgICAgIC5zdGRpbihTdGRpbzo6bnVsbCgpKQogICAgICAgICAgICAgICAgICAgIC5zdGRvdXQoU3RkaW86Om51bGwoKSkKICAgICAgICAgICAgICAgICAgICAuc3RkZXJyKFN0ZGlvOjpudWxsKCkpCiAgICAgICAgICAgICAgICAgICAgLmNyZWF0aW9uX2ZsYWdzKENSRUFURV9TVVNQRU5ERUQgfCBDUkVBVEVfTk9fV0lORE9XKQogICAgICAgICAgICAgICAgICAgIC5zcGF3bigpCiAgICAgICAgICAgICAgICBlbHNlIHsKICAgICAgICAgICAgICAgICAgICBjb250aW51ZTsKICAgICAgICAgICAgICAgIH07CiAgICAgICAgICAgICAgICBpZiBsZXQgU29tZShuKSA9IGhhbmRsZV9jb3VudCgmYykgewogICAgICAgICAgICAgICAgICAgIGNvdW50cy5sb2NrKCkudW53cmFwKCkucHVzaChuKTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIGxldCBfID0gYy5raWxsKCk7CiAgICAgICAgICAgICAgICBsZXQgXyA9IGMud2FpdCgpOwogICAgICAgICAgICB9CiAgICAgICAgfSkKICAgIH07CiAgICBmb3IgXyBpbiAwLi4zMCB7CiAgICAgICAgbGV0IHNjcmlwdCA9IHJpZy5zY3JpcHQoJlsiaGVsbG8iLCAiZXhpdCAwIl0pOwogICAgICAgIGxldCBzcGVjID0gcmlnLnNwZWMoJnNjcmlwdCk7CiAgICAgICAgbGV0IHJ1biA9IHNwZWMucnVuLmNsb25lKCk7CiAgICAgICAgbGV0IF8gPSByaWcuc3VwLnN0YXJ0KHNwZWMpOwogICAgICAgIGxldCBfID0gcmlnLnJlYy53YWl0X2VuZCgmcnVuLCBTSE9SVCk7CiAgICB9CiAgICBzdG9wLnN0b3JlKHRydWUsIE9yZGVyaW5nOjpTZXFDc3QpOwogICAgc3Bhd25lci5qb2luKCkudW53cmFwKCk7CiAgICBsZXQgY291bnRzID0gY291bnRzLmxvY2soKS51bndyYXAoKS5jbG9uZSgpOwogICAgbGV0IGxlYXN0ID0gKmNvdW50cwogICAgICAgIC5pdGVyKCkKICAgICAgICAubWluKCkKICAgICAgICAuZXhwZWN0KCJ0aGUgaGFuZGxlIHRhYmxlIG9mIGEgc3VzcGVuZGVkIGNtZC5leGUgd2FzIHJlYWQiKTsKICAgIGxldCBtb3JlOiBWZWM8dXNpemU+ID0gY291bnRzLml0ZXIoKS5jb3BpZWQoKS5maWx0ZXIofCZufCBuID4gbGVhc3QpLmNvbGxlY3QoKTsKICAgIGFzc2VydCEoCiAgICAgICAgbW9yZS5pc19lbXB0eSgpLAogICAgICAgICJvZiB7fSBwcm9jZXNzZXMgdGhhdCBhbm90aGVyIHRocmVhZCBzdGFydGVkIHdoaWxlIHRoZSBsaWJyYXJ5IHN0YXJ0ZWQgMzAgcnVubmVycywge30gaGVsZCBtb3JlIGhhbmRsZXMgXAogICAgICAgICB0aGFuIHRoZSBsZWFzdCAoe2xlYXN0fSk6IHttb3JlOj99IiwKICAgICAgICBjb3VudHMubGVuKCksCiAgICAgICAgbW9yZS5sZW4oKQogICAgKTsKfQo=' | base64 -d >> ../u49-cases/crates/halvo-agent-client/tests/handles.rs; echo "u49: case 2 appended to crates/halvo-agent-client/tests/handles.rs, exit $?"
+          printf '%s' 'Ly8gY2FzZTogMDItdXNlcnByb2ZpbGUtcmVhY2hlcy10ZW1wCi8vIGtpbmQ6IGFwcGVuZAovLyB0YXJnZXQ6IGNyYXRlcy9oYWx2by1hZ2VudC1jbGllbnQvdGVzdHMvZW52aXJvbm1lbnQucnMKLy8gZmlsdGVyOiAtLXRlc3QgZW52aXJvbm1lbnQgY2FzZV9hX21hcmtlcl9pbl90aGVfcHJvZmlsZV92YXJpYWJsZXNfb2ZfdGhlX2xpYnJhcnlfcmVhY2hlc19ub190ZW1wb3JhcnlfZGlyZWN0b3J5X29mX3RoZV9ydW5uZXIKLy8gc3lzdGVtOiB3aW5kb3dzCi8vIGV4cGVjdDogdGhlIGNhc2UgZmFpbHMgaWYgU0hHZXRLbm93bkZvbGRlclBhdGgoRk9MREVSSURfTG9jYWxBcHBEYXRhKSBleHBhbmRzICVVU0VSUFJPRklMRSUgKG9yIEhPTUVEUklWRS9IT01FUEFUSCkgZnJvbSB0aGUgbGlicmFyeSdzIGVudmlyb25tZW50LCBzbyBURU1QIGFuZCBUTVAgb2YgdGhlIHJ1bm5lciBob2xkIHRoZSBtYXJrZXIgb2YgYSBwcm9maWxlIHRoYXQgdGhlIGxpYnJhcnkncyBwcm9jZXNzIG5hbWVzIGJ5IGEgdmFyaWFibGUuCgojW2NmZyh3aW5kb3dzKV0KI1t0ZXN0XQpmbiBjYXNlX2FfbWFya2VyX2luX3RoZV9wcm9maWxlX3ZhcmlhYmxlc19vZl90aGVfbGlicmFyeV9yZWFjaGVzX25vX3RlbXBvcmFyeV9kaXJlY3Rvcnlfb2ZfdGhlX3J1bm5lcigKKSB7CiAgICBsZXQgbSA9IG1hcmtlcigpOwogICAgbGV0IHByb2ZpbGUgPSBjb21tb246OnNjcmF0Y2goImVudmlyb25tZW50LXByb2ZpbGUiKS5qb2luKGZvcm1hdCEoInttfS1wcm9maWxlIikpOwogICAgZnM6OmNyZWF0ZV9kaXJfYWxsKHByb2ZpbGUuam9pbigiQXBwRGF0YSIpLmpvaW4oIkxvY2FsIikuam9pbigiVGVtcCIpKS51bndyYXAoKTsKICAgIGxldCBwcm9maWxlID0gcHJvZmlsZS50b19zdHJpbmdfbG9zc3koKS5pbnRvX293bmVkKCk7CiAgICBsZXQgKGRyaXZlLCBwYXRoKSA9IHByb2ZpbGUuc3BsaXRfYXQoMik7CiAgICBsZXQgKF8sIGxvZykgPSBydW4oCiAgICAgICAgImVudmlyb25tZW50LXByb2ZpbGUtcnVuIiwKICAgICAgICAmW2Zvcm1hdCEoImVudmlyb25tZW50IHttfSIpXSwKICAgICAgICAmWwogICAgICAgICAgICAoIlVTRVJQUk9GSUxFIiwgcHJvZmlsZS5hc19zdHIoKSksCiAgICAgICAgICAgICgiSE9NRURSSVZFIiwgZHJpdmUpLAogICAgICAgICAgICAoIkhPTUVQQVRIIiwgcGF0aCksCiAgICAgICAgXSwKICAgICAgICAmWyJMT0NBTEFQUERBVEEiXSwKICAgICk7CiAgICBhc3NlcnRfZXEhKAogICAgICAgIGxvZ2dlZCgmbG9nLCAiZW52aXJvbm1lbnQgbWFya2VkPSIpLAogICAgICAgICIiLAogICAgICAgICJ0aGUgbmFtZXMgb2YgdGhlIHJ1bm5lcidzIGVudmlyb25tZW50IHdob3NlIHZhbHVlIGhvbGRzIHRoZSBtYXJrZXIgb2YgdGhlIGxpYnJhcnkncyBwcm9maWxlIHZhcmlhYmxlcyIKICAgICk7CiAgICBsZXQgcmVzdDogVmVjPCZzdHI+ID0gTElTVAogICAgICAgIC5pdGVyKCkKICAgICAgICAuY29waWVkKCkKICAgICAgICAuZmlsdGVyKHxufCAqbiAhPSAiTE9DQUxBUFBEQVRBIikKICAgICAgICAuY29sbGVjdCgpOwogICAgYXNzZXJ0X2VxISgKICAgICAgICBsb2dnZWQoJmxvZywgImVudmlyb25tZW50IG5hbWVzPSIpLAogICAgICAgIG5hbWVzKCZyZXN0KSwKICAgICAgICAidGhlIG5hbWVzIG9mIHRoZSBydW5uZXIncyBlbnZpcm9ubWVudCIKICAgICk7Cn0K' | base64 -d >> ../u49-cases/crates/halvo-agent-client/tests/environment.rs; echo "u49: case 3 appended to crates/halvo-agent-client/tests/environment.rs, exit $?"
+          (cd ../u49-cases && git status --porcelain)
+          (cd ../u49-cases && CARGO_TARGET_DIR=../u49-target cargo test -p halvo-agent-client --locked --no-fail-fast --test handles --test environment case_ > ../u49-cases.txt 2>&1; echo "u49: cargo test of the cases exited $?")
+          grep -E '^test |^test result|panicked at|could not compile' ../u49-cases.txt
+          grep -E -A3 'panicked at' ../u49-cases.txt | grep -v -E '^ *(left|right):' | head -40
+          exit 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
