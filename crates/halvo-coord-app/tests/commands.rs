@@ -164,10 +164,6 @@ fn malformed_arguments_answer_malformed() {
         ("agents_card", json!({"agent": a, "extra": 1})),
         ("agents_card", json!({"agent": 7})),
         ("agents_card", json!([a])),
-        ("agents_next", json!({})),
-        ("agents_next", json!({"after": -1})),
-        ("agents_next", json!({"after": 4_294_967_296_u64})),
-        ("agents_next", json!({"after": "1"})),
         ("agents_answer", json!({"item": item, "choice": "present"})),
         ("agents_answer", json!({"item": item, "choice": "choose"})),
         (
@@ -192,7 +188,6 @@ fn malformed_arguments_answer_malformed() {
         ),
         ("agents_control", json!({"agent": a, "action": "delete"})),
         ("agents_control", json!({"agent": a})),
-        ("agents_snapshot", json!({"after": 1})),
     ];
     let m = mark(&hub);
     for (command, args) in cases {
@@ -371,4 +366,34 @@ fn a_body_that_is_no_json_answers_malformed_through_the_handler() {
         ),
         Ok(fixture("reply-error-malformed"))
     );
+}
+
+#[test]
+fn agents_snapshot_and_agents_next_are_never_refused_and_answer_the_whole_state() {
+    let hub = hub(1);
+    let (_app, main, _other) = app(hub.clone());
+    let state = serde_json::to_string(&hub.coordinator().snapshot()).unwrap();
+    let cases = [
+        ("agents_snapshot", json!({"after": 1})),
+        ("agents_snapshot", json!([1])),
+        ("agents_next", json!({})),
+        ("agents_next", json!({"after": -1})),
+        ("agents_next", json!({"after": 4_294_967_296_u64})),
+        ("agents_next", json!({"after": "1"})),
+        ("agents_next", json!({"after": 1, "extra": 1})),
+    ];
+    for (command, args) in cases {
+        assert_eq!(
+            invoke(&main, command, args.clone()),
+            Ok(state.clone()),
+            "{command} {args}"
+        );
+    }
+    for command in ["agents_snapshot", "agents_next"] {
+        assert_eq!(
+            support::invoke_body(&main, command, tauri::ipc::InvokeBody::Raw(b"{}".to_vec())),
+            Ok(state.clone()),
+            "{command} with a body that is no JSON"
+        );
+    }
 }

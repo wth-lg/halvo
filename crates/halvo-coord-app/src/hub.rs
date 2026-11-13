@@ -78,7 +78,9 @@ impl Waits {
 pub trait Core: Send + Sync {
     /// Runs the command of `LIST` named `command` with the arguments of its call, which are
     /// none when the call's body is no JSON; the reply of every refusal is
-    /// `{"error":"<cause>"}`, so the call never fails.
+    /// `{"error":"<cause>"}`, so the call never fails. A command that `LIST` gives no error
+    /// cause, `agents_snapshot` and `agents_next`, is never refused: with arguments that do not
+    /// fit the list it answers the whole state at once.
     fn call(&self, command: &str, args: Option<&Value>) -> Reply;
 
     /// The hook of the window `main` shown: from now on `agents_next` waits again.
@@ -334,6 +336,7 @@ where
             Ok(args) => self
                 .run(found.name, &args)
                 .unwrap_or(Reply::Error(Cause::Malformed)),
+            Err(_) if found.errors.is_empty() => Reply::Snapshot(self.coord.snapshot()),
             Err(cause) => Reply::Error(cause),
         }
     }
