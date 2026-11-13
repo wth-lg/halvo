@@ -182,9 +182,17 @@ pub struct Parts {
 ///
 /// The library starts the runner with three of its handles or descriptors open in it and no other: the two ends of
 /// the link as the runner's standard input and output, and the null device as its standard error, which nobody
-/// reads. The runner gets a whole environment of its own and nothing else of the library's: on macOS `HOME`, as the
+/// reads. On Windows the runner gets a console of its own that shows no window, which the processes that it starts
+/// share, so it can open no stream of a console of the library's process. A process that another thread of the
+/// library's process starts in the moment in which a runner is started, by another start, the standard library's
+/// among them, can hold the ends of the runner's link: on Windows while the three handles are inheritable for the
+/// start, on macOS between the making of a pipe and its close-on-exec flag. The library cannot keep such a process
+/// out. What bounds it: the library ends a runner `link_end` after it closed the link, whether or not the runner saw
+/// the end of its input, and it takes a runner's end from its process and not from the end of its output alone.
+/// The runner gets a whole environment of its own and nothing else of the library's: on macOS `HOME`, as the
 /// library's process has it, and `TMPDIR`, the per-user temporary directory that the system answers; on Windows
-/// `LOCALAPPDATA`, as the library's process has it, and `SystemRoot`, `TEMP` and `TMP`, as the system answers them.
+/// `LOCALAPPDATA`, as the library's process has it, and `SystemRoot`, `TEMP` and `TMP`, as the system answers them
+/// for the account of the library's token, `TEMP` and `TMP` the directory Temp under its LocalAppData known folder.
 /// `HOME` and `LOCALAPPDATA` are not set where the library's process has none. The runner works in `/` on macOS
 /// and in the system directory on Windows, never in the library's working directory or in `data_dir`, so `runner`,
 /// `data_dir` and the paths of a `RunSpec` are absolute: `absolute_paths` names the first that is not.
