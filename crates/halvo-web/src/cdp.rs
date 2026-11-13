@@ -2062,8 +2062,17 @@ pub(crate) mod tests {
     fn an_amount_is_digits_one_point_and_two_decimals() {
         assert_eq!(crate::extract_amount("12.34"), Some(1234));
         assert_eq!(crate::extract_amount("0.05"), Some(5));
-        for bad in ["12.3", "12", ".34", "1.234", "1,00", "-1.00", "1.0a", ""] {
+        for bad in [
+            "12.3", "12", ".34", "1.234", "1,00", "-1.00", "1.0a", "", "+1.00", "1.+5", "+1.+5",
+        ] {
             assert_eq!(crate::extract_amount(bad), None, "{bad}");
         }
+        assert_eq!(
+            crate::extract_amount("184467440737095516.15"),
+            Some(u64::MAX)
+        );
+        assert_eq!(crate::extract_amount("184467440737095516.16"), None);
+        assert_eq!(crate::extract_amount("184467440737095517.00"), None);
+        assert_eq!(crate::extract_amount("99999999999999999999.00"), None);
     }
 }
