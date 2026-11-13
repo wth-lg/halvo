@@ -18,6 +18,7 @@ use crate::report::{Counts, Report};
 use crate::sql::{self, Sql};
 
 pub(crate) const PAGE_CACHE_KIB: i64 = 4096;
+const MAX_ORDINAL: u64 = i64::MAX as u64;
 pub(crate) const CALL_BUDGET: Duration = Duration::from_secs(30);
 const PROGRESS_OPS: i32 = 10_000;
 
@@ -149,15 +150,17 @@ impl Tx<'_> {
     }
 
     /// Raises the mark to `floor` where it lies below, drops the purged ordinals below the mark, and raises the mark
-    /// over each purged ordinal that follows it.
+    /// over each purged ordinal that follows it. At the top of the range the mark stays at 2^63 - 1 and that ordinal
+    /// stays in the set of purged ordinals, so nothing is converted past the range.
     pub(crate) fn raise_mark(&self, floor: u64) -> Result<(), Fault> {
         let mut mark = self.mark()?.max(floor);
         let as_i64 = |n: u64| i64::try_from(n).map_err(|_| Fault::Row);
         self.exec(sql::PURGED_BELOW_DELETE, [as_i64(mark)?])?;
-        while one(self.conn, sql::PURGED_HAS, [as_i64(mark)?], |r| {
-            r.get::<_, i64>(0)
-        })?
-        .is_some()
+        while mark < MAX_ORDINAL
+            && one(self.conn, sql::PURGED_HAS, [as_i64(mark)?], |r| {
+                r.get::<_, i64>(0)
+            })?
+            .is_some()
         {
             self.exec(sql::PURGED_BELOW_DELETE, [as_i64(mark + 1)?])?;
             mark += 1;

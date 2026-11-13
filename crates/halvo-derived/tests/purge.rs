@@ -128,3 +128,44 @@ fn the_high_water_mark_rises_over_purged_ordinals_that_follow_it() {
     assert_eq!(count(&scratch, "SELECT mark FROM meta"), 6);
     assert_eq!(count(&scratch, "SELECT ordinal FROM purged"), 9);
 }
+
+/// At `top`, with the mark raised to it: an evidence row that names it, its purge, a purge below it, and a later
+/// commit that names it. Returns the purge's answer, the evidence rows left after it, the answer of the purge below
+/// and the drops of the later commit.
+fn purge_at(name: &str, top: u64) -> (Result<u64, halvo_derived::Fault>, usize, bool, u64) {
+    let scratch = Scratch::new(name);
+    let clock = TestClock::at_day(20_767);
+    let mut store = open(&scratch, &clock).unwrap();
+    store.purge_below(ord(top)).unwrap();
+    let outcome = store
+        .commit_batch(
+            &store_id(1),
+            &[spanning(1, &[top])],
+            position(1, 0),
+            &mut Seq(1),
+        )
+        .unwrap();
+    assert_eq!(outcome.evidence, 1, "{name}");
+    let purged = store.purge(&[ord(top)]);
+    drop(store);
+    let left = evidence_summaries(&scratch).len();
+    let mut store = open(&scratch, &clock).unwrap();
+    let below = store.purge_below(ord(top)).is_ok();
+    let later = store
+        .commit_batch(
+            &store_id(1),
+            &[spanning(2, &[top])],
+            position(2, 0),
+            &mut Seq(2),
+        )
+        .unwrap();
+    drop(store);
+    (purged, left, below, later.dropped)
+}
+
+#[test]
+fn a_purge_at_the_highest_ordinal_refuses_nothing_and_keeps_the_ordinal_purged() {
+    let max = i64::MAX as u64;
+    assert_eq!(purge_at("purge-max", max), (Ok(1), 0, true, 1));
+    assert_eq!(purge_at("purge-max-less-one", max - 1), (Ok(1), 0, true, 1));
+}
