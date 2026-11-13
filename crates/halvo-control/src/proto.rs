@@ -915,6 +915,66 @@ one_spelling!(LastStop, "last stop", [
     SourceNotStopped => "source_not_stopped",
 ]);
 
+/// The trigger of the stop that ended the last life (contracts.md C2.3, last_stop_kind).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StopKind {
+    Pause,
+    Lapse,
+    DeleteAll,
+    GrantLost,
+    Signal,
+    Stop,
+    Lifeline,
+    SessionEnd,
+    GrantAppeared,
+}
+
+one_spelling!(StopKind, "stop kind", [
+    Pause => "pause",
+    Lapse => "lapse",
+    DeleteAll => "delete_all",
+    GrantLost => "grant_lost",
+    Signal => "signal",
+    Stop => "stop",
+    Lifeline => "lifeline",
+    SessionEnd => "session_end",
+    GrantAppeared => "grant_appeared",
+]);
+
+/// What the last life received and did not store. With `final_figures` false the count is an
+/// upper bound, because the hard end came before the final figures.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LostRecord {
+    pub events: u64,
+    #[serde(deserialize_with = "required")]
+    pub first: Option<UtcSecond>,
+    #[serde(deserialize_with = "required")]
+    pub last: Option<UtcSecond>,
+    #[serde(deserialize_with = "required")]
+    pub error: Option<Token>,
+    #[serde(rename = "final")]
+    pub final_figures: bool,
+}
+
+impl LostRecord {
+    /// The line of a marker that held no record.
+    pub const NONE: LostRecord = LostRecord {
+        events: 0,
+        first: None,
+        last: None,
+        error: None,
+        final_figures: true,
+    };
+}
+
+/// A source whose shutdown answered neither Ok nor ThreadEnded in the stop that ended the last
+/// life, with its typed error.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StopSourceLine {
+    pub name: SourceName,
+    pub error: SourceError,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StateFile {
     Ok,
@@ -1306,6 +1366,10 @@ pub struct StatusFields {
     pub last_stop: LastStop,
     #[serde(deserialize_with = "required")]
     pub last_stop_newest_capture: Option<UtcSecond>,
+    #[serde(deserialize_with = "required")]
+    pub last_stop_kind: Option<StopKind>,
+    pub last_stop_lost: LostRecord,
+    pub last_stop_sources: Vec<StopSourceLine>,
     pub state_file: StateFile,
     pub platform: Platform,
     pub enabled_sources: Vec<SourceName>,
@@ -1421,6 +1485,29 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     }
     if f.store_error == Some(StoreErrorKind::KeyFile) && f.store_id.is_some() {
         return fail("a store whose key file does not parse has no id");
+    }
+    let order = |name: &SourceName| SourceName::of(f.platform).iter().position(|s| s == name);
+    let mut at = None;
+    for line in &f.last_stop_sources {
+        let here = order(&line.name);
+        if here.is_none() || here <= at {
+            return fail(
+                "the last_stop_source lines name the platform's sources in their order, once each",
+            );
+        }
+        at = here;
+    }
+    if f.last_stop_kind.is_none()
+        && (f.last_stop_lost != LostRecord::NONE || !f.last_stop_sources.is_empty())
+    {
+        return fail("a marker with no record has no stop kind, no loss and no source line");
+    }
+    if f.last_stop == LastStop::SourceNotStopped
+        && (f.last_stop_kind.is_none() || f.last_stop_sources.is_empty())
+    {
+        return fail(
+            "a life that ended for a source that did not stop names its kind and the source",
+        );
     }
     if f.capture == Capture::AwaitingResume && f.desired != CaptureState::Running {
         return fail("a capture that awaits a resume has desired running");
@@ -2431,11 +2518,130 @@ mod tests {
     }
 
     #[test]
+    fn each_token_of_the_stop_kind_last_stop_and_capture_round_trips_and_another_is_refused() {
+        let kinds: Vec<&str> = StopKind::ALL.iter().map(|k| k.as_str()).collect();
+        assert_eq!(
+            kinds,
+            [
+                "pause",
+                "lapse",
+                "delete_all",
+                "grant_lost",
+                "signal",
+                "stop",
+                "lifeline",
+                "session_end",
+                "grant_appeared"
+            ]
+        );
+        fn round_trip<T>(all: &[T])
+        where
+            T: Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+        {
+            for value in all {
+                let text = serde_json::to_string(value).unwrap();
+                assert_eq!(&serde_json::from_str::<T>(&text).unwrap(), value);
+            }
+            for other in ["\"-\"", "\"\"", "\"Pause\"", "\"later\"", "null"] {
+                assert!(serde_json::from_str::<T>(other).is_err(), "{other}");
+            }
+        }
+        round_trip(StopKind::ALL);
+        round_trip(LastStop::ALL);
+        round_trip(Capture::ALL);
+    }
+
+    #[test]
+    fn the_kept_record_crosses_the_wire_and_has_its_rules() {
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        assert_eq!(fields.last_stop_kind, None);
+        assert_eq!(fields.last_stop_lost, LostRecord::NONE);
+        let json = serde_json::to_value(sample_status(Platform::Macos)).unwrap();
+        assert_eq!(json["last_stop_kind"], serde_json::Value::Null);
+        assert_eq!(
+            json["last_stop_lost"],
+            serde_json::json!({"events": 0, "first": null, "last": null, "error": null, "final": true})
+        );
+        assert_eq!(json["last_stop_sources"], serde_json::json!([]));
+        crate::model::every_key_is_read::<LostRecord>(&json["last_stop_lost"]);
+        fields.last_stop = LastStop::SourceNotStopped;
+        fields.last_stop_kind = Some(StopKind::Pause);
+        fields.last_stop_lost = LostRecord {
+            events: 3,
+            first: Some("2026-11-12T08:59:58Z".parse().unwrap()),
+            last: Some("2026-11-12T08:59:59Z".parse().unwrap()),
+            error: Some("io".parse().unwrap()),
+            final_figures: false,
+        };
+        let line = |name| StopSourceLine {
+            name,
+            error: SourceError {
+                kind: "timeout".parse().unwrap(),
+                stage: "shutdown".parse().unwrap(),
+                os_domain: "osstatus".parse().unwrap(),
+                os_code: 0,
+            },
+        };
+        fields.last_stop_sources = vec![line(SourceName::Foreground), line(SourceName::Input)];
+        let reply = Reply::Status(DaemonStatus::new(fields.clone()).unwrap());
+        assert_eq!(through_the_wire_reply(&reply), reply);
+        for bad in [
+            {
+                let mut f = fields.clone();
+                f.last_stop_sources.reverse();
+                f
+            },
+            {
+                let mut f = fields.clone();
+                f.last_stop_sources.push(line(SourceName::Input));
+                f
+            },
+            {
+                let mut f = fields.clone();
+                f.last_stop_sources = vec![line(SourceName::Keyboard)];
+                f
+            },
+            {
+                let mut f = fields.clone();
+                f.last_stop_sources.clear();
+                f
+            },
+            {
+                let mut f = fields.clone();
+                f.last_stop_kind = None;
+                f
+            },
+            {
+                let mut f = sample_status(Platform::Macos).into_fields();
+                f.last_stop_lost.events = 1;
+                f
+            },
+            {
+                let mut f = sample_status(Platform::Macos).into_fields();
+                f.last_stop_sources = vec![line(SourceName::Input)];
+                f
+            },
+        ] {
+            assert!(DaemonStatus::new(bad).is_err());
+        }
+    }
+
+    #[test]
     fn a_status_awaiting_resume_after_a_source_that_did_not_stop_round_trips() {
         for platform in [Platform::Macos, Platform::Windows] {
             let mut fields = sample_status(platform).into_fields();
             fields.capture = Capture::AwaitingResume;
             fields.last_stop = LastStop::SourceNotStopped;
+            fields.last_stop_kind = Some(StopKind::Lapse);
+            fields.last_stop_sources = vec![StopSourceLine {
+                name: SourceName::Screen,
+                error: SourceError {
+                    kind: "timeout".parse().unwrap(),
+                    stage: "shutdown".parse().unwrap(),
+                    os_domain: "osstatus".parse().unwrap(),
+                    os_code: 0,
+                },
+            }];
             for line in &mut fields.sources {
                 if line.state == SourceState::Running {
                     line.state = SourceState::Stopped { by_user: false };

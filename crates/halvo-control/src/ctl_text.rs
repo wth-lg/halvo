@@ -210,6 +210,26 @@ pub fn status_text(status: &DaemonStatus) -> String {
         "last_stop_newest_capture={}",
         or_dash(f.last_stop_newest_capture)
     ));
+    line(format!(
+        "last_stop_kind={}",
+        or_dash(f.last_stop_kind.map(|k| k.as_str()))
+    ));
+    let lost = &f.last_stop_lost;
+    line(format!(
+        "last_stop_lost events={} first={} last={} error={} final={}",
+        lost.events,
+        or_dash(lost.first),
+        or_dash(lost.last),
+        or_dash(lost.error.as_ref()),
+        yes_no(lost.final_figures)
+    ));
+    for source in &f.last_stop_sources {
+        line(format!(
+            "last_stop_source name={} error={}",
+            source.name.as_str(),
+            source.error
+        ));
+    }
     line(format!("state_file={}", f.state_file.as_str()));
     line(format!("platform={}", f.platform.as_str()));
     let enabled: Vec<&str> = f.enabled_sources.iter().map(|s| s.as_str()).collect();
@@ -443,6 +463,19 @@ mod tests {
     fn lf(checked_out: &str) -> String {
         checked_out.replace("\r\n", "\n")
     }
+
+    const NO_RECORD: &str =
+        "last_stop_kind=-\nlast_stop_lost events=0 first=- last=- error=- final=yes\n";
+
+    fn status_fixture(checked_out: &str) -> String {
+        let text = lf(checked_out);
+        if text.contains("\nlast_stop_kind=") {
+            return text;
+        }
+        let at = text.find("\nlast_stop_newest_capture=").unwrap() + 1;
+        let end = at + text[at..].find('\n').unwrap() + 1;
+        format!("{}{NO_RECORD}{}", &text[..end], &text[end..])
+    }
     use crate::client::ClientError;
     use crate::model::{StorageCap, StoreId};
     use crate::proto::{
@@ -504,7 +537,7 @@ mod tests {
     fn the_macos_status_renders_gate_2_s_fixture_byte_for_byte() {
         assert_eq!(
             status_text(&sample_status(Platform::Macos)),
-            lf(STATUS_MACOS)
+            status_fixture(STATUS_MACOS)
         );
     }
 
@@ -512,7 +545,7 @@ mod tests {
     fn the_windows_status_renders_gate_2_s_fixture_byte_for_byte() {
         assert_eq!(
             status_text(&sample_status(Platform::Windows)),
-            lf(STATUS_WINDOWS)
+            status_fixture(STATUS_WINDOWS)
         );
     }
 
@@ -523,7 +556,7 @@ mod tests {
             f.lease = Lease::Lapsed;
             stopped_sources(f);
         });
-        assert_eq!(status_text(&status), lf(STATUS_NO_INDICATOR));
+        assert_eq!(status_text(&status), status_fixture(STATUS_NO_INDICATOR));
     }
 
     #[test]
@@ -539,7 +572,10 @@ mod tests {
             f.last_expiry_at = None;
             stopped_sources(f);
         });
-        assert_eq!(status_text(&status), lf(STATUS_UNSUPPORTED_VERSION));
+        assert_eq!(
+            status_text(&status),
+            status_fixture(STATUS_UNSUPPORTED_VERSION)
+        );
     }
 
     #[test]
@@ -915,16 +951,78 @@ mod tests {
         assert_eq!(printed.stderr, "");
     }
 
-    const STATUS_AWAITING_RESUME: &str = "protocol=1\ndaemon_version=0.0.0\npid=4242\nstarted_at=2026-11-12T09:00:00Z\nrss_peak_bytes=25264128\nparent=watched\ndesired=running\ncapture=awaiting_resume\ncapture_reason=-\nlease=fresh\nstore=open\nstore_id=0123456789abcdef0123456789abcdef\nstore_error=-\nstore_retry_in_s=-\nstore_bytes=1048576\nstore_logical_bytes=524288\ncap_bytes=26843545600\ndrain=healthy\ndrain_error=-\ndrain_since=-\nevents_pending=0\nevents_lost=0\ndropped_frames=0\npointer_coalesced=0\ntap_disabled_timeout=0\ntap_disabled_user_input=0\nlate_events=0\nmax_lag_ms=0\nsecure_input_keystrokes=0\ntitle_read_errors=0\nlast_flush_at=2026-11-12T09:00:05Z\nexpiry=healthy\nexpiry_error=-\nlast_expiry_at=2026-11-12T09:00:01Z\nlast_eviction_at=-\nlast_stop=source_not_stopped\nlast_stop_newest_capture=-\nstate_file=ok\nplatform=macos\nenabled_sources=foreground,input\nswitch name=title_text value=on\nswitch name=key_class value=on\nswitch name=pointer_class value=on\nswitch name=screen_activity value=off\nswitch name=site_read value=off\npermission name=screen_and_system_audio_recording grant=granted at_start=granted asked=yes once_granted=yes\npermission name=accessibility grant=granted at_start=granted asked=yes once_granted=yes\npermission name=input_monitoring grant=granted at_start=granted asked=yes once_granted=yes\nsource name=foreground state=stopped\nsource name=screen state=off\nsource name=input state=stopped\nsource name=system_audio state=off\nsource name=microphone state=off\nkind name=screen_frame dropped=0 refused=0\nkind name=keystroke dropped=0 refused=0\nkind name=pointer dropped=0 refused=0\nkind name=foreground_app dropped=0 refused=0\nkind name=window_title dropped=0 refused=0\nkind name=system_audio dropped=0 refused=0\nkind name=microphone dropped=0 refused=0\nkind name=camera dropped=0 refused=0\n";
+    const STATUS_AWAITING_RESUME: &str = "protocol=1\ndaemon_version=0.0.0\npid=4242\nstarted_at=2026-11-12T09:00:00Z\nrss_peak_bytes=25264128\nparent=watched\ndesired=running\ncapture=awaiting_resume\ncapture_reason=-\nlease=fresh\nstore=open\nstore_id=0123456789abcdef0123456789abcdef\nstore_error=-\nstore_retry_in_s=-\nstore_bytes=1048576\nstore_logical_bytes=524288\ncap_bytes=26843545600\ndrain=healthy\ndrain_error=-\ndrain_since=-\nevents_pending=0\nevents_lost=0\ndropped_frames=0\npointer_coalesced=0\ntap_disabled_timeout=0\ntap_disabled_user_input=0\nlate_events=0\nmax_lag_ms=0\nsecure_input_keystrokes=0\ntitle_read_errors=0\nlast_flush_at=2026-11-12T09:00:05Z\nexpiry=healthy\nexpiry_error=-\nlast_expiry_at=2026-11-12T09:00:01Z\nlast_eviction_at=-\nlast_stop=source_not_stopped\nlast_stop_newest_capture=-\nlast_stop_kind=pause\nlast_stop_lost events=3 first=2026-11-12T08:59:58Z last=2026-11-12T08:59:59Z error=- final=no\nlast_stop_source name=input error=timeout during shutdown: osstatus 0\nstate_file=ok\nplatform=macos\nenabled_sources=foreground,input\nswitch name=title_text value=on\nswitch name=key_class value=on\nswitch name=pointer_class value=on\nswitch name=screen_activity value=off\nswitch name=site_read value=off\npermission name=screen_and_system_audio_recording grant=granted at_start=granted asked=yes once_granted=yes\npermission name=accessibility grant=granted at_start=granted asked=yes once_granted=yes\npermission name=input_monitoring grant=granted at_start=granted asked=yes once_granted=yes\nsource name=foreground state=stopped\nsource name=screen state=off\nsource name=input state=stopped\nsource name=system_audio state=off\nsource name=microphone state=off\nkind name=screen_frame dropped=0 refused=0\nkind name=keystroke dropped=0 refused=0\nkind name=pointer dropped=0 refused=0\nkind name=foreground_app dropped=0 refused=0\nkind name=window_title dropped=0 refused=0\nkind name=system_audio dropped=0 refused=0\nkind name=microphone dropped=0 refused=0\nkind name=camera dropped=0 refused=0\n";
 
     #[test]
     fn a_life_after_a_source_that_did_not_stop_prints_awaiting_resume_and_source_not_stopped() {
         let status = edited(Platform::Macos, |f| {
             f.capture = Capture::AwaitingResume;
             f.last_stop = crate::proto::LastStop::SourceNotStopped;
+            f.last_stop_kind = Some(crate::proto::StopKind::Pause);
+            f.last_stop_lost = crate::proto::LostRecord {
+                events: 3,
+                first: Some("2026-11-12T08:59:58Z".parse().unwrap()),
+                last: Some("2026-11-12T08:59:59Z".parse().unwrap()),
+                error: None,
+                final_figures: false,
+            };
+            f.last_stop_sources = vec![crate::proto::StopSourceLine {
+                name: SourceName::Input,
+                error: SourceError {
+                    kind: "timeout".parse().unwrap(),
+                    stage: "shutdown".parse().unwrap(),
+                    os_domain: "osstatus".parse().unwrap(),
+                    os_code: 0,
+                },
+            }];
             stopped_sources(f);
         });
         assert_eq!(status_text(&status), STATUS_AWAITING_RESUME);
+        println!("BEGIN c2-status-awaiting-resume");
+        print!("{STATUS_AWAITING_RESUME}");
+        println!("END c2-status-awaiting-resume");
+    }
+
+    #[test]
+    fn a_default_status_prints_the_record_lines_of_no_record() {
+        let text = status_text(&sample_status(Platform::Windows));
+        assert!(text.contains(
+            "\nlast_stop_newest_capture=-\nlast_stop_kind=-\nlast_stop_lost events=0 first=- last=- error=- final=yes\nstate_file=ok\n"
+        ));
+        assert!(!text.contains("last_stop_source "));
+    }
+
+    #[test]
+    fn a_last_stop_source_line_holds_the_kind_the_stage_and_the_os_code_and_no_other_text() {
+        let status = edited(Platform::Windows, |f| {
+            f.last_stop = crate::proto::LastStop::SourceNotStopped;
+            f.last_stop_kind = Some(crate::proto::StopKind::Lapse);
+            f.last_stop_lost.final_figures = false;
+            f.last_stop_sources = [SourceName::Screen, SourceName::Pointer]
+                .into_iter()
+                .map(|name| crate::proto::StopSourceLine {
+                    name,
+                    error: SourceError {
+                        kind: "os_error".parse().unwrap(),
+                        stage: "shutdown".parse().unwrap(),
+                        os_domain: "hresult".parse().unwrap(),
+                        os_code: -2147467259,
+                    },
+                })
+                .collect();
+        });
+        let lines: Vec<&str> = status_text(&status)
+            .lines()
+            .filter(|l| l.starts_with("last_stop_source "))
+            .map(|l| l.to_string().leak() as &str)
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "last_stop_source name=screen error=os_error during shutdown: hresult -2147467259",
+                "last_stop_source name=pointer error=os_error during shutdown: hresult -2147467259"
+            ]
+        );
     }
 
     #[test]
