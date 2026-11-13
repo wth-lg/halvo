@@ -254,3 +254,60 @@ fn a_task_id_in_two_streams_breaks_rule_five() {
     );
     assert!(!o.stdout.contains("FAIL row golden"), "{}", o.stdout);
 }
+
+#[test]
+fn every_range_that_overlaps_an_earlier_one_is_named_once() {
+    let dir = copy_golden("overlap-three");
+    let p = labels(&dir);
+    let text = fs::read_to_string(&p).expect("labels");
+    let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
+    let second = lines[2].clone();
+    let end_of_fourth = lines[4]
+        .split("\"end\":")
+        .nth(1)
+        .and_then(|e| e.strip_suffix('}'))
+        .expect("end")
+        .to_owned();
+    let start_of_second = second
+        .split("\"start\":")
+        .nth(1)
+        .and_then(|r| r.split(',').next())
+        .expect("start")
+        .to_owned();
+    let old_end = second
+        .split("\"end\":")
+        .nth(1)
+        .and_then(|e| e.strip_suffix('}'))
+        .expect("end")
+        .to_owned();
+    lines[2] = second.replace(
+        &format!("\"start\":{start_of_second},\"end\":{old_end}"),
+        &format!("\"start\":{start_of_second},\"end\":{end_of_fourth}"),
+    );
+    assert_ne!(lines[2], second);
+    fs::write(
+        &p,
+        lines.iter().map(|l| format!("{l}\n")).collect::<String>(),
+    )
+    .expect("write");
+    for (rule, failures) in [("generated", 3), ("recorded", 2)] {
+        let o = run(&["check-labels", "--rule", rule, &s(&dir)]);
+        assert_eq!(o.code, 1);
+        let rows: Vec<&str> = o
+            .stdout
+            .lines()
+            .filter(|l| l.starts_with("FAIL row"))
+            .collect();
+        assert_eq!(
+            rows,
+            vec!["FAIL row golden 4 overlap", "FAIL row golden 5 overlap"],
+            "{}",
+            o.stdout
+        );
+        assert!(
+            o.stdout.contains(&format!(" failures={failures}\n")),
+            "{}",
+            o.stdout
+        );
+    }
+}
