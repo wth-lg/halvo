@@ -1,9 +1,10 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::fs::OpenOptions;
 use std::io::{self, Cursor, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -126,6 +127,8 @@ enum Op {
     CreateThatFailsAfterItsDatabase,
     CreateUnderTheRootOfThisStore,
     ArmFault(Fault),
+    OpenWithoutItsDatabase { cut: bool },
+    LinkBelowSegments,
     DestroyTheRootAgain,
     Append { index_row_fails: bool },
     CreateWhoseRootStepFails,
@@ -148,6 +151,11 @@ struct Left {
     key_file: bool,
     database: bool,
     segment_files: u64,
+}
+
+struct Outside {
+    files: Vec<(String, Vec<u8>)>,
+    dir: tempfile::TempDir,
 }
 
 struct InTheWay {
@@ -208,6 +216,8 @@ fn op_with_failures() -> impl Strategy<Value = Op> {
         2 => Just(Op::CreateThatFailsAfterItsDatabase),
         2 => Just(Op::CreateUnderTheRootOfThisStore),
         3 => fault().prop_map(Op::ArmFault),
+        2 => any::<bool>().prop_map(|cut| Op::OpenWithoutItsDatabase { cut }),
+        1 => Just(Op::LinkBelowSegments),
         1 => Just(Op::DestroyTheRootAgain),
         3 => any::<bool>().prop_map(|index_row_fails| Op::Append { index_row_fails }),
         2 => Just(Op::CreateWhoseRootStepFails),
@@ -257,6 +267,7 @@ struct Harness {
     armed: Option<Fault>,
     latest_created_key_file: Option<KeyFile>,
     key_beside: Option<tempfile::TempDir>,
+    outside: Option<Outside>,
     segments: Vec<ModelSegment>,
     moves_that_did_not_apply: usize,
 }
@@ -283,6 +294,7 @@ impl Harness {
             armed: None,
             latest_created_key_file: None,
             key_beside: None,
+            outside: None,
             segments: Vec::new(),
             moves_that_did_not_apply: 0,
         };
@@ -293,12 +305,31 @@ impl Harness {
     fn create_store(&mut self) {
         let root = RootId::fresh().unwrap();
         self.roots.push(root);
+        let modes_inside: Rc<RefCell<Option<Result<(), String>>>> = Rc::new(RefCell::new(None));
+        let look = {
+            let (dir, seen) = (self.dir.clone(), Rc::clone(&modes_inside));
+            failpoint::at(super::db::SEAM_AFTER_THE_ROOT, move || {
+                let read = require_owner_only_modes(&dir).map_err(|failure| failure.to_string());
+                seen.borrow_mut().get_or_insert(read);
+            })
+        };
         let store = EncryptedStore::create(
             &self.dir,
             Box::new(crate::store::roots::custody(root)),
             DEFAULT_RETENTION,
         )
         .expect("create on a free directory");
+        drop(look);
+        let modes_inside = modes_inside.borrow_mut().take();
+        assert!(
+            matches!(modes_inside, Some(Ok(()))),
+            "while a create stood between its root and its key file: {}",
+            match modes_inside {
+                Some(Err(failure)) => failure,
+                _ => "it never came to that place, so the modes of its files were not read"
+                    .to_string(),
+            }
+        );
         let key_file = KeyFile::read(&self.dir).expect("the fresh store's key file");
         let wrapped = key_file
             .wrapped_store_key()
@@ -343,6 +374,96 @@ impl Harness {
             beside.is_ok(),
             "the key file of another label beside a fresh store does not unwrap under the root of the store: {beside:?}"
         );
+    }
+
+    fn open_without_its_database(&mut self, cut: bool) -> Result<(), TestCaseError> {
+        if self.deleted_since_last_create || self.store.is_none() {
+            return self.does_not_apply();
+        }
+        self.store = None;
+        let aside = tempfile::tempdir().expect("a temp dir for store.db set aside");
+        let (database, kept) = (self.dir.join("store.db"), aside.path().join("store.db"));
+        let how = if cut { "cut to nothing" } else { "taken away" };
+        if cut {
+            std::fs::copy(&database, &kept).expect("store.db copies aside");
+            OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .open(&database)
+                .expect("store.db is cut to nothing");
+        } else {
+            std::fs::rename(&database, &kept).expect("store.db is taken away");
+        }
+        let before = listing_of(&self.dir);
+        let opened = crate::store::roots::open(&self.dir, DEFAULT_RETENTION).map(drop);
+        let after = listing_of(&self.dir);
+        if cut {
+            std::fs::copy(&kept, &database).expect("store.db is put back");
+        } else {
+            std::fs::rename(&kept, &database).expect("store.db is put back");
+        }
+        prop_assert!(
+            matches!(opened, Err(StoreError::DatabaseMissing)),
+            "an open of a store whose store.db was {} answered {:?} in place of DatabaseMissing",
+            how,
+            opened
+        );
+        prop_assert!(
+            before == after,
+            "an open of a store whose store.db was {} changed the store directory from {:?} to {:?}",
+            how,
+            before,
+            after
+        );
+        match crate::store::roots::open(&self.dir, DEFAULT_RETENTION) {
+            Ok(store) => self.store = Some(store),
+            Err(e) => prop_assert!(
+                false,
+                "with its store.db put back, the store did not reopen: {e}"
+            ),
+        }
+        Ok(())
+    }
+
+    fn link_below_segments(&mut self) -> Result<(), TestCaseError> {
+        let of_no_segment = segment_path(&self.dir, Uuid::from_bytes([0xff; 16]));
+        let shard = of_no_segment.parent().expect("the shard of a segment");
+        let applies = cfg!(unix)
+            && !self.deleted_since_last_create
+            && self.store.is_some()
+            && self.outside.is_none()
+            && self.dir.join("segments").is_dir()
+            && std::fs::symlink_metadata(shard).is_err();
+        if !applies {
+            return self.does_not_apply();
+        }
+        let outside = tempfile::tempdir().expect("a temp dir outside the store");
+        let name = of_no_segment
+            .file_name()
+            .expect("the name of a segment file");
+        std::fs::write(outside.path().join(name), b"a file of another program")
+            .expect("the file outside the store writes");
+        link_to_a_directory(outside.path(), shard);
+        self.outside = Some(Outside {
+            files: files_with_their_bytes(outside.path()),
+            dir: outside,
+        });
+        Ok(())
+    }
+
+    fn check_outside(&self) -> Result<(), TestCaseError> {
+        let Some(outside) = &self.outside else {
+            return Ok(());
+        };
+        let held = &outside.files;
+        let holds = files_with_their_bytes(outside.dir.path());
+        prop_assert!(
+            holds == *held,
+            "the directory outside the store, to which a link below segments leads, held {:?} and now holds {:?}",
+            held.iter().map(|(name, bytes)| (name, bytes.len())).collect::<Vec<_>>(),
+            holds.iter().map(|(name, bytes)| (name, bytes.len())).collect::<Vec<_>>()
+        );
+        Ok(())
     }
 
     fn unwrap_of_the_key_beside(&self) -> Result<(), CustodyError> {
@@ -537,6 +658,8 @@ impl Harness {
                 self.armed = Some(*fault);
                 Ok(())
             }
+            Op::OpenWithoutItsDatabase { cut } => self.open_without_its_database(*cut),
+            Op::LinkBelowSegments => self.link_below_segments(),
             Op::DestroyTheRootAgain => self.destroy_the_root_again(),
             Op::Append { index_row_fails } => self.append(*index_row_fails),
             Op::CreateWhoseRootStepFails => self.create_whose_root_step_fails(),
@@ -1013,6 +1136,7 @@ impl Harness {
     }
 
     fn check(&self) -> Result<(), TestCaseError> {
+        self.check_outside()?;
         if self.deleted_since_last_create {
             return self.check_deleted();
         }
@@ -1394,6 +1518,9 @@ fn require_owner_only_modes(store_dir: &Path) -> Result<(), TestCaseError> {
     let mut entries = vec![store_dir.to_path_buf()];
     while let Some(path) = entries.pop() {
         let meta = std::fs::symlink_metadata(&path).expect("an entry of the store directory stats");
+        if meta.file_type().is_symlink() {
+            continue;
+        }
         let mode = meta.permissions().mode() & 0o777;
         let owner_only = if meta.is_dir() { 0o700 } else { 0o600 };
         prop_assert!(
@@ -1458,10 +1585,54 @@ fn files_below(dir: &Path) -> u64 {
         .sum()
 }
 
+fn listing_of(dir: &Path) -> Vec<(String, u64)> {
+    let mut listing = Vec::new();
+    let mut entries = vec![dir.to_path_buf()];
+    while let Some(path) = entries.pop() {
+        let meta = std::fs::symlink_metadata(&path).expect("an entry of the store directory stats");
+        if meta.is_dir() {
+            let below = std::fs::read_dir(&path).expect("a directory of the store lists");
+            entries.extend(below.map(|entry| entry.expect("an entry of the store").path()));
+        }
+        let len = if meta.is_file() { meta.len() } else { 0 };
+        let name = path
+            .strip_prefix(dir)
+            .unwrap_or(&path)
+            .display()
+            .to_string();
+        listing.push((name, len));
+    }
+    listing.sort();
+    listing
+}
+
+fn files_with_their_bytes(dir: &Path) -> Vec<(String, Vec<u8>)> {
+    let mut files: Vec<(String, Vec<u8>)> = std::fs::read_dir(dir)
+        .expect("the directory outside the store lists")
+        .map(|entry| {
+            let entry = entry.expect("an entry outside the store");
+            let bytes = std::fs::read(entry.path()).expect("a file outside the store reads");
+            (entry.file_name().to_string_lossy().into_owned(), bytes)
+        })
+        .collect();
+    files.sort();
+    files
+}
+
+#[cfg(unix)]
+fn link_to_a_directory(target: &Path, link: &Path) {
+    std::os::unix::fs::symlink(target, link).expect("a symbolic link below segments");
+}
+
+#[cfg(not(unix))]
+fn link_to_a_directory(_target: &Path, _link: &Path) {}
+
 fn a_shard_with_a_file(segments: &Path) -> Option<PathBuf> {
     let mut shards: Vec<PathBuf> = std::fs::read_dir(segments)
         .ok()?
-        .map(|entry| entry.expect("an entry of segments").path())
+        .map(|entry| entry.expect("an entry of segments"))
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| entry.path())
         .filter(|shard| files_below(shard) > 0)
         .collect();
     shards.sort();
@@ -1635,6 +1806,20 @@ fn no_failed_or_refused_move_leaves_a_half_store_in_a_fixed_order() {
             moves.push(Op::ShredAll);
         }
     }
+    moves.extend(a_store_with_events.iter().cloned());
+    moves.push(Op::Write {
+        len: SCALED_SEGMENT_LEN,
+        expiry: Expiry::Past,
+    });
+    if cfg!(unix) {
+        moves.push(Op::LinkBelowSegments);
+    }
+    moves.extend([
+        Op::ShredExpired,
+        Op::OpenWithoutItsDatabase { cut: false },
+        Op::OpenWithoutItsDatabase { cut: true },
+        Op::ShredAll,
+    ]);
     moves.extend(a_store_with_events.iter().cloned());
     moves.extend([Op::ArmFault(Fault::DatabaseStep), Op::ShredAll, Op::Reopen]);
     moves.extend(a_store_with_events.iter().cloned());
