@@ -1,41 +1,42 @@
 # Driver trial (R3, unit U0.6)
 
 The candidates of `docs/r3/trials/model-cells.md`'s verdict line ran A13.6's cells through
-`tools/r3-trials/drive/run.sh` (the child `r3-model` under the 8 GiB cap at the level `medium`, Chrome
-headless through `tools/r3-trials/web`; on `hosted-win` `C:/Program Files/Google/Chrome/Application/chrome.exe`,
-in the run of the `hosted` line; on `mac`, M3 Max, one timed-run helper call per cell, its `timed` line, and a
-`load` line per run). The harness of commit c882c15 printed every line of the block. More: README.md.
+`tools/r3-trials/drive/run.sh` (the child `r3-model` under the 8 GiB cap at the level `medium`, Chrome headless
+through `tools/r3-trials/web`; on `hosted-win` `C:/Program Files/Google/Chrome/Application/chrome.exe`, in the run of
+the `hosted` line; on `mac`, M3 Max, one timed-run helper call per cell, its `timed` line, and a `load` line per run).
+The harness of commit c882c15 printed every line of the block. More: README.md.
 
-The verdict line below is provisional (CP-173, CP-175, CP-177). It says what the harness of c882c15 printed,
-and it does not say that no model on the machine can drive these tasks. That harness asked the model on the
-sign-in page and signed in at the model's `handback` action alone. Six compiles (`mac`, granite_4_2_3b,
-`bill` and `order`, seeds 1 to 3) ended with `provenance` when the model clicked the form's own button before
-any `handback`; the request was failed. The product's runner hands back by its own reading of a credential
-field before any step (contracts.md A6.4), so it ends no compile there, and these six lines say nothing of
-whether that model can drive the pages behind the sign-in. By the ruling CP-177 the harness signs in by its own
-reading before it asks the model, and whether a model gives `handback` by itself is no condition of a pass. In
-this block nine of the eighteen `mac` compiles began with the model's own `handback`, and `typed_credential=0`
-was the models' doing; from that ruling on a compile shows a model no line marked `credential`, so the count
-can rise only on a page where the reading misses the field. The first request of a task is the same bytes for
-its three seeds, so at the sign-in page three seeds are one sample. Eleven of the eighteen `mac` compiles
-ended at a repeated reply, a rule of the harness that A13.6 does not word.
+The verdict line below is provisional (CP-173, CP-175, CP-177, CP-179). It says what the harness of c882c15 printed,
+and it does not say that no model on the machine can drive these tasks. That harness asked the model on the sign-in
+page and signed in at the model's `handback` action alone. Six compiles (`mac`, granite_4_2_3b, `bill` and `order`,
+seeds 1 to 3) ended with `provenance` when the model clicked the form's own button before any `handback`; the request
+was failed. The product's runner hands back by its own reading of a credential field before any step (A6.4), so these
+six lines say nothing of whether that model can drive the pages behind the sign-in. By the ruling CP-177 the harness
+signs in by its own reading before it asks the model. In this block nine of the eighteen `mac` compiles began with the
+model's own `handback`, and `typed_credential=0` was the models' doing. The first request of a task is the same bytes
+for its three seeds, so at the sign-in page three seeds are one sample. Eleven of the eighteen `mac` compiles
+(minicpm5_2b, all six; ministral_3_3b, `bill` 1 to 3 and `order` 1 and 2) ended at a repeated reply, a stop that the
+product does not have and that the ruling CP-179 takes out of the harness; each had just been sent a request that
+differed from the one before, and these eleven lines do not say whether the model can drive the task. Run 43476098835
+(harness of c882c15) read the three `hosted-win` `bill` compiles of granite_4_2_3b: each began with the model's
+`handback`, and that stop ended it at ask 3, 3 and 5. By CP-179 the harness's own words of a request stand in
+`src/words.rs` (SHA-256 f488c943fb01e8d07e70313e2ba69c9bd6eab6755191693a36841d48d284b5b8, on a fifth `prompt` line);
+they now say what a carried-out action did and name a select on a line that is no select control, so from a model's
+first carried-out action on no request reads as in this block.
 
-A control with a scripted child in place of the model (`control.sh`) read at d3472bf, on `mac` and on
-`hosted-win` (run 43470567927): the right walk passes `bill` and fails every replay of `order`, because the
-saved items reach the snapshot as three list items with empty names; so the replay and recovery results of the
-`order` cells are void, and their compile results stand. After the mends of 4d1020c (a stored target keeps its
-place) and of CP-177, the control passes `order` too on `mac`, `hosted-win` and `hosted-mac` (run 43477098785). One compile (`mac` ministral_3_3b `order`
-seed 3) ended by `provenance` at the effect step. The 18 compiles of `hosted-win` in each run kept no trace.
-
-The block is round 2. Round 1 (24 cells at decb7e2, 3 at 2f4b8bf by their files) gave the same counts but on
-one line, an `effects_without_confirm=1` of a request that left before c882c15 failed it. The cell `mac`
-ministral_3_3b `bill` seed 2 took two calls; the helper ended the first at its hold (its file holds one load
-line), the second's lines are the cell's, and both stand as its `timed` lines. The `mac` runs were taken under
-load: the importer copies their `wall_s` into its rows, and no `limits` line rests on them, because A13.6 gives
-those for the verdict's driver and writer alone and A1.3 names the limits of path B and `writer=none`. A body
-may differ by machine (ministral_3_3b's seed 3). The body rule, tightened after the block, can only lower a
-count and lowers none of this Mac's saved bodies. Only `rebuild.py` on the raw files, which the repository does
-not hold, tells a typed value from a run's; on them it gives this block line for line.
+A control with a scripted child for the model (`control.sh`) read at d3472bf, on `mac` and on `hosted-win` (run
+43470567927): the right walk passes `bill` and fails every replay of `order`, because the saved items reach the
+snapshot as three list items with empty names; so the replay and recovery results of the `order` cells are void, and
+their compile results stand. After the mends of 4d1020c (a stored target keeps its place) and of CP-177, the control
+passes `order` too on `mac`, `hosted-win` and `hosted-mac` (run 43477098785); after those of CP-179 its twelve cells
+read as expected on `mac`. One compile (`mac` ministral_3_3b `order` seed 3) ended by `provenance` at the effect step.
+The 18 compiles of `hosted-win` in each run kept no trace. The block is round 2; round 1 (24 cells at decb7e2, 3 at
+2f4b8bf) gave the same counts but on one line, an `effects_without_confirm=1` of a request that left before c882c15
+failed it. By the ruling CP-179 a body is the text after the model's thinking and has three words or more; counted so,
+two `mac` reply lines of this block would read otherwise (minicpm5_2b seed 1 `bodies=1`; ministral_3_3b seed 1
+`bodies=1`, whose second body is one word), `writer=none` stands, and the `hosted-win` bodies were not kept. Only
+`rebuild.py`, on raw files that the repository does not hold, tells a typed value from a run's, and it gives this
+block line for line.
 
 ```text
 hosted machine=hosted-win run=43414074422 sha=d4210af44b35695cf2d5bff4d3c0bebaf726a16c
