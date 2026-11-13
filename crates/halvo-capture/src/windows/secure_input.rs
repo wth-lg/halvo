@@ -7,6 +7,34 @@ use std::time::Duration;
 
 use super::{check, seal, KeystrokeClearance, SecureInputProbe, SecureInputReading, Withheld};
 
+/// Scratch probe of interrogate-win3-adversary-1: a log of numbers. Never merged.
+#[doc(hidden)]
+pub mod adv1_probe {
+    use std::sync::{Mutex, OnceLock, PoisonError};
+    use std::time::Instant;
+
+    static LOG: Mutex<Vec<(u8, u64, u32, u32)>> = Mutex::new(Vec::new());
+    static BASE: OnceLock<Instant> = OnceLock::new();
+
+    /// Microseconds since the first call.
+    pub fn micros() -> u64 {
+        u64::try_from(BASE.get_or_init(Instant::now).elapsed().as_micros()).unwrap_or(u64::MAX)
+    }
+
+    /// Adds one entry: a kind, the time, and two numbers.
+    pub fn note(kind: u8, a: u32, b: u32) {
+        let at = micros();
+        LOG.lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((kind, at, a, b));
+    }
+
+    /// Takes the entries so far.
+    pub fn take() -> Vec<(u8, u64, u32, u32)> {
+        std::mem::take(&mut *LOG.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
 /// The state of the focused element as the detector reads it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldState {
@@ -214,6 +242,17 @@ impl Marks {
     }
 
     fn push_at(&mut self, tick: u32, mark: Mark) {
+        let code = |state: FieldState| match state {
+            FieldState::Clear => 0,
+            FieldState::Password => 1,
+            FieldState::Unknown => 2,
+        };
+        match mark {
+            Mark::Field(state) => adv1_probe::note(1, tick, code(state)),
+            Mark::Read(state) => adv1_probe::note(2, tick, code(state)),
+            Mark::Latch(LatchFrom::TheInputThread) => adv1_probe::note(3, tick, 0),
+            Mark::Latch(LatchFrom::AnotherThread) => adv1_probe::note(4, tick, 0),
+        }
         if self.entries.len() == MARKS_KEPT {
             self.entries.pop_front();
         }
@@ -778,6 +817,7 @@ mod detector {
                 IUIAutomationElement::from_raw_borrowed(&sender),
             )
         };
+        super::adv1_probe::note(13, 0, 0);
         let state = handler.reader.state(element);
         handler.shared.field(state);
         S_OK
@@ -916,6 +956,7 @@ mod detector {
                 }
             });
             if wait == 0 {
+                super::adv1_probe::note(12, tick(), 0);
                 let state = reader.focused();
                 let mut marks = shared.lock();
                 if marks.settle_due == due {

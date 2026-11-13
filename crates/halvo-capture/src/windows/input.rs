@@ -335,6 +335,14 @@ fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
         let Some((key, stroke, app)) = gate.held.pop_front() else {
             break;
         };
+        let decision = match &answer {
+            None => 11,
+            Some(Ok(_)) => 5,
+            Some(Err(Withheld::Late)) => 6,
+            Some(Err(Withheld::Active)) => 7,
+            Some(Err(Withheld::Unknown)) => 10,
+        };
+        crate::secure_input::windows::adv1_probe::note(decision, key.tick(), now);
         match answer {
             None => producer.lose(1),
             Some(Ok(clearance)) => {
@@ -647,10 +655,14 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                 if map_keystroke(&mut state.keys, key).is_none() {
                     return;
                 }
-                let held = gate.gate.hold(
+                let password_edit = crate::secure_input::windows::focus_window_is_password_edit();
+                crate::secure_input::windows::adv1_probe::note(
+                    8,
                     tick,
-                    crate::secure_input::windows::focus_window_is_password_edit(),
+                    u32::from(moves_focus(key.vkey)) | (u32::from(password_edit) << 1),
                 );
+                crate::secure_input::windows::adv1_probe::note(9, super::now_tick(), 0);
+                let held = gate.gate.hold(tick, password_edit);
                 if moves_focus(key.vkey) {
                     gate.gate.latch(tick);
                 }
