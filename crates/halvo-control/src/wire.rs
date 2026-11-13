@@ -575,7 +575,31 @@ mod tests {
         frames
     }
 
-    const REPLY_SWEEP_DEPTHS: [usize; 8] = [1, 2, 4, 8, 16, 32, 64, 96];
+    /// The depths of the reply's sweep in this test: powers of two, and the six depths whose
+    /// frames held the most in the printer's whole sweep (100 the most, 33,047,177 bytes, and
+    /// 107, 97, 122, 114 and 109 after it; 107 the most, 66,057,051, before the decoder kept
+    /// one tree).
+    const REPLY_SWEEP_DEPTHS: [usize; 13] = [1, 2, 4, 8, 16, 32, 64, 96, 97, 100, 107, 109, 114];
+
+    /// The answer of the decoder of `side` to `frame` in one line that holds no part of the frame:
+    /// the kind and the code of a reply, the request or the version of an unknown one, or the
+    /// error.
+    fn answer_of(side: &str, frame: &[u8]) -> String {
+        if side == "request" {
+            match crate::proto::decode_request(frame) {
+                Ok(crate::proto::Decoded::Known(request)) => format!("known {request:?}"),
+                Ok(crate::proto::Decoded::Unknown(unknown)) => {
+                    format!("unknown of version {}", unknown.version())
+                }
+                Err(e) => format!("{e:?}"),
+            }
+        } else {
+            match crate::proto::decode_reply(frame) {
+                Ok(reply) => format!("{} {:?}", reply.kind(), reply.code()),
+                Err(e) => format!("{e:?}"),
+            }
+        }
+    }
 
     #[test]
     #[ignore = "prints the peak live bytes of each frame of the whole sweep"]
@@ -587,6 +611,7 @@ mod tests {
                 let mut read = false;
                 let (peak, end) = live_bytes_of(|| read = decode_on(side, &frame));
                 println!("peak {side} {peak} end {end} read the body {read}: {name}");
+                println!("answer {side} {}: {name}", answer_of(side, &frame));
                 if peak > most.0 {
                     most = (peak, name);
                 }
