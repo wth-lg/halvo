@@ -74,6 +74,9 @@ pub(crate) struct Runner {
     role: RunnerRole,
     started: Clock,
     pub(crate) waited: Duration,
+    /// Milliseconds that a test adds to the run's time: the clock of the test's own.
+    #[cfg(test)]
+    pub(crate) test_clock: std::sync::Arc<std::sync::atomic::AtomicU64>,
     log_seq: u32,
     /// The `wall_s` of the newest load of the configuration; 0 before the first load.
     wall_limit: u32,
@@ -112,6 +115,8 @@ impl Runner {
             role: RunnerRole::claim(),
             started: Clock::now(),
             waited: Duration::ZERO,
+            #[cfg(test)]
+            test_clock: std::sync::Arc::default(),
             log_seq: START_ROW,
             wall_limit: 0,
             steps: 0,
@@ -215,9 +220,9 @@ impl Runner {
                 endpoint: None,
             },
         });
-        let asked = Clock::now();
+        let asked = self.elapsed();
         let reply = self.link.ask(&frame);
-        self.waited += asked.elapsed();
+        self.waited += self.elapsed().saturating_sub(asked);
         let result = match reply? {
             ToRunner::HandbackReply(HandbackReply { result }) => result,
             _ => return Err(Broken::Frame("not_a_handback_reply").into()),
@@ -337,9 +342,18 @@ impl Runner {
         }
     }
 
+    /// The time since the runner started, on a clock that never goes back.
+    pub(crate) fn elapsed(&self) -> Duration {
+        let elapsed = self.started.elapsed();
+        #[cfg(test)]
+        let elapsed = elapsed
+            + Duration::from_millis(self.test_clock.load(std::sync::atomic::Ordering::SeqCst));
+        elapsed
+    }
+
     /// The runner's seconds without the waits for a confirmation or a handback reply.
     pub(crate) fn wall_s(&self) -> u32 {
-        let spent = self.started.elapsed().saturating_sub(self.waited);
+        let spent = self.elapsed().saturating_sub(self.waited);
         u32::try_from(spent.as_secs()).unwrap_or(u32::MAX)
     }
 

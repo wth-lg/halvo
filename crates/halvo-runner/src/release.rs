@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use std::time::Instant as Clock;
 
 use halvo_policy::{admit, decide, digest, Checkpoint, Decision, EffectMove, Facts, LIMITS};
 use halvo_schema::executable::body::LoadReply;
@@ -163,6 +162,8 @@ impl Runner {
                 o.bound = o.request.bound(slots_of(&again)).map_err(failed)?;
                 admit(class, &o.bound, &facts_of(o.request.as_ref(), &again))
                     .map_err(|refusal| failed(refusal.cause()))?;
+                self.check()?;
+                self.within_wall()?;
                 o.at = self.propose(decide(&again.config, class, Checkpoint::No), &o.bound)?;
                 match self.effects[o.at].state {
                     EffectState::Refused => return Err(refused(&again.config)),
@@ -253,6 +254,8 @@ impl Runner {
                 self.advance(one.at, EffectMove::End)?;
                 *renewed += 1;
                 one.request = one.request.renew(slots_of(&again)).map_err(failed)?;
+                self.check()?;
+                self.within_wall()?;
                 one.at = self.propose(decide(&again.config, class, Checkpoint::No), &now)?;
                 one.bound = now;
                 match self.effects[one.at].state {
@@ -304,9 +307,9 @@ impl Runner {
         let frame = FromRunner::Confirm(Confirm {
             request: request.clone(),
         });
-        let since = Clock::now();
+        let since = self.elapsed();
         let reply = self.link.ask(&frame);
-        self.waited += since.elapsed();
+        self.waited += self.elapsed().saturating_sub(since);
         let decision = match reply? {
             ToRunner::ConfirmReply(ConfirmReply { decision }) => decision,
             _ => return Err(Broken::Frame("not_a_confirm_reply").into()),

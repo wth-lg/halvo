@@ -1,17 +1,19 @@
 //! Tests of the confirm path with a fake paused request that reads its bound values from a list, one per read, and
 //! counts what it lets leave; no fixture runs.
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use halvo_policy::Facts;
 use halvo_schema::executable::names::{Answer, FieldName, HandbackReason, LogEvent, Source};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::OwnValue;
-use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, EffectState, Outcome};
+use halvo_schema::executable::{
+    ActionClass, Bound, BoundField, Cause, EffectState, FromRunner, Outcome, RunnerCall,
+};
 use halvo_schema::Category;
 
-use super::suite::{run_path, Plan, Record};
+use super::suite::{run_many_path, run_path, Plan, Record};
 use super::{Left, Paused, Replied};
 
 struct Fake {
@@ -19,6 +21,7 @@ struct Fake {
     at: usize,
     released: Arc<AtomicU32>,
     from_slot: bool,
+    clock: Option<(Arc<AtomicU64>, u64)>,
 }
 
 struct Answers;
@@ -61,6 +64,9 @@ impl Paused for Fake {
     }
 
     fn renew(self: Box<Self>, _slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
+        if let Some((clock, ms)) = &self.clock {
+            clock.fetch_add(*ms, Ordering::SeqCst);
+        }
         Ok(self)
     }
 }
@@ -87,6 +93,7 @@ fn run(reads: Vec<Bound>, plan: Plan) -> (Record, u32) {
         at: 0,
         released: Arc::clone(&released),
         from_slot: false,
+        clock: None,
     };
     let record = run_path(
         Category::CalendarCleanup,
@@ -393,6 +400,7 @@ fn a_cleared_effect_whose_slot_changes_at_the_load_before_the_begin_is_proposed_
         at: 0,
         released: Arc::clone(&released),
         from_slot: true,
+        clock: None,
     };
     let plan = Plan {
         runs_at: Some(|_| true),
@@ -427,4 +435,123 @@ fn a_cleared_effect_whose_slot_changes_at_the_load_before_the_begin_is_proposed_
     );
     assert_eq!(record.effects()[3].digest, digest_b);
     assert_eq!(record.done(), Some(Outcome::Completed));
+}
+
+/// Runs the confirm path on several fake requests in one call, each with its reads, with `spend_ms` added to the
+/// run's clock at each `renew`; the record and the count of requests that left.
+fn run_many(reads: Vec<Vec<Bound>>, spend_ms: u64, plan: Plan) -> (Record, u32) {
+    let released = Arc::new(AtomicU32::new(0));
+    let requests: Vec<Box<dyn Paused>> = reads
+        .into_iter()
+        .map(|reads| {
+            Box::new(Fake {
+                reads,
+                at: 0,
+                released: Arc::clone(&released),
+                from_slot: false,
+                clock: Some((Arc::clone(&plan.clock), spend_ms)),
+            }) as Box<dyn Paused>
+        })
+        .collect();
+    let record = run_many_path(
+        Category::CalendarCleanup,
+        (Vec::new(), Vec::new()),
+        requests,
+        plan,
+    );
+    (record, released.load(Ordering::SeqCst))
+}
+
+fn is_ended_row(frame: &FromRunner) -> bool {
+    matches!(frame, FromRunner::Store(s)
+        if matches!(s.request.body(), RunnerCall::Effect(b) if b.record.state == EffectState::Rejected))
+}
+
+/// Every effect of the record is ended with the cause `ended` or still as its first row stood, and none is `held`.
+fn ended_or_as_it_stood(record: &Record) {
+    let effects = record.effects();
+    assert!(
+        effects.iter().all(|e| e.state != EffectState::Held),
+        "no held row: {:?}",
+        record.states()
+    );
+    let ids: std::collections::BTreeSet<_> = effects.iter().map(|e| e.effect.clone()).collect();
+    for id in ids {
+        let rows: Vec<_> = effects.iter().filter(|e| e.effect == id).collect();
+        let last = rows.last().expect("a row");
+        let ended = last.state == EffectState::Rejected && last.cause == Some(Cause::Ended);
+        assert!(
+            ended || rows.len() == 1,
+            "ended or as it stood: {:?}",
+            record.states()
+        );
+    }
+}
+
+/// A6.2, CP-157 E3: a `cancel` that the link holds before the `propose` of a batch that case (iv) proposes again
+/// is read before it: no `held` row and no confirmation; the run ends `declined`.
+#[test]
+fn a_cancel_held_before_the_batch_propose_is_read_before_it() {
+    let reads = vec![
+        vec![delete("a", Source::Extract)],
+        vec![delete("b", Source::Extract)],
+    ];
+    let plan = Plan {
+        runs_at: Some(|load| load == 1),
+        cancel_before: Some(is_ended_row),
+        ..Plan::plain()
+    };
+    let (record, released) = run_many(reads, 0, plan);
+    assert_eq!(released, 0);
+    assert!(record.confirms().is_empty(), "no confirmation request");
+    ended_or_as_it_stood(&record);
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// A6.2, CP-157 E3: a `cancel` that the link holds before the `propose` of a new effect for a `cleared` effect whose
+/// values changed is read before it: no second `cleared` row; the run ends `declined`.
+#[test]
+fn a_cancel_held_before_the_renewed_propose_is_read_before_it() {
+    let reads = vec![vec![
+        delete("a", Source::Extract),
+        delete("b", Source::Extract),
+    ]];
+    let plan = Plan {
+        runs_at: Some(|_| true),
+        cancel_before: Some(is_ended_row),
+        ..Plan::plain()
+    };
+    let (record, released) = run_many(reads, 0, plan);
+    assert_eq!(released, 0);
+    assert_eq!(
+        record.states(),
+        [EffectState::Cleared, EffectState::Rejected],
+        "no propose after the cancel"
+    );
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// A6.5, CP-157 E3: the run's time reaches the newest load's `wall_s` while the batch of case (iv) is made again
+/// (the clock of the test's own, moved by each `renew`); the wall is read before each `propose` of the batch, so no
+/// `held` row and no confirmation follow, and the run ends `limit` with `wall`.
+#[test]
+fn the_wall_is_read_before_each_propose_of_the_batch() {
+    let reads = vec![
+        vec![delete("a", Source::Extract)],
+        vec![delete("b", Source::Extract)],
+    ];
+    let plan = Plan {
+        runs_at: Some(|load| load == 1),
+        wall_s: Some(5),
+        ..Plan::plain()
+    };
+    let (record, released) = run_many(reads, 6000, plan);
+    assert_eq!(released, 0);
+    assert!(record.confirms().is_empty(), "no confirmation request");
+    ended_or_as_it_stood(&record);
+    assert_eq!(record.done(), Some(Outcome::Limit));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Wall)))
+    );
 }

@@ -12,7 +12,8 @@ use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
+use std::sync::atomic::AtomicU64;
+use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
 use halvo_policy::{effect_step, preset, Effect, EffectMove};
@@ -336,7 +337,9 @@ pub(crate) type SlotsAt = Box<dyn FnMut(usize, &mut Vec<Slot>) + Send>;
 /// `wall_zero_from_load` on its `wall_s` is 0; with `one_approval_id` every approval has the same id; with
 /// `other_digest` every approval names a digest that is not its effect's; and the loads for whose count `runs_at`
 /// holds give a configuration under which `decide` gives `run` for `delete` (`unattended`, `allow` `delete`,
-/// `untrusted` no); and `slots_at` changes the slots of the bindings that the load of a count gives.
+/// `untrusted` no); `slots_at` changes the slots of the bindings that the load of a count gives; the supervisor
+/// writes one `cancel` before its reply to the first frame for which `cancel_before` holds; `wall_s` is the
+/// `wall_s` of every load; and `clock` is the run's clock of the test's own, in milliseconds added to its time.
 pub(crate) struct Plan {
     pub(crate) on_confirm: Box<dyn FnMut(usize) + Send>,
     pub(crate) answer: Answer,
@@ -348,6 +351,9 @@ pub(crate) struct Plan {
     pub(crate) other_digest: bool,
     pub(crate) runs_at: Option<fn(usize) -> bool>,
     pub(crate) slots_at: Option<SlotsAt>,
+    pub(crate) cancel_before: Option<fn(&FromRunner) -> bool>,
+    pub(crate) wall_s: Option<u32>,
+    pub(crate) clock: Arc<AtomicU64>,
 }
 
 impl Plan {
@@ -364,6 +370,9 @@ impl Plan {
             other_digest: false,
             runs_at: None,
             slots_at: None,
+            cancel_before: None,
+            wall_s: None,
+            clock: Arc::default(),
         }
     }
 }
@@ -402,6 +411,9 @@ fn supervise(
                             let mut config = config.clone();
                             if plan.observe_from_load.is_some_and(|from| loads >= from) {
                                 config.autonomy = Autonomy::Observe;
+                            }
+                            if let Some(wall_s) = plan.wall_s {
+                                config.limits.wall_s = wall_s;
                             }
                             if plan.wall_zero_from_load.is_some_and(|from| loads >= from) {
                                 config.limits.wall_s = 0;
@@ -496,8 +508,12 @@ fn supervise(
         };
         let begun = matches!(&frame, FromRunner::Store(s)
             if matches!(s.request.body(), RunnerCall::Effect(b) if b.record.state == EffectState::Releasing));
+        let cancel_now = plan.cancel_before.is_some_and(|before| before(&frame));
+        if cancel_now {
+            plan.cancel_before = None;
+        }
         frames.push(frame);
-        if plan.cancel_before_begin_answer && begun {
+        if (plan.cancel_before_begin_answer && begun) || cancel_now {
             let json = ToRunner::Cancel(Cancel {}).to_json().expect("a frame");
             if to_runner.write_all(&encode(&json)).is_err() {
                 break;
@@ -535,6 +551,17 @@ pub(crate) fn run_path(
     request: Box<dyn Paused>,
     plan: Plan,
 ) -> Record {
+    run_many_path(category, bindings, vec![request], plan)
+}
+
+/// Runs the runner's confirm path on `requests`, the paused requests of one step, in one call of `release`, as
+/// [`run_path`] runs one.
+pub(crate) fn run_many_path(
+    category: Category,
+    bindings: (Vec<WebOrigin>, Vec<Slot>),
+    requests: Vec<Box<dyn Paused>>,
+    plan: Plan,
+) -> Record {
     let run = RunId::from_random([0x51; 16]);
     let agent = AgentId::from_random([0x52; 16]);
     let workflow = WorkflowId::from_random([0x53; 16]);
@@ -563,10 +590,12 @@ pub(crate) fn run_path(
         Box::new(from_runner_write),
         Box::new(|| {}),
     );
+    let clock = Arc::clone(&plan.clock);
     let supervisor =
         std::thread::spawn(move || supervise(from_runner, to_runner, config, bindings, plan));
     let mut runner = Runner::new(args, link);
-    let end = runner.release(vec![request]).map(|()| Outcome::Completed);
+    runner.test_clock = Arc::clone(&clock);
+    let end = runner.release(requests).map(|()| Outcome::Completed);
     let status = runner.close(end);
     let (frames, after_end) = supervisor.join().expect("the supervisor");
     assert!(
