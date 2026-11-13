@@ -18,7 +18,6 @@ use objc2_screen_capture_kit::{
 use crate::event::Modality;
 use crate::macos::foreground::{emit_metadata_only, ForegroundReader, Unpersisted};
 use crate::macos::source_failure;
-use crate::secure_input::SecureInputError;
 use crate::sink::SinkHandle;
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
@@ -37,6 +36,11 @@ impl FrameRateCap {
 }
 
 pub const SCREEN_FRAME_CAP: FrameRateCap = FrameRateCap(FrameRateCap::MAX_PER_SECOND);
+
+const _: () = assert!(
+    SCREEN_FRAME_CAP.per_second() > 0
+        && SCREEN_FRAME_CAP.per_second() <= FrameRateCap::MAX_PER_SECOND
+);
 
 const STREAM_QUEUE_DEPTH: NSInteger = 8;
 
@@ -93,10 +97,6 @@ impl ScreenOutput {
         // the object it was sent to.
         unsafe { msg_send![super(this), init] }
     }
-}
-
-pub fn self_exclusion_enforced_in_filter() -> Result<(), SecureInputError> {
-    Ok(())
 }
 
 fn is_own_process(pid: libc::pid_t) -> bool {
@@ -160,26 +160,43 @@ fn stream_configuration(
     config
 }
 
-pub const SCREEN_STOP_WAIT: Duration = Duration::from_secs(5);
-
+/// The deadline of the screen source's `shutdown` (contract C12 item 7).
 pub const SCREEN_STOP_DEADLINE: Duration = Duration::from_secs(6);
+
+/// The part of the deadline that the stop keeps after its wait gives up.
+pub const SCREEN_STOP_MARGIN: Duration = Duration::from_secs(1);
+
+/// How long the stop waits for the stream's stop completion: the deadline less
+/// the margin.
+pub const SCREEN_STOP_WAIT: Duration = SCREEN_STOP_DEADLINE.saturating_sub(SCREEN_STOP_MARGIN);
 
 const SCREEN_START_WAIT: Duration = Duration::from_secs(5);
 
 const SHAREABLE_CONTENT_WAIT: Duration = Duration::from_secs(10);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StopReply {
+    Stopped,
+    Failed { code: i64 },
+}
+
 trait StopStream {
-    fn ask_stop(&self, reply: Sender<Option<i64>>);
+    fn ask_stop(&self, reply: Sender<StopReply>);
 }
 
 impl StopStream for Retained<SCStream> {
-    fn ask_stop(&self, reply: Sender<Option<i64>>) {
+    fn ask_stop(&self, reply: Sender<StopReply>) {
         let handler = RcBlock::new(move |err: *mut NSError| {
-            // SAFETY: a non-null `err` is a live NSError that the completion
-            // hands the handler for the length of the call; `code` is a
-            // property getter that takes no argument.
-            let code = (!err.is_null()).then(|| unsafe { (*err).code() } as i64);
-            let _ = reply.send(code);
+            let answer = if err.is_null() {
+                StopReply::Stopped
+            } else {
+                // SAFETY: `err` is not null: a live NSError that the completion
+                // hands the handler for the length of the call; `code` is a
+                // property getter that takes no argument.
+                let code = unsafe { (*err).code() } as i64;
+                StopReply::Failed { code }
+            };
+            let _ = reply.send(answer);
         });
         // SAFETY: the stream is live, and the handler has the completion
         // signature `void (^)(NSError *)`.
@@ -405,7 +422,7 @@ impl CaptureSource for ScreenSource {
         let (tx, rx) = channel();
         stream.ask_stop(tx);
         let completion = rx.recv_timeout(SCREEN_STOP_WAIT);
-        if stopped_without_error(completion) {
+        if stopped_without_error(&completion) {
             self.stream = None;
             self.stopped = true;
             release(self.output.take(), self.queue.take());
@@ -413,12 +430,12 @@ impl CaptureSource for ScreenSource {
         }
         keep_for_the_life_of_the_process(self.output.take(), self.queue.take());
         Err(match completion {
-            Ok(code) => CaptureError::Os {
+            Ok(StopReply::Failed { code }) => CaptureError::Os {
                 stage: "stop_capture",
                 domain: "ScreenCaptureKit",
-                code: code.unwrap_or(0),
+                code,
             },
-            Err(_) => CaptureError::Timeout {
+            Ok(StopReply::Stopped) | Err(_) => CaptureError::Timeout {
                 stage: "stop_capture",
                 ms: SCREEN_STOP_WAIT.as_millis() as u64,
             },
@@ -445,8 +462,8 @@ impl Drop for ScreenSource {
     }
 }
 
-fn stopped_without_error(completion: Result<Option<i64>, RecvTimeoutError>) -> bool {
-    completion == Ok(None)
+fn stopped_without_error(completion: &Result<StopReply, RecvTimeoutError>) -> bool {
+    *completion == Ok(StopReply::Stopped)
 }
 
 fn give_back_the_sink(output: &ScreenOutput) {
@@ -497,11 +514,6 @@ mod tests {
     use std::ffi::c_void;
     use std::rc::Rc;
     use std::time::Instant;
-
-    #[test]
-    fn self_exclusion_is_enforced_in_the_filter() {
-        assert!(self_exclusion_enforced_in_filter().is_ok());
-    }
 
     #[test]
     fn only_the_own_process_is_excluded_and_every_other_entry_is_kept() {
@@ -745,10 +757,12 @@ mod tests {
 
     #[test]
     fn only_a_stop_completion_without_error_releases_the_output() {
-        assert!(stopped_without_error(Ok(None)));
-        assert!(!stopped_without_error(Ok(Some(-3808))));
-        assert!(!stopped_without_error(Err(RecvTimeoutError::Timeout)));
-        assert!(!stopped_without_error(Err(RecvTimeoutError::Disconnected)));
+        assert!(stopped_without_error(&Ok(StopReply::Stopped)));
+        assert!(!stopped_without_error(&Ok(StopReply::Failed {
+            code: -3808
+        })));
+        assert!(!stopped_without_error(&Err(RecvTimeoutError::Timeout)));
+        assert!(!stopped_without_error(&Err(RecvTimeoutError::Disconnected)));
     }
 
     fn screen_ivars() -> (ScreenIvars, SinkWriter) {
@@ -800,16 +814,16 @@ mod tests {
         on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
         assert_eq!(frame.retain_count(), before);
     }
-    type Answers = Rc<RefCell<std::collections::VecDeque<Option<Option<i64>>>>>;
+    type Answers = Rc<RefCell<std::collections::VecDeque<Option<StopReply>>>>;
 
     struct ScriptedStream {
         answers: Answers,
         asks: Rc<Cell<u32>>,
-        held: RefCell<Vec<Sender<Option<i64>>>>,
+        held: RefCell<Vec<Sender<StopReply>>>,
     }
 
     impl StopStream for ScriptedStream {
-        fn ask_stop(&self, reply: Sender<Option<i64>>) {
+        fn ask_stop(&self, reply: Sender<StopReply>) {
             self.asks.set(self.asks.get() + 1);
             match self.answers.borrow_mut().pop_front().flatten() {
                 Some(answer) => {
@@ -821,7 +835,7 @@ mod tests {
     }
 
     fn scripted(
-        answers: &[Option<Option<i64>>],
+        answers: &[Option<StopReply>],
         asks: &Rc<Cell<u32>>,
     ) -> impl FnOnce(SinkHandle, ForegroundReader, FrameRateCap) -> Result<Opened, CaptureError>
     {
@@ -841,7 +855,7 @@ mod tests {
     }
 
     fn started(
-        answers: &[Option<Option<i64>>],
+        answers: &[Option<StopReply>],
     ) -> (
         ScreenSource,
         SinkHandle,
@@ -874,7 +888,7 @@ mod tests {
 
     #[test]
     fn a_second_begin_is_refused_and_a_clean_shutdown_releases_the_output_and_the_sink() {
-        let (mut source, handle, writer, asks, weak) = started(&[Some(None)]);
+        let (mut source, handle, writer, asks, weak) = started(&[Some(StopReply::Stopped)]);
         let second = source.begin(SourceContext::new(handle.clone()));
         let called = Instant::now();
         let shut = source.shutdown();
@@ -899,7 +913,7 @@ mod tests {
     #[test]
     fn a_stop_whose_wait_gives_up_answers_timeout_inside_six_seconds_and_leaves_no_output_or_queue()
     {
-        let (mut source, handle, writer, asks, weak) = started(&[None, Some(None)]);
+        let (mut source, handle, writer, asks, weak) = started(&[None, Some(StopReply::Stopped)]);
         let called = Instant::now();
         let shut = source.shutdown();
         let took = called.elapsed();
@@ -931,7 +945,10 @@ mod tests {
 
     #[test]
     fn a_stop_that_reports_an_error_keeps_the_output_and_answers_its_code() {
-        let (mut source, handle, writer, _asks, weak) = started(&[Some(Some(-3808)), Some(None)]);
+        let (mut source, handle, writer, _asks, weak) = started(&[
+            Some(StopReply::Failed { code: -3808 }),
+            Some(StopReply::Stopped),
+        ]);
         let shut = source.shutdown();
         assert_eq!(
             shut,
@@ -953,7 +970,7 @@ mod tests {
 
     #[test]
     fn a_clean_stop_gives_back_the_sink_while_another_holder_keeps_the_output() {
-        let (mut source, handle, writer, _asks, _weak) = started(&[Some(None)]);
+        let (mut source, handle, writer, _asks, _weak) = started(&[Some(StopReply::Stopped)]);
         let held_elsewhere = source
             .output
             .clone()
@@ -970,7 +987,7 @@ mod tests {
 
     #[test]
     fn a_dropped_started_source_asks_the_stream_to_stop_and_releases_the_output() {
-        let (source, handle, writer, asks, weak) = started(&[Some(None)]);
+        let (source, handle, writer, asks, weak) = started(&[Some(StopReply::Stopped)]);
         drop(source);
         assert_eq!(asks.get(), 1);
         assert!(weak.load().is_none());
@@ -979,6 +996,7 @@ mod tests {
 
     #[test]
     fn the_stop_wait_is_inside_the_deadline() {
+        assert_eq!(SCREEN_STOP_DEADLINE, Duration::from_secs(6));
         assert_eq!(SCREEN_STOP_WAIT, Duration::from_secs(5));
         assert!(SCREEN_STOP_WAIT < SCREEN_STOP_DEADLINE);
     }
