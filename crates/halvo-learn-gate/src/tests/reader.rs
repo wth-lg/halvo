@@ -93,3 +93,30 @@ fn reader_arms_give_the_integers_of_the_trial() {
     }
     assert_eq!(compared, 32);
 }
+
+#[test]
+fn reader_answers_the_unit_s_own_files_as_the_trial_does() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("cases");
+    let mut names: Vec<String> = std::fs::read_dir(&dir)
+        .expect("the unit's case files")
+        .map(|e| {
+            e.expect("an entry")
+                .file_name()
+                .into_string()
+                .expect("a name")
+        })
+        .collect();
+    names.sort();
+    assert_eq!(names.len(), 6);
+    for name in names {
+        let bytes = std::fs::read(dir.join(&name)).expect("a case file");
+        let answer = read_case(&name, &bytes, calendar_days_min());
+        match name.split('-').next() {
+            Some("accepted") => assert!(answer.is_ok(), "{name}: {answer:?}"),
+            Some("refused") => assert!(answer.is_err(), "{name} was accepted"),
+            _ => panic!("{name} names no answer"),
+        }
+    }
+}
