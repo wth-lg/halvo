@@ -1509,6 +1509,42 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
             "a life that ended for a source that did not stop names its kind and the source",
         );
     }
+    let never = match f.platform {
+        Platform::Macos => &[SourceName::SystemAudio, SourceName::Microphone][..],
+        Platform::Windows => &[SourceName::SystemAudio][..],
+    };
+    if f.sources
+        .iter()
+        .any(|s| never.contains(&s.name) && s.state != SourceState::Off)
+    {
+        return fail("a source that never captures in R1 reads off");
+    }
+    let runs =
+        |s: &&SourceLine| matches!(s.state, SourceState::Running | SourceState::Impaired { .. });
+    let required = f.sources.iter().filter(|s| s.state != SourceState::Off);
+    let running = required.clone().filter(runs).count();
+    let all = required.count();
+    let fits = match f.capture {
+        Capture::Running => running == all,
+        Capture::Partial => running > 0 && running < all,
+        Capture::Faulted | Capture::Paused | Capture::NoIndicator | Capture::AwaitingResume => {
+            running == 0
+        }
+        Capture::Starting | Capture::Pausing => true,
+    };
+    if !fits {
+        return fail("the capture value agrees with the states of the required sources");
+    }
+    if f.capture == Capture::NoIndicator
+        && (f.lease == Lease::Fresh || f.desired != CaptureState::Running)
+    {
+        return fail("no_indicator has desired running and a lease that is not fresh");
+    }
+    if f.capture == Capture::Faulted
+        && (f.lease != Lease::Fresh || f.desired != CaptureState::Running)
+    {
+        return fail("faulted has desired running and a fresh lease");
+    }
     if f.capture == Capture::AwaitingResume && f.desired != CaptureState::Running {
         return fail("a capture that awaits a resume has desired running");
     }
@@ -2267,7 +2303,148 @@ mod tests {
         let mut fields = sample_status(Platform::Macos).into_fields();
         fields.capture = Capture::Faulted;
         fields.capture_reason = Some(CaptureReason::NoSource);
+        for line in &mut fields.sources {
+            if line.state == SourceState::Running {
+                line.state = SourceState::Failed {
+                    reason: Reason::Permission,
+                    error: None,
+                };
+            }
+        }
         assert!(DaemonStatus::new(fields).is_ok());
+    }
+
+    fn with_sources(
+        platform: Platform,
+        capture: Capture,
+        state: impl Fn(SourceName) -> Option<SourceState>,
+    ) -> StatusFields {
+        let mut fields = sample_status(platform).into_fields();
+        fields.capture = capture;
+        fields.capture_reason = (capture == Capture::Faulted).then_some(CaptureReason::NoSource);
+        for line in &mut fields.sources {
+            if let Some(new) = state(line.name) {
+                line.state = new;
+            }
+        }
+        fields
+    }
+
+    #[test]
+    fn a_source_that_never_captures_in_r1_reads_off() {
+        for (platform, name) in [
+            (Platform::Macos, SourceName::SystemAudio),
+            (Platform::Macos, SourceName::Microphone),
+            (Platform::Windows, SourceName::SystemAudio),
+        ] {
+            let mut fields = with_sources(platform, Capture::Running, |n| {
+                (n == name).then_some(SourceState::Running)
+            });
+            let at = SourceName::of(platform)
+                .iter()
+                .position(|n| *n == name)
+                .unwrap();
+            fields.enabled_sources = SourceName::of(platform)
+                .iter()
+                .enumerate()
+                .filter(|(i, n)| *i == at || fields.enabled_sources.contains(n))
+                .map(|(_, n)| *n)
+                .collect();
+            assert!(DaemonStatus::new(fields).is_err(), "{platform:?} {name:?}");
+        }
+    }
+
+    #[test]
+    fn the_capture_value_agrees_with_the_states_of_the_required_sources() {
+        let failed = || SourceState::Failed {
+            reason: Reason::OsError,
+            error: None,
+        };
+        let stopped = || SourceState::Stopped { by_user: false };
+        let input_failed = |n| (n == SourceName::Input).then(failed);
+        let all_stopped = |n| {
+            (n != SourceName::Screen && n != SourceName::SystemAudio && n != SourceName::Microphone)
+                .then(stopped)
+        };
+        let all_failed = |n| {
+            (n != SourceName::Screen && n != SourceName::SystemAudio && n != SourceName::Microphone)
+                .then(failed)
+        };
+        let impaired = |n| {
+            (n == SourceName::Input).then_some(SourceState::Impaired {
+                reason: Reason::NoKeyEvents,
+                error: None,
+            })
+        };
+        type States<'a> = Box<dyn Fn(SourceName) -> Option<SourceState> + 'a>;
+        let cases: Vec<(Capture, States<'_>, bool)> = vec![
+            (Capture::Running, Box::new(|_| None), true),
+            (Capture::Running, Box::new(impaired), true),
+            (Capture::Running, Box::new(input_failed), false),
+            (Capture::Partial, Box::new(input_failed), true),
+            (Capture::Partial, Box::new(|_| None), false),
+            (Capture::Partial, Box::new(all_failed), false),
+            (Capture::Faulted, Box::new(all_failed), true),
+            (Capture::Faulted, Box::new(input_failed), false),
+            (Capture::Paused, Box::new(all_stopped), true),
+            (Capture::Paused, Box::new(|_| None), false),
+            (Capture::NoIndicator, Box::new(|_| None), false),
+            (Capture::AwaitingResume, Box::new(|_| None), false),
+        ];
+        for (capture, state, ok) in cases {
+            let mut fields = with_sources(Platform::Macos, capture, state);
+            if capture == Capture::Paused {
+                fields.desired = crate::model::CaptureState::Paused;
+            }
+            if capture == Capture::NoIndicator {
+                fields.lease = Lease::Lapsed;
+            }
+            let built = DaemonStatus::new(fields.clone());
+            assert_eq!(built.is_ok(), ok, "{capture:?}: {:?}", fields.sources);
+        }
+    }
+
+    #[test]
+    fn no_indicator_has_a_lease_that_is_not_fresh_and_faulted_one_that_is() {
+        let stopped = |n| {
+            (n == SourceName::Foreground || n == SourceName::Input)
+                .then_some(SourceState::Stopped { by_user: false })
+        };
+        for (lease, ok) in [
+            (Lease::Fresh, false),
+            (Lease::Lapsed, true),
+            (Lease::None, true),
+        ] {
+            let mut fields = with_sources(Platform::Macos, Capture::NoIndicator, stopped);
+            fields.lease = lease;
+            assert_eq!(
+                DaemonStatus::new(fields).is_ok(),
+                ok,
+                "no_indicator {lease:?}"
+            );
+        }
+        let mut paused = with_sources(Platform::Macos, Capture::NoIndicator, stopped);
+        paused.lease = Lease::Lapsed;
+        paused.desired = crate::model::CaptureState::Paused;
+        assert!(
+            DaemonStatus::new(paused).is_err(),
+            "no_indicator with desired paused"
+        );
+        let failed = |n| {
+            (n == SourceName::Foreground || n == SourceName::Input).then_some(SourceState::Failed {
+                reason: Reason::Permission,
+                error: None,
+            })
+        };
+        for (lease, ok) in [
+            (Lease::Fresh, true),
+            (Lease::Lapsed, false),
+            (Lease::None, false),
+        ] {
+            let mut fields = with_sources(Platform::Macos, Capture::Faulted, failed);
+            fields.lease = lease;
+            assert_eq!(DaemonStatus::new(fields).is_ok(), ok, "faulted {lease:?}");
+        }
     }
 
     #[test]

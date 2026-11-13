@@ -735,6 +735,7 @@ mod tests {
         let user = edited(Platform::Macos, |f| {
             f.enabled_sources.insert(1, SourceName::Screen);
             f.sources[1].state = SourceState::Stopped { by_user: true };
+            f.capture = Capture::Partial;
         });
         assert!(status_text(&user).contains("\nsource name=screen state=stopped reason=user\n"));
     }
