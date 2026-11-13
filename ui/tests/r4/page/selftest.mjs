@@ -243,7 +243,7 @@ const RECORD_CASES = [
   ['record-whose-needs-run-exited-1', 'form', (d) => writeRecord(d, line('page needs_alone ', (l) => l.replace('exit=0', 'exit=1')))],
   ['record-without-the-line-of-a-test-item', 'form', (d) => writeRecord(d, (x) => drop('needs page state=' + Object.keys(JSON.parse(readFileSync(join(d, 'ui', 'tests', 'r4', 'needs', 'items.json'), 'utf8')))[0] + ' ')(x))],
   ['record-with-a-key-twice-on-a-line', 'form', (d) => writeRecord(d, line('page state=ten ', (l) => l.replace('keyboard=ok', 'keyboard=miss keyboard=ok')))],
-  ['record-of-another-engine', 'form', (d) => writeRecord(d, line('browser name=', (l) => l.replace('name=webkit', 'name=chromium')))],
+  ['record-of-another-engine', 'form', (d) => writeRecord(d, line('browser name=', (l) => l.replace(/name=(\S+)/, (m, e) => 'name=' + (e === 'webkit' ? 'chromium' : 'webkit'))))],
   ['record-without-a-browser-line', 'form', (d) => writeRecord(d, drop('browser name='))],
   ['record-with-a-line-after-the-result', 'form', (d) => writeRecord(d, (x) => x + 'page state=ten\n')],
   ['record-with-another-first-line', 'form', (d) => writeRecord(d, (x) => x.replace('page record: ', 'page record by hand: '))],
