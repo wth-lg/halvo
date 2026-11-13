@@ -167,7 +167,11 @@ impl Dialog for Held {
     fn show(&self, _: &Card, on_screen: &dyn Fn()) -> ConfirmAnswer {
         on_screen();
         self.started.lock().unwrap().send(()).unwrap();
-        self.release.lock().unwrap().recv().unwrap_or(REJECT)
+        self.release
+            .lock()
+            .unwrap()
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap_or(REJECT)
     }
 }
 
@@ -192,7 +196,14 @@ fn present_returns_at_once_and_drops_the_item_on_its_own_thread_when_the_dialog_
     });
     let presenter = DialogPresenter::new(dialog, |_: &ItemId| Ok(pay()));
     let (fake, seen) = Fake::new(&[Ok(())]);
-    presenter.spawn(fake);
+    let (returned_tx, returned) = mpsc::channel();
+    std::thread::spawn(move || {
+        presenter.spawn(fake);
+        let _ = returned_tx.send(());
+    });
+    returned
+        .recv_timeout(Duration::from_secs(5))
+        .expect("present has not returned within 5 s: it serves the dialog on the caller's thread");
     started.recv_timeout(Duration::from_secs(10)).unwrap();
     assert!(!seen.lock().unwrap().dropped, "open while the dialog is");
     release.send(ALLOW).unwrap();
