@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The job's own run of src-tauri/tests/page_guard.rs passes each of its five tests by name, with no test ignored, failed or missing and no build of the file to zero tests, and tauri's resolved features in a normal build of halvo on any target name neither unstable nor test, nor does a tauri configuration of the app at HEAD hold build.features.
+# rule: The job's own run of src-tauri/tests/page_guard.rs passes the five tests on the check's list by name, with no test ignored, failed, missing or outside that list and the app's four modules, with one number in its running line, its ok lines and its result line, and with no build of the file to zero tests, and tauri's resolved features in a normal build of halvo on any target name neither unstable nor test, nor does a tauri configuration of the app at HEAD hold build.features.
 set -u
 name=36-app-guard-tests
 guard_tests='a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_nothing
@@ -8,6 +8,10 @@ a_call_whose_origin_header_is_no_address_is_refused
 an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused
 the_web_view_main_moved_into_another_window_gets_no_command_of_the_unit_and_deletes_nothing
 a_capability_handed_to_the_context_macro_reaches_no_command_of_the_unit_from_another_window'
+app_modules='app
+commands
+launch
+tray'
 test_command='test --workspace --locked --test page_guard'
 tree_command='tree -p halvo -e normal --target all -f {p} {f} --prefix none --locked'
 esc=$(printf '\033')
@@ -54,16 +58,45 @@ tests_decide() {
       broke "rule 1: $test is missing"
     fi
   done
+  oks=$(grep -c -E '^test [^ ]+ \.\.\. ok$' "$2.lf")
+  results=$(sed -n 's/^test result: ok\. \([0-9][0-9]*\) passed; 0 failed; 0 ignored;.*$/\1/p' "$2.lf")
+  case $results in
+    '' | *[!0-9]*) results=none ;;
+    *) ;;
+  esac
+  case $counts in
+    '' | *[!0-9]*) said=none ;;
+    *) said=$counts ;;
+  esac
+  if [ "$said" != "$oks" ] || [ "$results" != "$oks" ]; then
+    broke "rule 1: the run's three counts are not one number: running N tests gives $said, ok lines give $oks, the result line gives $results"
+  fi
   others=$(grep -E '^test .* \.\.\. ' "$2.lf" | grep -c -v -E '^test [^ ]+ \.\.\. ok$')
   [ "$others" = 0 ] || broke "rule 1: $others tests of the run do not pass"
-  unlisted=$(GUARD_TESTS="$guard_tests" awk '
-    BEGIN { n = split(ENVIRON["GUARD_TESTS"], names, "\n"); for (i = 1; i <= n; i++) known[names[i]] = 1 }
-    /^test [^ :]+ \.\.\. / { if (!($2 in known)) print $2 }
+  unlisted=$(GUARD_TESTS="$guard_tests" APP_MODULES="$app_modules" awk '
+    BEGIN {
+      n = split(ENVIRON["GUARD_TESTS"], names, "\n"); for (i = 1; i <= n; i++) known[names[i]] = 1
+      n = split(ENVIRON["APP_MODULES"], names, "\n"); for (i = 1; i <= n; i++) modules[names[i]] = 1
+    }
+    /^test [^ ]+ \.\.\. / {
+      if ($2 in known) next
+      cut = index($2, "::")
+      if (cut > 0 && (substr($2, 1, cut - 1) in modules)) next
+      print $2
+    }
   ' "$2.lf")
   for test in $unlisted; do
-    broke "rule 1: $test of tests/page_guard.rs is not in the list of this check, so add it to guard_tests"
+    case $test in
+      *::*) broke "rule 1: $test of tests/page_guard.rs stands in a module that is not on app_modules, so write it at the top level of the file and add it to guard_tests, or, when the file brings in one more module of the app by a path attribute, add that module's name to app_modules" ;;
+      *) broke "rule 1: $test of tests/page_guard.rs is not in the list of this check, so add it to guard_tests" ;;
+    esac
   done
-  printf 'tests of page_guard.rs passed by name: %s of 5\n' "$passed"
+  listed=$(printf '%s\n' "$guard_tests" | grep -c .)
+  distinct=$(printf '%s\n' "$guard_tests" | grep . | sort -u | grep -c -v ':')
+  if [ "$listed" != 5 ] || [ "$distinct" != 5 ]; then
+    broke "rule 1: the list guard_tests of this check holds $listed names, $distinct of them distinct and with no path, and it must hold the five guard tests of the file, each once, at its top level"
+  fi
+  printf 'tests of page_guard.rs passed by name: %s of %s\n' "$passed" "$listed"
 }
 
 tree_decide() {
@@ -124,8 +157,12 @@ config_decide() {
 }
 
 tracked_changes() {
-  git status --porcelain --untracked-files=no >"$work/status.$1" || broke "git status failed $1 cargo"
-  [ ! -s "$work/status.$1" ] || broke "a tracked file differs from HEAD $1 cargo ran"
+  git status --porcelain --untracked-files=no >"$work/status.$1" || fail "git status failed $1 cargo ran"
+  [ -s "$work/status.$1" ] || return 0
+  case $1 in
+    before) fail "a tracked file differs from HEAD before cargo ran, so commit or stash the change, then run the check again" ;;
+    *) broke "a tracked file differs from HEAD after cargo ran: a test or a build of the run wrote a tracked file, so read git status and mend what wrote it" ;;
+  esac
 }
 
 measure() {
@@ -176,7 +213,7 @@ test an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused ... 
 test a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_nothing ... ok
 test launch::tests::an_unknown_or_an_extra_argument_is_a_usage_error ... ok
 test launch::tests::check_page_refuses_a_missing_repeated_relative_or_bad_option ... ok
-test launch::tests::a_version_flag_after_another_argument_is_a_usage_error ... ok
+test launch::tests::an_argument_that_is_not_unicode_is_a_usage_error ... ok
 test a_capability_handed_to_the_context_macro_reaches_no_command_of_the_unit_from_another_window ... ok
 test launch::tests::no_argument_runs_the_app_and_version_alone_prints_the_version ... ok
 test tray::tests::the_indicator_reflects_paused_and_running ... ok
@@ -261,6 +298,13 @@ add_line() {
     { print }
     (ENVIRON["AT"] ~ /^[0-9]+$/ && NR == ENVIRON["AT"] + 0) || (ENVIRON["AT"] !~ /^[0-9]+$/ && $0 ~ ENVIRON["AT"]) { print ENVIRON["TEXT"] }
   ' "$1"
+}
+
+check_tests_with_list() {
+  kept=$guard_tests
+  guard_tests=$(printf '%s\n' "$kept" | grep -v -x -F -e "$5")
+  check_tests "$1" "$2" "$3" "$4" "$keep"
+  guard_tests=$kept
 }
 
 check_tests_adding() {
@@ -378,6 +422,7 @@ run_measure() {
   calls=$(cat "$work/calls.$1")
   want_calls="$test_command$nl$tree_command"
   [ "$code" != 0 ] || [ "$calls" = "$want_calls" ] || got="$got, other cargo calls"
+  [ "${8:-}" != no-cargo ] || [ -z "$calls" ] || got="$got, cargo was called"
   verdict "$1" "$2" "$got"
 }
 
@@ -401,7 +446,11 @@ self_test() {
 
   check_tests all-pass PASS 0 "$keep" "$keep"
   check_tests crlf-and-windows-paths PASS 0 "s/\$/$cr/" "s|Running tests/|Running tests\\\\|; s|target/debug/deps/|target\\\\debug\\\\deps\\\\|; s/\$/$cr/"
-  check_tests_adding another-module-test-passes PASS 0 out "$keep" '^test tray::' 'test commands::tests::a_new_test_of_a_module ... ok' 18
+  check_tests_adding another-module-test-passes PASS 0 out 's/^running 12 tests$/running 13 tests/; s/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' '^test tray::' 'test commands::tests::a_new_test_of_a_module ... ok' 18
+  check_tests_adding a-test-of-the-module-app-passes PASS 0 out 's/^running 12 tests$/running 13 tests/; s/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' '^test tray::' 'test app::tests::a_test_of_the_app_module ... ok' 18
+  check_tests_adding a-test-in-a-module-of-the-file "FAIL rule 1: more::a_guard_test_in_a_module of tests/page_guard.rs stands in a module that is not on app_modules" 0 out 's/^running 12 tests$/running 13 tests/; s/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' '^test tray::' 'test more::a_guard_test_in_a_module ... ok' 18
+  check_tests_adding a-test-two-modules-deep "FAIL rule 1: more::deeper::a_guard_test_two_modules_deep of tests/page_guard.rs stands in a module that is not on app_modules" 0 out 's/^running 12 tests$/running 13 tests/; s/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' '^test tray::' 'test more::deeper::a_guard_test_two_modules_deep ... ok' 18
+  check_tests_adding a-module-that-begins-like-an-app-module "FAIL rule 1: tray_more::tests::a_test_of_a_module_named_like_tray of tests/page_guard.rs stands in a module that is not on app_modules" 0 out 's/^running 12 tests$/running 13 tests/; s/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' '^test tray::' 'test tray_more::tests::a_test_of_a_module_named_like_tray ... ok' 18
   check_tests_adding m33-built-to-zero-tests "FAIL rule 3: tests/page_guard.rs was built to 0 tests in the job" 0 out '/^running 12 tests$/,/^$/d; /^test /d' 1 'running 0 tests' 3
   check_tests_adding m33-names-missing "FAIL rule 1: a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_nothing is missing" 0 out '/^running 12 tests$/,/^$/d; /^test /d' 1 'running 0 tests' 3
   check_tests one-guard-test-ignored "FAIL rule 1: a_call_whose_origin_header_is_no_address_is_refused is ignored" 0 's/^test a_call_whose_origin_header_is_no_address_is_refused \.\.\. ok$/test a_call_whose_origin_header_is_no_address_is_refused ... ignored/' "$keep"
@@ -419,6 +468,12 @@ self_test() {
   check_tests_adding a-second-binary-ran "FAIL rule 1: the run started 2 test binaries, 1 of them" 0 err "$keep" 'Running tests' '     Running unittests src/main.rs (target/debug/deps/halvo-0123456789abcdef)' 4
   check_tests_adding two-running-lines "FAIL rule 1: the run printed no single line running N tests" 0 out "$keep" '^running 12 tests$' 'running 3 tests' 18
   check_tests cargo-colour-on-standard-error PASS 0 "$keep" "s/^\\( *\\)\\([A-Z][a-z]*\\) /\\1${esc}[1m${esc}[92m\\2${esc}[0m /"
+  check_tests a-run-that-ends-before-its-result-line "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 11, the result line gives none" 0 '/^test launch::tests::each_exit_has_its_code /d; /^test result:/d' "$keep"
+  check_tests_adding one-more-ok-line-than-the-run-counts "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 13, the result line gives 12" 0 out "$keep" '^test tray::' 'test launch::tests::a_line_that_no_test_of_the_run_printed ... ok' 18
+  check_tests_with_list a-list-of-four-guard-tests "FAIL rule 1: the list guard_tests of this check holds 4 names" 0 '/^test a_call_whose_origin_header_is_no_address_is_refused /d; s/^running 12 tests$/running 11 tests/; s/^test result: ok\. 12 passed;/test result: ok. 11 passed;/' 'a_call_whose_origin_header_is_no_address_is_refused'
+  check_tests a-running-line-that-counts-one-less "FAIL rule 1: the run's three counts are not one number: running N tests gives 11, ok lines give 12, the result line gives 12" 0 's/^running 12 tests$/running 11 tests/' "$keep"
+  check_tests a-result-line-that-counts-one-more "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 12, the result line gives 13" 0 's/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' "$keep"
+  check_tests a-result-line-with-an-ignored-test "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 12, the result line gives none" 0 's/^test result: ok\. 12 passed; 0 failed; 0 ignored;/test result: ok. 12 passed; 0 failed; 1 ignored;/' "$keep"
   check_tests no-running-line "FAIL rule 1: the run started 0 test binaries, 0 of them" 0 "$keep" '/Running /d'
 
   check_tree tree-passes PASS 0 "$keep"
@@ -473,7 +528,7 @@ self_test() {
   run_measure measure-build-features "FAIL rule 2: src-tauri/tauri.conf.json holds build.features" repo-with-build-features all-pass tree.ok
   run_measure measure-a-test-writes-the-checkout 'FAIL a tracked file differs from HEAD after cargo ran' repo all-pass tree.ok 0 yes
   printf 'changed before the check\n' >>"$work/repo/tracked.txt" || self_fail "the tracked file cannot be changed"
-  run_measure measure-on-a-changed-checkout 'FAIL a tracked file differs from HEAD before cargo ran' repo all-pass tree.ok
+  run_measure measure-on-a-changed-checkout 'FAIL a tracked file differs from HEAD before cargo ran' repo all-pass tree.ok 0 no no-cargo
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
