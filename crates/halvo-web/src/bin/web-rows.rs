@@ -36,6 +36,10 @@
 //!   product's executor: a state-changing request of the payment frame is paused and failed by
 //!   the request rule, and the fixture counts nothing.
 //!
+//! - `crash_one --browser PATH --port N --relay-port P`: one crash reading with the product's means
+//!   on a relay at port P, for the egress check of A13.3's third item to wrap (hosted runners
+//!   alone).
+//!
 //! `start_only` and `foreign_connect` are the children of those rows.
 
 use std::path::{Path, PathBuf};
@@ -126,13 +130,26 @@ async fn crash_reading(
     means: CrashMeans,
     crash: bool,
 ) -> Result<Reading, String> {
+    crash_reading_at(browser, port, dir, name, means, crash, 0).await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn crash_reading_at(
+    browser: &Path,
+    port: u16,
+    dir: &Path,
+    name: &str,
+    means: CrashMeans,
+    crash: bool,
+    relay_port: u16,
+) -> Result<Reading, String> {
     let profile = dir.join(format!("p-{name}"));
     let mut temp = profile.clone().into_os_string();
     temp.push("-tmp");
     let places = crash_row::places(&profile, Path::new(&temp));
     let before = crash_row::snapshot(&places);
     let since_us = epoch_us().saturating_sub(1_000_000);
-    let relay = Relay::start(Names::Fixture)
+    let relay = Relay::start_at(Names::Fixture, relay_port)
         .await
         .map_err(|_| "relay".to_string())?;
     relay.handle().allow("utility.agent.test", port);
@@ -448,6 +465,39 @@ async fn block_frame_post(argv: &[String]) -> (usize, usize) {
         if fine { "ok" } else { "miss" }
     );
     (usize::from(fine), 1)
+}
+
+/// One crash reading with the product's means on a relay at `--relay-port`, which the egress check
+/// of A13.3's third item wraps in the crash row's hosted step, so that its denials count what the
+/// run tried to send (CP-165 (2) (b)); exit 0 when the reading ran.
+async fn crash_one(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(port), Some(relay_port), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--port").and_then(|p| p.parse::<u16>().ok()),
+        arg(argv, "--relay-port").and_then(|p| p.parse::<u16>().ok()),
+        scratch_of(argv, "crash-one"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let got = crash_reading_at(
+        &browser,
+        port,
+        &dir,
+        "egress",
+        CrashMeans::Product,
+        true,
+        relay_port,
+    )
+    .await;
+    let _ = std::fs::remove_dir(&dir);
+    match got {
+        Ok(_) => (1, 1),
+        Err(cause) => {
+            println!("row crash_one result=notrun cause={cause}");
+            (0, 1)
+        }
+    }
 }
 
 /// The crash row (CP-165 (2), CP-167 E1 to E4) for one browser: a start and stop with no crash,
@@ -960,6 +1010,7 @@ fn main() -> ExitCode {
         "crash" => runtime.block_on(crash(&argv)),
         "checks" => runtime.block_on(checks_row(&argv)),
         "block_frame_post" => runtime.block_on(block_frame_post(&argv)),
+        "crash_one" => runtime.block_on(crash_one(&argv)),
         _ => {
             eprintln!("usage: web-rows first_start|killed_start|relay_foreign --browser PATH ...");
             return ExitCode::from(64);

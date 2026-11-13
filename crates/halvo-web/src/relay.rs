@@ -109,15 +109,15 @@ fn keep<T>(record: &Mutex<Vec<T>>, entry: T, unkept: &AtomicU64) {
 /// process starts inherits it; on Windows for the relay's exclusive use (`SO_EXCLUSIVEADDRUSE`),
 /// so that no other socket binds the port while the listener lives or one of its connections
 /// waits to close, and with no inheritance from its creation on.
-fn bind_listener() -> std::io::Result<std::net::TcpListener> {
+fn bind_listener(port: u16) -> std::io::Result<std::net::TcpListener> {
     #[cfg(windows)]
     {
-        exclusive::bind_exclusive()
+        exclusive::bind_exclusive(port)
     }
     #[cfg(not(windows))]
     {
         let _held = crate::start::lock();
-        std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+        std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, port))
     }
 }
 
@@ -130,7 +130,7 @@ mod exclusive {
         SOL_SOCKET, SO_EXCLUSIVEADDRUSE, WSA_FLAG_NO_HANDLE_INHERIT, WSA_FLAG_OVERLAPPED,
     };
 
-    pub(super) fn bind_exclusive() -> std::io::Result<std::net::TcpListener> {
+    pub(super) fn bind_exclusive(port: u16) -> std::io::Result<std::net::TcpListener> {
         // Starting std's socket layer first runs WSAStartup, which WSASocketW needs.
         drop(std::net::UdpSocket::bind("127.0.0.1:0"));
         // SAFETY: WSASocketW makes a new socket or returns INVALID_SOCKET; nothing is borrowed.
@@ -169,7 +169,7 @@ mod exclusive {
         }
         let addr = SOCKADDR_IN {
             sin_family: AF_INET,
-            sin_port: 0,
+            sin_port: port.to_be(),
             sin_addr: IN_ADDR {
                 S_un: IN_ADDR_0 {
                     S_addr: INADDR_LOOPBACK.to_be(),
@@ -262,7 +262,13 @@ impl Relay {
     /// refuses every tunnel until the runner allows a host, and with `names` for the hosts that the
     /// list lets through. Until `trust` names a browser, every connection is refused as foreign.
     pub async fn start(names: Names) -> std::io::Result<Relay> {
-        let std_listener = bind_listener()?;
+        Relay::start_at(names, 0).await
+    }
+
+    /// `start` on the loopback port `port`, for a check that names the relay's port before the
+    /// run (the egress check of the crash row); 0 lets the system pick.
+    pub async fn start_at(names: Names, port: u16) -> std::io::Result<Relay> {
+        let std_listener = bind_listener(port)?;
         std_listener.set_nonblocking(true)?;
         #[cfg(unix)]
         let raw = std::os::fd::AsRawFd::as_raw_fd(&std_listener);
@@ -933,7 +939,7 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn no_other_socket_binds_the_relay_s_port_while_its_listener_lives() {
-        let listener = bind_listener().unwrap();
+        let listener = bind_listener(0).unwrap();
         let port = listener.local_addr().unwrap().port();
         assert!(std::net::TcpListener::bind(("127.0.0.1", port)).is_err());
         use windows_sys::Win32::Networking::WinSock::{
