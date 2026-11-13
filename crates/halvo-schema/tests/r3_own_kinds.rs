@@ -336,6 +336,28 @@ fn every_own_row_is_taken_by_the_store_and_byte_for_byte_by_the_strict_reader_wh
             assert_eq!(strict(name, line).as_ref(), Ok(line), "{name}");
         }
     }
+    let states: Vec<String> = own_lines("agent_reply")
+        .iter()
+        .map(|line| {
+            AgentReply::parse(line.as_bytes())
+                .unwrap()
+                .state
+                .as_str()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(
+        states,
+        [
+            "drafted",
+            "begun",
+            "committed",
+            "drafted",
+            "withheld",
+            "drafted",
+            "lost"
+        ]
+    );
 }
 
 #[test]
