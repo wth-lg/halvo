@@ -16,7 +16,7 @@
   ],
   "line": [
     "FAIL metering: ",
-    "first failure: seed 1 of the generated orderings",
-    "the provider-side total passes the reported total"
+    "first failure: seed 1 of the generated orderings, ordering 12 (",
+    "a read the sync cannot explain"
   ]
 }
