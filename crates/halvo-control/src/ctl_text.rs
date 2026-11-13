@@ -962,6 +962,49 @@ mod tests {
     }
 
     #[test]
+    fn inventory_of_a_store_that_is_not_open_names_the_store_value_through_the_scripted_daemon() {
+        for (store, error, text) in [
+            (
+                StoreState::Sealed,
+                Some(StoreErrorKind::RootMissing),
+                "sealed",
+            ),
+            (
+                StoreState::Unavailable,
+                Some(StoreErrorKind::Io),
+                "unavailable",
+            ),
+            (StoreState::Opening, None, "opening"),
+        ] {
+            let status = edited(Platform::Macos, |f| {
+                f.store = store;
+                f.store_error = error;
+                if store == StoreState::Opening {
+                    f.capture = Capture::Starting;
+                } else {
+                    f.capture = Capture::Faulted;
+                    f.capture_reason = Some(CaptureReason::Store);
+                }
+                stopped_sources(f);
+            });
+            let mut daemon = crate::testing::ScriptedDaemon::new(status);
+            let body = daemon
+                .answer_frame(&crate::proto::encode_request(
+                    &crate::proto::Request::Inventory,
+                ))
+                .unwrap();
+            let reply = crate::proto::decode_reply(&body).unwrap();
+            let printed = print(&Verb::Inventory, Ok(reply), &data_dir());
+            assert_eq!(
+                printed.stderr,
+                format!("halvo-capture: store unavailable: {text}\n")
+            );
+            assert_eq!(printed.status, 1);
+            assert_eq!(printed.stdout, "");
+        }
+    }
+
+    #[test]
     fn busy_exits_75_an_invalid_argument_64_and_another_error_1_with_its_message() {
         for (code, status) in [
             (ErrorCode::Busy, 75),
