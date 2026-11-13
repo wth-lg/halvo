@@ -1016,6 +1016,8 @@ pub enum Reason {
     StreamBlank,
     StreamSuspended,
     ThreadEnded,
+    WriterGone,
+    ItemClosed,
     Timeout,
     OsError,
     NotImplemented,
@@ -1031,6 +1033,8 @@ one_spelling!(Reason, "source reason", [
     StreamBlank => "stream_blank",
     StreamSuspended => "stream_suspended",
     ThreadEnded => "thread_ended",
+    WriterGone => "writer_gone",
+    ItemClosed => "item_closed",
     Timeout => "timeout",
     OsError => "os_error",
     NotImplemented => "not_implemented",
@@ -2398,6 +2402,8 @@ mod tests {
                 "stream_blank",
                 "stream_suspended",
                 "thread_ended",
+                "writer_gone",
+                "item_closed",
                 "timeout",
                 "os_error",
                 "not_implemented",
@@ -2405,6 +2411,28 @@ mod tests {
                 "user"
             ]
         );
+    }
+
+    #[test]
+    fn a_source_that_failed_with_writer_gone_or_item_closed_crosses_the_wire() {
+        for reason in [Reason::WriterGone, Reason::ItemClosed] {
+            let mut fields = sample_status(Platform::Windows).into_fields();
+            fields.capture = Capture::Partial;
+            fields.sources[3].state = SourceState::Failed {
+                reason,
+                error: None,
+            };
+            let reply = Reply::Status(DaemonStatus::new(fields).unwrap());
+            assert_eq!(through_the_wire_reply(&reply), reply, "{reason:?}");
+            let text = String::from_utf8(encode_reply(&reply)).unwrap();
+            assert!(
+                text.contains(&format!(
+                    r#"{{"name":"pointer","state":"failed","reason":"{}","error":null}}"#,
+                    reason.as_str()
+                )),
+                "{text}"
+            );
+        }
     }
 
     #[test]

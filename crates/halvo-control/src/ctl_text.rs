@@ -866,6 +866,25 @@ mod tests {
     }
 
     #[test]
+    fn a_source_that_failed_with_writer_gone_or_item_closed_prints_its_reason() {
+        for (reason, token) in [
+            (Reason::WriterGone, "writer_gone"),
+            (Reason::ItemClosed, "item_closed"),
+        ] {
+            let status = edited(Platform::Windows, |f| {
+                f.capture = Capture::Partial;
+                f.sources[4].state = SourceState::Failed {
+                    reason,
+                    error: None,
+                };
+            });
+            assert!(status_text(&status).contains(&format!(
+                "\nsource name=window_title state=failed reason={token}\n"
+            )));
+        }
+    }
+
+    #[test]
     fn set_cap_prints_the_cap_and_whether_it_evicts() {
         let status = edited(Platform::Macos, |f| {
             f.cap_bytes = Cap::Known(StorageCap::MIN)
