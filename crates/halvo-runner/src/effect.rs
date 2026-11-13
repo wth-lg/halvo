@@ -32,6 +32,13 @@ pub(crate) struct Tracked {
     pub(crate) state: EffectState,
 }
 
+impl Tracked {
+    /// The digest of the effect's rows.
+    pub(crate) fn digest(&self) -> &Digest {
+        &self.digest
+    }
+}
+
 fn failed(cause: Cause) -> Stop {
     Stop::End(Outcome::Failed, Some(cause))
 }
@@ -67,7 +74,7 @@ impl Runner {
             state,
         });
         let at = self.effects.len() - 1;
-        match self.store_row(at, state) {
+        match self.store_row(at, state, None) {
             Ok(()) => Ok(at),
             Err(stop) => {
                 if self.effects[at].seq == 0 {
@@ -89,12 +96,18 @@ impl Runner {
             digest: e.digest.clone(),
             rebinds: 0,
         };
+        let cause = matches!(step, EffectMove::End).then_some(Cause::Ended);
         let next = effect_step(Some(&now), step).map_err(|cause| failed(cause.cause()))?;
-        self.store_row(at, next)?;
+        self.store_row(at, next, cause)?;
         Ok(next)
     }
 
-    fn store_row(&mut self, at: usize, state: EffectState) -> Result<(), Stop> {
+    fn store_row(
+        &mut self,
+        at: usize,
+        state: EffectState,
+        row_cause: Option<Cause>,
+    ) -> Result<(), Stop> {
         let e = &self.effects[at];
         let when = now();
         let record = AgentEffect {
@@ -112,7 +125,7 @@ impl Runner {
             kept: e.kept.clone(),
             fields: e.fields,
             approval: None,
-            cause: None,
+            cause: row_cause,
         };
         let call = RunnerCall::Effect(PutEffect {
             agent: self.args.agent.clone(),

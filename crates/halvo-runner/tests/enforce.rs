@@ -1,11 +1,18 @@
 mod support;
 
+use std::path::Path;
+
+use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::frame::{StoreReply, StoreReplyFrame};
-use halvo_schema::executable::names::LogEvent;
-use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerReply, ToRunner};
+use halvo_schema::executable::names::{Autonomy, FieldName, LogEvent, Source};
+use halvo_schema::executable::text::OwnValue;
+use halvo_schema::executable::{
+    ActionClass, AgentEffect, Bound, BoundField, Cause, EffectState, FromRunner, Outcome,
+    RunnerReply, ToRunner,
+};
 use halvo_schema::Category;
 
-use support::{is_op, Act, FillFiles, Supervisor, LONG};
+use support::{is_op, scratch, slot, Act, FillFiles, Seen, Supervisor, LONG};
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
     Supervisor::new(n, Category::SpreadsheetFill, files.slots())
@@ -24,11 +31,7 @@ fn the_runners_log_lines_count_from_2() {
 }
 
 /// The load reply that the supervisor gives with `change` applied to its configuration and slots.
-fn load_with(
-    sup: &Supervisor,
-    frame: &FromRunner,
-    change: impl FnOnce(&mut halvo_schema::executable::body::LoadReply),
-) -> Act {
+fn load_with(sup: &Supervisor, frame: &FromRunner, change: impl FnOnce(&mut LoadReply)) -> Act {
     let FromRunner::Store(s) = frame else {
         unreachable!("a load is a store frame")
     };
@@ -90,4 +93,430 @@ fn a_wall_s_lowered_at_the_edits_load_ends_the_run_at_the_next_read() {
     );
     assert!(seen.effects().is_empty(), "no effect row");
     assert_eq!(files.workbook_bytes(), before);
+}
+
+/// Serves a fill run in which `change` may alter the reply to each load, counted from 1 (the run's first load), and
+/// `at_load` runs before that load is answered.
+fn serve_loads(
+    sup: &Supervisor,
+    mut change: impl FnMut(u32, &mut LoadReply),
+    mut at_load: impl FnMut(u32),
+) -> Seen {
+    let mut loads = 0;
+    sup.serve(
+        |frame, _| {
+            if !is_op(frame, "load") {
+                return Act::Answer;
+            }
+            loads += 1;
+            at_load(loads);
+            load_with(sup, frame, |l| change(loads, l))
+        },
+        LONG,
+    )
+}
+
+fn set_slot(l: &mut LoadReply, name: &str, value: &str) {
+    let bindings = l.bindings.as_mut().expect("bindings");
+    let at = bindings
+        .slots
+        .iter()
+        .position(|s| s.name.as_str() == name)
+        .expect("the slot");
+    bindings.slots[at] = slot(name, value);
+}
+
+fn checkpoint_of(sup: &Supervisor, stem: &str) -> String {
+    format!("{stem}.halvo-checkpoint-{}.xlsx", sup.run.as_str())
+}
+
+/// The bound object of a file edit of `file` and `range`, as the runner builds it from the slots.
+fn edit_bound(file: &Path, range: &str) -> Bound {
+    Bound::new(
+        ActionClass::LocalEdit,
+        [
+            (FieldName::File, file.to_string_lossy().into_owned()),
+            (FieldName::Range, range.to_string()),
+        ]
+        .into_iter()
+        .map(|(name, value)| BoundField {
+            name,
+            from: Source::Slot,
+            origin: None,
+            value: OwnValue::new(&value),
+        })
+        .collect(),
+    )
+    .expect("a bound object")
+}
+
+fn kept(effect: &AgentEffect) -> Vec<(FieldName, String)> {
+    effect
+        .kept
+        .iter()
+        .map(|k| (k.name, k.value.joined()))
+        .collect()
+}
+
+fn stopped(seen: &Seen) -> Option<(LogEvent, Option<Cause>)> {
+    seen.logs().last().map(|l| (l.event, l.cause))
+}
+
+/// The review's R2, CP-135 (3) (i): the slot `workbook` names another file of the same folder at the load before
+/// the edit than at the run's first load; the edit is prepared for the file of the edit's load, and no byte is
+/// written beside the first file.
+#[test]
+fn a_workbook_slot_changed_after_the_first_load_edits_the_file_of_the_edits_load() {
+    let files = FillFiles::new("two-loads-r2", 1);
+    let other = files.dir.join("other.xlsx");
+    std::fs::copy(&files.workbook, &other).expect("a second workbook");
+    let before = files.workbook_bytes();
+    let other_before = std::fs::read(&other).expect("read");
+    let sup = fill(143, &files);
+    let other_text = other.to_string_lossy().into_owned();
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 2 {
+                set_slot(l, "workbook", &other_text);
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(
+        files.workbook_bytes(),
+        before,
+        "the first file is untouched"
+    );
+    assert!(
+        !files.names().contains(&checkpoint_of(&sup, "formulas")),
+        "no checkpoint beside the first file: {:?}",
+        files.names()
+    );
+    assert_ne!(std::fs::read(&other).expect("read"), other_before);
+    assert!(files.names().contains(&checkpoint_of(&sup, "other")));
+    let effects = seen.effects();
+    assert_eq!(
+        kept(&effects[0]),
+        [
+            (FieldName::File, other_text.clone()),
+            (FieldName::Range, "B2:D6".to_string())
+        ]
+    );
+}
+
+/// CP-135 (3) (ii), (iii), A11.3: the range changed between the `propose` and the `begin`: no `begin` row and no
+/// `replace` for the first effect, which is ended with the cause `ended`; a new effect is proposed from that load,
+/// with its own `prepare`, and goes on when the next load gives the same values.
+#[test]
+fn a_range_changed_between_the_propose_and_the_begin_ends_the_effect_and_proposes_again() {
+    let files = FillFiles::new("two-loads-range", 2);
+    let sup = fill(144, &files);
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "range", "B3:D7");
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    let effects = seen.effects();
+    assert_eq!(
+        seen.states(),
+        [
+            EffectState::Cleared,
+            EffectState::Rejected,
+            EffectState::Cleared,
+            EffectState::Releasing,
+            EffectState::Committed
+        ]
+    );
+    assert_eq!(effects[1].cause, Some(Cause::Ended), "the ended row");
+    assert_eq!(effects[0].effect, effects[1].effect);
+    assert_ne!(effects[1].effect, effects[2].effect, "a new effect");
+    assert_eq!(
+        effects[2].digest,
+        halvo_policy::digest(&edit_bound(&files.workbook, "B3:D7")).expect("a digest")
+    );
+    assert_eq!(effects[3].digest, effects[2].digest);
+}
+
+/// CP-135 (3) (iii), A5.2: at most `LIMITS.rebinds` (2) new effects for one step; a range that changes at every
+/// load before the `begin` ends the run `failed` with the cause `changed` after the third effect is ended, with
+/// no `begin`, the workbook byte for byte and no prepared copy left.
+#[test]
+fn a_range_that_changes_at_every_load_ends_the_run_failed_changed_after_two_new_effects() {
+    let files = FillFiles::new("two-loads-limit", 3);
+    let before = files.workbook_bytes();
+    let sup = fill(145, &files);
+    let ranges = ["B2:D6", "B2:D6", "B3:D7", "B4:D8", "B5:D9", "B6:D10"];
+    let seen = serve_loads(
+        &sup,
+        |n, l| set_slot(l, "range", ranges[(n as usize - 1).min(ranges.len() - 1)]),
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
+    assert_eq!(
+        seen.states(),
+        [
+            EffectState::Cleared,
+            EffectState::Rejected,
+            EffectState::Cleared,
+            EffectState::Rejected,
+            EffectState::Cleared,
+            EffectState::Rejected
+        ]
+    );
+    assert_eq!(files.workbook_bytes(), before);
+    assert_eq!(
+        files.names(),
+        [
+            checkpoint_of(&sup, "formulas"),
+            "formulas.xlsx".to_string(),
+            "source.csv".to_string()
+        ],
+        "no prepared copy is left"
+    );
+}
+
+/// CP-135 (3) (ii), CP-110 D1: the permission `user_files` withdrawn between the `propose` and the `begin`: no
+/// `begin`, the effect ended, the workbook byte for byte, the prepared copy gone, and the run ends as a run whose
+/// first load lacks the permission.
+#[test]
+fn user_files_withdrawn_between_the_propose_and_the_begin_ends_the_effect() {
+    let files = FillFiles::new("two-loads-perm", 1);
+    let before = files.workbook_bytes();
+    let sup = fill(146, &files);
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                l.config.permissions.clear();
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+    assert_eq!(seen.states(), [EffectState::Cleared, EffectState::Rejected]);
+    assert_eq!(seen.effects()[1].cause, Some(Cause::Ended));
+    assert_eq!(files.workbook_bytes(), before);
+    assert_eq!(
+        files.names(),
+        [
+            checkpoint_of(&sup, "formulas"),
+            "formulas.xlsx".to_string(),
+            "source.csv".to_string()
+        ],
+        "the prepared copy is gone"
+    );
+}
+
+/// CP-135 (3) (ii), A5.1: the autonomy set to `observe` between the `propose` and the `begin`: `decide` on the
+/// later load gives `refuse`, the effect is ended and the run ends `refused` with the cause `autonomy`.
+#[test]
+fn autonomy_observe_between_the_propose_and_the_begin_ends_the_run_refused() {
+    let files = FillFiles::new("two-loads-observe", 2);
+    let before = files.workbook_bytes();
+    let sup = fill(147, &files);
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                l.config.autonomy = Autonomy::Observe;
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Refused), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::Autonomy)))
+    );
+    assert_eq!(seen.states(), [EffectState::Cleared, EffectState::Rejected]);
+    assert_eq!(files.workbook_bytes(), before);
+}
+
+/// CP-135 (3) (iv), A6.5: `wall_s` lowered between the load before the `prepare` and the load before the `begin`
+/// ends the run with `limit` and `wall` at the next read, with no `begin`.
+#[test]
+fn a_wall_s_lowered_between_the_two_loads_ends_the_run_before_the_begin() {
+    let files = FillFiles::new("two-loads-wall", 3);
+    let before = files.workbook_bytes();
+    let sup = fill(148, &files);
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                l.config.limits.wall_s = 0;
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Limit), "{}", seen.stderr);
+    assert_eq!(stopped(&seen), Some((LogEvent::Stopped, Some(Cause::Wall))));
+    assert_eq!(seen.states(), [EffectState::Cleared], "no begin");
+    assert_eq!(files.workbook_bytes(), before);
+}
+
+/// CP-135 (3), A11.3: the `begin` row carries the digest of the bound object built again from the load before the
+/// `begin`, here a range that both loads of the edit give and the run's first load does not.
+#[test]
+fn the_begin_row_carries_the_digest_of_the_object_built_from_the_second_load() {
+    let files = FillFiles::new("two-loads-digest", 1);
+    let sup = fill(149, &files);
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 2 {
+                set_slot(l, "range", "B3:D7");
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    let begin = seen
+        .effects()
+        .into_iter()
+        .find(|e| e.state == EffectState::Releasing)
+        .expect("a begin row");
+    assert_eq!(
+        begin.digest,
+        halvo_policy::digest(&edit_bound(&files.workbook, "B3:D7")).expect("a digest")
+    );
+}
+
+/// CP-135 (3) (i), (v), A9.4: a load before the edit that gives another source or another folder than the one
+/// under which the read step read ends the run `failed` with the cause `changed`, and nothing is written.
+#[test]
+fn another_source_or_folder_than_the_read_steps_ends_the_run_failed_changed() {
+    for what in ["source", "folder"] {
+        let files = FillFiles::new("two-loads-moved", 2);
+        let before = files.workbook_bytes();
+        let names = files.names();
+        let sub = files.dir.join("sub");
+        std::fs::create_dir_all(&sub).expect("a second folder");
+        let moved = if what == "source" {
+            let path = files.dir.join("other.csv");
+            std::fs::copy(&files.source, &path).expect("a second source");
+            ("source", path)
+        } else {
+            let path = sub.join("formulas.xlsx");
+            std::fs::copy(&files.workbook, &path).expect("a second workbook");
+            ("workbook", path)
+        };
+        let moved_before = std::fs::read(&moved.1).expect("read");
+        let sup = fill(150, &files);
+        let text = moved.1.to_string_lossy().into_owned();
+        let seen = serve_loads(
+            &sup,
+            |n, l| {
+                if n >= 2 {
+                    set_slot(l, moved.0, &text);
+                }
+            },
+            |_| {},
+        );
+        assert_eq!(
+            seen.done(),
+            Some(Outcome::Failed),
+            "{what}: {}",
+            seen.stderr
+        );
+        assert_eq!(
+            stopped(&seen),
+            Some((LogEvent::Stopped, Some(Cause::Changed))),
+            "{what}"
+        );
+        assert!(seen.effects().is_empty(), "{what}: no effect row");
+        assert_eq!(files.workbook_bytes(), before, "{what}");
+        assert_eq!(
+            std::fs::read(&moved.1).expect("read"),
+            moved_before,
+            "{what}"
+        );
+        let mut now = files.names();
+        now.retain(|n| n != "sub" && n != "other.csv");
+        assert_eq!(now, names, "{what}: nothing written beside the workbook");
+        assert_eq!(
+            std::fs::read_dir(&sub).expect("list").count(),
+            usize::from(what == "folder"),
+            "{what}: nothing written in the second folder"
+        );
+    }
+}
+
+/// CP-139 (b), A11.3: a later `prepare` of the run, for the new effect after a changed range, finds the run's
+/// checkpoint not equal to the workbook, because the person changed the workbook between the two calls: the step
+/// ends with `step_failed`, nothing is written, the workbook stays the person's and the checkpoint stays.
+#[test]
+fn a_later_prepare_that_finds_the_checkpoint_not_the_workbook_ends_the_step_failed() {
+    let files = FillFiles::new("two-loads-person", 2);
+    let original = files.workbook_bytes();
+    let sup = fill(151, &files);
+    let mut persons = None;
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "range", "B3:D7");
+            }
+        },
+        |n| {
+            if n == 3 {
+                persons = Some(person_changes(&files));
+            }
+        },
+    );
+    let persons = persons.expect("the person changed the workbook");
+    assert_ne!(persons, original);
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+    assert_eq!(
+        seen.states(),
+        [EffectState::Cleared, EffectState::Rejected],
+        "no second propose"
+    );
+    assert_eq!(files.workbook_bytes(), persons, "the person's workbook");
+    assert_eq!(
+        std::fs::read(files.dir.join(checkpoint_of(&sup, "formulas"))).expect("the checkpoint"),
+        original,
+        "the checkpoint as it was made"
+    );
+    assert!(
+        !files.names().iter().any(|n| n.contains(".halvo-prepared-")),
+        "no prepared copy: {:?}",
+        files.names()
+    );
+}
+
+/// The person's own change of the workbook: one cell outside the fill range, written through the sheet executor
+/// under a data directory and a run of the test's own; the workbook's bytes after it.
+fn person_changes(files: &FillFiles) -> Vec<u8> {
+    let data = scratch("person-data");
+    let locks = halvo_sheet::Locks::open(&data, LONG).expect("locks");
+    let folder = halvo_sheet::Folder::new(&files.dir, locks).expect("a folder");
+    let run = halvo_sheet::RunId::parse(&"5e".repeat(16)).expect("a run id");
+    let range = halvo_sheet::Range::parse("F9:F9").expect("a range");
+    let values = vec![vec![halvo_sheet::Value::Text(
+        "the person's note".to_string(),
+    )]];
+    let prepared = folder
+        .prepare(&files.workbook, &run, "Ledger", range, &values)
+        .expect("prepare");
+    folder.replace(&prepared).expect("replace");
+    files.workbook_bytes()
 }

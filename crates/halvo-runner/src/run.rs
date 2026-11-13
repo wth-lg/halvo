@@ -20,6 +20,7 @@ use halvo_sheet::Value;
 use crate::args::Args;
 use crate::clock::{day, now, random16};
 use crate::effect::Tracked;
+use crate::file::ReadUnder;
 use crate::link::{Broken, Link};
 
 /// Why the run's work stopped before its end: the link broke, or the run ends with an outcome and a cause.
@@ -82,6 +83,7 @@ pub(crate) struct Runner {
     pub(crate) playbook: Option<NonZeroU32>,
     pub(crate) effects: Vec<Tracked>,
     pub(crate) kept: HashMap<String, Vec<Vec<Value>>>,
+    pub(crate) read_under: Option<ReadUnder>,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
@@ -109,6 +111,7 @@ impl Runner {
             playbook: None,
             effects: Vec::new(),
             kept: HashMap::new(),
+            read_under: None,
         }
     }
 
@@ -160,7 +163,7 @@ impl Runner {
             Some(Target::File(target)) if step.class == ActionClass::Read => {
                 self.file_read(step, target, loaded)
             }
-            Some(Target::File(target)) => self.file_write(step, target, loaded),
+            Some(Target::File(target)) => self.file_write(step, target),
             Some(Target::Api(target)) => self.api_call(target, loaded),
             _ => Err(Failure::Step(Cause::StepFailed)),
         }

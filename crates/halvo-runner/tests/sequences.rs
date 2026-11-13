@@ -109,9 +109,8 @@ fn the_effect_unknown_handback_opens_when_its_log_line_is_refused() {
     );
 }
 
-/// Limits reached between the prepare and the replace: the wall limit passes while the edit waits for its second
-/// load, and the runner still proposes, begins and replaces, and the run ends completed past its wall limit;
-/// within() runs only at the top of each step.
+/// The wall limit passes while the edit waits for the load before its `prepare`: the run ends with `limit` and
+/// `wall` at the read before the `propose`, with no effect row and no replace.
 #[test]
 fn a_wall_limit_passed_during_the_edit_ends_the_run_before_its_effect() {
     let files = FillFiles::new("acting-3-wall-mid-edit", 3);
@@ -296,6 +295,7 @@ fn load_count() -> impl FnMut(&FromRunner) -> usize {
     }
 }
 
+/// The close after the load before the edit's `prepare`.
 #[test]
 fn a_close_of_input_after_the_edits_load_lets_at_most_its_propose_out() {
     let files = FillFiles::new("review-close-1", 1);
@@ -310,6 +310,25 @@ fn a_close_of_input_after_the_edits_load_lets_at_most_its_propose_out() {
     assert!(
         after.iter().all(|f| is_effect(f, EffectState::Cleared)),
         "only the propose can be on its way"
+    );
+}
+
+/// The close after the load before the edit's `begin` (CP-135 (3)): at most the begin row is on its way, and no
+/// replace follows.
+#[test]
+fn a_close_of_input_after_the_load_before_the_begin_lets_at_most_the_begin_out() {
+    let files = FillFiles::new("review-close-6", 2);
+    let before = files.workbook_bytes();
+    let sup = fill(106, &files);
+    let mut count = load_count();
+    let (after, code) = close_input_after(&sup, |frame| {
+        (count(frame) == 3 && is_op(frame, "load"))
+            .then(|| (sup.answer(frame).expect("a reply"), true))
+    });
+    kept_after_a_close(&after, code, &files, &before);
+    assert!(
+        after.iter().all(|f| is_effect(f, EffectState::Releasing)),
+        "only the begin can be on its way"
     );
 }
 
