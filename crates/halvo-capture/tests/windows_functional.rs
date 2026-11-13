@@ -3423,6 +3423,91 @@ fn x3_attribution_before_the_first_foreground_change() {
     });
 }
 
+fn image_name(pid: u32) -> String {
+    use windows::core::PWSTR;
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    // SAFETY: OpenProcess takes plain values; the handle is closed once below.
+    let Ok(handle) = (unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }) else {
+        return "unreadable".to_string();
+    };
+    let mut buf = [0u16; 1024];
+    let mut len = buf.len() as u32;
+    // SAFETY: `buf` and `len` are live, `len` holds the length of `buf`, and
+    // `handle` is open for the call.
+    let read = unsafe {
+        QueryFullProcessImageNameW(
+            handle,
+            PROCESS_NAME_WIN32,
+            PWSTR(buf.as_mut_ptr()),
+            &mut len,
+        )
+    };
+    // SAFETY: `handle` is the handle that OpenProcess returned above.
+    unsafe {
+        let _ = CloseHandle(handle);
+    }
+    if read.is_err() {
+        return "unreadable".to_string();
+    }
+    file_name(&String::from_utf16_lossy(&buf[..len as usize])).to_string()
+}
+
+fn class_of_window(hwnd: HWND) -> String {
+    use windows::Win32::UI::WindowsAndMessaging::GetClassNameW;
+    let mut buf = [0u16; 128];
+    // SAFETY: `buf` is a live buffer whose length the call takes.
+    let len = unsafe { GetClassNameW(hwnd, &mut buf) };
+    String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)])
+}
+
+/// The foreground window's class and process image, and the processes of its
+/// child windows, by image name and class: what the hosted-app resolver sees.
+fn window_sample(hwnd: HWND) -> String {
+    use windows::core::BOOL;
+    use windows::Win32::UI::WindowsAndMessaging::EnumChildWindows;
+    unsafe extern "system" fn each(child: HWND, found: LPARAM) -> BOOL {
+        // SAFETY: `found` is the address of the vector that the caller holds
+        // across the enumeration on this thread.
+        unsafe { (*(found.0 as *mut Vec<HWND>)).push(child) };
+        BOOL::from(true)
+    }
+    let mut children: Vec<HWND> = Vec::new();
+    // SAFETY: the callback has the WNDENUMPROC signature and reads `children`
+    // only while this call runs.
+    unsafe {
+        let _ = EnumChildWindows(
+            Some(hwnd),
+            Some(each),
+            LPARAM(&mut children as *mut Vec<HWND> as isize),
+        );
+    }
+    let own = window_pid(hwnd);
+    let mut others: Vec<String> = children
+        .iter()
+        .filter(|child| window_pid(**child) != own)
+        .map(|child| {
+            format!(
+                "{}:{}",
+                image_name(window_pid(*child)),
+                class_of_window(*child)
+            )
+        })
+        .collect();
+    others.sort();
+    others.dedup();
+    format!(
+        "sample foreground_class={} foreground_image={} child_windows={} children_of_other_processes={}",
+        class_of_window(hwnd),
+        image_name(own),
+        children.len(),
+        if others.is_empty() { "none".to_string() } else { others.join(",") },
+    )
+}
+
 fn processes_named(image: &str) -> usize {
     let filter = format!("IMAGENAME eq {image}");
     let out = Command::new("tasklist.exe")
@@ -3452,8 +3537,13 @@ fn x14_foreground_app_of_a_hosted_app() {
             .is_ok_and(|status| status.success());
         let mut seen = Vec::new();
         let began = Instant::now();
+        let mut sampled = Instant::now();
         while began.elapsed() < Duration::from_secs(12) {
             seen.extend(events.drain_for(Duration::from_millis(200)));
+            if sampled.elapsed() >= Duration::from_secs(1) {
+                sampled = Instant::now();
+                say("x14", window_sample(foreground_window()));
+            }
         }
         let settings_processes = processes_named("SystemSettings.exe");
         let foreground_now = current_foreground_app().unwrap_or_default();
@@ -4172,6 +4262,7 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         let unknown_class = !browser.chromium;
 
+        let _ = browser_phase(test, run, &keyboard, &events, 'W', Vec::new);
         let (a, _, a_page, _) = browser_phase(test, run, &keyboard, &events, 'A', || letters(5));
         let (m, _, m_page, _) = browser_phase(test, run, &keyboard, &events, 'M', || letters(5));
         let (b, _, b_page, _) = browser_phase(test, run, &keyboard, &events, 'B', || letters(5));

@@ -310,17 +310,47 @@ mod tests {
 
     struct TitledWindow(HWND);
 
+    unsafe extern "system" fn plain_proc(
+        hwnd: HWND,
+        msg: u32,
+        wparam: windows::Win32::Foundation::WPARAM,
+        lparam: windows::Win32::Foundation::LPARAM,
+    ) -> windows::Win32::Foundation::LRESULT {
+        // SAFETY: the arguments are the ones that the system passed.
+        unsafe {
+            windows::Win32::UI::WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam)
+        }
+    }
+
+    fn plain_class() -> windows::core::PCWSTR {
+        use windows::Win32::UI::WindowsAndMessaging::{RegisterClassW, WNDCLASSW};
+        static REGISTERED: std::sync::Once = std::sync::Once::new();
+        let name = windows::core::w!("HalvoTitleReadTest");
+        REGISTERED.call_once(|| {
+            let class = WNDCLASSW {
+                lpfnWndProc: Some(plain_proc),
+                lpszClassName: name,
+                ..Default::default()
+            };
+            // SAFETY: `class` names a static wide string and a procedure with
+            // the WNDPROC signature.
+            unsafe { RegisterClassW(&class) };
+        });
+        name
+    }
+
     impl TitledWindow {
         fn new(title: &[u16]) -> TitledWindow {
             use windows::Win32::UI::WindowsAndMessaging::{
                 CreateWindowExW, SetWindowTextW, WINDOW_EX_STYLE, WINDOW_STYLE,
             };
-            // SAFETY: STATIC is a system class; the call makes a hidden
-            // top-level window with no parent, menu or creation data.
+            // SAFETY: the class is registered by plain_class, whose procedure
+            // is DefWindowProcW; the call makes a hidden top-level window with
+            // no parent, menu or creation data.
             let hwnd = unsafe {
                 CreateWindowExW(
                     WINDOW_EX_STYLE(0),
-                    windows::core::w!("STATIC"),
+                    plain_class(),
                     windows::core::PCWSTR::null(),
                     WINDOW_STYLE(0),
                     0,
@@ -378,7 +408,11 @@ mod tests {
         let long: Vec<u16> = std::iter::repeat_n(u16::from(b'x'), 100_000).collect();
         let window = TitledWindow::new(&long);
         let title = read_window_title(window.0);
-        assert!(!title.is_empty(), "INCONCLUSIVE: the title was not read");
+        let units = title.encode_utf16().count();
+        assert!(
+            !title.is_empty(),
+            "INCONCLUSIVE: the title was not read ({units} units)"
+        );
         assert!(
             title.len() <= crate::floor::text::TEXT_MAX_BYTES,
             "a title of {} bytes",
