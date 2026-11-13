@@ -1715,8 +1715,9 @@ pub enum DeleteDecision {
 /// is busy, before any id is read. An armed id that is the shown id is accepted; two ids that
 /// differ are already deleted, with the shown id; an armed id with no shown id, or no armed id
 /// with a shown id, is refused. With neither, an open store or one with no release custody is
-/// refused, and any other store is accepted. The rule reads the store's state, its cause and
-/// the two ids, and no other field of a status.
+/// refused, an opening store is busy (contracts.md C2.6: the open may yet show an id), and any
+/// other store is accepted. The rule reads the store's state, its cause and the two ids, and no
+/// other field of a status.
 pub fn delete_decision(
     store: StoreState,
     cause: Option<StoreErrorKind>,
@@ -1733,6 +1734,7 @@ pub fn delete_decision(
         (None, None) if matches!(store, StoreState::Open | StoreState::NoReleaseCustody) => {
             DeleteDecision::Refused
         }
+        (None, None) if store == StoreState::Opening => DeleteDecision::Busy,
         (None, None) => DeleteDecision::Accept,
     }
 }
@@ -3351,6 +3353,10 @@ mod tests {
             (Unavailable, io, None, other, DeleteDecision::Refused),
             (Open, None, None, None, DeleteDecision::Refused),
             (NoReleaseCustody, None, None, None, DeleteDecision::Refused),
+            (Opening, None, None, None, DeleteDecision::Busy),
+            (Opening, None, None, other, DeleteDecision::Refused),
+            (Opening, None, shown, None, DeleteDecision::Refused),
+            (Opening, None, shown, shown, DeleteDecision::Accept),
             (Sealed, key_file, None, None, DeleteDecision::Accept),
             (Unavailable, io, None, None, DeleteDecision::Accept),
             (Deleting, None, None, None, DeleteDecision::Busy),

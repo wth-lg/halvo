@@ -1134,6 +1134,19 @@ mod tests {
     }
 
     #[test]
+    fn a_delete_with_no_id_while_the_store_opens_with_no_id_answers_busy_and_deletes_nothing() {
+        let opening = with_store(StoreState::Opening, None, None);
+        let (client, connector) = client(ScriptedDaemon::new(opening.clone()));
+        assert_eq!(daemon_error(client.delete_all(None)), ErrorCode::Busy);
+        assert_eq!(connector.status(), opening);
+        assert_eq!(
+            client.delete_all(Some(store_id(5))).unwrap(),
+            DeleteOutcome::Refused
+        );
+        assert_eq!(connector.status(), opening);
+    }
+
+    #[test]
     fn t18_f_after_a_delete_the_old_id_is_already_deleted_and_the_new_store_stays() {
         let (client, connector) = client(ScriptedDaemon::new(sample_status(Platform::Macos)));
         let armed = Some(FIXTURE_STORE_ID);
