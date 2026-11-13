@@ -836,6 +836,11 @@ fn param(param: Param, candidate: Option<&str>) -> ParamEntry {
             .into_iter()
             .collect(),
         typed: candidate.is_none().into(),
+        full: if candidate.is_none() {
+            t("param_typed.full")
+        } else {
+            String::new()
+        },
     }
 }
 
@@ -902,7 +907,7 @@ fn item(state: State, b: &Built) -> Option<Item> {
             two_choices(kind),
         )
     };
-    Some(match kind {
+    let item = match kind {
         ItemKind::Confirm => confirm(state, id, agent),
         ItemKind::Check => {
             let (title, text, choices) = plain();
@@ -966,7 +971,8 @@ fn item(state: State, b: &Built) -> Option<Item> {
             let (title, text, choices) = plain();
             Item::show(id, agent, title, text, choices)
         }
-    })
+    };
+    Some(item.said_by(&name).expect("the words table holds say.item"))
 }
 
 fn committed(class: Class, bound: &[Bound]) -> CardEffect {

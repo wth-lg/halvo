@@ -10,6 +10,8 @@
           "kind": "confirm",
           "presenter": "page",
           "armed": "yes",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Do these 2 things?",
           "text": "",
           "fields": [
@@ -41,6 +43,8 @@
           "kind": "setup",
           "presenter": null,
           "armed": "no",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Answer a few questions for “Ordering from a shop on Site7”",
           "text": "Choose one answer for each question, then choose Use these answers.",
           "fields": [],
@@ -52,10 +56,10 @@
                 { "n": 1, "value": ["Corner Shop"], "from": "records" },
                 { "n": 2, "value": ["Main Street ", "Shop"], "from": "site" }
               ],
-              "typed": "no"
+              "typed": "no", "full": ""
             },
-            { "name": "instrument", "label": "How to pay", "candidates": [], "typed": "yes" },
-            { "name": "start", "label": "Where to start", "candidates": [], "typed": "yes" }
+            { "name": "instrument", "label": "How to pay", "candidates": [], "typed": "yes", "full": "This answer cannot be any longer, so what you typed last was left out." },
+            { "name": "start", "label": "Where to start", "candidates": [], "typed": "yes", "full": "This answer cannot be any longer, so what you typed last was left out." }
           ],
           "choices": [
             { "choice": "none", "text": "Not now", "safe": "yes" },
@@ -78,6 +82,8 @@
           "kind": "ready",
           "presenter": null,
           "armed": "no",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "“Paying a utility bill on myaccount.metropolitanwaterandelectricpowerauthorityofgreaterspringfield.com” is ready to start",
           "text": "Start it now, or skip it this time.",
           "fields": [],
@@ -103,6 +109,8 @@
           "kind": "confirm",
           "presenter": "page",
           "armed": "yes",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Send this?",
           "text": "",
           "fields": [
@@ -132,6 +140,8 @@
           "kind": "confirm",
           "presenter": "native",
           "armed": "no",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Pay this?",
           "text": "",
           "fields": [
@@ -162,6 +172,8 @@
           "kind": "confirm",
           "presenter": "page",
           "armed": "yes",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Send this?",
           "text": "",
           "fields": [
@@ -258,6 +270,8 @@
           "kind": "confirm",
           "presenter": "page",
           "armed": "yes",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Do these 2 things?",
           "text": "",
           "fields": [
@@ -336,6 +350,8 @@
           "kind": "ready",
           "presenter": null,
           "armed": "no",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "“Writing or answering email on Site5” is ready to start",
           "text": "Start it now, or skip it this time.",
           "fields": [],
@@ -359,6 +375,8 @@
           "kind": "stuck",
           "presenter": null,
           "armed": "no",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Help “Paying a utility bill on Site1” with one step",
           "text": "Do the next step in its own window and choose Done, or choose Stop this time.",
           "fields": [],
@@ -382,6 +400,8 @@
           "kind": "setup",
           "presenter": null,
           "armed": "no",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Answer a few questions for “Ordering from a shop on Site7”",
           "text": "Choose one answer for each question, then choose Use these answers.",
           "fields": [],
@@ -398,7 +418,7 @@
                   "from": "records"
                 }
               ],
-              "typed": "no"
+              "typed": "no", "full": ""
             },
             {
               "name": "seller",
@@ -412,13 +432,13 @@
                   "from": "records"
                 }
               ],
-              "typed": "no"
+              "typed": "no", "full": ""
             },
             {
               "name": "instrument",
               "label": "How to pay",
               "candidates": [],
-              "typed": "yes"
+              "typed": "yes", "full": "This answer cannot be any longer, so what you typed last was left out."
             }
           ],
           "choices": [
@@ -440,6 +460,8 @@
           "kind": "confirm",
           "presenter": "native",
           "armed": "no",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Pay this?",
           "text": "",
           "fields": [

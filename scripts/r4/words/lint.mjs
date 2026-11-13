@@ -63,6 +63,9 @@ const FIXTURE_KEYS = [
   'card.runs.*.effects.*.text',
   'card.runs.*.effects.*.fields.*.label',
   'card.runs.*.effects.*.fields.*.from_text',
+  'snapshot.items.*.say_new',
+  'snapshot.items.*.say_gone',
+  'snapshot.items.*.params.*.full',
 ];
 const CONTROL_TEXT = 'snapshot.rows.*.controls.*.text';
 

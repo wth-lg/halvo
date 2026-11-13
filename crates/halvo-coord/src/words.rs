@@ -348,6 +348,15 @@ pub const KEYS: &[(&str, &str)] = &[
     ("run.effect.local_edit", "It changed this file."),
     ("field.local_edit.file", "File"),
     ("field.local_edit.range", "Where in the file"),
+    ("say.item.new", "“{name}” has a new question for you."),
+    (
+        "say.item.gone",
+        "“{name}” no longer has a question for you.",
+    ),
+    (
+        "param_typed.full",
+        "This answer cannot be any longer, so what you typed last was left out.",
+    ),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {
