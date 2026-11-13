@@ -188,26 +188,36 @@ fn a_reply_that_is_not_the_answer_to_the_request_is_refused_with_frame() {
     }
 }
 
+/// The schema reads the op `checkpoint` since U1.5 brought it (778f8c9a): the same envelope as before, with a
+/// well-formed `planned` `AgentCheckpoint` record, parses as `RunnerCall::Checkpoint`. This test takes the place of
+/// `a_store_frame_with_the_op_checkpoint_is_refused_by_the_schema_parser`, which held that the schema had no such op
+/// (CP-127). This runner sends no checkpoint row yet: `fill::the_fill_playbook_replays_on_seeds_1_to_3` holds the
+/// store ops of a fill run, and no `checkpoint` is among them.
 #[test]
-fn a_store_frame_with_the_op_checkpoint_is_refused_by_the_schema_parser() {
+fn a_store_frame_with_the_op_checkpoint_is_read_by_the_schema_parser_since_u15() {
+    let record = format!(
+        r#"{{"v":1,"workflow":"{w}","agent":"{a}","run":"{r}","seq":1,"day":20768,"at":1794339000000000001,"folder":["/data/books"],"workbook":["/data/books/bills.xlsx"],"copy":["bills.halvo-checkpoint-{r}.xlsx"],"sha256":null,"bytes":null,"state":"planned","left":null}}"#,
+        w = "30".repeat(16),
+        a = "40".repeat(16),
+        r = "50".repeat(16)
+    );
     let body = format!(
-        r#"{{"op":"checkpoint","agent":"{a}","run":"{r}","record":{{}}}}"#,
-        a = "1".repeat(32),
-        r = "2".repeat(32)
+        r#"{{"op":"checkpoint","agent":"{a}","run":"{r}","record":{record}}}"#,
+        a = "40".repeat(16),
+        r = "50".repeat(16)
     );
     let frame = format!(
         r#"{{"t":"store","request":{{"v":1,"id":"{id}","request":"runner","body":{body}}}}}"#,
         id = "3".repeat(32)
     );
-    let refusal = FromRunner::parse(frame.as_bytes()).expect_err("no op checkpoint today");
-    assert_eq!(refusal.rule(), "unknown_op", "{refusal:?}");
-    let known = frame
-        .replace(r#""op":"checkpoint""#, r#""op":"load""#)
-        .replace(r#","record":{}"#, "");
-    assert!(
-        FromRunner::parse(known.as_bytes()).is_ok(),
-        "the same envelope with load parses"
-    );
+    match FromRunner::parse(frame.as_bytes()) {
+        Ok(FromRunner::Store(store)) => assert!(
+            matches!(store.request.body(), RunnerCall::Checkpoint(_)),
+            "the call is checkpoint"
+        ),
+        Ok(_) => panic!("the frame is a store frame"),
+        Err(refusal) => panic!("the schema reads the op checkpoint: {refusal:?}"),
+    }
 }
 
 #[test]
