@@ -225,3 +225,53 @@ fn a_canary_site_links_no_streams_and_counts_in_no_side() {
         "groups 2\nside seen streams=1 sites=1 templates=1\nside unseen streams=1 sites=1 templates=1\n"
     );
 }
+
+#[test]
+fn the_check_and_heldout_pair_names_its_two_sides() {
+    let dir = scratch("split-sealed");
+    let files = vec![
+        stream_file(&dir, "a1", "one-a.test", Some("hub-a.test"), "One A"),
+        stream_file(&dir, "a2", "two-a.test", Some("hub-a.test"), "Two A"),
+        stream_file(
+            &dir,
+            "b1",
+            "one-b.test",
+            Some("hub-b.test"),
+            "Weekly report",
+        ),
+        stream_file(&dir, "b2", "two-b.test", None, "Weekly report"),
+    ];
+    let mut args = vec!["split", "--sides", "check,heldout", "--seed", "3", "--out"];
+    let out = s(&dir.join("x"));
+    args.push(&out);
+    args.extend(files.iter().map(String::as_str));
+    let o = run(&args);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let lines: Vec<&str> = o.stdout.lines().collect();
+    assert_eq!(lines[0], "groups 2");
+    assert!(
+        lines[1].starts_with("side check streams=2 "),
+        "{}",
+        lines[1]
+    );
+    assert!(
+        lines[2].starts_with("side heldout streams=2 "),
+        "{}",
+        lines[2]
+    );
+    let mut stream_lines = Vec::new();
+    for side in ["check", "heldout"] {
+        for f in ["a1", "a2", "b1", "b2"] {
+            let text = fs::read_to_string(dir.join("x").join(side).join(format!("{f}.jsonl")))
+                .expect("side file");
+            for l in text
+                .lines()
+                .filter(|l| l.starts_with(r#"{"line":"stream""#))
+            {
+                assert!(l.ends_with(&format!(r#""sites":"{side}"}}"#)), "{l}");
+                stream_lines.push(l.to_owned());
+            }
+        }
+    }
+    assert_eq!(stream_lines.len(), 4);
+}
