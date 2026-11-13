@@ -455,7 +455,8 @@ self_test() {
   printf '%s\n' '#![allow(dead_code)]' >"$locked/mod.rs" || exit 2
   trap 'chmod 755 "$locked" 2>/dev/null' EXIT INT TERM HUP
   chmod 311 "$locked" || exit 2
-  if [ "$(id -u)" = 0 ]; then
+  uid=$(id -u) || exit 2
+  if [ "$uid" = 0 ]; then
     printf 'case %s/unlisted-dir: the system'"'"'s first user lists any directory, so the fixture cannot be made; the self-test fails closed\n' "$name"
     wrong="$wrong unlisted-dir"
   elif ls "$locked" >/dev/null 2>&1; then
