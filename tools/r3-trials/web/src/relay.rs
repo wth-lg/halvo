@@ -1076,39 +1076,322 @@ mod tests {
         );
     }
 
+    /// CP-161 F1, the fence: the one way from a test's end closure to an ask or a forced end. `own`
+    /// is the test's own stand-in browser, its number from the child's handle and its start time read
+    /// once after the start. A call on that process goes on to `ask`; every other call sends nothing,
+    /// is recorded in `refused` with its number, start time and force flag, and comes back as an error
+    /// that holds the record.
+    fn fence(
+        own: (u32, u64),
+        refused: &std::cell::RefCell<Vec<(u32, u64, bool)>>,
+        p: &Proc,
+        force: bool,
+        ask: &mut dyn FnMut(&Proc, bool) -> bool,
+    ) -> Result<bool, String> {
+        if p.pid == own.0 && p.started_us == own.1 {
+            return Ok(ask(p, force));
+        }
+        refused.borrow_mut().push((p.pid, p.started_us, force));
+        Err(format!(
+            "the fence refused an end of pid={} started_us={} force={force}; refused: {:?}",
+            p.pid,
+            p.started_us,
+            refused.borrow()
+        ))
+    }
+
+    /// CP-161 F1: the fence passes on a call on the own stand-in alone, by number and start time; a
+    /// call on another number with another start time (the executor's stand-in), on the stand-in's
+    /// number with another start time, or on another number with the stand-in's start time sends
+    /// nothing and is recorded.
+    #[test]
+    fn the_fence_passes_on_the_own_stand_in_alone_and_records_every_other_call() {
+        let own = (100_001, 7);
+        let refused = std::cell::RefCell::new(Vec::new());
+        let mut asked = Vec::new();
+        let mut errors = Vec::new();
+        {
+            let mut ask = |p: &Proc, force: bool| {
+                asked.push((p.pid, p.started_us, force));
+                true
+            };
+            assert_eq!(
+                fence(own, &refused, &row(100_001, 7), false, &mut ask),
+                Ok(true)
+            );
+            assert_eq!(
+                fence(own, &refused, &row(100_001, 7), true, &mut ask),
+                Ok(true)
+            );
+            for (p, force) in [
+                (row(100_005, 50), false),
+                (row(100_001, 8), true),
+                (row(100_002, 7), false),
+            ] {
+                match fence(own, &refused, &p, force, &mut ask) {
+                    Ok(sent) => panic!("the fence passed on {p:?} force={force}: {sent}"),
+                    Err(e) => errors.push(e),
+                }
+            }
+        }
+        assert_eq!(asked, [(100_001, 7, false), (100_001, 7, true)]);
+        assert_eq!(
+            refused.into_inner(),
+            [
+                (100_005, 50, false),
+                (100_001, 8, true),
+                (100_002, 7, false)
+            ]
+        );
+        assert!(
+            errors[1].contains("pid=100001 started_us=8 force=true"),
+            "{errors:?}"
+        );
+    }
+
+    /// CP-161 F1: the guard over a built table that holds the stand-in browser and three processes
+    /// of no tie to its tree (one with no tie at all, one whose parent number names the browser but
+    /// which started before it, one child of the executor) and the executor until 1,000 ms; its end
+    /// goes through the fence to an ask that records. The guard asks the stand-in alone, at 4,000 ms;
+    /// the fence refuses nothing, and the guard frees the port once the stand-in is gone.
+    #[test]
+    fn the_guard_on_a_built_table_ends_the_stand_in_alone_through_the_fence() {
+        let own = (100_001u32, 7u64);
+        let clock = std::cell::Cell::new(0u128);
+        let refused = std::cell::RefCell::new(Vec::new());
+        let asked = std::cell::RefCell::new(Vec::new());
+        let others = [
+            Proc {
+                pid: 100_002,
+                ppid: 1,
+                started_us: 9,
+                exe: None,
+            },
+            Proc {
+                pid: 100_003,
+                ppid: 100_001,
+                started_us: 3,
+                exe: None,
+            },
+            Proc {
+                pid: 100_006,
+                ppid: 100_005,
+                started_us: 60,
+                exe: None,
+            },
+        ];
+        let mut reads = 0u64;
+        let code = guard_loop(
+            own.0,
+            own.1,
+            Some((100_005, 50)),
+            GuardIo {
+                read: &mut || {
+                    reads += 1;
+                    assert!(reads < 100_000, "the guard reads on without end");
+                    let mut v = others.to_vec();
+                    // the stand-in ends when it is asked
+                    if asked.borrow().is_empty() {
+                        v.push(row(100_001, 7));
+                    }
+                    if clock.get() < 1_000 {
+                        v.push(row(100_005, 50));
+                    }
+                    Some(v)
+                },
+                now_ms: &mut || clock.get(),
+                pause: &mut |_| clock.set(clock.get() + 10),
+                end: &mut |p, force| {
+                    fence(own, &refused, p, force, &mut |p, force| {
+                        asked
+                            .borrow_mut()
+                            .push((p.pid, p.started_us, force, clock.get()));
+                        true
+                    })
+                    .unwrap_or_else(|record| panic!("{record}"))
+                },
+                record: &mut |_| {},
+            },
+        );
+        assert_eq!(code, 0);
+        assert!(refused.borrow().is_empty(), "{:?}", refused.borrow());
+        assert_eq!(asked.into_inner(), [(100_001, 7, false, 4_000)]);
+        assert_eq!(clock.get(), 5_010);
+    }
+
+    /// CP-161 F3 (V2): a member born after the first process ended is followed. The executor is gone
+    /// from the start; the first process ends by itself at 1,000 ms; its child ends only by force; a
+    /// grandchild born at 4,000 ms, after the ask, ends only by force. The guard ends the grandchild
+    /// by force at 5,000 ms and keeps the port until it is gone.
+    #[test]
+    fn a_grandchild_born_after_the_first_process_ended_is_ended_and_the_port_kept_until_it_is_gone()
+    {
+        let child = || Proc {
+            pid: 100_010,
+            ppid: 999_999,
+            started_us: 10,
+            exe: None,
+        };
+        let grandchild = || Proc {
+            pid: 100_011,
+            ppid: 100_010,
+            started_us: 4_000_000,
+            exe: None,
+        };
+        let forced = |ends: &[(u32, bool, u128)], pid: u32| ends.iter().any(|e| e.0 == pid && e.1);
+        let (code, at, ends, _) = run_guard(Some((5, 50)), 10, &|t, ends| {
+            let mut v = Vec::new();
+            if t < 1_000 {
+                v.push(row(999_999, 7));
+            }
+            if !forced(ends, 100_010) {
+                v.push(child());
+            }
+            if t >= 4_000 && !forced(ends, 100_011) {
+                v.push(grandchild());
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        assert!(
+            ends.contains(&(100_011, true, 5_000)),
+            "the grandchild was not ended by force at 5,000 ms: {ends:?}"
+        );
+        assert!(ends.contains(&(100_010, true, 5_000)), "{ends:?}");
+        assert_eq!(at, 6_010, "the port freed at {at} ms");
+    }
+
+    /// CP-161 F3 (V5): the port is kept while a member runs, also when the first process is gone. The
+    /// executor runs throughout; the first process ends by itself at 2,000 ms, its child at 8,000 ms.
+    /// The guard ends nothing and frees the port at 9,000 ms.
+    #[test]
+    fn the_port_is_kept_while_a_member_runs_after_the_first_process_is_gone() {
+        let (code, at, ends, _) = run_guard(Some((5, 50)), 10, &|t, _| {
+            let mut v = vec![row(5, 50)];
+            if t < 2_000 {
+                v.push(row(999_999, 7));
+            }
+            if t < 8_000 {
+                v.push(Proc {
+                    pid: 100_010,
+                    ppid: 999_999,
+                    started_us: 10,
+                    exe: None,
+                });
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        assert!(ends.is_empty(), "{ends:?}");
+        assert_eq!(at, 9_000, "the port freed at {at} ms");
+    }
+
+    /// CP-161 F3 (V7, the review's G1): the executor is known by its number and its start time
+    /// together. The executor (5, started 50) is gone at 1,000 ms and another process takes its
+    /// number (5, started 60); the browser ends when it is asked, or by itself at 60,000 ms. The
+    /// guard asks it at 4,000 ms, after its grace.
+    #[test]
+    fn a_process_that_took_the_executors_number_is_not_the_executor() {
+        let (code, at, ends, _) = run_guard(Some((5, 50)), 10, &|t, ends| {
+            let mut v = vec![if t < 1_000 { row(5, 50) } else { row(5, 60) }];
+            if ends.is_empty() && t < 60_000 {
+                v.push(row(999_999, 7));
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        assert_eq!(ends, [(999_999, false, 4_000)]);
+        assert_eq!(at, 5_010, "the port freed at {at} ms");
+    }
+
+    /// CP-161 F3 (the builder's G1): a table that could not be read is no empty table. It stays
+    /// unread for 1,500 ms, longer than the port's margin, while the browser runs; the browser ends
+    /// by itself at 3,000 ms, and the guard frees the port at 4,000 ms. The verifier's S7: unread to
+    /// 1,000 ms, then the tree gone: the port freed at 2,000 ms.
+    #[test]
+    fn a_table_unread_longer_than_the_margin_keeps_the_port_while_the_browser_runs() {
+        let (code, at, ends, _) = run_guard(None, 10, &|t, _| match t {
+            0..=1_499 => None,
+            1_500..=2_999 => Some(vec![row(999_999, 7)]),
+            _ => Some(Vec::new()),
+        });
+        assert_eq!((code, at), (0, 4_000));
+        assert!(ends.is_empty(), "{ends:?}");
+        let (code, at, _, _) = run_guard(None, 10, &|t, _| {
+            if t < 1_000 {
+                None
+            } else {
+                Some(Vec::new())
+            }
+        });
+        assert_eq!((code, at), (0, 2_000));
+    }
+
+    /// CP-161 F1 (d): the test's own stand-ins, each ended through its handle and reaped when this
+    /// goes out of scope, on every way out of the test, a failed one too. A handle that was reaped
+    /// already sends nothing.
+    #[cfg(target_os = "macos")]
+    struct OwnStandIns(Vec<Arc<Mutex<std::process::Child>>>);
+
+    #[cfg(target_os = "macos")]
+    impl Drop for OwnStandIns {
+        fn drop(&mut self) {
+            for c in &self.0 {
+                let mut c = c.lock().unwrap_or_else(|e| e.into_inner());
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+        }
+    }
+
     /// CP-148 on real processes (macOS): a stand-in browser that never ends by itself and a stand-in
     /// executor; the executor is killed; the guard asks the browser to end after its grace, and
-    /// returns only after the browser is gone.
+    /// returns only after the browser is gone. CP-161 F1: the end reaches the ask and the forced end
+    /// through the fence alone, which passes on a call on the stand-in browser alone (its number from
+    /// the child's handle, its start time read once after the start) and fails the test at any other;
+    /// the test fails inside its read or its pause when the guard has not returned 20 s after the
+    /// test's start; both stand-ins are ended on every way out.
     #[cfg(target_os = "macos")]
     #[test]
     fn the_guard_ends_a_real_stand_in_after_its_executor_is_killed() {
         use crate::start::Start;
-        let mut browser = std::process::Command::new("/bin/sleep")
-            .arg("60")
-            .start()
-            .unwrap();
-        let mut executor = std::process::Command::new("/bin/sleep")
-            .arg("60")
-            .start()
-            .unwrap();
+        let test_start = std::time::Instant::now();
+        let bound = Duration::from_secs(20);
+        let browser = Arc::new(Mutex::new(
+            std::process::Command::new("/bin/sleep")
+                .arg("60")
+                .start()
+                .unwrap(),
+        ));
+        let mut own = OwnStandIns(vec![browser.clone()]);
+        let executor = Arc::new(Mutex::new(
+            std::process::Command::new("/bin/sleep")
+                .arg("60")
+                .start()
+                .unwrap(),
+        ));
+        own.0.push(executor.clone());
+        let browser_pid = browser.lock().unwrap().id();
+        let executor_pid = executor.lock().unwrap().id();
         std::thread::sleep(Duration::from_millis(300));
         let table = procs::table().unwrap();
-        let b = table
-            .iter()
-            .find(|p| p.pid == browser.id())
-            .unwrap()
-            .clone();
+        let b = table.iter().find(|p| p.pid == browser_pid).unwrap().clone();
         let e = table
             .iter()
-            .find(|p| p.pid == executor.id())
+            .find(|p| p.pid == executor_pid)
             .unwrap()
             .clone();
         let start = std::time::Instant::now();
-        let killer = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(500));
-            let _ = executor.kill();
-            let _ = executor.wait();
-        });
+        let killer = {
+            let executor = executor.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(500));
+                let mut executor = executor.lock().unwrap_or_else(|e| e.into_inner());
+                let _ = executor.kill();
+                let _ = executor.wait();
+            })
+        };
+        let refused = std::cell::RefCell::new(Vec::new());
         let mut record = None;
         let code = guard_loop(
             b.pid,
@@ -1116,26 +1399,47 @@ mod tests {
             Some((e.pid, e.started_us)),
             GuardIo {
                 read: &mut || {
+                    assert!(
+                        test_start.elapsed() < bound,
+                        "the guard has not returned {bound:?} after the test's start"
+                    );
                     // the stand-in is this test's child: reap it once it ended, as its parent would
-                    let _ = browser.try_wait();
+                    let _ = browser.lock().unwrap().try_wait();
                     procs::table().ok()
                 },
                 now_ms: &mut || start.elapsed().as_millis(),
-                pause: &mut |_| std::thread::sleep(GUARD_POLL),
+                pause: &mut |_| {
+                    assert!(
+                        test_start.elapsed() < bound,
+                        "the guard has not returned {bound:?} after the test's start"
+                    );
+                    std::thread::sleep(GUARD_POLL)
+                },
                 end: &mut |p, force| {
-                    if force {
-                        procs::kill(p)
-                    } else {
-                        procs::ask_end(p)
-                    }
+                    fence(
+                        (browser_pid, b.started_us),
+                        &refused,
+                        p,
+                        force,
+                        &mut |p, force| {
+                            if force {
+                                procs::kill(p)
+                            } else {
+                                procs::ask_end(p)
+                            }
+                        },
+                    )
+                    .unwrap_or_else(|record| panic!("{record}"))
                 },
                 record: &mut |act| record = Some(act.clone()),
             },
         );
         let took = start.elapsed();
         killer.join().unwrap();
-        let status = browser.wait().unwrap();
+        let status = browser.lock().unwrap().wait().unwrap();
+        drop(own);
         assert_eq!(code, 0);
+        assert!(refused.borrow().is_empty(), "{:?}", refused.borrow());
         assert!(
             took >= Duration::from_millis(500) + GRACE,
             "returned after {took:?}"

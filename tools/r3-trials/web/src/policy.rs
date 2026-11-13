@@ -257,6 +257,19 @@ mod tests {
         assert_eq!(named(&t, "RemoteDebuggingAllowed"), Named::Broken);
     }
 
+    /// CP-161 F3 (X3b): a longer name broken after the shorter name's first piece does not name the
+    /// shorter one, with its value on the line of its second piece or on the line after it; the
+    /// shorter name broken the same way is still named.
+    #[test]
+    fn a_broken_longer_name_does_not_name_the_shorter_one() {
+        let t = format!("{PAGE}RemoteDebugging\nAllowedOrigins [\"https://a.test\"] Platform OK\n");
+        assert_eq!(named(&t, "RemoteDebuggingAllowed"), Named::No);
+        let t = format!("{PAGE}RemoteDebugging\nAllowedOrigins\nfalse Platform OK\n");
+        assert_eq!(named(&t, "RemoteDebuggingAllowed"), Named::No);
+        let t = format!("{PAGE}RemoteDebugging\nAllowed false Platform OK\n");
+        assert_eq!(named(&t, "RemoteDebuggingAllowed"), Named::Broken);
+    }
+
     /// The two shapes of the pages of run 43347520562: Chrome's `Proxy` / `Mode Platform`, and
     /// Edge's `RemoteDebuggingAllow` with `ed` six lines later.
     #[test]
