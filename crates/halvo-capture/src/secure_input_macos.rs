@@ -2,30 +2,62 @@
 
 use crate::macos::secure_input_byte::secure_input_on;
 
-#[link(name = "Carbon", kind = "framework")]
-extern "C" {
-    fn IsSecureEventInputEnabled() -> u8;
-    fn EnableSecureEventInput() -> i32;
-    fn DisableSecureEventInput() -> i32;
-}
+mod carbon {
+    use std::sync::{Mutex, MutexGuard, PoisonError};
 
-static CARBON_CALLS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    #[link(name = "Carbon", kind = "framework")]
+    extern "C" {
+        fn IsSecureEventInputEnabled() -> u8;
+        fn EnableSecureEventInput() -> i32;
+        fn DisableSecureEventInput() -> i32;
+    }
 
-fn one_carbon_call_at_a_time<T>(call: impl FnOnce() -> T) -> T {
-    let _one = CARBON_CALLS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    call()
-}
+    static CARBON_CALLS: Mutex<()> = Mutex::new(());
 
-pub fn secure_input_active() -> bool {
-    secure_input_on(one_carbon_call_at_a_time(|| {
+    /// The lock of the three calls, held. Only `one_carbon_call_at_a_time`
+    /// makes one, and each call of the three takes it.
+    pub(super) struct OneCall<'a> {
+        _held: MutexGuard<'a, ()>,
+    }
+
+    pub(super) fn one_carbon_call_at_a_time<T>(call: impl FnOnce(&OneCall<'_>) -> T) -> T {
+        let one = OneCall {
+            _held: CARBON_CALLS.lock().unwrap_or_else(PoisonError::into_inner),
+        };
+        call(&one)
+    }
+
+    pub(super) fn is_secure_event_input_enabled(_one: &OneCall<'_>) -> u8 {
         // SAFETY: a parameterless C predicate with no side effects.
         // CarbonEventsCore.h marks it "Not thread safe" (line 3056 of the SDK on
         // this Mac): no other of the three calls runs at the same time, because
-        // each runs inside the lock of one_carbon_call_at_a_time.
+        // each needs a OneCall, which exists only while its holder holds the lock.
         unsafe { IsSecureEventInputEnabled() }
-    }))
+    }
+
+    pub(super) fn enable_secure_event_input(_one: &OneCall<'_>) -> i32 {
+        // SAFETY: parameterless Carbon call that returns an OSStatus, as
+        // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
+        // thread safe" (line 2996 of the SDK on this Mac): no other of the three
+        // calls runs at the same time, because each needs a OneCall, which exists
+        // only while its holder holds the lock.
+        unsafe { EnableSecureEventInput() }
+    }
+
+    pub(super) fn disable_secure_event_input(_one: &OneCall<'_>) -> i32 {
+        // SAFETY: parameterless Carbon call that returns an OSStatus, as
+        // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
+        // thread safe" (line 3032 of the SDK on this Mac): no other of the three
+        // calls runs at the same time, because each needs a OneCall, which exists
+        // only while its holder holds the lock.
+        unsafe { DisableSecureEventInput() }
+    }
+}
+
+pub fn secure_input_active() -> bool {
+    secure_input_on(carbon::one_carbon_call_at_a_time(
+        carbon::is_secure_event_input_enabled,
+    ))
 }
 
 #[must_use = "dropping the hold releases secure input immediately"]
@@ -45,14 +77,7 @@ pub fn hold_secure_input() -> Result<SecureInputHold, SecureInputRefused> {
 }
 
 fn enable_secure_event_input() -> i32 {
-    one_carbon_call_at_a_time(|| {
-        // SAFETY: parameterless Carbon call that returns an OSStatus, as
-        // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
-        // thread safe" (line 2996 of the SDK on this Mac): no other of the three
-        // calls runs at the same time, because each runs inside the lock of
-        // one_carbon_call_at_a_time.
-        unsafe { EnableSecureEventInput() }
-    })
+    carbon::one_carbon_call_at_a_time(carbon::enable_secure_event_input)
 }
 
 pub(crate) fn hold_with(
@@ -69,14 +94,7 @@ pub(crate) fn hold_with(
 }
 
 pub(crate) fn disable_secure_event_input() -> i32 {
-    one_carbon_call_at_a_time(|| {
-        // SAFETY: parameterless Carbon call that returns an OSStatus, as
-        // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
-        // thread safe" (line 3032 of the SDK on this Mac): no other of the three
-        // calls runs at the same time, because each runs inside the lock of
-        // one_carbon_call_at_a_time.
-        unsafe { DisableSecureEventInput() }
-    })
+    carbon::one_carbon_call_at_a_time(carbon::disable_secure_event_input)
 }
 
 impl Drop for SecureInputHold {
@@ -244,7 +262,7 @@ mod tests {
             for _ in 0..8 {
                 scope.spawn(|| {
                     for _ in 0..5 {
-                        super::one_carbon_call_at_a_time(|| {
+                        super::carbon::one_carbon_call_at_a_time(|_| {
                             let now = inside.fetch_add(1, Ordering::SeqCst) + 1;
                             most.fetch_max(now, Ordering::SeqCst);
                             std::thread::sleep(Duration::from_millis(2));
