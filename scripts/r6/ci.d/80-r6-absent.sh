@@ -12,6 +12,26 @@ entry_path=$PATH
 policy_header="category${tab}kind${tab}pick${tab}level${tab}basis${tab}k${tab}n"
 recorded_header="task${tab}category${tab}kind${tab}tier${tab}model${tab}machine${tab}seed${tab}split${tab}attempt${tab}pass${tab}steps${tab}wall_s${tab}tokens_in${tab}tokens_out${tab}level${tab}source"
 net_packages='reqwest hyper ureq rustls ring aws-lc-rs native-tls openssl-sys tokio socket2 mio'
+probe_source='use halvo_route::ruling::Ruling;
+
+fn main() {
+    let ruling = Ruling::test_hosted(&["127.0.0.1:1"]);
+    println!("probe origins={}", ruling.origins().len());
+}'
+control_source='use halvo_route::leave::{grant, Consent, PartKind};
+use halvo_route::tier::Tier;
+
+fn main() {
+    let ruling = halvo_route::release::ruling();
+    for tier in [Tier::LowCostHosted, Tier::Frontier] {
+        let answer = match grant(&ruling, tier, Tier::Frontier, &[PartKind::Text], "127.0.0.1:1", Consent::Recorded) {
+            Ok(_) => "grant",
+            Err(cause) => cause.as_str(),
+        };
+        println!("control tier={} answer={}", tier.as_str(), answer);
+    }
+    println!("control cfg_test={}", if cfg!(test) { "yes" } else { "no" });
+}'
 control_want='control tier=low_cost_hosted answer=ruling
 control tier=frontier answer=ruling
 control cfg_test=yes'
@@ -33,8 +53,8 @@ enter_repo() {
 }
 
 tree_state() {
-  git -c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --branch --untracked-files=all --ignored=matching &&
-    git ls-files -v
+  git -c core.fsmonitor=false -c core.untrackedCache=false \
+    -c 'alias.r6-tree-state=!git status --porcelain=v2 --branch --untracked-files=all --ignored=matching && git ls-files -v' r6-tree-state
 }
 
 tree_same() {
@@ -66,19 +86,19 @@ read_commit() {
     printf 'tree commit=unreadable\n'
     setup_fail
   fi
-  R6_TREE_BEFORE=$tree_before awk '
-    BEGIN {
-      n = split(ENVIRON["R6_TREE_BEFORE"], line, "\n")
-      for (i = 1; i <= n; i++) {
-        count = split(line[i], field, " ")
-        if (count && field[1] !~ /^(#|\?|!|H)$/) {
-          printf "tree changed=before %s %s\n", field[1], field[count]
-          bad = 1
-        }
-      }
-      exit bad
-    }
-  ' || setup_fail
+  changed=0
+  while IFS= read -r state_line; do
+    case ${state_line%% *} in
+      '' | '#' | '?' | '!' | H) ;;
+      *)
+        printf 'tree changed=before %s %s\n' "${state_line%% *}" "${state_line##* }"
+        changed=1
+        ;;
+    esac
+  done <<EOF
+$tree_before
+EOF
+  [ "$changed" -eq 0 ] || setup_fail
 }
 
 commit_unreadable() {
@@ -151,7 +171,6 @@ data_plan() {
 
 count_data() {
   committed=$scratch/commit
-  mkdir -p "$committed/egress" || setup_fail
   git -c core.quotepath=on ls-tree -r "$commit" >"$scratch/listing.txt" 2>/dev/null || commit_unreadable
   data_plan "$scratch/listing.txt" >"$scratch/plan.txt" || setup_fail
   ruling_odd=0
@@ -194,13 +213,19 @@ count_data() {
     rows=$(hosted_rows "$committed/recorded.tsv" "$recorded_header" 4 on_device 0)
   fi
   [ "$rows_odd" = 0 ] || [ "$rows" != 0 ] || rows=1
-  entries=$(egress_entries "$committed/egress")
+  entries=0
+  [ "$listed" -eq 0 ] || entries=$(egress_entries "$committed/egress")
   entries=$((entries + entries_odd))
 }
 
 holds_nul() {
   od -An -v -tx1 "$1" >"$scratch/bytes.txt" 2>/dev/null || return 0
-  grep -q -w 00 "$scratch/bytes.txt"
+  while IFS= read -r bytes; do
+    case " $bytes " in
+      *' 00 '*) return 0 ;;
+    esac
+  done <"$scratch/bytes.txt"
+  return 1
 }
 
 ruling_of() {
@@ -296,7 +321,7 @@ net_crates() {
 }
 
 grant_lines_hold() {
-  awk '
+  awk -v files="$#" '
     function target_of(line,    paren, bin) {
       sub(/^ *Running /, "", line)
       gsub(/\\/, "/", line)
@@ -308,6 +333,14 @@ grant_lines_hold() {
       sub(/-[0-9a-f]+$/, "", bin)
       return bin " " substr(line, 1, paren - 1)
     }
+    function finish() {
+      if (!(lines == 1 && grant_ok == 1 && pins_ok == 1)) bad = 1
+    }
+    FNR == 1 {
+      if (seen++) finish()
+      target = ""
+      lines = grant_ok = pins_ok = 0
+    }
     { sub(/\r$/, "") }
     /^ *Doc-tests / { target = ""; next }
     /^ *Running / {
@@ -318,8 +351,11 @@ grant_lines_hold() {
     target != "no_grant_in_release tests/no_grant_in_release.rs" { next }
     $0 == "test no_grant_in_release ... ok" { grant_ok++ }
     $0 == "test pinned_files_hold_their_hashes ... ok" { pins_ok++ }
-    END { exit !(lines == 1 && grant_ok == 1 && pins_ok == 1) }
-  ' "$1"
+    END {
+      if (seen) finish()
+      exit (bad || seen != files)
+    }
+  ' "$@"
 }
 
 probe_stops() {
@@ -340,33 +376,10 @@ write_pair() {
   if command -v cygpath >/dev/null 2>&1; then
     route=$(cygpath -m "$route") || return 1
   fi
-  mkdir -p "$pair/src/bin" || return 1
   printf '[package]\nname = "r6-absent-pair"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n\n[workspace]\n\n[dependencies]\nhalvo-route = { path = '"'"'%s'"'"' }\n' \
     "$route" >"$pair/Cargo.toml" || return 1
-  cat >"$pair/src/bin/probe.rs" <<'EOF' || return 1
-use halvo_route::ruling::Ruling;
-
-fn main() {
-    let ruling = Ruling::test_hosted(&["127.0.0.1:1"]);
-    println!("probe origins={}", ruling.origins().len());
-}
-EOF
-  cat >"$pair/src/bin/control.rs" <<'EOF' || return 1
-use halvo_route::leave::{grant, Consent, PartKind};
-use halvo_route::tier::Tier;
-
-fn main() {
-    let ruling = halvo_route::release::ruling();
-    for tier in [Tier::LowCostHosted, Tier::Frontier] {
-        let answer = match grant(&ruling, tier, Tier::Frontier, &[PartKind::Text], "127.0.0.1:1", Consent::Recorded) {
-            Ok(_) => "grant",
-            Err(cause) => cause.as_str(),
-        };
-        println!("control tier={} answer={}", tier.as_str(), answer);
-    }
-    println!("control cfg_test={}", if cfg!(test) { "yes" } else { "no" });
-}
-EOF
+  printf '%s\n' "$probe_source" >"$pair/src/bin/probe.rs" || return 1
+  printf '%s\n' "$control_source" >"$pair/src/bin/control.rs" || return 1
 }
 
 build_pair() {
@@ -396,14 +409,33 @@ test_value() {
   misses=0
   if write_pair; then
     (build_pair)
-    probe_code=$(cat "$scratch/probe.code" 2>/dev/null) || probe_code=
-    control_code=$(cat "$scratch/control.code" 2>/dev/null) || control_code=
+    probe_code=
+    control_code=
+    { read -r probe_code <"$scratch/probe.code"; } 2>/dev/null
+    { read -r control_code <"$scratch/control.code"; } 2>/dev/null
   else
     probe_code=
     control_code=
   fi
   tree_same after-pair test_value
-  probe_line=$(awk '/test_hosted/ { print NR; exit }' "$pair/src/bin/probe.rs" 2>/dev/null) || probe_line=
+  judge_pair
+}
+
+judge_pair() {
+  misses=0
+  probe_line=
+  number=0
+  while IFS= read -r source_line; do
+    number=$((number + 1))
+    case $source_line in
+      *test_hosted*)
+        probe_line=$number
+        break
+        ;;
+    esac
+  done <<EOF
+$probe_source
+EOF
   if [ -z "$probe_line" ] || [ "$probe_code" = 0 ] || [ -z "$probe_code" ] || ! probe_stops "$artifacts/probe.txt" "$probe_line"; then
     misses=$((misses + 1))
   fi
@@ -414,32 +446,32 @@ test_value() {
   value_count=$misses
 }
 
+crates_of() {
+  crates=$(net_crates "$artifacts/tree.txt")
+  [ "$tree_code" -eq 0 ] || [ "$crates" -gt 0 ] || crates=1
+}
+
 grants() {
-  held=0
-  for profile in debug release; do
-    started=$(date +%s)
-    if [ "$profile" = release ]; then
-      cargo test --locked -p halvo-route --release >"$artifacts/test-$profile.txt" 2>&1 </dev/null
-    else
-      cargo test --locked -p halvo-route >"$artifacts/test-$profile.txt" 2>&1 </dev/null
-    fi
-    code=$?
-    ended=$(date +%s)
-    printf '%s %s\n' "$profile" "$((ended - started))" >>"$artifacts/seconds.txt"
-    tree_same "after-$profile" grants
-    [ "$code" -eq 0 ] && grant_lines_hold "$artifacts/test-$profile.txt" && held=$((held + 1))
-  done
-  if [ "$held" -eq 2 ]; then
+  failed=0
+  started=$(date +%s)
+  cargo test --locked -p halvo-route >"$artifacts/test-debug.txt" 2>&1 </dev/null || failed=1
+  middle=$(date +%s)
+  tree_same after-debug grants
+  cargo test --locked -p halvo-route --release >"$artifacts/test-release.txt" 2>&1 </dev/null || failed=1
+  ended=$(date +%s)
+  printf 'debug %s\nrelease %s\n' "$((middle - started))" "$((ended - middle))" >>"$artifacts/seconds.txt"
+  tree_same after-release grants
+  grant_count=1
+  if [ "$failed" -eq 0 ] && grant_lines_hold "$artifacts/test-debug.txt" "$artifacts/test-release.txt"; then
     grant_count=0
-  else
-    grant_count=1
   fi
 }
 
 measure() {
   enter_repo
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
-  if ! mkdir -p "$artifacts" 2>/dev/null || ! scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX" 2>/dev/null); then
+  if ! scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX" 2>/dev/null) ||
+    ! mkdir -p "$artifacts" "$scratch/commit/egress" "$scratch/pair/src/bin" 2>/dev/null; then
     setup_fail
   fi
   : >"$artifacts/seconds.txt" || setup_fail
@@ -455,8 +487,7 @@ measure() {
     >"$artifacts/tree.txt" 2>"$artifacts/tree.err" </dev/null
   tree_code=$?
   tree_same after-tree crates
-  crates=$(net_crates "$artifacts/tree.txt")
-  [ "$tree_code" -eq 0 ] || [ "$crates" -gt 0 ] || crates=1
+  crates_of
 
   grants
   test_value
@@ -580,18 +611,27 @@ write_stubs() {
   cat >"$work/bin/git" <<'EOF'
 #!/bin/sh
 head=1111111111111111111111111111111111111111
+put() {
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf '%s\n' "$line"
+  done <"$1"
+}
 case $1:${2:-} in
   cat-file:blob)
-    cat "$STUB_COMMIT/${3#obj:}"
+    put "$STUB_COMMIT/${3#obj:}"
     exit
     ;;
   -c:core.quotepath=on)
     [ "$*" = "-c core.quotepath=on ls-tree -r $head" ] || exit 97
     [ -z "$STUB_GITLINK" ] || printf '160000 commit 2222222222222222222222222222222222222222\tscripts/r6/egress/lists\n'
-    cd "$STUB_COMMIT" || exit 2
-    find crates docs scripts -type f | while IFS= read -r path; do
-      printf '100644 blob obj:%s\t%s\n' "$path" "$path"
-    done
+    if [ ! -f "$STUB_COMMIT.listing" ]; then
+      cd "$STUB_COMMIT" || exit 2
+      find crates docs scripts -type f >"$STUB_COMMIT.files" || exit 2
+      while IFS= read -r path; do
+        printf '100644 blob obj:%s\t%s\n' "$path" "$path"
+      done <"$STUB_COMMIT.files" >"$STUB_COMMIT.listing"
+    fi
+    put "$STUB_COMMIT.listing"
     exit 0
     ;;
 esac
@@ -600,13 +640,15 @@ case $* in
     [ -z "$STUB_NO_COMMIT" ] || exit 1
     printf '%s\n' "$head"
     ;;
-  '-c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --branch --untracked-files=all --ignored=matching')
+  *' r6-tree-state')
+    case $* in
+      "-c core.fsmonitor=false -c core.untrackedCache=false -c alias.r6-tree-state=!git status --porcelain=v2 --branch --untracked-files=all --ignored=matching && git ls-files -v r6-tree-state") ;;
+      *) exit 97 ;;
+    esac
     printf '# branch.oid %s\n' "$head"
-    cat "$STUB_TREE/status"
-    ;;
-  'ls-files -v')
+    put "$STUB_TREE/status"
     printf 'H crates/halvo-route/data/ruling.txt\n'
-    cat "$STUB_TREE/flags"
+    put "$STUB_TREE/flags"
     ;;
   *)
     printf 'stub git: got the arguments: %s\n' "$*" >&2
@@ -617,6 +659,11 @@ EOF
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
 kind=other
+put() {
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf '%s\n' "$line"
+  done <"$1"
+}
 case $* in
   'tree --locked -e normal --target all --all-features -p halvo-route -p halvo-route-gate -p halvo-route-wire') kind=tree ;;
   'test --locked -p halvo-route') kind=debug ;;
@@ -630,16 +677,16 @@ if [ -n "$STUB_CHANGE_AT" ] && [ "$kind" = "$STUB_CHANGE_AT" ]; then
 fi
 case $kind in
   tree)
-    cat "$STUB_TREE_OUT"
+    put "$STUB_TREE_OUT"
     exit "$STUB_TREE_EXIT"
     ;;
   debug | release)
     [ "${CARGO_TERM_QUIET:-false}" = true ] && exit 0
     if [ "$kind" = debug ]; then
-      cat "$STUB_DEBUG_OUT"
+      put "$STUB_DEBUG_OUT"
       exit "$STUB_DEBUG_EXIT"
     fi
-    cat "$STUB_RELEASE_OUT"
+    put "$STUB_RELEASE_OUT"
     exit "$STUB_RELEASE_EXIT"
     ;;
   lock) exit 0 ;;
@@ -670,14 +717,14 @@ case $kind in
         printf 'src/bin/probe.rs:4:26: error[E0599]: no function or associated item named test_hosted found for enum `Ruling`\n'
         exit 101
       fi
-      cat "$STUB_PROBE_OUT"
+      put "$STUB_PROBE_OUT"
       exit "$STUB_PROBE_EXIT"
     fi
     if [ "$reached" = no ]; then
       printf 'control tier=low_cost_hosted answer=ruling\ncontrol tier=frontier answer=ruling\ncontrol cfg_test=no\n'
       exit 0
     fi
-    cat "$STUB_CONTROL_OUT"
+    put "$STUB_CONTROL_OUT"
     exit "$STUB_CONTROL_EXIT"
     ;;
   *)
@@ -755,7 +802,7 @@ data_case() {
     cd "$data" || exit 2
     commit=$tree
     scratch=$work/d/scan-$label
-    mkdir "$scratch" || exit 2
+    mkdir -p "$scratch/commit/egress" || exit 2
     if [ -n "${4:-}" ]; then
       R6_FAIL_ON=$4
       PATH=$work/failgit:$entry_path
@@ -1006,6 +1053,42 @@ probe_units() {
   probe_case windows-form stops passing
 }
 
+judge_case() {
+  label=$1
+  want=$2
+  artifacts=$work/u/judge-$label
+  mkdir "$artifacts" || fixture_fail
+  probe_code=$3
+  control_code=$5
+  put_file "$work/stub/$4" "$artifacts/probe.txt"
+  put_file "$work/stub/$6" "$artifacts/control.out"
+  judge_pair
+  verdict "judge-$label" "$want" "$value_count" failing
+}
+
+put_file() {
+  while IFS= read -r copied || [ -n "$copied" ]; do
+    printf '%s\n' "$copied"
+  done <"$1" >"$2" || fixture_fail
+}
+
+judge_units() {
+  judge_case probe-exits-0-with-the-error-text 1 0 probe-text.out 0 control.out
+  judge_case control-answers-grant 1 101 probe.out 0 control-grant.out
+  judge_case control-exits-1 1 101 probe.out 1 control.out
+  judge_case probe-and-control-miss 2 0 empty.out 101 control.out
+  artifacts=$work/u/judge-tree-fails
+  mkdir "$artifacts" || fixture_fail
+  : >"$artifacts/tree.txt" || fixture_fail
+  tree_code=101
+  crates_of
+  verdict judge-tree-fails 1 "$crates" failing
+  tree_code=0
+  put_file "$work/stub/tree.out" "$artifacts/tree.txt"
+  crates_of
+  verdict judge-tree-clean 0 "$crates" passing
+}
+
 full_cases() {
   check all-hold PASS 'absent ruling=none hosted_picks=0 hosted_rows=0 net_crates=0 entries=0 grants=0 test_value=0'
 
@@ -1054,9 +1137,6 @@ full_cases() {
 
   STUB_TREE_OUT=$work/stub/tree-reqwest.out
   check tree-names-a-network-package FAIL ' net_crates=1 entries=0 ' "FAIL $name (crates)"
-  STUB_TREE_EXIT=101
-  STUB_TREE_OUT=$work/stub/empty.out
-  check tree-fails FAIL ' net_crates=1 entries=0 ' "FAIL $name (crates)"
 
   STUB_DEBUG_OUT=$work/stub/debug-no-grant.out
   check debug-without-the-grant-ok-line FAIL ' grants=1 test_value=0' "FAIL $name (grants)"
@@ -1070,19 +1150,8 @@ full_cases() {
   STUB_PROBE_EXIT=0
   STUB_PROBE_OUT=$work/stub/empty.out
   check probe-compiles FAIL ' grants=0 test_value=1' "FAIL $name (test_value)"
-  STUB_PROBE_EXIT=0
-  STUB_PROBE_OUT=$work/stub/probe-text.out
-  check probe-exits-0-with-the-error-text FAIL ' test_value=1' "FAIL $name (test_value)"
-  STUB_CONTROL_OUT=$work/stub/control-grant.out
-  check control-answers-grant FAIL ' test_value=1' "FAIL $name (test_value)"
   STUB_CONTROL_OUT=$work/stub/control-frontier-grant.out
   check control-answers-grant-for-frontier FAIL ' test_value=1' "FAIL $name (test_value)"
-  STUB_CONTROL_EXIT=1
-  check control-exits-1 FAIL ' test_value=1' "FAIL $name (test_value)"
-  STUB_CONTROL_EXIT=101
-  STUB_PROBE_EXIT=0
-  STUB_PROBE_OUT=$work/stub/empty.out
-  check probe-and-control-miss FAIL ' test_value=2' "FAIL $name (test_value)"
   CASE_RUSTFLAGS='--cfg r6_job'
   STUB_JOB_FLAG='--cfg r6_job'
   check job-rustflags-kept PASS ' test_value=0'
@@ -1155,6 +1224,7 @@ self_test() {
   crate_units
   grant_units
   probe_units
+  judge_units
   full_cases
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

@@ -11,7 +11,7 @@ bar=docs/r6/bar.md
 recorded=docs/r6/outcomes/recorded.tsv
 freeze=docs/r6/outcomes/freeze.txt
 pinned_path=scripts/r6/ci.d/80-r6-absent.sh
-pinned_blob=c9781fdc05bd943e7ac03375ed7e87bf24c06162
+pinned_blob=f34ccb062be6d42f1c6f35bc91c96289c305b2c9
 specimen=crates/halvo-route-gate/tests/data/specimen.tsv
 cap_line='default_cap amount=2000 period=month status=provisional'
 case $0 in
@@ -410,8 +410,8 @@ pinned_case() {
   label=$1
   want=$2
   dir=$work/flags/$label
-  make_repo "$dir"
   mkdir -p "$dir/scripts/r6/ci.d" || exit 2
+  git -C "$dir" init -q || exit 2
   case $label in
     pinned-bytes-at-another-path) cp "$pinned_path" "$dir/scripts/r6/ci.d/81-r6-copy.sh" || exit 2 ;;
     pinned-name-in-another-directory) cp "$pinned_path" "$dir/scripts/r6/80-r6-absent.sh" || exit 2 ;;
