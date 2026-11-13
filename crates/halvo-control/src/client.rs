@@ -113,6 +113,14 @@ impl Deadlines {
 pub enum DeleteOutcome {
     Deleted(Deleted),
     AlreadyDeleted(AlreadyDeleted),
+    /// The delete removed nothing; the caller reads the status and asks the person again.
+    Refused,
+}
+
+/// Whether an `already_deleted` can answer a delete armed with `armed`: only one that carried
+/// an id, and only when the reply names another id as the current store.
+pub fn already_deleted_answers(armed: Option<StoreId>, already: &AlreadyDeleted) -> bool {
+    armed.is_some_and(|armed| armed != already.current)
 }
 
 /// The client of protocol v1. Each call makes one connection, sends one request and reads
@@ -304,7 +312,10 @@ impl<C: Connector> Client<C> {
     pub fn delete_all(&self, armed: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
         match self.call(Request::DeleteAll { store: armed })? {
             Reply::Deleted(deleted) => Ok(DeleteOutcome::Deleted(deleted)),
-            Reply::AlreadyDeleted(already) => Ok(DeleteOutcome::AlreadyDeleted(already)),
+            Reply::AlreadyDeleted(already) if already_deleted_answers(armed, &already) => {
+                Ok(DeleteOutcome::AlreadyDeleted(already))
+            }
+            Reply::DeleteRefused => Ok(DeleteOutcome::Refused),
             other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
         }
     }
@@ -840,7 +851,7 @@ mod tests {
     }
 
     #[test]
-    fn t18_b_dash_is_taken_only_when_status_shows_no_id() {
+    fn t18_b_dash_is_accepted_where_status_shows_no_id_and_refused_beside_a_shown_id() {
         let no_id = with_store(StoreState::Sealed, Some(StoreErrorKind::KeyFile), None);
         let (client_a, _) = client(ScriptedDaemon::new(no_id));
         assert!(matches!(
@@ -848,10 +859,7 @@ mod tests {
             DeleteOutcome::Deleted(_)
         ));
         let (client_b, connector) = client(ScriptedDaemon::new(sample_status(Platform::Macos)));
-        assert_eq!(
-            daemon_error(client_b.delete_all(None)),
-            ErrorCode::InvalidArgument
-        );
+        assert_eq!(client_b.delete_all(None).unwrap(), DeleteOutcome::Refused);
         assert_eq!(
             connector.status().fields().store_id,
             Some(FIXTURE_STORE_ID),
@@ -1025,9 +1033,7 @@ mod tests {
         for _ in 0..2 {
             assert_eq!(
                 client.delete_all(armed).unwrap(),
-                DeleteOutcome::AlreadyDeleted(crate::proto::AlreadyDeleted {
-                    current: Some(fresh)
-                })
+                DeleteOutcome::AlreadyDeleted(crate::proto::AlreadyDeleted { current: fresh })
             );
             assert_eq!(connector.status().fields().store_id, Some(fresh));
         }

@@ -337,8 +337,11 @@ pub fn deleted_text(deleted: &Deleted) -> String {
 }
 
 pub fn already_deleted_text(already: &AlreadyDeleted) -> String {
-    format!("already_deleted store_id={}\n", or_dash(already.current))
+    format!("already_deleted store_id={}\n", already.current)
 }
+
+/// What ctl says on standard error for `delete_refused` (ruling PL-8 part (4)(c)).
+pub const DELETE_REFUSED_TEXT: &str = "this request deleted nothing: the store id in the request is not the id that the status shows, or one of the two is missing; an earlier delete may already have removed that store; read the status and ask again";
 
 pub fn stopped_text(stopped: &Stopped) -> String {
     format!(
@@ -473,9 +476,16 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                 _ => printed(stdout, crate::exit::CLEAN),
             }
         }
-        (Verb::DeleteAll(_), Reply::AlreadyDeleted(already)) => {
+        (Verb::DeleteAll(armed), Reply::AlreadyDeleted(already))
+            if crate::client::already_deleted_answers(*armed, &already) =>
+        {
             printed(already_deleted_text(&already), crate::exit::CLEAN)
         }
+        (Verb::DeleteAll(_), Reply::DeleteRefused) => Printed {
+            stdout: "delete_refused\n".to_string(),
+            stderr: format!("halvo-capture: {DELETE_REFUSED_TEXT}\n"),
+            status: crate::exit::ERROR,
+        },
         (Verb::SetCap(_), Reply::CapSet(set)) => printed(cap_set_text(&set), crate::exit::CLEAN),
         (_, other) => failed(
             format!("the daemon answered {} to this verb", other.kind()),
@@ -619,9 +629,7 @@ mod tests {
         };
         assert_eq!(deleted_text(&deleted), lf(DELETED));
         assert_eq!(
-            already_deleted_text(&AlreadyDeleted {
-                current: Some(FRESH)
-            }),
+            already_deleted_text(&AlreadyDeleted { current: FRESH }),
             lf(ALREADY_DELETED)
         );
     }
@@ -854,13 +862,16 @@ mod tests {
     }
 
     #[test]
-    fn already_deleted_exits_0_and_prints_the_current_id_or_dash() {
+    fn already_deleted_exits_0_and_prints_the_current_id() {
         let printed = print(
-            &Verb::DeleteAll(Some(FRESH)),
-            Ok(Reply::AlreadyDeleted(AlreadyDeleted { current: None })),
+            &Verb::DeleteAll(Some(crate::testing::store_id(9))),
+            Ok(Reply::AlreadyDeleted(AlreadyDeleted { current: FRESH })),
             &data_dir(),
         );
-        assert_eq!(printed.stdout, "already_deleted store_id=-\n");
+        assert_eq!(
+            printed.stdout,
+            format!("already_deleted store_id={FRESH}\n")
+        );
         assert_eq!(printed.status, 0);
     }
 

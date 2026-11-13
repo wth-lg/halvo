@@ -419,12 +419,10 @@ impl ScriptedDaemon {
     }
 
     fn delete(&mut self, armed: Option<StoreId>) -> Reply {
-        match delete_decision(&self.status, armed) {
+        let f = self.status.fields();
+        match delete_decision(f.store, f.store_error, f.store_id, armed) {
             DeleteDecision::Busy => error(ErrorCode::Busy, "the store is busy"),
-            DeleteDecision::DashWithAnId => error(
-                ErrorCode::InvalidArgument,
-                "delete-all - is taken only when the status shows no store id",
-            ),
+            DeleteDecision::Refused => Reply::DeleteRefused,
             DeleteDecision::AlreadyDeleted { current } => {
                 Reply::AlreadyDeleted(AlreadyDeleted { current })
             }

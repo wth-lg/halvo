@@ -364,6 +364,8 @@ pub enum Reply {
     Stopped(Stopped),
     Deleted(Deleted),
     AlreadyDeleted(AlreadyDeleted),
+    /// The delete removed nothing; the reply carries no store id (ruling PL-8 part (4)(c)).
+    DeleteRefused,
     CapSet(CapSet),
     PermissionRequested(PermissionRequested),
     Error(ErrorReply),
@@ -378,6 +380,7 @@ impl Reply {
             Reply::Stopped(_) => "stopped",
             Reply::Deleted(_) => "deleted",
             Reply::AlreadyDeleted(_) => "already_deleted",
+            Reply::DeleteRefused => "delete_refused",
             Reply::CapSet(_) => "cap_set",
             Reply::PermissionRequested(_) => "permission_requested",
             Reply::Error(_) => "error",
@@ -437,8 +440,7 @@ pub struct Deleted {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AlreadyDeleted {
-    #[serde(deserialize_with = "required")]
-    pub current: Option<StoreId>,
+    pub current: StoreId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1638,25 +1640,34 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeleteDecision {
     Accept,
-    AlreadyDeleted { current: Option<StoreId> },
+    AlreadyDeleted { current: StoreId },
     Busy,
-    DashWithAnId,
+    Refused,
 }
 
-/// The delete rule of contracts.md C2.6: a deleting or locked store is busy; otherwise the
-/// armed id must be the id that Status shows, a stale id is already deleted, and no id is
-/// taken only when Status shows none.
-pub fn delete_decision(status: &DaemonStatus, armed: Option<StoreId>) -> DeleteDecision {
-    let f = status.fields();
-    if f.store == StoreState::Deleting || f.store_error == Some(StoreErrorKind::Locked) {
+/// The delete rule of ruling PL-8 part (4)(a), in its order. A deleting store or a locked one
+/// is busy, before any id is read. An armed id that is the shown id is accepted; two ids that
+/// differ are already deleted, with the shown id; an armed id with no shown id, or no armed id
+/// with a shown id, is refused. With neither, an open store or one with no release custody is
+/// refused, and any other store is accepted. The rule reads the store's state, its cause and
+/// the two ids, and no other field of a status.
+pub fn delete_decision(
+    store: StoreState,
+    cause: Option<StoreErrorKind>,
+    shown: Option<StoreId>,
+    armed: Option<StoreId>,
+) -> DeleteDecision {
+    if store == StoreState::Deleting || cause == Some(StoreErrorKind::Locked) {
         return DeleteDecision::Busy;
     }
-    match (armed, f.store_id) {
-        (None, Some(_)) => DeleteDecision::DashWithAnId,
-        (Some(armed), current) if Some(armed) != current => {
-            DeleteDecision::AlreadyDeleted { current }
+    match (armed, shown) {
+        (Some(armed), Some(shown)) if armed == shown => DeleteDecision::Accept,
+        (Some(_), Some(shown)) => DeleteDecision::AlreadyDeleted { current: shown },
+        (Some(_), None) | (None, Some(_)) => DeleteDecision::Refused,
+        (None, None) if matches!(store, StoreState::Open | StoreState::NoReleaseCustody) => {
+            DeleteDecision::Refused
         }
-        _ => DeleteDecision::Accept,
+        (None, None) => DeleteDecision::Accept,
     }
 }
 
@@ -1810,9 +1821,9 @@ mod tests {
             deleted(Some(store_id(2))),
             deleted(None),
             Reply::AlreadyDeleted(AlreadyDeleted {
-                current: Some(store_id(2)),
+                current: store_id(2),
             }),
-            Reply::AlreadyDeleted(AlreadyDeleted { current: None }),
+            Reply::DeleteRefused,
             Reply::CapSet(CapSet {
                 status: sample_status(Platform::Windows),
                 evicting: true,
@@ -1864,7 +1875,7 @@ mod tests {
     fn every_v1_reply_round_trips_through_serde_and_the_frame_codec() {
         let replies = every_reply();
         let kinds: std::collections::BTreeSet<&str> = replies.iter().map(Reply::kind).collect();
-        assert_eq!(kinds.len(), 9, "a reply kind has no sample");
+        assert_eq!(kinds.len(), 10, "a reply kind has no sample");
         for reply in replies {
             assert_eq!(through_the_wire_reply(&reply), reply);
         }
@@ -1907,13 +1918,13 @@ mod tests {
             ),
             (
                 Reply::AlreadyDeleted(AlreadyDeleted {
-                    current: Some(store_id(2)),
+                    current: store_id(2),
                 }),
                 r#"{"v":1,"body":{"kind":"already_deleted","current":"00000000000000000000000000000002"}}"#,
             ),
             (
-                Reply::AlreadyDeleted(AlreadyDeleted { current: None }),
-                r#"{"v":1,"body":{"kind":"already_deleted","current":null}}"#,
+                Reply::DeleteRefused,
+                r#"{"v":1,"body":{"kind":"delete_refused"}}"#,
             ),
             (
                 deleted(None),
@@ -3094,7 +3105,9 @@ mod tests {
         };
         crate::model::every_key_is_read::<DeleteReport>(&serde_json::to_value(d.report).unwrap());
         crate::model::every_key_is_read::<Deleted>(&serde_json::to_value(&d).unwrap());
-        crate::model::every_key_is_read::<AlreadyDeleted>(&serde_json::json!({"current": null}));
+        crate::model::every_key_is_read::<AlreadyDeleted>(
+            &serde_json::json!({"current": "00000000000000000000000000000002"}),
+        );
         crate::model::every_key_is_read::<Stopped>(
             &serde_json::json!({"flushed": true, "events_lost": 0}),
         );
@@ -3158,8 +3171,9 @@ mod tests {
                 } else {
                     DeleteDecision::Accept
                 };
+                let f = status.fields();
                 assert_eq!(
-                    delete_decision(&status, Some(current)),
+                    delete_decision(f.store, f.store_error, Some(current), Some(current)),
                     want,
                     "{state:?} {cause:?}"
                 );
@@ -3168,29 +3182,49 @@ mod tests {
     }
 
     #[test]
-    fn the_delete_rule_takes_dash_only_when_the_status_shows_no_id() {
-        let mut fields = sample_status(Platform::Macos).into_fields();
-        fields.store = StoreState::Sealed;
-        fields.store_error = Some(StoreErrorKind::KeyFile);
-        fields.store_id = None;
-        let no_id = DaemonStatus::new(fields).unwrap();
-        assert_eq!(delete_decision(&no_id, None), DeleteDecision::Accept);
-        assert_eq!(
-            delete_decision(&no_id, Some(store_id(1))),
-            DeleteDecision::AlreadyDeleted { current: None }
-        );
-        let open = sample_status(Platform::Macos);
-        assert_eq!(delete_decision(&open, None), DeleteDecision::DashWithAnId);
-        assert_eq!(
-            delete_decision(&open, Some(store_id(7))),
-            DeleteDecision::AlreadyDeleted {
-                current: Some(FIXTURE_STORE_ID)
-            }
-        );
-        assert_eq!(
-            delete_decision(&open, Some(FIXTURE_STORE_ID)),
-            DeleteDecision::Accept
-        );
+    fn the_delete_rule_reads_the_two_ids_in_the_order_of_ruling_pl_8() {
+        use StoreState::*;
+        let (shown, other) = (Some(FIXTURE_STORE_ID), Some(store_id(7)));
+        let key_file = Some(StoreErrorKind::KeyFile);
+        let io = Some(StoreErrorKind::Io);
+        for (store, cause, shown, armed, want) in [
+            (Open, None, shown, shown, DeleteDecision::Accept),
+            (
+                Open,
+                None,
+                shown,
+                other,
+                DeleteDecision::AlreadyDeleted {
+                    current: FIXTURE_STORE_ID,
+                },
+            ),
+            (Open, None, shown, None, DeleteDecision::Refused),
+            (Sealed, key_file, None, other, DeleteDecision::Refused),
+            (Unavailable, io, None, other, DeleteDecision::Refused),
+            (Open, None, None, None, DeleteDecision::Refused),
+            (NoReleaseCustody, None, None, None, DeleteDecision::Refused),
+            (Sealed, key_file, None, None, DeleteDecision::Accept),
+            (Unavailable, io, None, None, DeleteDecision::Accept),
+            (Deleting, None, None, None, DeleteDecision::Busy),
+            (
+                Unavailable,
+                Some(StoreErrorKind::Locked),
+                shown,
+                other,
+                DeleteDecision::Busy,
+            ),
+        ] {
+            assert_eq!(
+                delete_decision(store, cause, shown, armed),
+                want,
+                "{store:?} {cause:?} shown {shown:?} armed {armed:?}"
+            );
+        }
+    }
+
+    fn decide(status: &DaemonStatus, armed: Option<StoreId>) -> DeleteDecision {
+        let f = status.fields();
+        delete_decision(f.store, f.store_error, f.store_id, armed)
     }
 
     #[test]
@@ -3199,7 +3233,7 @@ mod tests {
         fields.store = StoreState::Deleting;
         let deleting = DaemonStatus::new(fields).unwrap();
         for armed in [None, Some(store_id(1)), Some(store_id(7))] {
-            assert_eq!(delete_decision(&deleting, armed), DeleteDecision::Busy);
+            assert_eq!(decide(&deleting, armed), DeleteDecision::Busy);
         }
         let mut fields = sample_status(Platform::Macos).into_fields();
         fields.store = StoreState::Unavailable;
@@ -3207,7 +3241,7 @@ mod tests {
         let locked = DaemonStatus::new(fields).unwrap();
         for armed in [None, Some(FIXTURE_STORE_ID), Some(store_id(7))] {
             assert_eq!(
-                delete_decision(&locked, armed),
+                decide(&locked, armed),
                 DeleteDecision::Busy,
                 "locked, armed {armed:?}"
             );
