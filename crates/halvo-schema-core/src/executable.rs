@@ -3,10 +3,11 @@ use crate::kinds::{FieldType, KindEntry, Origin, RetentionClass};
 /// The error names that this run's handlers answer, in the reply form of the workflow run.
 pub const ERROR_NAMES: &[&str] = &["binding", "playbook", "config", "class", "length", "effect"];
 
-/// The eight kinds of this run, family `agent`, each with the workflow id under the key `workflow`: of origin
-/// capture `agent_config`, kept, and `agent_run`, bounded at 93 days; of origin own `agent_playbook` and
-/// `agent_bindings`, kept, `agent_effect` and `agent_log`, bounded at 93 days, `agent_session`, bounded at 35 days,
-/// and `agent_checkpoint`, bounded at 93 days.
+/// The kinds of this run, family `agent`, each with the workflow id under the key `workflow`: of origin capture
+/// `agent_config`, kept, and `agent_run`, bounded at 93 days; of origin own `agent_playbook` and `agent_bindings`,
+/// kept, `agent_effect` and `agent_log`, bounded at 93 days, `agent_session`, bounded at 35 days, `agent_checkpoint`,
+/// bounded at 93 days, `agent_reply`, kept by default until the owner answers O4, with its `day` and `at`, and
+/// `agent_start`, kept by default until the owner answers the entry on the start instant, one row for an agent.
 pub const KINDS: &[KindEntry] = &[
     KindEntry {
         name: "agent_config",
@@ -60,8 +61,20 @@ pub const KINDS: &[KindEntry] = &[
             ("tokens_out", FieldType::Count),
             ("wall_s", FieldType::Count),
             ("model", FieldType::Name),
+            ("before_start", FieldType::Count),
+            ("cut", FieldType::Name),
+            ("no_key", FieldType::Count),
+            ("not_to_account", FieldType::Count),
+            ("incomplete", FieldType::Count),
+            ("reply_to_other", FieldType::Count),
+            ("more_pages", FieldType::Name),
+            ("held_recipient", FieldType::Count),
+            ("organized", FieldType::Count),
+            ("other_task", FieldType::Count),
+            ("held_earlier", FieldType::Count),
+            ("earlier_page", FieldType::Count),
         ],
-        example: r#"{"v":1,"workflow":"30000000000000000000000000000001","agent":"40000000000000000000000000000001","run":"50000000000000000000000000000001","day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null}"#,
+        example: r#"{"v":1,"workflow":"30000000000000000000000000000001","agent":"40000000000000000000000000000001","run":"50000000000000000000000000000001","day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null,"before_start":null,"cut":null,"no_key":null,"not_to_account":null,"incomplete":null,"reply_to_other":null,"more_pages":null,"held_recipient":null,"organized":null,"other_task":null,"held_earlier":null,"earlier_page":null}"#,
     },
     KindEntry {
         name: "agent_playbook",
@@ -190,5 +203,41 @@ pub const KINDS: &[KindEntry] = &[
             ("left", FieldType::Name),
         ],
         example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","seq":2,"day":20768,"at":1794339000000000002,"folder":["/data/books"],"workbook":["/data/books/bills.xlsx"],"copy":["bills.halvo-checkpoint-50505050505050505050505050505050.xlsx"],"sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","bytes":18432,"state":"made","left":null}"#,
+    },
+    KindEntry {
+        name: "agent_reply",
+        class: RetentionClass::Kept,
+        origin: Origin::Own,
+        family: "agent",
+        workflow_key: Some("workflow"),
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("agent", FieldType::Id),
+            ("run", FieldType::Id),
+            ("seq", FieldType::Count),
+            ("day", FieldType::Day),
+            ("at", FieldType::Instant),
+            ("message", FieldType::OwnText),
+            ("draft", FieldType::OwnText),
+            ("effect", FieldType::Id),
+            ("state", FieldType::Name),
+        ],
+        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","seq":1,"day":20768,"at":1794339000000000003,"message":"msg-utility-0001","draft":"draft-utility-0001","effect":null,"state":"drafted"}"#,
+    },
+    KindEntry {
+        name: "agent_start",
+        class: RetentionClass::Kept,
+        origin: Origin::Own,
+        family: "agent",
+        workflow_key: Some("workflow"),
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("agent", FieldType::Id),
+            ("day", FieldType::Day),
+            ("at", FieldType::Instant),
+        ],
+        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","day":20768,"at":1794339000000000010}"#,
     },
 ];
