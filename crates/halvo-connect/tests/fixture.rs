@@ -421,3 +421,306 @@ fn a_panic_after_the_start_leaves_no_fixture_server() {
     let pid = rx.recv().expect("the pid of the server");
     assert!(!alive(pid), "the fixture server ended with the panic");
 }
+
+const HOLDER: &str = "HALVO_CONNECT_TEST_FIXTURE_HOLDER";
+const STAND_IN: &str = "HALVO_CONNECT_TEST_STAND_IN_SECONDS";
+const GONE_WITHIN: std::time::Duration = std::time::Duration::from_secs(10);
+
+#[test]
+#[ignore = "a process of its own, which a_hard_kill_of_the_test_process_ends_its_fixture_server starts"]
+fn a_fixture_holder() {
+    if std::env::var_os(HOLDER).is_none() {
+        return;
+    }
+    let pid = std::cell::Cell::new(0);
+    let _fixture = Fixture::start_then(|id| pid.set(id));
+    println!("\nfixture server pid {}", pid.get());
+    let _ = std::io::Read::read_to_end(&mut std::io::stdin(), &mut Vec::new());
+}
+
+#[test]
+#[ignore = "a process of its own, which the tests of the guard and of the wait start"]
+fn a_stand_in() {
+    let Some(seconds) = std::env::var(STAND_IN)
+        .ok()
+        .and_then(|seconds| seconds.parse::<u64>().ok())
+    else {
+        return;
+    };
+    std::thread::sleep(std::time::Duration::from_secs(seconds));
+}
+
+fn test_process(test: &str, variable: &str, value: &str) -> std::process::Command {
+    let mut command = std::process::Command::new(std::env::current_exe().expect("the test binary"));
+    command
+        .args([
+            test,
+            "--exact",
+            "--ignored",
+            "--nocapture",
+            "--test-threads",
+            "1",
+        ])
+        .env(variable, value);
+    command
+}
+
+fn stand_in(seconds: u64) -> std::process::Child {
+    test_process("a_stand_in", STAND_IN, &seconds.to_string())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .spawn()
+        .expect("the stand-in starts")
+}
+
+struct Own(std::process::Child);
+
+impl Drop for Own {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Known {
+    pid: u32,
+    start: String,
+}
+
+impl Known {
+    fn read(pid: u32) -> Option<Known> {
+        start_fact(pid).map(|start| Known { pid, start })
+    }
+
+    fn runs(&self) -> bool {
+        start_fact(self.pid).as_deref() == Some(self.start.as_str())
+    }
+}
+
+fn nameable(pid: u32) -> bool {
+    pid != 0 && pid <= i32::MAX as u32
+}
+
+fn start_fact_command(pid: u32) -> Option<std::process::Command> {
+    if !nameable(pid) {
+        return None;
+    }
+    #[cfg(unix)]
+    let command = {
+        let mut command = std::process::Command::new("ps");
+        command.args(["-o", "lstart=", "-p", &pid.to_string()]);
+        command
+    };
+    #[cfg(windows)]
+    let command = {
+        let mut command = std::process::Command::new("powershell");
+        command.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            &format!("(Get-Process -Id {pid} -ErrorAction Stop).StartTime.Ticks"),
+        ]);
+        command
+    };
+    Some(command)
+}
+
+fn start_fact(pid: u32) -> Option<String> {
+    let out = start_fact_command(pid)?
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    let text = String::from_utf8(out.stdout).ok()?;
+    let text = text.trim();
+    (out.status.success() && !text.is_empty()).then(|| text.to_owned())
+}
+
+fn end_command(pid: u32) -> Option<std::process::Command> {
+    if !nameable(pid) {
+        return None;
+    }
+    #[cfg(unix)]
+    let command = {
+        let mut command = std::process::Command::new("kill");
+        command.args(["-KILL", &pid.to_string()]);
+        command
+    };
+    #[cfg(windows)]
+    let command = {
+        let mut command = std::process::Command::new("taskkill");
+        command.args(["/F", "/PID", &pid.to_string()]);
+        command
+    };
+    Some(command)
+}
+
+struct Leftover(Option<Known>);
+
+impl Leftover {
+    fn disarm(&mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for Leftover {
+    fn drop(&mut self) {
+        let Some(known) = self.0.take() else { return };
+        if !known.runs() {
+            return;
+        }
+        if let Some(mut command) = end_command(known.pid) {
+            let _ = command
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+        }
+    }
+}
+
+fn gone_within(known: &Known, bound: std::time::Duration) -> bool {
+    let start = std::time::Instant::now();
+    loop {
+        if !known.runs() {
+            return true;
+        }
+        if start.elapsed() >= bound {
+            return false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
+fn ended_within(
+    child: &mut std::process::Child,
+    bound: std::time::Duration,
+) -> Option<std::process::ExitStatus> {
+    let start = std::time::Instant::now();
+    loop {
+        if let Some(status) = child.try_wait().expect("a status read") {
+            return Some(status);
+        }
+        if start.elapsed() >= bound {
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
+#[test]
+fn a_guard_leaves_a_process_whose_start_fact_differs() {
+    let mut stand_in = Own(stand_in(60));
+    let known = Known::read(stand_in.0.id()).expect("the stand-in runs");
+    let other = Known {
+        pid: known.pid,
+        start: format!("{} and another", known.start),
+    };
+    drop(Leftover(Some(other)));
+    assert_eq!(
+        ended_within(&mut stand_in.0, std::time::Duration::from_secs(2)),
+        None,
+        "the guard left the stand-in running"
+    );
+}
+
+#[test]
+fn a_disarmed_guard_leaves_the_process_of_its_pair() {
+    let mut stand_in = Own(stand_in(60));
+    let known = Known::read(stand_in.0.id()).expect("the stand-in runs");
+    let mut leftover = Leftover(Some(known));
+    leftover.disarm();
+    drop(leftover);
+    assert_eq!(
+        ended_within(&mut stand_in.0, std::time::Duration::from_secs(2)),
+        None,
+        "the disarmed guard left the stand-in running"
+    );
+}
+
+#[test]
+fn a_guard_ends_the_process_whose_pair_matches() {
+    let mut stand_in = Own(stand_in(60));
+    let known = Known::read(stand_in.0.id()).expect("the stand-in runs");
+    drop(Leftover(Some(known)));
+    let status = ended_within(&mut stand_in.0, GONE_WITHIN);
+    assert!(
+        status.is_some_and(|status| !status.success()),
+        "the guard ended the stand-in: {status:?}"
+    );
+}
+
+#[test]
+fn the_wait_reads_an_ended_process_as_gone_and_a_running_one_as_running() {
+    let short = stand_in(6);
+    let known = Known::read(short.id()).expect("the short stand-in runs");
+    let reaper = std::thread::spawn(move || {
+        let mut short = short;
+        short.wait()
+    });
+    assert!(
+        gone_within(&known, GONE_WITHIN),
+        "a stand-in of 6 s is gone within the bound"
+    );
+    let ended = reaper
+        .join()
+        .expect("the reaper")
+        .expect("the short stand-in's status");
+    assert!(ended.success(), "the short stand-in ended by itself");
+    let long = Own(stand_in(60));
+    let known = Known::read(long.0.id()).expect("the long stand-in runs");
+    assert!(
+        !gone_within(&known, std::time::Duration::ZERO),
+        "a running stand-in is read as running at a bound of zero"
+    );
+}
+
+#[test]
+fn a_helper_refuses_a_number_that_names_no_single_process() {
+    for pid in [0, i32::MAX as u32 + 1, u32::MAX] {
+        assert!(start_fact_command(pid).is_none(), "{pid}");
+        assert!(end_command(pid).is_none(), "{pid}");
+        assert_eq!(Known::read(pid), None, "{pid}");
+    }
+    assert!(start_fact_command(i32::MAX as u32).is_some());
+    assert!(end_command(1).is_some());
+}
+
+#[test]
+fn a_hard_kill_of_the_test_process_ends_its_fixture_server() {
+    use std::io::BufRead;
+
+    let mut holder = Own(test_process("a_fixture_holder", HOLDER, "1")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("the test binary starts"));
+    let stdout = holder.0.stdout.take().expect("its standard output");
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for line in std::io::BufReader::new(stdout).lines() {
+            let Ok(line) = line else { break };
+            if let Some(pid) = line.strip_prefix("fixture server pid ") {
+                let _ = tx.send(pid.parse::<u32>().ok());
+                break;
+            }
+        }
+    });
+    let pid = rx
+        .recv_timeout(std::time::Duration::from_secs(60))
+        .ok()
+        .flatten()
+        .expect("the holder prints the pid of its fixture server");
+    let known = Known::read(pid).expect("the fixture server runs");
+    let mut leftover = Leftover(Some(known.clone()));
+    holder.0.kill().expect("the hard kill of the holder");
+    holder.0.wait().expect("the holder ends");
+    let gone = gone_within(&known, GONE_WITHIN);
+    if gone {
+        leftover.disarm();
+    }
+    assert!(
+        gone,
+        "the fixture server ended within 10 s of the hard kill of the process that started it"
+    );
+}

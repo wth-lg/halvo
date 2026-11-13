@@ -480,6 +480,9 @@ impl Harness {
 
     fn reopen(&mut self) -> Result<(), TestCaseError> {
         self.store = None;
+        if !self.deleted_since_last_create {
+            widen_the_database_file(&self.dir);
+        }
         match EncryptedStore::open(&self.dir, DEFAULT_RETENTION) {
             Ok(store) => {
                 prop_assert!(!self.deleted_since_last_create, "a deleted store reopened");
@@ -542,9 +545,11 @@ impl Harness {
             self.create_store();
             return Ok(());
         }
+        let refused_root = RootId::fresh();
+        self.roots.insert(0, refused_root);
         let result = EncryptedStore::create(
             &self.dir,
-            Box::new(DevFallbackCustody::new(RootId::fresh())),
+            Box::new(DevFallbackCustody::new(refused_root)),
             DEFAULT_RETENTION,
         );
         prop_assert!(
@@ -766,7 +771,7 @@ impl Harness {
                 "the store directory holds {name}, which is no file of a store"
             );
         }
-        Ok(())
+        require_owner_only_modes(&self.dir)
     }
 
     fn check_remaining_keys(&self, store: &EncryptedStore) -> Result<(), TestCaseError> {
@@ -1008,6 +1013,47 @@ fn wrapped_key_row(store: &EncryptedStore, segment_id: Uuid) -> Option<Vec<u8>> 
         )
         .expect("the key row of the segment")
 }
+
+#[cfg(unix)]
+fn require_owner_only_modes(store_dir: &Path) -> Result<(), TestCaseError> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut entries = vec![store_dir.to_path_buf()];
+    while let Some(path) = entries.pop() {
+        let meta = std::fs::symlink_metadata(&path).expect("an entry of the store directory stats");
+        let mode = meta.permissions().mode() & 0o777;
+        let owner_only = if meta.is_dir() { 0o700 } else { 0o600 };
+        prop_assert!(
+            mode == owner_only,
+            "{} has mode {:o} in the store directory, and a store makes it {:o}",
+            path.strip_prefix(store_dir).unwrap_or(&path).display(),
+            mode,
+            owner_only
+        );
+        if meta.is_dir() {
+            let below = std::fs::read_dir(&path).expect("a directory of the store lists");
+            entries.extend(below.map(|entry| entry.expect("an entry of the store").path()));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn require_owner_only_modes(_store_dir: &Path) -> Result<(), TestCaseError> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn widen_the_database_file(store_dir: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(
+        store_dir.join("store.db"),
+        std::fs::Permissions::from_mode(0o644),
+    )
+    .expect("store.db of a store that no process holds takes a wider mode");
+}
+
+#[cfg(not(unix))]
+fn widen_the_database_file(_store_dir: &Path) {}
 
 fn names_in(dir: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(dir)
@@ -1300,10 +1346,6 @@ fn writer_refusal(error: &StoreError) -> Option<Refusal> {
     }
 }
 
-fn is_writer_refusal(error: &StoreError) -> bool {
-    writer_refusal(error).is_some()
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Event {
     Enter,
@@ -1317,6 +1359,8 @@ struct Logged {
     contender: usize,
     event: Event,
     nanos: u128,
+    open_started: u128,
+    asked_its_custody: bool,
 }
 
 fn now_nanos() -> u128 {
@@ -1327,7 +1371,33 @@ fn now_nanos() -> u128 {
 }
 
 fn log_line(path: &Path, contender: usize, event: &str) {
-    let line = format!("{contender} {event} {}\n", now_nanos());
+    log_text(path, &format!("{contender} {event} {}\n", now_nanos()));
+}
+
+fn log_refusal(
+    path: &Path,
+    contender: usize,
+    refusal: Refusal,
+    open_started: u128,
+    asked_its_custody: bool,
+) {
+    let event = match refusal {
+        Refusal::Locked => "refused-locked",
+        Refusal::AccessDenied => "refused-access-denied",
+    };
+    let custody = if asked_its_custody {
+        "after-its-custody"
+    } else {
+        "before-its-custody"
+    };
+    let now = now_nanos();
+    log_text(
+        path,
+        &format!("{contender} {event} {now} {open_started} {custody}\n"),
+    );
+}
+
+fn log_text(path: &Path, line: &str) {
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -1357,10 +1427,20 @@ fn parse_log(text: &str) -> Vec<Logged> {
                 .next()
                 .and_then(|s| s.parse().ok())
                 .expect("timestamp");
+            let open_started = parts.next().map_or(nanos, |s| {
+                s.parse().expect("the time at which a refused open began")
+            });
+            let asked_its_custody = match parts.next() {
+                None | Some("before-its-custody") => false,
+                Some("after-its-custody") => true,
+                other => panic!("unknown custody mark of a refusal {other:?}"),
+            };
             Logged {
                 contender,
                 event,
                 nanos,
+                open_started,
+                asked_its_custody,
             }
         })
         .collect()
@@ -1406,21 +1486,20 @@ fn contend_for_store_for_parent() {
 
     for _ in 0..acquisitions {
         let mut store = loop {
-            match EncryptedStore::open(&store_dir, DEFAULT_RETENTION) {
+            let asked_its_custody = Cell::new(false);
+            let open_started = now_nanos();
+            let opened =
+                EncryptedStore::open_with(&store_dir, DEFAULT_RETENTION, |kind, root_id| {
+                    asked_its_custody.set(true);
+                    custody_for(kind, root_id)
+                });
+            match opened {
                 Ok(store) => break store,
                 Err(error) => {
-                    assert!(
-                        is_writer_refusal(&error),
-                        "contender {index}: open failed with {error:?}, which is no refusal of a second writer"
-                    );
-                    log_line(
-                        &log,
-                        index,
-                        match writer_refusal(&error) {
-                            Some(Refusal::AccessDenied) => "refused-access-denied",
-                            _ => "refused-locked",
-                        },
-                    );
+                    let Some(refusal) = writer_refusal(&error) else {
+                        panic!("contender {index}: open failed with {error:?}, which is no refusal of a second writer");
+                    };
+                    log_refusal(&log, index, refusal, open_started, asked_its_custody.get());
                     assert!(
                         Instant::now() < deadline,
                         "contender {index} never got the store; last refusal: {error}"
@@ -1512,6 +1591,7 @@ struct RefusalsSeen {
     locked: Cell<u64>,
     access_denied: Cell<u64>,
     while_another_contender_held_the_store: Cell<u64>,
+    before_the_custody_through_a_whole_hold: Cell<u64>,
 }
 
 impl RefusalsSeen {
@@ -1532,8 +1612,20 @@ impl RefusalsSeen {
                 let seen = &self.while_another_contender_held_the_store;
                 seen.set(seen.get() + 1);
             }
+            if holder_through_the_whole_open(entry, held).is_some() {
+                let seen = &self.before_the_custody_through_a_whole_hold;
+                seen.set(seen.get() + 1);
+            }
         }
     }
+}
+
+fn holder_through_the_whole_open(refused: &Logged, held: &[(usize, u128, u128)]) -> Option<usize> {
+    held.iter()
+        .find(|&&(holder, entered, left)| {
+            holder != refused.contender && entered <= refused.open_started && refused.nanos <= left
+        })
+        .map(|&(holder, _, _)| holder)
 }
 
 fn one_race(race: &Race, refusals: &RefusalsSeen) -> Result<(), TestCaseError> {
@@ -1572,6 +1664,15 @@ fn one_race(race: &Race, refusals: &RefusalsSeen) -> Result<(), TestCaseError> {
     for (i, status) in statuses.iter().enumerate() {
         prop_assert!(status.success(), "contender {i} exited with {status}");
     }
+    for refused in log.iter().filter(|entry| entry.asked_its_custody) {
+        let holder = holder_through_the_whole_open(refused, &held);
+        prop_assert!(
+            holder.is_none(),
+            "contender {} asked its custody in an open that was refused, and contender {:?} held the store from before that open to after it",
+            refused.contender,
+            holder
+        );
+    }
     for (i, plan) in race.contenders.iter().enumerate() {
         let count = held.iter().filter(|(c, _, _)| *c == i).count();
         prop_assert_eq!(
@@ -1596,14 +1697,19 @@ fn at_most_one_process_holds_the_store_at_a_time() {
         panic!("{failure}\n{runner}");
     }
     let while_held = refusals.while_another_contender_held_the_store.get();
+    let through_a_hold = refusals.before_the_custody_through_a_whole_hold.get();
     let _ = writeln!(
         io::stderr(),
-        "check 2 refusals in {cases} cases: locked={} access_denied={} while_another_contender_held_the_store={while_held}",
+        "check 2 refusals in {cases} cases: locked={} access_denied={} while_another_contender_held_the_store={while_held} before_the_custody_through_a_whole_hold={through_a_hold}",
         refusals.locked.get(),
         refusals.access_denied.get(),
     );
     assert!(
         cases < RACE_CASES || while_held > 0,
         "in {cases} cases no contender was refused while another held the store, so this run cannot tell a lock from no lock"
+    );
+    assert!(
+        cases < RACE_CASES || through_a_hold > 0,
+        "in {cases} cases no open began and was refused within one hold of another contender, so this run cannot tell a refusal before the custody from one after it"
     );
 }

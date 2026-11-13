@@ -1,0 +1,13 @@
+[package]
+name = "halvo-coord-store"
+version = "0.0.0"
+description = "Halvo coordinator store: the owner-side handlers of the bodies coord_log and coord_history of the interface run, and the store in memory that serves them until the derived store lands"
+edition = "2021"
+publish = false
+
+[dependencies]
+halvo-schema = { path = "../halvo-schema" }
+
+[dev-dependencies]
+halvo-coord = { path = "../halvo-coord" }
+serde_json = "1.0.154"

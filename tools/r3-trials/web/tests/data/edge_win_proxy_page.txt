@@ -1,0 +1,21 @@
+Policies
+Status
+Microsoft Edge Updat e
+Version:
+Microsoft Edge P olicies
+Policy Name Policy V alue Sour ce Applies
+ToLevel Status Show M
+ore
+ProxyMode direct Platform Device Mandator
+yOK
+Policy Pr ecedence
+Policy Name Policy V alue Sour ce Applies
+ToLevel Status Show M
+ore
+No policies set
+Extension Install P olicies
+Policy Name Policy V alue Sour ce Applies
+ToLevel Status Show M
+ore
+No policies setFilter by name
+Reload P olicies Export to JSON Show policies with no value

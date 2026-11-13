@@ -3,6 +3,7 @@ use std::fmt;
 use reqwest::Method;
 use serde_json::{json, Value};
 
+use crate::address::same_address;
 use crate::answer::{self, Ids, FORM};
 use crate::error::{AnswerFault, CallError};
 use crate::graph::{segment, Graph};
@@ -53,8 +54,8 @@ pub trait Mail {
     fn mail_send(&self, token: &Token, draft: DraftToSend) -> Result<(), CallError>;
 }
 
-/// The reply rule of A1.2: the account's address and the senders of the slot `reply_senders`. Addresses compare
-/// as ASCII without regard to case.
+/// The reply rule of A1.2: the account's address and the senders of the slot `reply_senders`. Two addresses are
+/// one by [`same_address`](crate::same_address).
 pub struct ReplyRule {
     account: String,
     senders: Vec<String>,
@@ -70,11 +71,11 @@ impl ReplyRule {
         !is_read
             && to
                 .iter()
-                .any(|address| address.eq_ignore_ascii_case(&self.account))
+                .any(|address| same_address(address, &self.account))
             && self
                 .senders
                 .iter()
-                .any(|address| address.eq_ignore_ascii_case(sender))
+                .any(|address| same_address(address, sender))
     }
 }
 

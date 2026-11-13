@@ -51,7 +51,13 @@ fn main() -> ExitCode {
         Some("derive") => derive_command(rest),
         Some("score") => score_command(rest),
         Some("self-test") => self_test_command(rest),
-        Some("spend-sim") => not_built(),
+        Some("spend-sim") => {
+            return ExitCode::from(halvo_route_gate::spendsim::command(
+                rest,
+                &mut std::io::stdout().lock(),
+                &mut std::io::stderr().lock(),
+            ))
+        }
         Some("probe") => {
             return ExitCode::from(halvo_route_gate::probe::command(
                 rest,
@@ -91,10 +97,6 @@ fn import_command(args: &[String]) -> ExitCode {
         &mut std::io::stderr().lock(),
     );
     ExitCode::from(code)
-}
-
-fn not_built() -> Result<Done, Refusal> {
-    refuse("usage", "not built")
 }
 
 fn options<'a>(args: &'a [String], known: &[&str]) -> Result<BTreeMap<String, &'a str>, Refusal> {

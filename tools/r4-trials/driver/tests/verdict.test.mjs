@@ -28,11 +28,13 @@ const DRIVER_PARAGRAPH = 'Read on every target and not on the four built targets
 const HEAD_DIALOG = [
   'reading trial=dialog machine=mac system=macos default_attr=AXDefaultButton cancel_attr=AXCancelButton',
   'reading trial=dialog machine=mac system=windows default_attr=STATE_SYSTEM_DEFAULT cancel_attr=IDCANCEL',
-  'reading trial=dialog machine=mac form=plugin system=macos default=reject cancel=none close=none file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs line=71',
-  'reading trial=dialog machine=mac form=plugin system=windows default=reject cancel=allow close=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238',
-  'reading trial=dialog machine=mac form=system system=macos default=reject cancel=none close=none file=tools/r4-trials/driver/src/native.rs line=72',
-  'reading trial=dialog machine=mac form=system system=windows default=reject cancel=reject close=reject file=tools/r4-trials/driver/src/native.rs line=113',
+  'reading trial=dialog machine=mac form=plugin system=macos default=reject cancel=none close=none default_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs default_line=71 cancel_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs cancel_line=94 close_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs close_line=94',
+  'reading trial=dialog machine=mac form=plugin system=windows default=reject cancel=allow close=allow default_file=rfd-0.17.2/src/backend/win_cid/message_dialog.rs default_line=155 cancel_file=tauri-plugin-dialog-2.8.4/src/desktop.rs cancel_line=238 close_file=tauri-plugin-dialog-2.8.4/src/desktop.rs close_line=238',
+  'reading trial=dialog machine=mac form=system system=macos default=reject cancel=none close=none default_file=tools/r4-trials/driver/src/native.rs default_line=72 cancel_file=tools/r4-trials/driver/src/native.rs cancel_line=71 close_file=tools/r4-trials/driver/src/native.rs close_line=71',
+  'reading trial=dialog machine=mac form=system system=windows default=reject cancel=reject close=reject default_file=tools/r4-trials/driver/src/native.rs default_line=113 cancel_file=tools/r4-trials/driver/src/card.rs cancel_line=104 close_file=tools/r4-trials/driver/src/card.rs close_line=104',
 ];
+const OLD_FORM = 'reading trial=dialog machine=mac form=plugin system=macos default=reject cancel=none close=none file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs line=71';
+const HEAD_VERDICT = 'verdict dialog hosted_mac=system hosted_win=system driven_mac=yes driven_win=yes';
 const PLUGIN_SRC = 'tauri-plugin-dialog-2.8.4/src/desktop.rs';
 const outcome = (form, system, o, gives, file = 'x.rs', line = 1) => `reading trial=dialog machine=mac form=${form} system=${system} outcome=${o} gives=${gives} file=${file} line=${line}`;
 const SOURCE_OUTCOMES = [
@@ -188,10 +190,10 @@ test('D3: a line whose keys, order or words are not those of its form is refused
     refused('driver', file(replaced(DRIVER, DRIVER[at], bad), D), 'line_form');
   }
   for (const [from, bad] of [
-    [HEAD_DIALOG[2], HEAD_DIALOG[2].replace(' file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs line=71', '')],
+    [HEAD_DIALOG[2], HEAD_DIALOG[2].replace(' close_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs close_line=94', '')],
     [HEAD_DIALOG[2], HEAD_DIALOG[2].replace('machine=mac', 'machine=other')],
     [HEAD_DIALOG[2], HEAD_DIALOG[2].replace('form=plugin', 'form=alert')],
-    [HEAD_DIALOG[2], HEAD_DIALOG[2].replace('line=71', 'line=0')],
+    [HEAD_DIALOG[2], HEAD_DIALOG[2].replace('default_line=71', 'default_line=0')],
     [HEAD_DIALOG[0], HEAD_DIALOG[0].replace('system=macos', 'system=linux')],
     [SOURCE_OUTCOMES[0], SOURCE_OUTCOMES[0].replace('outcome=failed_call', 'outcome=crash')],
     [SOURCE_OUTCOMES[0], SOURCE_OUTCOMES[0].replace('gives=allow', 'gives=maybe')],
@@ -200,6 +202,39 @@ test('D3: a line whose keys, order or words are not those of its form is refused
   ]) {
     refused('dialog', file(replaced(DIALOG, from, bad), G), 'line_form');
   }
+});
+
+test('U0.4b: a form reading holds a file and a line for each of default, cancel and close, and the old form with one of each is refused', () => {
+  const refusedAt = (text, n, what) => assert.throws(() => checkFile('dialog', text), (e) => e.cause === 'line_form' && e.line === n, what);
+  assert.equal(checkFile('dialog', file(DIALOG, HEAD_VERDICT)).computed, HEAD_VERDICT);
+  refusedAt(file(replaced(DIALOG, HEAD_DIALOG[2], OLD_FORM), HEAD_VERDICT), 3, 'the old form');
+  for (const key of ['default', 'cancel', 'close']) {
+    for (const part of ['file', 'line']) {
+      const line = HEAD_DIALOG[5].replace(new RegExp(` ${key}_${part}=\\S+`), '');
+      assert.notEqual(line, HEAD_DIALOG[5], `${key}_${part}`);
+      refusedAt(file(replaced(DIALOG, HEAD_DIALOG[5], line), HEAD_VERDICT), 6, `${key}_${part} left out`);
+    }
+  }
+  for (const key of ['default', 'cancel', 'close']) {
+    for (const [part, bad] of [['file', 'a:b'], ['line', '0'], ['line', '07'], ['line', 'x']]) {
+      const line = HEAD_DIALOG[5].replace(new RegExp(` ${key}_${part}=\\S+`), ` ${key}_${part}=${bad}`);
+      assert.notEqual(line, HEAD_DIALOG[5], `${key}_${part}=${bad}`);
+      refusedAt(file(replaced(DIALOG, HEAD_DIALOG[5], line), HEAD_VERDICT), 6, `${key}_${part}=${bad}`);
+    }
+  }
+  const moved = HEAD_DIALOG[5].replace(/ (default_file=\S+ default_line=\S+) (cancel_file=\S+ cancel_line=\S+)/, ' $2 $1');
+  assert.notEqual(moved, HEAD_DIALOG[5]);
+  refusedAt(file(replaced(DIALOG, HEAD_DIALOG[5], moved), HEAD_VERDICT), 6, 'the places in another order');
+});
+
+test('U0.4b: the committed dialog.md gives the verdict line that it gave with one file and line for three keys', () => {
+  const text = fs.readFileSync(path.join(here, '..', '..', '..', '..', 'docs', 'r4', 'trials', 'dialog.md'), 'utf8');
+  const forms = text.split('\n').filter((l) => / form=\w+ system=\w+ default=/.test(l));
+  assert.equal(forms.length, 4);
+  for (const l of forms) assert.match(l, / default_file=\S+ default_line=[1-9][0-9]* cancel_file=\S+ cancel_line=[1-9][0-9]* close_file=\S+ close_line=[1-9][0-9]*$/);
+  const result = checkFile('dialog', text);
+  assert.equal(result.verdict, HEAD_VERDICT);
+  assert.equal(result.computed, HEAD_VERDICT);
 });
 
 test('D3: a reading missing for a driver or for a form on a system is refused', () => {

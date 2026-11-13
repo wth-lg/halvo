@@ -125,29 +125,10 @@ test('the reading line holds the keys of I11.5 in order', () => {
   );
 });
 
-test('a dialog reading names one line that matches once', () => {
+test('a located line matches once', () => {
   assert.equal(findLine('a\nb\r\nc', /^b$/), 2);
   assert.throws(() => findLine('b\nb', /^b$/));
   assert.throws(() => findLine('a', /^b$/));
-  const texts = {
-    'src/backend/macos/utils/user_alert.rs': 'x\n            default_button_title: buttons[0].take(),\n',
-    'src/desktop.rs': 'a\nb\n                    MessageDialogButtons::OkCancelCustom(_ok, cancel),\n                ) => rfd::MessageDialogResult::Custom(cancel),\n',
-  };
-  const lines = dialogLines('plugin', (s) => ({ label: `${s.crate}/${s.file}`, text: texts[s.file] }));
-  assert.deepEqual(lines, [
-    'reading trial=dialog machine=mac form=plugin system=macos default=reject cancel=none close=none file=rfd/src/backend/macos/utils/user_alert.rs line=2',
-    'reading trial=dialog machine=mac form=plugin system=windows default=reject cancel=allow close=allow file=tauri-plugin-dialog/src/desktop.rs line=3',
-  ]);
-});
-
-test('the dialog readings of the system form match the crate own source once each', () => {
-  const lines = dialogLines('system', (s) => ({
-    label: `tools/r4-trials/driver/${s.file}`, text: fs.readFileSync(path.join(crate, s.file), 'utf8'),
-  }));
-  assert.equal(lines.length, 2);
-  assert.match(lines[0], /^reading trial=dialog machine=mac form=system system=macos default=reject cancel=none close=none file=tools\/r4-trials\/driver\/src\/native\.rs line=[1-9][0-9]*$/);
-  assert.match(lines[1], /^reading trial=dialog machine=mac form=system system=windows default=reject cancel=reject close=reject file=tools\/r4-trials\/driver\/src\/native\.rs line=[1-9][0-9]*$/);
-  assert.deepEqual(Object.keys(DIALOG_SOURCES), ['plugin', 'system']);
 });
 
 test('the attribute lines name what each reader reads', () => {
@@ -344,4 +325,245 @@ test('D4: the Rust files of a source are read for input calls', () => {
   assert.ok(texts.some((t) => t.includes('pub fn builder(')), 'lib.rs');
   assert.ok(texts.some((t) => t.includes('TaskDialogIndirect(')), 'native.rs');
   assert.equal(countInputCalls(patterns, sourceTexts(path.join(crate, 'src')), []), 0);
+});
+
+const KEYS = ['default', 'cancel', 'close'];
+const KEYED = /^reading trial=dialog machine=mac form=(plugin|system) system=(macos|windows) default=(reject|allow|none) cancel=(reject|allow|none) close=(reject|allow|none) default_file=(\S+) default_line=([1-9][0-9]*) cancel_file=(\S+) cancel_line=([1-9][0-9]*) close_file=(\S+) close_line=([1-9][0-9]*)$/;
+const keyed = (line) => {
+  const m = KEYED.exec(line);
+  assert.ok(m, line);
+  return { form: m[1], system: m[2], ...Object.fromEntries(KEYS.map((k, i) => [k, { value: m[3 + i], file: m[6 + 2 * i], line: Number(m[7 + 2 * i]) }])) };
+};
+const CITED = {
+  plugin: {
+    macos: { default: 'default_button_title: buttons[0].take(),', cancel: 'CFUserNotificationDisplayAlert(', close: 'CFUserNotificationDisplayAlert(' },
+    windows: { default: 'nDefaultButton: 0,', cancel: 'MessageDialogButtons::OkCancelCustom(_ok, cancel),', close: 'MessageDialogButtons::OkCancelCustom(_ok, cancel),' },
+  },
+  system: {
+    macos: { default: 'alert.addButtonWithTitle(&NSString::from_str(card::REJECT));', cancel: 'let alert = NSAlert::new(mtm);', close: 'let alert = NSAlert::new(mtm);' },
+    windows: { default: 'nDefaultButton: card::REJECT_ID,', cancel: 'if shown && button == ALLOW_ID {', close: 'if shown && button == ALLOW_ID {' },
+  },
+};
+const LABEL_KEY = {
+  'rfd-0.17.2/src/backend/macos/utils/user_alert.rs': 'rfdMac',
+  'rfd-0.17.2/src/backend/win_cid/message_dialog.rs': 'rfdWin',
+  'tauri-plugin-dialog-2.8.4/src/desktop.rs': 'plugin',
+  'tools/r4-trials/driver/src/card.rs': 'card',
+  'tools/r4-trials/driver/src/native.rs': 'native',
+};
+const byLabel = (texts) => Object.fromEntries(Object.entries(LABEL_KEY).map(([label, k]) => [label, texts[k] ?? OWN[k]]));
+const KEY_SYN = {
+  rfdMac: ['x', '            default_button_title: buttons[0].take(),', 'y', '            CFUserNotificationDisplayAlert(',
+    '            MessageButtons::OkCancelCustom(ok_text, cancel_text) => [', '                Some(ok_text.to_string()),', '            MessageButtons::OkCancelCustom(custom, _)',
+    '                if response == kCFUserNotificationDefaultResponse =>', '                default_button_title.as_deref(),', '                alternate_button_title.as_deref(),', ''].join('\n'),
+  rfdWin: ['a', '            nDefaultButton: 0,', '                    (ID_CUSTOM_OK, str_to_vec_u16(ok_text)),', '                    (ID_CUSTOM_CANCEL, str_to_vec_u16(cancel_text)),',
+    '            dwFlags: TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT,',
+    '                MessageButtons::OkCancelCustom(ok_text, cancel_text) => match custom {',
+    '                    ID_CUSTOM_OK => MessageDialogResult::Custom(ok_text),', '        match pn_button {', '            IDOK => MessageDialogResult::Ok,',
+    '            IDYES => MessageDialogResult::Yes,', '            IDCANCEL => MessageDialogResult::Cancel,', ''].join('\n'),
+  plugin: ['a', '                    rfd::MessageDialogResult::Cancel,', '                    MessageDialogButtons::OkCancelCustom(_ok, cancel),', '                ) => rfd::MessageDialogResult::Custom(cancel),',
+    '            MessageDialogButtons::OkCancelCustom(ok, cancel) => Self::OkCancelCustom(ok, cancel),', ''].join('\n'),
+};
+
+test('U0.4b: a form reading names one line for each of default, cancel and close, and no line for the three', () => {
+  assert.deepEqual(dialogLines('plugin', sources(KEY_SYN)), [
+    'reading trial=dialog machine=mac form=plugin system=macos default=reject cancel=none close=none default_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs default_line=2 cancel_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs cancel_line=4 close_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs close_line=4',
+    'reading trial=dialog machine=mac form=plugin system=windows default=reject cancel=allow close=allow default_file=rfd-0.17.2/src/backend/win_cid/message_dialog.rs default_line=2 cancel_file=tauri-plugin-dialog-2.8.4/src/desktop.rs cancel_line=3 close_file=tauri-plugin-dialog-2.8.4/src/desktop.rs close_line=3',
+  ]);
+  assert.deepEqual(Object.keys(DIALOG_SOURCES), ['plugin', 'system']);
+  for (const entries of Object.values(DIALOG_SOURCES)) {
+    assert.deepEqual(entries.map((e) => e.system), ['macos', 'windows']);
+    for (const e of entries) assert.deepEqual(Object.keys(e.keys), KEYS, e.system);
+  }
+});
+
+test('U0.4b: the system form names the lines of the crate own source that decide each key', () => {
+  assert.deepEqual(dialogLines('system', sources({})), [
+    'reading trial=dialog machine=mac form=system system=macos default=reject cancel=none close=none default_file=tools/r4-trials/driver/src/native.rs default_line=72 cancel_file=tools/r4-trials/driver/src/native.rs cancel_line=71 close_file=tools/r4-trials/driver/src/native.rs close_line=71',
+    'reading trial=dialog machine=mac form=system system=windows default=reject cancel=reject close=reject default_file=tools/r4-trials/driver/src/native.rs default_line=113 cancel_file=tools/r4-trials/driver/src/card.rs cancel_line=104 close_file=tools/r4-trials/driver/src/card.rs close_line=104',
+  ]);
+});
+
+test('U0.4b: the plugin form names the lines of rfd and the plugin that decide each key at the pinned versions', { skip: NOT_PINNED }, () => {
+  assert.deepEqual(dialogLines('plugin', sources(PINNED)), [
+    'reading trial=dialog machine=mac form=plugin system=macos default=reject cancel=none close=none default_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs default_line=71 cancel_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs cancel_line=94 close_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs close_line=94',
+    'reading trial=dialog machine=mac form=plugin system=windows default=reject cancel=allow close=allow default_file=rfd-0.17.2/src/backend/win_cid/message_dialog.rs default_line=155 cancel_file=tauri-plugin-dialog-2.8.4/src/desktop.rs cancel_line=238 close_file=tauri-plugin-dialog-2.8.4/src/desktop.rs close_line=238',
+  ]);
+});
+
+test('U0.4b: the line cited for each key holds the statement that decides that key', { skip: NOT_PINNED }, () => {
+  const texts = byLabel(PINNED);
+  for (const form of ['plugin', 'system']) {
+    for (const line of dialogLines(form, sources(PINNED))) {
+      const r = keyed(line);
+      for (const key of KEYS) {
+        const text = texts[r[key].file];
+        assert.ok(text, r[key].file);
+        assert.equal(text.split('\n')[r[key].line - 1].replace(/\r$/, '').trim(), CITED[form][r.system][key], `${form} ${r.system} ${key}`);
+      }
+    }
+  }
+});
+
+test('U0.4b: a key whose line is gone, or found twice, refuses the reading', () => {
+  for (const [form, texts] of [['plugin', KEY_SYN], ['system', {}]]) {
+    const all = byLabel(texts);
+    for (const line of dialogLines(form, sources(texts))) {
+      const r = keyed(line);
+      for (const key of KEYS) {
+        const at = r[key].file;
+        const lines = all[at].split('\n');
+        const gone = lines.map((l, i) => (i === r[key].line - 1 ? '' : l)).join('\n');
+        const twice = [...lines.slice(0, r[key].line), lines[r[key].line - 1], ...lines.slice(r[key].line)].join('\n');
+        for (const [changed, re] of [[gone, /0 lines match/], [twice, /2 lines match/]]) {
+          assert.throws(() => dialogLines(form, sources({ ...texts, [LABEL_KEY[at]]: changed })), re, `${form} ${r.system} ${key}`);
+        }
+      }
+    }
+  }
+});
+
+test('U0.4b: the plugin readings rest on the slot order of card.rs, and the system one on an ALLOW_ID that is no IDCANCEL', () => {
+  assert.throws(() => dialogLines('plugin', sources({ ...KEY_SYN, card: swap(OWN.card, '    (REJECT, ALLOW)\n', '    (ALLOW, REJECT)\n') })), /0 lines match/);
+  assert.throws(() => dialogLines('system', sources({ card: swap(OWN.card, 'pub const ALLOW_ID: i32 = 100;', 'pub const ALLOW_ID: i32 = 2;') })), /0 lines match/);
+});
+
+test('U0.4b: the cited system windows default refuses a default button of another id', () => {
+  assert.throws(() => dialogLines('system', sources({ native: swap(OWN.native, 'nDefaultButton: card::REJECT_ID,', 'nDefaultButton: card::ALLOW_ID,') })), /0 lines match/);
+});
+
+test('U0.4b: the cited test of the task dialog result refuses a comparison with another id', () => {
+  assert.throws(() => dialogLines('system', sources({ card: swap(OWN.card, 'if shown && button == ALLOW_ID {', 'if shown && button == REJECT_ID {') })), /0 lines match/);
+});
+
+test('U0.4b: the required ALLOW arm of from_plugin refuses another answer', () => {
+  assert.throws(() => dialogLines('plugin', sources({ ...KEY_SYN, card: swap(OWN.card, 'if label == ALLOW => Answer::Allow,', 'if label == ALLOW => Answer::Reject,') })), /0 lines match/);
+});
+
+const ALLOW_ARM = '        MessageDialogResult::Custom(label) if label == ALLOW => Answer::Allow,';
+const PLUGIN_CALL = [['card', ['    (REJECT, ALLOW)']], ['card', [ALLOW_ARM]], ['native', ['    let (first, second) = card::plugin_slots();']],
+  ['native', ['        .buttons(MessageDialogButtons::OkCancelCustom(', '            first.to_string(),']]];
+const PLUGIN_PASS = [['plugin', ['            MessageDialogButtons::OkCancelCustom(ok, cancel) => Self::OkCancelCustom(ok, cancel),']],
+  ['card', [ALLOW_ARM, '        _ => Answer::Reject,']]];
+const PLUGIN_CANCEL_TEXT = '                    MessageDialogButtons::OkCancelCustom(_ok, cancel),';
+const ELSE_REJECT_TEXT = ['        Answer::Allow', '    } else {', '        Answer::Reject'];
+const RESTS_ON = {
+  plugin: {
+    macos: [...PLUGIN_CALL, ...PLUGIN_PASS, ['native', ['absent', '        .parent(&window)']],
+      ['rfdMac', ['            MessageButtons::OkCancelCustom(ok_text, cancel_text) => [', '                Some(ok_text.to_string()),']],
+      ['rfdMac', ['            MessageButtons::OkCancelCustom(custom, _)']],
+      ['rfdMac', ['            MessageButtons::OkCancelCustom(custom, _)', '                if response == kCFUserNotificationDefaultResponse =>']],
+      ['rfdMac', ['                default_button_title.as_deref(),', '                alternate_button_title.as_deref(),']]],
+    windows: [...PLUGIN_CALL,
+      ['rfdWin', ['                    (ID_CUSTOM_OK, str_to_vec_u16(ok_text)),', '                    (ID_CUSTOM_CANCEL, str_to_vec_u16(cancel_text)),']],
+      ['rfdWin', ['            dwFlags: TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT,']],
+      ['rfdWin', ['                MessageButtons::OkCancelCustom(ok_text, cancel_text) => match custom {', '                    ID_CUSTOM_OK => MessageDialogResult::Custom(ok_text),']],
+      ...PLUGIN_PASS,
+      ['plugin', ['                    rfd::MessageDialogResult::Cancel,', PLUGIN_CANCEL_TEXT]],
+      ['plugin', [PLUGIN_CANCEL_TEXT, '                ) => rfd::MessageDialogResult::Custom(cancel),']],
+      ['rfdWin', ['        match pn_button {', '            IDOK => MessageDialogResult::Ok,', '            IDYES => MessageDialogResult::Yes,', '            IDCANCEL => MessageDialogResult::Cancel,']],
+      ['native', ['            first.to_string(),', '            second.to_string(),']]],
+  },
+  system: {
+    macos: [['card', ['pub const REJECT: &str = "Don\'t pay";']], ['card', ['pub const ALLOW: &str = "Pay";']],
+      ['card', ['pub const ALERT_SECOND: isize = 1001;']], ['card', ['    if response == ALERT_SECOND {']],
+      ['card', ['    if response == ALERT_SECOND {', ...ELSE_REJECT_TEXT]],
+      ['native', ['        alert.addButtonWithTitle(&NSString::from_str(card::REJECT));', '        alert.addButtonWithTitle(&NSString::from_str(card::ALLOW));']]],
+    windows: [['card', ['pub const REJECT_ID: i32 = 101;']], ['card', ['pub const ALLOW_ID: i32 = 100;']],
+      ['native', ['        dwFlags: TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT,']],
+      ['native', ['    card::from_task_dialog(shown, pressed)']],
+      ['card', ['    if shown && button == ALLOW_ID {', ...ELSE_REJECT_TEXT]],
+      ['native', ['            nButtonID: card::REJECT_ID,', '            pszButtonText: PCWSTR(reject.as_ptr()),', '        },',
+        '        TASKDIALOG_BUTTON {', '            nButtonID: card::ALLOW_ID,', '            pszButtonText: PCWSTR(allow.as_ptr()),']]],
+  },
+};
+
+const reqPatterns = (r) => (r.seq ?? (r.after ? [r.after, r.find] : [r.find]));
+const fits = (r, [source, texts]) => {
+  if (r.source !== source) return false;
+  if (texts[0] === 'absent') return r.absent === true && r.find.test(texts[1]);
+  const res = reqPatterns(r);
+  return !r.absent && res.length === texts.length && res.every((re, i) => re.test(texts[i]));
+};
+
+test('U0.4b: the reading cites 8 lines and requires 30 lines, orders of lines and one absence, those that the review and the verifier named; it reads their text and does not follow the code', () => {
+  const required = new Set();
+  const cited = new Set();
+  for (const [form, entries] of Object.entries(DIALOG_SOURCES)) {
+    for (const e of entries) {
+      const want = RESTS_ON[form][e.system];
+      assert.equal(e.requires.length, want.length, `${form} ${e.system}`);
+      want.forEach((w, i) => assert.ok(fits(e.requires[i], w), `${form} ${e.system} requirement ${i + 1}: ${w[1].join(' / ')}`));
+      for (const r of e.requires) required.add(`${r.source} ${r.absent ? 'absent ' : ''}${reqPatterns(r).join(' then ')}`);
+      for (const k of Object.values(e.keys)) cited.add(`${k.source} ${k.find}`);
+    }
+  }
+  assert.equal(cited.size, 8);
+  assert.equal(required.size, 30);
+});
+
+test('U0.4b: a change to a line that a value rests on, and that no reading line cites, refuses the reading', { skip: NOT_PINNED }, () => {
+  const cases = [
+    ['system', 'native', 'dwFlags: TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT,', 'dwFlags: TDF_SIZE_TO_CONTENT,'],
+    ['system', 'card', 'pub const REJECT_ID: i32 = 101;', 'pub const REJECT_ID: i32 = 100;'],
+    ['system', 'card', 'pub const ALERT_SECOND: isize = 1001;', 'pub const ALERT_SECOND: isize = 1000;'],
+    ['system', 'card', 'if response == ALERT_SECOND {', 'if response == ALERT_FIRST {'],
+    ['system', 'card', 'pub const ALLOW: &str = "Pay";', 'pub const ALLOW: &str = "Cancel";'],
+    ['system', 'card', 'pub const REJECT: &str = "Don\'t pay";', 'pub const REJECT: &str = "Cancel";'],
+    ['plugin', 'card', 'if label == ALLOW => Answer::Allow', 'if label == REJECT => Answer::Allow'],
+    ['plugin', 'native', 'let (first, second) = card::plugin_slots();', 'let (second, first) = card::plugin_slots();'],
+    ['plugin', 'native', '        .title(card::TITLE)\n        .buttons(', '        .title(card::TITLE)\n        .parent(&window)\n        .buttons('],
+    ['plugin', 'native', '            first.to_string(),\n            second.to_string(),', '            second.to_string(),\n            first.to_string(),'],
+    ['plugin', 'rfdMac', '                Some(ok_text.to_string()),\n                Some(cancel_text.to_string()),\n                None,', '                Some(cancel_text.to_string()),\n                Some(ok_text.to_string()),\n                None,'],
+    ['plugin', 'rfdMac', 'MessageButtons::OkCancelCustom(custom, _)', 'MessageButtons::OkCancelCustom(_, custom)'],
+    ['plugin', 'rfdWin', 'dwFlags: TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT,', 'dwFlags: TDF_SIZE_TO_CONTENT,'],
+    ['plugin', 'rfdWin', '(ID_CUSTOM_OK, str_to_vec_u16(ok_text)),\n                    (ID_CUSTOM_CANCEL', '(ID_CUSTOM_CANCEL, str_to_vec_u16(ok_text)),\n                    (ID_CUSTOM_OK'],
+    ['plugin', 'rfdWin', '(ID_CUSTOM_OK, str_to_vec_u16(ok_text)),\n                    (ID_CUSTOM_CANCEL, str_to_vec_u16(cancel_text)),', '(ID_CUSTOM_CANCEL, str_to_vec_u16(cancel_text)),\n                    (ID_CUSTOM_OK, str_to_vec_u16(ok_text)),'],
+    ['plugin', 'rfdWin', 'ID_CUSTOM_OK => MessageDialogResult::Custom(ok_text),\n                    ID_CUSTOM_CANCEL', 'ID_CUSTOM_OK => MessageDialogResult::Custom(cancel_text),\n                    ID_CUSTOM_CANCEL'],
+  ];
+  for (const [form, source, from, to] of cases) {
+    const base = PINNED[source] ?? OWN[source];
+    assert.doesNotThrow(() => dialogLines(form, sources(PINNED)));
+    assert.throws(() => dialogLines(form, sources({ ...PINNED, [source]: swap(base, from, to) })), /lines match|the line after/, `${source}: ${to}`);
+  }
+});
+
+const FURTHER = [
+  ['N1', 'plugin', 'plugin', 'MessageDialogButtons::OkCancelCustom(ok, cancel) => Self::OkCancelCustom(ok, cancel),', 'MessageDialogButtons::OkCancelCustom(ok, cancel) => Self::OkCancelCustom(cancel, ok),'],
+  ['N2', 'plugin', 'plugin', 'rfd::MessageDialogResult::Cancel,\n                    MessageDialogButtons::OkCancelCustom(_ok, cancel),', 'rfd::MessageDialogResult::No,\n                    MessageDialogButtons::OkCancelCustom(_ok, cancel),'],
+  ['N3', 'plugin', 'plugin', 'MessageDialogButtons::OkCancelCustom(_ok, cancel),\n                ) => rfd::MessageDialogResult::Custom(cancel),', 'MessageDialogButtons::OkCancelCustom(_ok, cancel),\n                ) => rfd::MessageDialogResult::Custom(_ok),'],
+  ['N4', 'plugin', 'rfdMac', 'MessageButtons::OkCancelCustom(custom, _)\n                if response == kCFUserNotificationDefaultResponse =>', 'MessageButtons::OkCancelCustom(custom, _)\n                if response == kCFUserNotificationAlternateResponse =>'],
+  ['N5', 'plugin', 'rfdMac', '                default_button_title.as_deref(),\n                alternate_button_title.as_deref(),', '                alternate_button_title.as_deref(),\n                default_button_title.as_deref(),'],
+  ['N6', 'plugin', 'rfdWin', 'IDCANCEL => MessageDialogResult::Cancel,\n            IDNO => MessageDialogResult::No,\n            custom', 'IDCANCEL => MessageDialogResult::Ok,\n            IDNO => MessageDialogResult::No,\n            custom'],
+  ['N7', 'system', 'native', 'card::from_task_dialog(shown, pressed)', 'card::from_task_dialog(shown, if pressed == 2 { card::ALLOW_ID } else { pressed })'],
+  ['N8', 'plugin', 'card', '_ => Answer::Reject,', '_ => Answer::Allow,'],
+  ['N9', 'system', 'card', '        Answer::Allow\n    } else {\n        Answer::Reject\n    }\n}\n\n/// The result', '        Answer::Allow\n    } else {\n        Answer::Allow\n    }\n}\n\n/// The result'],
+  ['N10', 'system', 'card', '        Answer::Allow\n    } else {\n        Answer::Reject\n    }\n}\n\n/// The line printed', '        Answer::Allow\n    } else {\n        Answer::Allow\n    }\n}\n\n/// The line printed'],
+  ['N11', 'plugin', 'native', '            first.to_string(),\n            second.to_string(),', '            first.to_string(),\n            first.to_string(),'],
+  ['N12', 'system', 'native', '        alert.addButtonWithTitle(&NSString::from_str(card::REJECT));\n        alert.addButtonWithTitle(&NSString::from_str(card::ALLOW));', '        alert.addButtonWithTitle(&NSString::from_str(card::ALLOW));\n        alert.addButtonWithTitle(&NSString::from_str(card::REJECT));'],
+  ['N12', 'system', 'native', '        alert.addButtonWithTitle(&NSString::from_str(card::REJECT));\n        alert.addButtonWithTitle(&NSString::from_str(card::ALLOW));\n        alert.setMessageText(&NSString::from_str(card::TITLE));\n        alert.setInformativeText(&NSString::from_str(&card::body()));\n', '        alert.addButtonWithTitle(&NSString::from_str(card::ALLOW));\n        alert.setMessageText(&NSString::from_str(card::TITLE));\n        alert.setInformativeText(&NSString::from_str(&card::body()));\n        alert.addButtonWithTitle(&NSString::from_str(card::REJECT));\n'],
+  ['N13', 'system', 'native', '            nButtonID: card::REJECT_ID,\n            pszButtonText: PCWSTR(reject.as_ptr()),\n        },\n        TASKDIALOG_BUTTON {\n            nButtonID: card::ALLOW_ID,', '            nButtonID: card::ALLOW_ID,\n            pszButtonText: PCWSTR(reject.as_ptr()),\n        },\n        TASKDIALOG_BUTTON {\n            nButtonID: card::REJECT_ID,'],
+  ['N13', 'system', 'native', '            nButtonID: card::ALLOW_ID,\n            pszButtonText: PCWSTR(allow.as_ptr()),', '            nButtonID: card::REJECT_ID,\n            pszButtonText: PCWSTR(allow.as_ptr()),'],
+];
+
+test('U0.4b (RD-75 E2): a change of a further line that the review or the verifier named refuses the reading and names its file', { skip: NOT_PINNED }, () => {
+  const all = byLabel(PINNED);
+  for (const [id, form, source, from, to] of FURTHER) {
+    const label = Object.keys(LABEL_KEY).find((l) => LABEL_KEY[l] === source);
+    const base = all[label];
+    assert.doesNotThrow(() => dialogLines(form, sources(PINNED)));
+    assert.throws(() => dialogLines(form, sources({ ...PINNED, [source]: swap(base, from, to) })),
+      (e) => e.message.startsWith(`required ${label}: `), `${id}: ${to}`);
+  }
+});
+
+test('U0.4b: a required order of lines that is found twice refuses the reading', () => {
+  const titles = '                default_button_title.as_deref(),\n                alternate_button_title.as_deref(),\n';
+  assert.throws(() => dialogLines('plugin', sources({ ...KEY_SYN, rfdMac: `${KEY_SYN.rfdMac}${titles}` })), /^Error: required rfd-0\.17\.2\/src\/backend\/macos\/utils\/user_alert\.rs: 2 lines match /);
+});
+
+test('U0.4b: the form lines of the committed dialog.md are the lines that the reading prints', { skip: NOT_PINNED }, () => {
+  const text = fs.readFileSync(path.join(crate, '..', '..', '..', 'docs', 'r4', 'trials', 'dialog.md'), 'utf8');
+  const committed = text.split('\n').filter((l) => / form=\w+ system=\w+ default=/.test(l));
+  assert.deepEqual(committed, [...dialogLines('plugin', sources(PINNED)), ...dialogLines('system', sources({}))]);
 });
