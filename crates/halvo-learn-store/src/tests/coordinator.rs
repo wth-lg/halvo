@@ -351,3 +351,43 @@ fn an_agent_that_the_agent_store_holds_with_no_compile_number_still_gets_its_sta
         json!({"refinements": [{"day": DAY - 7, "what": "routine_stale"}]})
     );
 }
+
+#[test]
+fn list_refinements_draws_a_new_run_id_for_each_call_and_no_row_log_line_or_reply_holds_one() {
+    let mut w = active_world();
+    w.learn(2, 2, "button Pay now", vec![loc("A")]);
+    let kinds: Vec<&str> = halvo_schema::kinds::registry().map(|e| e.name).collect();
+    let rows = |w: &World| -> Vec<String> {
+        kinds
+            .iter()
+            .flat_map(|k| {
+                if k.starts_with("learn_") {
+                    w.host.learn_rows(k)
+                } else {
+                    w.host.agent_rows(k)
+                }
+            })
+            .collect()
+    };
+    let before = rows(&w);
+    assert!(
+        before.iter().any(|r| r.contains("\"event\":")),
+        "the store holds log lines"
+    );
+    let first = list(&mut w);
+    let second = list(&mut w);
+    let after = rows(&w);
+    assert_eq!(after, before);
+    assert_eq!(w.handlers.probes.len(), 2);
+    assert_ne!(w.handlers.probes[0], w.handlers.probes[1]);
+    for probe in &w.handlers.probes {
+        let id = probe.as_str();
+        assert!(!after.iter().any(|r| r.contains(id)));
+        assert!(!first.to_string().contains(id) && !second.to_string().contains(id));
+    }
+    let refused = read(
+        &mut w,
+        json!({"op": "list_refinements", "workflow": wf(1), "agent": agent(9)}),
+    );
+    assert_eq!(refused, Ok(json!({"refinements": []})));
+}

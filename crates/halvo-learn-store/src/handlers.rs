@@ -70,6 +70,8 @@ pub struct LearnHandlers {
     pub(crate) ids: Ids,
     pub(crate) facts: BTreeMap<RunId, RunFacts>,
     pub(crate) class_rule: ClassRule,
+    #[cfg(test)]
+    pub(crate) probes: Vec<RunId>,
 }
 
 impl Default for LearnHandlers {
@@ -78,6 +80,8 @@ impl Default for LearnHandlers {
             ids: Ids::default(),
             facts: BTreeMap::new(),
             class_rule: class_of,
+            #[cfg(test)]
+            probes: Vec::new(),
         }
     }
 }

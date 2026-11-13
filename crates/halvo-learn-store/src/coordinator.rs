@@ -54,6 +54,8 @@ impl LearnHandlers {
         read: &LearnedRead,
     ) -> Result<Refinements, ErrorName> {
         let probe = RunId::from_random(self.ids.bytes());
+        #[cfg(test)]
+        self.probes.push(probe.clone());
         let Some(loaded) = agent::load(host, &read.agent, &probe)? else {
             return Ok(Refinements {
                 refinements: Vec::new(),
