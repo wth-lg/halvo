@@ -276,7 +276,8 @@ outside() {
         }
       }
     }')
-  if [ $? != 0 ]; then
+  status=$?
+  if [ "$status" != 0 ]; then
     printf 'crates/halvo-capture/src/lib.rs: %s' "$found"
     return 1
   fi
@@ -309,7 +310,8 @@ outside() {
           exit 1
         }
       }')
-    if [ $? != 0 ]; then
+    status=$?
+    if [ "$status" != 0 ]; then
       printf '%s: %s' "$manifest" "$found"
       return 1
     fi
@@ -335,7 +337,8 @@ outside() {
           }
         }
       }')
-    if [ $? != 0 ]; then
+    status=$?
+    if [ "$status" != 0 ]; then
       printf '%s/config.toml: %s' "$config" "$found"
       return 1
     fi
@@ -345,7 +348,8 @@ outside() {
   for dir in scripts/ci scripts/r1/ci.d; do
     [ -d "$root/$dir" ] || continue
     listed=$(find "$root/$dir" ! -type d 2>&1)
-    if [ $? != 0 ]; then
+    status=$?
+    if [ "$status" != 0 ]; then
       printf 'the listing of %s failed' "$dir"
       return 1
     fi
@@ -368,7 +372,8 @@ EOF
         exit 1
       }
     }' "$@")
-  if [ $? != 0 ]; then
+  status=$?
+  if [ "$status" != 0 ]; then
     printf '%s' "$found"
     return 1
   fi
