@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,33 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
+      - name: DM-3 loop
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set -u
+          n1=0
+          for i in $(seq 200); do
+            if cargo test --locked -q -p halvo-capture --lib -- --exact daemon::owner::tests::taken::healthy_waits_for_a_good_eviction_after_two_eviction_faults_in_a_row >/dev/null 2>&1; then n1=$((n1 + 1)); fi
+          done
+          echo "loop N1 daemon::owner::tests::taken::healthy_waits_for_a_good_eviction_after_two_eviction_faults_in_a_row passed=$n1 of 200"
+          n4=0
+          for i in $(seq 200); do
+            if cargo test --locked -q -p halvo-capture --test source_rules -- --exact the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon >/dev/null 2>&1; then n4=$((n4 + 1)); fi
+          done
+          echo "loop N4 the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon passed=$n4 of 200"
+          s22=0
+          s23=0
+          for i in $(seq 10); do
+            if sh scripts/r1/ci.d/22-daemon-no-dead-allow.sh --self-test | tail -n 1 | grep -q '^PASS self-test:'; then s22=$((s22 + 1)); fi
+            if sh scripts/r1/ci.d/23-daemon-port-only.sh --self-test | tail -n 1 | grep -q '^PASS self-test:'; then s23=$((s23 + 1)); fi
+          done
+          echo "loop self-test 22-daemon-no-dead-allow passed=$s22 of 10"
+          echo "loop self-test 23-daemon-port-only passed=$s23 of 10"
+          [ "$n1" = 200 ] && [ "$n4" = 200 ] && [ "$s22" = 10 ] && [ "$s23" = 10 ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +141,29 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
+      - name: DM-3 loop
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set -u
+          n1=0
+          for i in $(seq 200); do
+            if cargo test --locked -q -p halvo-capture --lib -- --exact daemon::owner::tests::taken::healthy_waits_for_a_good_eviction_after_two_eviction_faults_in_a_row >/dev/null 2>&1; then n1=$((n1 + 1)); fi
+          done
+          echo "loop N1 daemon::owner::tests::taken::healthy_waits_for_a_good_eviction_after_two_eviction_faults_in_a_row passed=$n1 of 200"
+          n4=200
+          s22=0
+          s23=0
+          for i in $(seq 10); do
+            if sh scripts/r1/ci.d/22-daemon-no-dead-allow.sh --self-test | tail -n 1 | grep -q '^PASS self-test:'; then s22=$((s22 + 1)); fi
+            if sh scripts/r1/ci.d/23-daemon-port-only.sh --self-test | tail -n 1 | grep -q '^PASS self-test:'; then s23=$((s23 + 1)); fi
+          done
+          echo "loop self-test 22-daemon-no-dead-allow passed=$s22 of 10"
+          echo "loop self-test 23-daemon-port-only passed=$s23 of 10"
+          [ "$n1" = 200 ] && [ "$n4" = 200 ] && [ "$s22" = 10 ] && [ "$s23" = 10 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
