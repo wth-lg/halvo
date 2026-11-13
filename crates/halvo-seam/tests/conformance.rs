@@ -18,6 +18,8 @@ enum Fault {
     StoreChangedOnReadNamesAnotherId,
     StoreChangedAtZeroNamesAnotherId,
     StoreChangedToAFilteredOpenNamesAnotherId,
+    StoreChangedAtANonZeroPositionNamesAnotherId,
+    StoreChangedAtZeroEchoesTheOldId,
     OpenWhileOpenServes,
     OpenWhileOpenClosesTheCursor,
     OpenWhileOpenGetsBadPosition,
@@ -475,6 +477,20 @@ impl Wrong {
 fn open_reply(t: &mut FixtureTransport, fault: Fault, open: &OpenCursor) -> ServerMessage {
     let reply = t.handle(&ClientMessage::OpenCursor(open.clone()));
     match (fault, reply) {
+        (StoreChangedAtANonZeroPositionNamesAnotherId, ServerMessage::Error(e))
+            if open.position() != ZERO && open.kinds().is_none() && open.range().is_none() =>
+        {
+            match e.cause() {
+                Cause::StoreChanged(id) => error(Cause::StoreChanged(other(id))),
+                _ => ServerMessage::Error(e),
+            }
+        }
+        (StoreChangedAtZeroEchoesTheOldId, ServerMessage::Error(e)) if open.position() == ZERO => {
+            match (e.cause(), open.store()) {
+                (Cause::StoreChanged(_), Some(old)) => error(Cause::StoreChanged(old.clone())),
+                _ => ServerMessage::Error(e),
+            }
+        }
         (StoreChangedToAFilteredOpenNamesAnotherId, ServerMessage::Error(e))
             if open.kinds().is_some() || open.range().is_some() =>
         {
@@ -574,6 +590,11 @@ fn conformance_check_store_changed_names_the_current_id() {
                 StoreChangedToAFilteredOpenNamesAnotherId,
                 [None, None, None, check],
             ),
+            (
+                StoreChangedAtANonZeroPositionNamesAnotherId,
+                [None, None, None, check],
+            ),
+            (StoreChangedAtZeroEchoesTheOldId, [None, None, None, check]),
         ],
     );
 }

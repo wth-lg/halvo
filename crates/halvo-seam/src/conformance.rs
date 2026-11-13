@@ -1004,7 +1004,12 @@ fn old_store<S: Subject>(
 ) -> Result<StoreId, String> {
     let new = match conn.error(&open_text(Some(old), at, filter.0, filter.1), what)? {
         Cause::StoreChanged(id) if &id != old => id,
-        Cause::StoreChanged(_) => return Err("store-changed names the old store id".to_owned()),
+        Cause::StoreChanged(_) => {
+            return Err(format!(
+                "check {}: store-changed names the old store id",
+                CHECKS[0]
+            ))
+        }
         other => return Err(format!("{what} got {}; want store-changed", other.name())),
     };
     let cause = conn.error(READ_BATCH, "read_batch after store-changed")?;
@@ -1122,7 +1127,10 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     let first = read(&mut conn, None, ZERO, None, None)
         .map_err(|e| format!("the new store with a null store id: {e}"))?;
     if first.store != new {
-        return Err("the new store's reply names another id than store-changed did".to_owned());
+        return Err(format!(
+            "check {}: the new store's reply names another id than store-changed did",
+            CHECKS[0]
+        ));
     }
     if first.store != at_zero {
         return Err(format!(
