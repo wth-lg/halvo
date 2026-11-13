@@ -268,7 +268,11 @@ test('E4: a quit is a miss while a process of the tree lives, and unless the app
       assert.deepEqual(cells(d), ['miss trial=window machine=hosted-mac arm=main run=1 step=quit'], fault);
     } finally {
       const child = Number(fs.readFileSync(process.env.FAKE_STATE, 'utf8').trim().split(' ')[2]);
-      if (child) process.kill(child, 'SIGKILL');
+      try {
+        if (child) process.kill(child, 'SIGKILL');
+      } catch {
+        assert.equal(fault, 'exit_one', 'the child of child_alive outlives the app until this test ends it');
+      }
     }
   }
 });

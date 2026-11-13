@@ -20,7 +20,7 @@ const arm = flag('--arm', 'main');
 const way = flag('--sync', null);
 const faults = new Set((process.env.FAKE_FAULT ?? '').split(',').filter(Boolean));
 const stateFile = process.env.FAKE_STATE;
-const child = faults.has('child_alive') ? spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120000)'], { stdio: 'ignore' }) : null;
+const child = faults.has('child_alive') ? spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120000)'], { stdio: 'ignore', detached: true }) : null;
 const system = process.platform === 'win32' ? 'windows' : 'macos';
 
 let windowState = 'hidden';
