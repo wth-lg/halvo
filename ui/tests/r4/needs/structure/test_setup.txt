@@ -2,6 +2,7 @@
   - {"level":1,"name":"Halvo","role":"heading"}
   - {"name":"What needs you","role":"region"}
     - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"status"}
     - {"role":"list"}
       - {"role":"listitem"}
         - {"level":3,"name":"Answer a few questions for “Ordering from a shop on Site7”","role":"heading"}

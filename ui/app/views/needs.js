@@ -22,6 +22,8 @@
     '.hn-dialog::backdrop{background-color:rgba(0,0,0,0.4)}'
   ];
 
+  let root = null;
+  let region = null;
   let list = null;
   let shown = false;
   let turn = 0;
@@ -362,11 +364,53 @@
     openNext();
   }
 
+  function cardsOf(id) {
+    return Array.from(cards.entries())
+      .filter(function (entry) {
+        return entry[0].slice(0, entry[0].lastIndexOf('#')) === id;
+      })
+      .map(function (entry) {
+        return entry[1];
+      });
+  }
+
+  function holdsFocus(id) {
+    return cardsOf(id).some(function (card) {
+      return card.li.contains(document.activeElement);
+    });
+  }
+
+  function say(text) {
+    if (text) region.appendChild(el('p', null, text));
+  }
+
+  function firsts(items) {
+    const byId = new Map();
+    items.forEach(function (item) {
+      if (!byId.has(item.item)) byId.set(item.item, item);
+    });
+    return byId;
+  }
+
   function take(reply) {
     if (!reply || !Array.isArray(reply.items)) return;
+    const before = last ? firsts(last.items) : null;
+    const after = firsts(reply.items);
+    const gone = [];
+    if (before) {
+      before.forEach(function (item, id) {
+        if (!after.has(id) && !holdsFocus(id)) gone.push(item.say_gone);
+      });
+    }
     seq = reply.seq;
     last = reply;
     apply(reply, true);
+    gone.forEach(say);
+    if (before) {
+      after.forEach(function (item, id) {
+        if (!before.has(id) && !holdsFocus(id)) say(item.say_new);
+      });
+    }
   }
 
   function wait(mine) {
@@ -382,6 +426,7 @@
     order: 10,
     heading: "What needs you",
     mount: function (element) {
+      root = element;
       const style = document.createElement('style');
       style.appendChild(document.createTextNode(CSS.join('')));
       element.appendChild(style);
@@ -395,6 +440,12 @@
     show: function () {
       if (shown) return;
       shown = true;
+      if (!region) {
+        region = el('div', null, '');
+        region.setAttribute('role', 'status');
+        region.setAttribute('aria-live', 'polite');
+        root.insertBefore(region, list);
+      }
       turn += 1;
       const mine = turn;
       call('agents_snapshot', {}).then(function (reply) {

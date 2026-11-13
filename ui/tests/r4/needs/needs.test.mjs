@@ -95,7 +95,8 @@ function itemsTrueToWords(tests, dir) {
   const faults = [];
   for (const state of tests) {
     for (const item of stateFile(dir, state).snapshot.items) {
-      const texts = [item.title, ...item.fields.flatMap((f) => [f.label, f.from_text]), ...item.choices.map((c) => c.text)];
+      const texts = [item.title, item.say_new, item.say_gone, ...item.fields.flatMap((f) => [f.label, f.from_text]), ...item.choices.map((c) => c.text)];
+      for (const p of item.params) if (p.typed === 'yes') texts.push(p.full);
       if (item.text !== '') texts.push(item.text);
       texts.forEach((t, i) => {
         if (!sentence(t)) faults.push(state + '.text' + i);
@@ -921,6 +922,86 @@ async function crossed(origin, dir) {
   return faults;
 }
 
+function told(item, tag) {
+  return { ...item, say_new: tag + ' came.', say_gone: tag + ' went.' };
+}
+
+async function region(origin, dir) {
+  const faults = [];
+  const stuck = told(withId(stateFile(dir, 'needs_stuck').snapshot.items[0], 'b'.repeat(32)), 'Stuck');
+  const ready = told(withId(stateFile(dir, 'needs_ready').snapshot.items[0], 'c'.repeat(32)), 'Ready');
+  const confirm = told(withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'a'.repeat(32)), 'Confirm');
+  const gate = { call: 'agents_card', args: { agent: 'e'.repeat(32) }, reply: { error: 'busy' } };
+  const facts = (h) =>
+    h.page.evaluate(() => {
+      const section = document.getElementById('view-needs').parentNode;
+      const all = [...section.querySelectorAll('[role="status"]')];
+      const r = all[0] || null;
+      const a = document.activeElement;
+      return {
+        count: all.length,
+        everywhere: document.querySelectorAll('[role="status"]').length,
+        live: r ? r.getAttribute('aria-live') : null,
+        kept: Boolean(r && r.r4needsMark),
+        says: r ? [...r.childNodes].map((n) => n.textContent) : [],
+        focus: a ? (a.getAttribute('data-act') || a.getAttribute('role') || a.tagName) + ':' + (a.getAttribute('data-param') || '-').slice(0, 1) : '-',
+      };
+    });
+  const mark = (h) =>
+    h.page.evaluate(() => {
+      const r = document.getElementById('view-needs').parentNode.querySelector('[role="status"]');
+      if (r) r.r4needsMark = true;
+    });
+  const step = async (tag, first, focusOn, second, wanted, wantFocus) => {
+    const h = await open({ origin, replies: [{ state: snap(1, first) }, gate, { state: snap(2, second) }], views: [VIEW] });
+    try {
+      const at = await facts(h);
+      if (at.count !== 1 || at.live !== 'polite' || at.says.length !== 0) faults.push(tag + ':before=' + JSON.stringify(at));
+      await mark(h);
+      if (focusOn) await h.page.locator(focusOn).focus();
+      const ids = second.map((i) => i.item).join(',');
+      await h.page.evaluate((agent) => window.Halvo.ipc.call('agents_card', { agent }), gate.args.agent);
+      await h.page.waitForFunction(
+        (want) => [...new Set([...document.querySelectorAll('#views [data-param]')].map((e) => e.getAttribute('data-param')))].filter((p) => /^[0-9a-f]{32}$/.test(p)).join(',') === want,
+        ids,
+        { timeout: 5000 },
+      );
+      await frames(h);
+      const got = await facts(h);
+      if (got.count !== 1 || got.everywhere !== 1 || got.live !== 'polite' || !got.kept) faults.push(tag + ':region=' + JSON.stringify(got));
+      if (JSON.stringify(got.says) !== JSON.stringify(wanted)) faults.push(tag + ':says=' + (got.says.join('|') || '-'));
+      if (wantFocus && got.focus !== wantFocus) faults.push(tag + ':focus=' + got.focus);
+    } catch (err) {
+      faults.push(tag + ':throws');
+    } finally {
+      await h.close();
+    }
+  };
+  await step('arrives_while_the_focus_is_elsewhere', [stuck], sel('done', stuck.item), [stuck, ready], ['Ready came.'], 'done:b');
+  await step('goes_while_the_focus_is_elsewhere', [stuck, ready], sel('done', stuck.item), [stuck], ['Ready went.'], 'done:b');
+  await step('arrives_while_the_focus_is_on_the_page', [stuck], null, [stuck, ready], ['Ready came.'], null);
+  await step('goes_while_the_focus_is_in_it', [stuck, ready], sel('start', ready.item), [stuck], [], null);
+  await step('arrives_while_a_confirmation_holds_the_focus', [confirm], null, [confirm, ready], ['Ready came.'], 'alertdialog:-');
+  await step('a_confirmation_arrives_and_holds_the_focus', [stuck], sel('done', stuck.item), [stuck, confirm], [], 'alertdialog:-');
+  await step('one_goes_and_one_arrives', [stuck], null, [ready], ['Stuck went.', 'Ready came.'], null);
+  await step('one_goes_with_the_focus_in_it_and_one_arrives', [stuck], sel('done', stuck.item), [ready], ['Ready came.'], null);
+  const h = await open({ origin, state: 'test_many', views: [VIEW] });
+  try {
+    await mark(h);
+    await h.page.evaluate(() => Halvo.views.window('hidden'));
+    await h.page.evaluate(() => Halvo.views.window('shown'));
+    await settled(h);
+    await frames(h);
+    const got = await facts(h);
+    if (got.count !== 1 || !got.kept || got.says.length !== 0) faults.push('the_first_reply_says_nothing_and_a_show_keeps_the_region=' + JSON.stringify(got));
+  } catch {
+    faults.push('the_first_reply_says_nothing_and_a_show_keeps_the_region:throws');
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
 async function bound(origin, dir) {
   const faults = [];
   const item = stateFile(dir, 'setup_three').snapshot.items[0];
@@ -989,7 +1070,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -1009,6 +1090,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('crossed')) report('crossed', await crossed(origin, dir));
     if (want('bound')) report('bound', await bound(origin, dir));
     if (want('features')) report('features', await features(origin), ['features']);
+    if (want('region')) report('region', await region(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;
