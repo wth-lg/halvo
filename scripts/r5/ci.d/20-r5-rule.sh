@@ -19,36 +19,36 @@ finish() {
 
 closed_list() {
   cat <<'EOF'
-halvo-learn refusal_unverified_run built
-halvo-learn refusal_no_source built
-halvo-learn refusal_value_in_label built
-halvo-learn refusal_rejected_again built
-halvo-learn refusal_compile_run_edit built
-halvo-learn refusal_transient_keeps built
-halvo-learn refusal_edits_full built
-halvo-learn refusal_second_pending built
-halvo-learn refusal_failed_after_recovered built
-halvo-learn refusal_failure_of_other_step built
-halvo-learn refusal_steps_apart built
-halvo-learn-store refusal_page_text_instruction built
-halvo-learn-store refusal_class_change built
-halvo-learn-store refusal_step_too_long built
-halvo-learn-store refusal_reverted_not_served built
-halvo-learn-store refusal_replay_put_not_stored built
-halvo-learn-store refusal_revoke_keeps_row built
-halvo-learn-store refusal_cross_workflow_source built
-halvo-schema refusal_edit_extra_key built
+halvo-learn tests/refusals.rs refusal_unverified_run built
+halvo-learn tests/refusals.rs refusal_no_source built
+halvo-learn tests/refusals.rs refusal_value_in_label built
+halvo-learn tests/refusals.rs refusal_rejected_again built
+halvo-learn tests/refusals.rs refusal_compile_run_edit built
+halvo-learn tests/refusals.rs refusal_transient_keeps built
+halvo-learn tests/refusals.rs refusal_edits_full built
+halvo-learn tests/refusals.rs refusal_second_pending built
+halvo-learn tests/refusals.rs refusal_failed_after_recovered built
+halvo-learn tests/refusals.rs refusal_failure_of_other_step built
+halvo-learn tests/refusals.rs refusal_steps_apart built
+halvo-learn-store src/lib.rs tests::propose::refusal_page_text_instruction built
+halvo-learn-store src/lib.rs tests::propose::refusal_class_change built
+halvo-learn-store src/lib.rs tests::propose::refusal_step_too_long built
+halvo-learn-store src/lib.rs tests::finish::refusal_reverted_not_served built
+halvo-learn-store src/lib.rs tests::finish::refusal_replay_put_not_stored built
+halvo-learn-store src/lib.rs tests::finish::refusal_revoke_keeps_row built
+halvo-learn-store src/lib.rs tests::finish::refusal_cross_workflow_source built
+halvo-schema tests/r5_records.rs refusal_edit_extra_key built
 halvo-learn-gate refusal_delete_leaves_others pending
 halvo-learn-gate refusal_delete_takes_revoked pending
 halvo-learn-gate refusal_step_writes_no_edit pending
-halvo-learn edit_table built
-halvo-learn routine_sample built
+halvo-learn tests/edit_table.rs edit_table built
+halvo-learn tests/routine_sample.rs routine_sample built
 halvo-learn formal_traces pending
 halvo-learn-gate constants_match_targets pending
-halvo-schema kinds_have_workflow_key built
-halvo-schema r5_golden_records built
-halvo-schema r5_golden_requests built
-halvo-schema the_edit_kind_is_kept_of_origin_own_and_holds_the_fields_of_its_row_in_a_closed_table built
+halvo-schema tests/r5_kinds.rs kinds_have_workflow_key built
+halvo-schema tests/r5_golden.rs r5_golden_records built
+halvo-schema tests/r5_golden.rs r5_golden_requests built
+halvo-schema tests/r5_kinds.rs the_edit_kind_is_kept_of_origin_own_and_holds_the_fields_of_its_row_in_a_closed_table built
 EOF
 }
 
@@ -62,9 +62,12 @@ names_of() {
       *) rest= ;;
     esac
     if [ "${one%% *}" = "$1" ]; then
-      mark=${one##* }
-      test=${one#* }
-      found="$found ${test%% *}/$mark"
+      set -- "$1" $one
+      if [ $# -eq 5 ]; then
+        found="$found $3|$4|$5"
+      else
+        found="$found |$3|$4"
+      fi
     fi
   done
   printf '%s\n' "${found# }"
@@ -75,10 +78,12 @@ read_results() {
     BEGIN {
       n = split(names, list, " ")
       for (i = 1; i <= n; i++) {
-        split(list[i], pair, "/")
-        list[i] = pair[1]
-        mark[pair[1]] = pair[2]
-        state[pair[1]] = "pending"
+        split(list[i], part, "|")
+        name = part[2]
+        sub(/^.*::/, "", name)
+        list[i] = name
+        mark[name] = part[3]
+        state[name] = "pending"
       }
     }
     present == "yes" {
@@ -233,6 +238,17 @@ stub_metadata() {
   printf '],"workspace_members":[]}\n'
 }
 
+stub_running() {
+  case $1 in
+    '') printf '     Running tests/pending.rs (target/debug/deps/pending-0123456789abcdef)%s\n' "$eol" ;;
+    src/lib.rs) printf '     Running unittests src/lib.rs (target/debug/deps/%s-0123456789abcdef)%s\n' "$(printf '%s' "$2" | tr - _)" "$eol" ;;
+    *)
+      bin=${1#tests/}
+      printf '     Running %s (target/debug/deps/%s-0123456789abcdef)%s\n' "$1" "${bin%.rs}" "$eol"
+      ;;
+  esac
+}
+
 stub_test() {
   names=$(names_of "$1") || return 98
   eol=
@@ -248,8 +264,11 @@ stub_test() {
     printf 'test %s_other ... FAILED%s\n' "$1" "$eol"
     code=101
   fi
-  for test in $names; do
-    test=${test%/*}
+  for entry in $names; do
+    target=${entry%%|*}
+    path=${entry#*|}
+    path=${path%|*}
+    test=${path##*::}
     case " $fx_missing " in
       *" $test "*) continue ;;
     esac
@@ -264,17 +283,22 @@ stub_test() {
       *" $test "*) result=ignored ;;
     esac
     case " $fx_renamed " in
-      *" $test "*) test=${test}_rows ;;
+      *" $test "*) path=${path}_rows ;;
     esac
+    stub_running "$target" "$1"
     case " $fx_twice " in
       *" $test "*)
-        printf 'test %s ... ok%s\n' "$test" "$eol"
+        printf 'test %s ... ok%s\n' "$path" "$eol"
         result=FAILED
         code=101
         ;;
     esac
-    printf 'test %s%s ... %s%s\n' "$fx_prefix" "$test" "$result" "$eol"
+    printf 'test %s%s ... %s%s\n' "$fx_prefix" "$path" "$result" "$eol"
   done
+  if [ "$fx_extra_crate" = "$1" ]; then
+    stub_running "$fx_extra_target" "$1"
+    printf 'test %s ... ok%s\n' "$fx_extra_path" "$eol"
+  fi
   return "$code"
 }
 
@@ -335,6 +359,10 @@ fixture() {
   fx_renamed=
   fx_twice=
   fx_other=ok
+  fx_extra_crate=
+  fx_extra_target=
+  fx_extra_path=
+  fx_list=
   fx_git=ok
   fx_own_line="H $script_path"
   fx_change_at=
@@ -356,6 +384,11 @@ check() {
     git() {
       stub_git "$@"
     }
+    if [ -n "$fx_list" ]; then
+      closed_list() {
+        printf '%s\n' "$fx_list"
+      }
+    fi
     measure "$self_art/$case_name" "$case_all"
   )
   code=$?
@@ -453,7 +486,32 @@ self_test() {
 
   fixture module-path
   fx_prefix=tests::
-  check PASS 'rule tests=30 ok=25 pending=5 miss=0'
+  check FAIL-miss 'rule tests=30 ok=0 pending=5 miss=25'
+
+  fixture shadow-in-another-module-of-the-target
+  fx_missing='formal_traces refusal_class_change'
+  fx_extra_crate=halvo-learn-store
+  fx_extra_target=src/lib.rs
+  fx_extra_path=tests::edges::refusal_class_change
+  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+
+  fixture shadow-in-another-target-of-the-crate
+  fx_missing='formal_traces refusal_no_source'
+  fx_extra_crate=halvo-learn
+  fx_extra_target=tests/edges.rs
+  fx_extra_path=refusal_no_source
+  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+
+  fixture listed-path-in-another-target
+  fx_missing='formal_traces refusal_revoke_keeps_row'
+  fx_extra_crate=halvo-learn-store
+  fx_extra_target=tests/finish.rs
+  fx_extra_path=tests::finish::refusal_revoke_keeps_row
+  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+
+  fixture built-line-without-its-target
+  fx_list="$(closed_list | sed 's|^halvo-learn tests/refusals.rs refusal_no_source built$|halvo-learn refusal_no_source built|')"
+  check FAIL-list 'list form=bad'
 
   fixture longer-name
   fx_renamed=edit_table
