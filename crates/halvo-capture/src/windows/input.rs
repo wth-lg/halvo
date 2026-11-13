@@ -1865,3 +1865,74 @@ mod tests {
         assert!(later, "a start after the refused one was not taken");
     }
 }
+
+#[cfg(test)]
+mod adv2_probes {
+    use super::*;
+    use crate::secure_input::windows::FieldState;
+
+    fn state_with(gate: PasswordGate) -> GateState {
+        GateState {
+            gate: Arc::new(gate),
+            held: VecDeque::new(),
+            counts: Arc::default(),
+        }
+    }
+
+    #[test]
+    #[ignore = "adv2 probe: run alone in the adv2 step"]
+    fn adv2_q5_password_keys_handled_late_are_counted_one_by_one() {
+        let (sink, writer) = crate::sink::channel(64);
+        let handoff = super::super::HandOff::start(sink, "halvo-adv2-forward", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let stroke = KeyStroke {
+            vkey: 0x41,
+            released: false,
+        };
+        let now = super::super::now_tick();
+
+        let slow = PasswordGate::new();
+        slow.field(FieldState::Password);
+        let mut slow = state_with(slow);
+        for i in 0..7u32 {
+            let held = slow.gate.hold(now.wrapping_sub(300 + i), false);
+            slow.held.push_back((held, stroke, None));
+        }
+        release_held(&mut slow, &producer, false);
+
+        let latched = PasswordGate::new();
+        latched.field(FieldState::Clear);
+        let tab = now.wrapping_sub(400);
+        latched.latch(tab);
+        let mut latched = state_with(latched);
+        for i in 0..4u32 {
+            let held = latched.gate.hold(tab.wrapping_add(10 + 10 * i), false);
+            latched.held.push_back((held, stroke, None));
+        }
+        latched.gate.field(FieldState::Password);
+        release_held(&mut latched, &producer, false);
+
+        let mut delivered = 0;
+        while writer
+            .recv_timeout(std::time::Duration::from_millis(500))
+            .is_ok()
+        {
+            delivered += 1;
+        }
+        let line = format!(
+            "ADV2 q5 slow_pump password_keys=7 late_events={} keys_withheld={} | behind_latch_with_password_focus_event password_keys=4 late_events={} keys_withheld={} | keystroke_events={delivered}",
+            slow.counts.late.load(Ordering::Relaxed),
+            slow.counts.withheld.load(Ordering::Relaxed),
+            latched.counts.late.load(Ordering::Relaxed),
+            latched.counts.withheld.load(Ordering::Relaxed),
+        );
+        println!("{line}");
+        assert_eq!(delivered, 0, "{line}");
+        assert_eq!(
+            slow.counts.late.load(Ordering::Relaxed),
+            0,
+            "RD-32: no count of password keys: {line}"
+        );
+    }
+}
