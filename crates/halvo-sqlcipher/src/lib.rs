@@ -31,6 +31,10 @@ pub fn os_entropy_hook_installed() -> bool {
 }
 
 #[cfg(test)]
+#[path = "../tests/page_gap/mod.rs"]
+mod page_gap;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
