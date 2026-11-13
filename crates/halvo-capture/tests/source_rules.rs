@@ -65,25 +65,38 @@ const ROOTS: [&str; 2] = ["crates/halvo-capture/", "src-tauri/src/"];
 /// `include_bytes` bring a text or bytes.
 const CODE: [&str; 2] = ["path", "include"];
 
-/// The file that a use reaches: its literal from the directory of `file`.
+/// The file that a use reaches: its literal from the directory of `file`,
+/// with each `.` segment taken out.
 fn reached(file: &str, literal: &str) -> String {
     let dir = file.rsplit_once('/').map_or("", |(dir, _)| dir);
-    format!("{dir}/{}", literal.trim_matches('"'))
+    let parts: Vec<&str> = literal
+        .trim_matches('"')
+        .split('/')
+        .filter(|part| *part != ".")
+        .collect();
+    format!("{dir}/{}", parts.join("/"))
 }
 
-/// Each use of `listed` that brings code and reaches a file whose name does
-/// not end in .rs, or that lies under no root of [`ROOTS`].
+/// Each use of `listed` that brings code and reaches a file that these rules
+/// do not read as Rust: a literal that is absolute, holds a backslash, starts
+/// with a drive or climbs with `..`, or a file under no root of [`ROOTS`] or
+/// on [`DATA_FILES`].
 fn code_reach_faults(listed: &[(&str, &str, &str)]) -> Vec<String> {
     listed
         .iter()
         .filter(|(_, name, _)| CODE.contains(name))
         .filter_map(|(file, name, literal)| {
+            let text = literal.trim_matches('"');
             let target = reached(file, literal);
-            let ok = target.ends_with(".rs")
+            let drive = text.as_bytes().get(1) == Some(&b':');
+            let ok = !text.starts_with('/')
+                && !text.contains('\\')
+                && !drive
+                && !target.split('/').any(|part| part == "..")
                 && ROOTS.iter().any(|root| target.starts_with(root))
-                && !target.split('/').any(|part| part == ".." || part == ".");
+                && !DATA_FILES.contains(&target.as_str());
             (!ok).then(|| {
-                format!("{file}: the listed {name} reaches {target}, no .rs file under a root that these rules read")
+                format!("{file}: the listed {name} reaches {target}, a file that these rules do not read as Rust")
             })
         })
         .collect()
@@ -678,7 +691,32 @@ fn path_attributes_and_include_macros_stand_only_at_the_listed_uses() {
         (
             "crates/halvo-capture/src/lib.rs",
             "include",
-            "\"generated.in\"",
+            "\"mutants.rows\"",
+        ),
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"../../../../other/x.rs\"",
+        ),
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"/private/tmp/outside/x.rs\"",
+        ),
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"..\\\\..\\\\..\\\\..\\\\other\\\\x.rs\"",
+        ),
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"C:\\\\other\\\\x.rs\"",
+        ),
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"C:/other/x.rs\"",
         ),
         (
             "crates/halvo-capture/src/lib.rs",
@@ -692,6 +730,11 @@ fn path_attributes_and_include_macros_stand_only_at_the_listed_uses() {
     }
     let kept = [
         ("src-tauri/build.rs", "path", "\"src/commands/names.rs\""),
+        (
+            "crates/halvo-capture/src/secure_input.rs",
+            "path",
+            "\"./secure_input_macos.rs\"",
+        ),
         (
             "crates/halvo-capture/src/a.rs",
             "include_str",
