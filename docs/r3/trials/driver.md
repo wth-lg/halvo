@@ -24,7 +24,7 @@ A control with a scripted child in place of the model (`control.sh`) read at d34
 `hosted-win` (run 43470567927): the right walk passes `bill` and fails every replay of `order`, because the
 saved items reach the snapshot as three list items with empty names; so the replay and recovery results of the
 `order` cells are void, and their compile results stand. After the mends of 4d1020c (a stored target keeps its
-place) and of CP-177, the control passes `order` too on `mac`. One compile (`mac` ministral_3_3b `order`
+place) and of CP-177, the control passes `order` too on `mac`, `hosted-win` and `hosted-mac` (run 43477098785). One compile (`mac` ministral_3_3b `order`
 seed 3) ended by `provenance` at the effect step. The 18 compiles of `hosted-win` in each run kept no trace.
 
 The block is round 2. Round 1 (24 cells at decb7e2, 3 at 2f4b8bf by their files) gave the same counts but on
