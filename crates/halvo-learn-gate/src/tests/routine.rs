@@ -4,7 +4,7 @@ use halvo_schema::learning::names::Mark;
 
 use crate::cli::Cause;
 use crate::routine::{
-    line, play, play_all, read_sample, report, run, Event, Played, Stream, Train, LAST_DAY,
+    line, newest, play, play_all, read_sample, report, run, Event, Played, Stream, Train, LAST_DAY,
     REPLAY_FROM, SAMPLE_PATH, TRAINS,
 };
 
@@ -368,5 +368,37 @@ fn routine_a_figure_changed_on_day_730_alone_differs_on_day_730_in_both_streams(
     );
     for stream in Stream::BOTH {
         assert_eq!(differs_on(&changed, stream), Some(LAST_DAY), "{stream:?}");
+    }
+}
+
+struct RoutineRows(Vec<&'static str>);
+
+impl halvo_schema::RowRead for RoutineRows {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        if kind == "learn_routine" {
+            for row in &self.0 {
+                visit(row);
+            }
+        }
+    }
+}
+
+const ROUTINE_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","rev":3,"day":20767,"category":"utility_bill_payment","site":{"key":"northwind-power.test","source":"address_field"},"app":"com.google.Chrome","period":30,"seen":3,"first":20705,"last":20765,"next":20795,"missed":0,"mark":"none","since":null}"#;
+const UNREADABLE_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","rev":4}"#;
+
+#[test]
+fn routine_newest_row_refuses_a_learn_routine_row_that_its_parser_refuses() {
+    assert_eq!(
+        newest(&RoutineRows(vec![ROUTINE_ROW])),
+        Ok((Mark::None, Some(30)))
+    );
+    for rows in [
+        vec![ROUTINE_ROW, UNREADABLE_ROW],
+        vec![UNREADABLE_ROW, ROUTINE_ROW],
+    ] {
+        assert_eq!(
+            newest(&RoutineRows(rows)),
+            Err("a learn_routine row that its parser refuses".to_owned())
+        );
     }
 }

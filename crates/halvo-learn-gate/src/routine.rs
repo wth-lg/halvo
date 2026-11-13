@@ -239,8 +239,9 @@ fn summary(workflow: &str, day: u32) -> Result<(String, Summary), String> {
     Ok((json, summary))
 }
 
-/// The mark and the period of the newest `learn_routine` row of the rows.
-fn newest(rows: &dyn RowRead) -> Result<Figures, String> {
+/// The mark and the period of the newest `learn_routine` row of the rows, or an error when a row of that kind
+/// cannot be read or none is there.
+pub fn newest(rows: &dyn RowRead) -> Result<Figures, String> {
     let mut found: Option<LearnRoutine> = None;
     let mut unread = false;
     rows.for_each(
