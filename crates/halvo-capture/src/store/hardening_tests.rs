@@ -961,7 +961,7 @@ fn the_keyless_sweep_counts_a_shard_that_becomes_a_link_before_its_open_and_remo
         let (shard, parked) = (shard.clone(), parked.clone());
         let (target, answer) = (outside.path().to_path_buf(), Arc::clone(&answer));
         RecordingFs::observed_by(move |call| {
-            if matches!(call, Call::OpenDir(path) if *path == shard) {
+            if matches!(call, Call::OpenDir(opened) if *opened == shard) {
                 swap_shard_for_a_link(&shard, &parked, &target, &answer);
             }
         })
