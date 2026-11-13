@@ -1,12 +1,12 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The check builds the crates of its second list (halvo-policy, halvo-agent-store and halvo-agent-gate) with all their test targets and the target r3_config of halvo-schema, refuses a second build call that compiles anything, and starts every binary itself from the paths in cargo's messages: agent-config presets prints ten valid presets and none unattended; agent-gate configs prints one passing line (stored=yes state=approved agent=set result=valid) per seed category in order and configs seeds=10 valid=10; each of the 19 tests of its first list stands in the list of its own target's binary, is not ignored, and passes in a run of that name alone with --exact; each of the 25 test targets of its second list has exactly one test binary, and every test binary of those crates passes whole; and no tracked file differs from HEAD before or after a cargo command or a run. It does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them, a test that keeps its name with another body, a required target with its test harness switched off, code that runs before main in a required test file, or a compiler wrapper or a cargo configuration that changes what is built (ruling S-53), nor against a test that stands in no list and is removed from its target, which no list holds without naming every test.
+# rule: The check builds the crates of its second list (halvo-policy, halvo-agent-store and halvo-agent-gate) with all their test targets and the target r3_config of halvo-schema, refuses a second build call that compiles anything, and starts every binary itself from the paths in cargo's messages: agent-config presets prints ten valid presets and none unattended; agent-gate configs prints one passing line (stored=yes state=approved agent=set result=valid) per seed category in order and configs seeds=10 valid=10; each of the 19 tests of its first list stands in the list of its own target's binary, is not ignored, and passes in a run of that name alone with --exact; each of the 26 test targets of its second list has exactly one test binary, and every test binary of those crates passes whole; and no tracked file differs from HEAD before or after a cargo command or a run. It does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them, a test that keeps its name with another body, a required target with its test harness switched off, code that runs before main in a required test file, or a compiler wrapper or a cargo configuration that changes what is built (ruling S-53), nor against a test that stands in no list and is removed from its target, which no list holds without naming every test.
 set -u
 LC_ALL=C
 export LC_ALL
 name=20-r3-policy
 list_count=19
-target_count=25
+target_count=26
 whole=
 crates='halvo-policy halvo-agent-store halvo-agent-gate halvo-schema'
 categories='utility_bill_payment tenant_rent lease_renewal_or_change tenant_application_review email spreadsheet_fill shop_order calendar_cleanup ride_order daily_chart_check'
@@ -63,6 +63,7 @@ halvo-policy tests/refusal.rs
 halvo-agent-store src/lib.rs
 halvo-agent-store tests/after_end.rs
 halvo-agent-store tests/bindings.rs
+halvo-agent-store tests/checkpoint_bodies.rs
 halvo-agent-store tests/coordinator.rs
 halvo-agent-store tests/effect.rs
 halvo-agent-store tests/end.rs
@@ -856,7 +857,7 @@ self_test() {
   rejected=0
   wrong=
   [ "$list_count" -eq 19 ] || self_fail "the count of the list is not 19"
-  [ "$target_count" -eq 25 ] || self_fail "the count of the list of whole targets is not 25"
+  [ "$target_count" -eq 26 ] || self_fail "the count of the list of whole targets is not 26"
   real_targets=$(target_list | awk 'NF { n++ } END { print n + 0 }') || self_fail "the list of whole targets cannot be read"
   [ "$real_targets" -eq "$target_count" ] || self_fail "the list of whole targets holds $real_targets lines, not $target_count"
   stand_in_targets='halvo-policy src/lib.rs
