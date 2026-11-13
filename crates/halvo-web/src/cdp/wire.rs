@@ -73,6 +73,28 @@ pub(crate) struct Facts {
     pub hook: Option<(String, u16)>,
 }
 
+/// The facts of the request that the browser paused in `ev` (CP-186 T4 (a)): its number, whether
+/// the pause is a redirect's hop (the event's `redirectedRequestId`), its method, address, origin,
+/// path and frame, whether it is a service worker's script, and the host and port for the runner's
+/// hook when it is a document of the executor's own page `home`.
+pub(crate) fn facts_of_event(ev: &EventRequestPaused, home: Option<&str>) -> Facts {
+    let (origin, path) = split_url(&ev.request.url);
+    let document = matches!(ev.resource_type, ResourceType::Document);
+    Facts {
+        network: ev.network_id.as_ref().map(|n| n.inner().clone()),
+        redirected: ev.redirected_request_id.is_some(),
+        method: ev.request.method.clone(),
+        url: ev.request.url.clone(),
+        hook: (document && home == Some(ev.frame_id.inner().as_str()))
+            .then(|| host_port(&origin))
+            .flatten(),
+        origin,
+        path,
+        frame: ev.frame_id.inner().clone(),
+        worker_script: is_worker_script(ev.request.headers.inner()),
+    }
+}
+
 /// What the rule answers one pause.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Act {
@@ -883,26 +905,12 @@ impl Wire {
         let method = ev.request.method.clone();
         let (origin, path) = split_url(&ev.request.url);
         let id = ev.request_id.clone();
-        let document = matches!(ev.resource_type, ResourceType::Document);
-        let worker_script = is_worker_script(ev.request.headers.inner());
         let (act, new, runner_hook, home) = {
             let Ok(mut b) = self.book.lock() else {
                 return;
             };
             let home = b.home.clone();
-            let facts = Facts {
-                network: ev.network_id.as_ref().map(|n| n.inner().clone()),
-                redirected: ev.redirected_request_id.is_some(),
-                method: method.clone(),
-                url: ev.request.url.clone(),
-                origin: origin.clone(),
-                path: path.clone(),
-                frame: ev.frame_id.inner().clone(),
-                worker_script,
-                hook: (document && home.as_deref() == Some(ev.frame_id.inner().as_str()))
-                    .then(|| host_port(&origin))
-                    .flatten(),
-            };
+            let facts = facts_of_event(&ev, home.as_deref());
             let rule = b.rule.clone();
             let pause = Pause {
                 session: session.clone(),
@@ -1138,6 +1146,89 @@ mod tests {
         assert_eq!(
             policy_end(PolicyWay::AddLine, true),
             PolicyEnd::Sent("line_added")
+        );
+    }
+
+    /// A paused request's event as the browser sends it: a POST to `url` with the number `n1`,
+    /// and with the mark of a redirect's hop when `hop`.
+    fn event(url: &str, hop: bool) -> EventRequestPaused {
+        let mut v = serde_json::json!({
+            "requestId": "interception-7",
+            "request": {
+                "url": url,
+                "method": "POST",
+                "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+                "initialPriority": "VeryHigh",
+                "referrerPolicy": "strict-origin-when-cross-origin"
+            },
+            "frameId": "F1",
+            "resourceType": "Document",
+            "networkId": "n1"
+        });
+        if hop {
+            v["redirectedRequestId"] = serde_json::json!("interception-6");
+        }
+        serde_json::from_value(v).unwrap()
+    }
+
+    /// CP-186 T4 (a), with the review's case rule/02: the facts of an event carry the hop's mark
+    /// when the event has a `redirectedRequestId` and not without it, beside its number, method,
+    /// origin, path and frame.
+    #[test]
+    fn t4_the_facts_of_an_event_carry_the_hop_s_mark() {
+        let url = "http://utility.agent.test:18090/act?x=1";
+        let plain = facts_of_event(&event(url, false), None);
+        let hop = facts_of_event(&event(url, true), None);
+        assert!(!plain.redirected);
+        assert!(hop.redirected);
+        assert_eq!(plain.network.as_deref(), Some("n1"));
+        assert_eq!(
+            (
+                plain.method.as_str(),
+                plain.origin.as_str(),
+                plain.path.as_str()
+            ),
+            ("POST", "http://utility.agent.test:18090", "/act")
+        );
+        assert_eq!(plain.frame, "F1");
+        assert_eq!(
+            facts_of_event(&event(url, false), Some("F1")).hook,
+            Some(("utility.agent.test".to_string(), 18090))
+        );
+        assert_eq!(plain.hook, None);
+    }
+
+    /// CP-186 T4 (a): through `facts_of_event`, after a release an event with the released
+    /// request's number, address and method and the hop's mark is failed and is a request of its
+    /// own in the record.
+    #[test]
+    fn t4_a_hop_event_after_a_release_is_failed_through_the_event_s_facts() {
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        let url = "http://utility.agent.test:18090/act";
+        let (Act::Hold(id), true) = h.on_pause(
+            Some(&r),
+            &facts_of_event(&event(url, false), None),
+            pause("p1"),
+        ) else {
+            panic!()
+        };
+        h.release(id).unwrap();
+        assert_eq!(
+            h.on_pause(
+                Some(&r),
+                &facts_of_event(&event(url, true), None),
+                pause("p2")
+            ),
+            (Act::Fail, true)
+        );
+        assert_eq!(
+            h.on_pause(
+                Some(&r),
+                &facts_of_event(&event(url, false), None),
+                pause("p3")
+            ),
+            (Act::Continue, false)
         );
     }
 
