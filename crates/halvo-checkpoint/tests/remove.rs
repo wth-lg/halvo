@@ -214,7 +214,7 @@ fn a_path_outside_the_rows_folder_is_never_reached() {
 }
 
 #[test]
-fn the_removal_holds_the_lock_and_leaves_the_file_when_it_cannot_take_it() {
+fn the_removal_leaves_the_file_when_it_cannot_take_the_lock() {
     let scratch = Scratch::new("remove-lock");
     let copy = with_checkpoint(&scratch, "values.xlsx");
     let held = locks(&scratch).hold(&scratch.path("folder")).expect("held");
