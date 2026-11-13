@@ -141,3 +141,40 @@ fn drain_counting(writer: SinkWriter, counts: &Counts) {
         }
     }
 }
+
+#[cfg(test)]
+pub(crate) mod off_source_tests {
+    use std::sync::mpsc::RecvTimeoutError;
+    use std::time::{Duration, Instant};
+
+    use crate::sink;
+    use crate::source::{CaptureError, CaptureSource, SourceContext, SourceState, Started};
+
+    pub(crate) fn the_off_source_keeps_its_lifecycle(mut source: impl CaptureSource) {
+        let (handle, writer) = sink::channel(8);
+        let first = source.begin(SourceContext::new(handle.clone()));
+        let second = source.begin(SourceContext::new(handle.clone()));
+        let called = Instant::now();
+        let shut = source.shutdown();
+        let took = called.elapsed();
+        let again = source.begin(SourceContext::new(handle.clone()));
+        let state = source.health().state;
+        drop(handle);
+        let received = writer
+            .recv_timeout(Duration::from_secs(2))
+            .map(|received| received.event().modality);
+        assert_eq!(first, Ok(Started::Off), "the first begin");
+        assert_eq!(second, Err(CaptureError::AlreadyStarted), "a second begin");
+        assert!(
+            shut.is_ok() && took < Duration::from_secs(1),
+            "shutdown {shut:?} after {took:?}"
+        );
+        assert_eq!(again, Ok(Started::Off), "a begin after the shutdown");
+        assert_eq!(state, SourceState::Off, "the health state");
+        assert_eq!(
+            received,
+            Err(RecvTimeoutError::Disconnected),
+            "the off source emitted an event or kept a handle of the sink"
+        );
+    }
+}
