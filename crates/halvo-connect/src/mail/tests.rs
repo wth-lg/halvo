@@ -2,6 +2,7 @@ use serde_json::{json, Value};
 
 use super::{kept, Draft, DraftToSend, Drafts, Message, Messages, ReplyRule};
 use crate::error::{AnswerFault, CallError};
+use crate::same_address;
 
 const FORM: Result<Vec<String>, CallError> = Err(CallError::Answer(AnswerFault::Form));
 
@@ -41,6 +42,36 @@ fn the_rule_takes_unread_mail_to_the_account_from_a_sender_of_the_slot() {
     assert!(!r.selects(false, "ann@people.test.x", &to));
     let none = ReplyRule::new("me@home.test".to_owned(), Vec::new());
     assert!(!none.selects(false, "ann@people.test", &to));
+}
+
+#[test]
+fn two_addresses_are_one_without_regard_to_ascii_case_alone_in_the_rule_too() {
+    for (a, b, same) in [
+        ("ann@people.test", "ann@people.test", true),
+        ("ann@people.test", "ANN@People.TEST", true),
+        ("ann@people.test", "ann@people.test ", false),
+        ("ann@people.test", "anne@people.test", false),
+        ("ann@people.test", "ann@people.tesu", false),
+        ("élan@people.test", "éLAN@PEOPLE.test", true),
+        ("élan@people.test", "ÉLAN@people.test", false),
+        ("strasse@people.test", "straße@people.test", false),
+        ("k@people.test", "\u{212a}@people.test", false),
+    ] {
+        assert_eq!(same_address(a, b), same, "{a} {b}");
+        assert_eq!(same_address(b, a), same, "{b} {a}");
+        let as_sender = ReplyRule::new("me@home.test".to_owned(), vec![a.to_owned()]);
+        assert_eq!(
+            as_sender.selects(false, b, &["me@home.test".to_owned()]),
+            same,
+            "sender {a} {b}"
+        );
+        let as_account = ReplyRule::new(a.to_owned(), vec!["ann@people.test".to_owned()]);
+        assert_eq!(
+            as_account.selects(false, "ann@people.test", &[b.to_owned()]),
+            same,
+            "account {a} {b}"
+        );
+    }
 }
 
 #[test]
