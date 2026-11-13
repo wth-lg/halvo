@@ -1,12 +1,12 @@
-#![allow(dead_code)]
-
 pub struct Names {
+    #[cfg(test)]
     pub module: &'static str,
     pub commands: &'static [&'static str],
     pub reads: &'static [&'static str],
 }
 
 pub const CAPTURE: Names = Names {
+    #[cfg(test)]
     module: "capture",
     commands: &[
         "capture_status",
