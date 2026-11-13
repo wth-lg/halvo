@@ -11,7 +11,7 @@ use tauri::ipc::{CallbackFn, InvokeBody};
 use tauri::test::{get_ipc_response, mock_builder, MockRuntime, INVOKE_KEY};
 use tauri::webview::{InvokeRequest, WebviewBuilder};
 use tauri::{
-    App, Context, LogicalPosition, LogicalSize, Manager, Webview, WebviewUrl, WebviewWindow,
+    App, Context, LogicalPosition, LogicalSize, Manager, Url, Webview, WebviewUrl, WebviewWindow,
 };
 
 #[allow(dead_code)]
@@ -227,4 +227,65 @@ fn a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_n
     );
     assert!(call(main.as_ref(), "delete_all", app_origin()).is_ok());
     assert_eq!(test.shreds(), 1, "the web view main deletes the data");
+}
+
+#[test]
+fn a_call_whose_origin_header_is_no_address_is_refused() {
+    let test = Guarded::new("origin-no-address", app::context());
+    let main = test.main();
+    let page = main.as_ref();
+    assert!(call(page, "capture_status", app_origin()).is_ok());
+    assert!(call(page, "capture_status", None).is_ok());
+    let mut not_utf8 = app_address("", "/").into_bytes();
+    not_utf8.push(0xff);
+    let not_addresses = [
+        HeaderValue::from_static("null"),
+        HeaderValue::from_static(""),
+        HeaderValue::from_static("not an address"),
+        HeaderValue::from_static(app::APP_ORIGIN.1),
+        HeaderValue::from_bytes(&not_utf8).expect("a header holds a byte above 0x7f"),
+    ];
+    for value in not_addresses {
+        for command in unit_commands() {
+            assert_eq!(
+                call(page, command, Some(value.clone())),
+                refused(),
+                "{command} with the Origin header {value:?}"
+            );
+        }
+    }
+    assert_eq!(test.shreds(), 0);
+}
+
+#[test]
+fn an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused() {
+    let origin = app_address(":secret@", "");
+    let page_address = app_address(":secret@", "/index.html");
+    let parsed: Url = origin.parse().expect("a URL");
+    assert_eq!((parsed.username(), parsed.password()), ("", Some("secret")));
+    assert!(!app::is_app_url(&parsed), "the rule allows {origin}");
+    assert!(
+        !app::may_navigate(&page_address),
+        "the rule allows {page_address}"
+    );
+    let test = Guarded::new("password", app::context());
+    let main = test.main();
+    let header = HeaderValue::from_str(&origin).expect("an address that a header can hold");
+    for command in unit_commands() {
+        assert_eq!(
+            call(main.as_ref(), command, Some(header.clone())),
+            refused(),
+            "{command} with the Origin header {origin}"
+        );
+    }
+    main.navigate(page_address.parse().expect("a URL"))
+        .expect("the mock runtime records the address");
+    for command in unit_commands() {
+        assert_eq!(
+            call(main.as_ref(), command, None),
+            refused(),
+            "{command} from the window main whose own address is {page_address}, with no Origin header"
+        );
+    }
+    assert_eq!(test.shreds(), 0);
 }
