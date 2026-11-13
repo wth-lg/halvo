@@ -1580,6 +1580,13 @@ self_test_commits() {
       commit_case 'a file whose name holds a tab' >/dev/null || die 'commit failed'
       expand_fixture "\"a\\tb.txt\"${tab}/{U}/una${tab}made up" >"$work/list-quoted-name"
       case_scan stale-check-of-a-file-listed-by-its-quoted-name 0 'entries read 1, stale 0.' --allow "$work/list-quoted-name" --stale
+      expand_fixture 'see /{U}/una' >"$case_repo/q\"x.txt"
+      commit_case 'a file whose name holds a double quote' >/dev/null || die 'commit failed'
+      expand_fixture "\"q\\\"x.txt\"${tab}/{U}/una${tab}made up" >"$work/list-double-quote"
+      case_scan stale-check-of-a-file-named-with-a-double-quote 0 'entries read 1, stale 0.' --allow "$work/list-double-quote" --stale
+      printf 'plain\n' >"$case_repo/q\"x.txt"
+      commit_case 'the path leaves the file with a double quote in its name' >/dev/null || die 'commit failed'
+      case_scan stale-check-names-a-quoted-file-that-lost-its-path 1 'stale entry: scripts/home-path-allow.txt:1: "q\"x.txt": no line of the file' --allow "$work/list-double-quote" --stale
       ;;
   esac
 
@@ -1612,6 +1619,9 @@ self_test_commits() {
   in_case_repo tag -a -m "$(expand_fixture 'Built in /{U}/rhea')" t-rhea "$clean_commit" || die 'git tag failed'
   case_scan range-reads-the-message-of-a-tag-that-it-names 1 'the message of the tag, line 1: a home path (macos)' --allow "$work/empty-list" "$message_commit..t-rhea"
   case_scan range-reads-no-tag-that-it-does-not-name 0 'commits read 1, lines with a home path 0.' --allow "$work/empty-list" "$message_commit..$clean_commit"
+  in_case_repo tag -a -m "$(expand_fixture 'Built from /{U}/irma')" t-inner-of-a-range "$clean_commit" || die 'git tag failed'
+  in_case_repo tag -a -m 'An outer tag with a plain message' t-outer-of-a-range t-inner-of-a-range >/dev/null 2>&1 || die 'git tag failed'
+  case_scan range-reads-the-message-of-an-inner-tag 1 'the message of the tag, line 1: a home path (macos)' --allow "$work/empty-list" "$message_commit..t-outer-of-a-range"
 
   new_case_repo wide
   awk 'BEGIN { for (i = 0; i < 20000; i++) printf "/%s/zed%d ", "Users", i; printf "\n" }' >"$case_repo/wide.txt" || die 'awk failed'
@@ -1845,6 +1855,9 @@ self_test_hook() {
   push_case tag-message-without-a-home-path pushed 'the push to proof adds no line' proof refs/tags/t-plain
   in_repo tag -a -m "$(expand_fixture 'Release of /{H}/quinn')" t-of-a-tag t-plain || die 'git tag failed'
   push_case message-of-a-tag-that-names-a-tag refused 'the message of the tag, line 1: a home path (linux)' proof refs/tags/t-of-a-tag
+  in_repo tag -a -m "$(expand_fixture 'Built from /{U}/inga')" t-inner-with-a-path trunk || die 'git tag failed'
+  in_repo tag -a -m 'An outer tag with a plain message' t-outer-of-a-path t-inner-with-a-path >/dev/null 2>&1 || die 'git tag failed'
+  push_case message-of-an-inner-tag-that-the-push-carries refused 'the message of the tag, line 1: a home path (macos)' proof refs/tags/t-outer-of-a-path
 
   in_repo checkout -q -b messages trunk || die 'git checkout failed'
   printf 'plain\n' >"$repo/messages.txt"

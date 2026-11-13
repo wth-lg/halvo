@@ -928,6 +928,13 @@ self_test_pre_push() {
     judge "a-line-with-an-object-id-of-39-characters-$case_locale" "$status" 2 'cannot read this line'
   done
 
+  status=0
+  (cd "$work/clone" && printf 'refs/heads/x %s refs/heads/x %s\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 0000000000000000000000000000000000000000000000000000000000000000 | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-with-two-object-ids-of-64-characters.txt" 2>&1 || status=$?
+  judge a-line-with-two-object-ids-of-64-characters "$status" 2 'git cannot resolve the object aaaaaaaa'
+  status=0
+  (cd "$work/clone" && printf 'refs/heads/x %s refs/heads/x %s\n' 1234567890123456789012345678901234567890 "$no_commit" | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-pushed-object-that-the-clone-lacks.txt" 2>&1 || status=$?
+  judge a-pushed-object-that-the-clone-lacks "$status" 2 'git cannot resolve the object 1234567890123456789012345678901234567890'
+
   exempt_tree=$work/tree-with-an-exempt-commit-named-by-a-later-one
   mkdir -p "$exempt_tree/.githooks" "$exempt_tree/scripts"
   cp "$work/tree/.githooks/pre-push" "$exempt_tree/.githooks/pre-push"
