@@ -95,12 +95,14 @@ impl LearnHandlers {
         let mut newest = None;
         let mut compiled = Vec::new();
         if let Some(facts) = seen {
-            newest = agent::newest(host, &b.agent, &b.run)?;
-            if let (false, Some(number)) = (facts.candidates.is_empty(), newest) {
+            let held = !facts.candidates.is_empty();
+            newest = self.newest_of(host, &b.agent, &b.run)?;
+            if let (true, Some(number)) = (held, newest) {
                 compiled = agent::compiled(host, &b.agent, &b.run, number)?;
             }
         }
         let reply = agent::runner(host, body)?;
+        self.starts.remove(&b.run);
         let Some(facts) = self.facts.remove(&b.run) else {
             return Ok(reply);
         };

@@ -4,9 +4,6 @@ use serde_json::{json, Value};
 use super::host::{active_world, agent, compiled, locator, run, wf, with_locators};
 use crate::LearnHandlers;
 
-const WAITS: &str =
-    "what the head does today; the rule waits for the ruling on draft-rulings-u21-gates.md";
-
 fn loc(name: &str) -> Value {
     json!({"by": "role", "value": "button", "name": name})
 }
@@ -16,7 +13,7 @@ fn pay() -> Value {
 }
 
 #[test]
-fn a_run_that_loads_again_after_a_restart_learns() {
+fn a_run_that_loads_after_a_restart_is_a_lost_run_and_learns_nothing() {
     let mut w = active_world();
     w.replay(2);
     w.log(2, &[(1, "step_ok", 1, None)]);
@@ -27,11 +24,15 @@ fn a_run_that_loads_again_after_a_restart_learns() {
     assert!(w.put(2, w.loaded, vec![proposal]).is_ok());
     w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
-    assert_eq!(
-        w.host.edits().len(),
-        1,
-        "{WAITS}, point 2 (a run whose facts a restart lost, and a second load)"
-    );
+    assert!(w.host.edits().is_empty());
+    let revs: Vec<u32> = w
+        .host
+        .runs()
+        .iter()
+        .filter(|r| r.run.as_str() == run(2))
+        .map(|r| r.rev())
+        .collect();
+    assert_eq!(revs, [1]);
 }
 
 #[test]
@@ -46,26 +47,20 @@ fn a_compile_run_that_sends_no_load_keeps_its_run_row_at_rev_1() {
         .into_iter()
         .filter(|r| r.run.as_str() == run(20))
         .collect();
-    assert_eq!(rows.len(), 1, "{WAITS}, point 3 (a run that sends no load)");
-    assert_eq!(
-        rows[0].rev(),
-        1,
-        "{WAITS}, point 3 (a run that sends no load)"
-    );
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].rev(), 1);
 }
 
 #[test]
-fn the_facts_of_a_run_that_end_run_ended_stay_in_memory() {
+fn an_end_run_drops_the_facts_of_its_run() {
     let mut w = active_world();
     w.replay(2);
     let reply = w
         .coordinator(json!({"op": "end_run", "workflow": wf(1), "agent": agent(1), "run": run(2)}));
     assert!(reply.is_ok(), "end_run: {reply:?}");
     let id = RunId::parse(&run(2)).expect("a run id");
-    assert!(
-        w.handlers.facts.contains_key(&id),
-        "{WAITS}, point 4 (the facts of a run that never finishes)"
-    );
+    assert!(!w.handlers.facts.contains_key(&id));
+    assert!(!w.handlers.starts.contains_key(&id));
 }
 
 #[test]
@@ -90,14 +85,7 @@ fn a_proposal_for_a_step_that_was_not_served_to_its_run_is_refused_with_base_and
         .handlers
         .propose(&mut w.host, &b)
         .expect("the proposal is read");
-    assert_eq!(
-        answers[0].1,
-        Err(halvo_learn::AdmitCause::Base),
-        "{WAITS}, point 5 (a proposal for a step that was not served to its run)"
-    );
+    assert_eq!(answers[0].1, Err(halvo_learn::AdmitCause::Base));
     let id = RunId::parse(&run(2)).expect("a run id");
-    assert!(
-        w.handlers.facts[&id].candidates.is_empty(),
-        "{WAITS}, point 5 (a proposal for a step that was not served to its run)"
-    );
+    assert!(w.handlers.facts[&id].candidates.is_empty());
 }

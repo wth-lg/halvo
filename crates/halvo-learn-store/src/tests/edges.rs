@@ -59,7 +59,7 @@ fn a_proposal_that_names_another_number_than_the_one_the_run_loaded_is_refused_w
     let served = w.replay(2);
     assert_eq!(w.loaded, 2);
     let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
-    for number in [1, 3] {
+    for (number, want) in [(1, Err(halvo_learn::AdmitCause::Base)), (3, Ok(()))] {
         let body = json!({"op": "put_playbook", "agent": agent(1), "run": run(2), "number": number, "steps": [proposal]});
         let Ok(RunnerCall::PutPlaybook(b)) = RunnerCall::parse(body.to_string().as_bytes()) else {
             panic!("a put_playbook body");
@@ -68,12 +68,7 @@ fn a_proposal_that_names_another_number_than_the_one_the_run_loaded_is_refused_w
             .handlers
             .propose(&mut w.host, &b)
             .expect("the proposal is read");
-        assert_eq!(
-            answers[0].1,
-            Err(halvo_learn::AdmitCause::Base),
-            "number {number}: what the head does today; the rule waits for the ruling on \
-             draft-rulings-u21-gates.md, point 1 (which playbook number a replay run's put_playbook names)"
-        );
+        assert_eq!(answers[0].1, want, "number {number}");
     }
 }
 

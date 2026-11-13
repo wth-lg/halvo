@@ -7,7 +7,7 @@ use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 
 use crate::agent;
-use crate::facts::{RunFacts, Served};
+use crate::facts::{slot_values, RunFacts, Served};
 use crate::handlers::{LearnHandlers, Refused};
 use crate::host::LearnHost;
 use crate::rows::Edits;
@@ -82,10 +82,29 @@ impl LearnHandlers {
         b: &Load,
     ) -> Result<RunnerReply, Refused> {
         let reply = agent::runner(host, body)?;
-        if let RunnerReply::Load(loaded) = &reply {
-            self.facts
-                .entry(b.run.clone())
-                .or_insert_with(|| RunFacts::new(&b.agent, loaded));
+        let RunnerReply::Load(loaded) = &reply else {
+            return Ok(reply);
+        };
+        let Some(mode) = self
+            .starts
+            .get(&b.run)
+            .filter(|start| start.agent == b.agent)
+            .map(|start| start.mode)
+        else {
+            return Ok(reply);
+        };
+        match self.facts.get_mut(&b.run) {
+            Some(facts) => {
+                for value in slot_values(loaded, mode) {
+                    if !facts.slots.contains(&value) {
+                        facts.slots.push(value);
+                    }
+                }
+            }
+            None => {
+                let facts = RunFacts::new(&b.agent, loaded, mode);
+                self.facts.insert(b.run.clone(), facts);
+            }
         }
         Ok(reply)
     }
@@ -107,7 +126,7 @@ impl LearnHandlers {
         if !seen {
             return Ok(RunnerReply::Steps(StepsReply { steps }));
         }
-        let newest = agent::newest(host, &b.agent, &b.run)?;
+        let newest = self.newest_of(host, &b.agent, &b.run)?;
         let edits = Edits::read(host.rows())?;
         let Some(facts) = self.facts.get_mut(&b.run) else {
             return Ok(RunnerReply::Steps(StepsReply { steps }));

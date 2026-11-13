@@ -187,7 +187,7 @@ fn a_replay_put_playbook_is_never_passed_on_and_holds_each_admitted_step_as_a_ca
     assert_eq!(w.host.count(), count);
     let at_two = with_locators(served[1].clone(), "button Pay now", vec![loc("A")]);
     let reply = w.put(2, 2, vec![at_two]);
-    assert_eq!(reply, Ok(stored(0)));
+    assert_eq!(reply, Ok(stored(1)));
     assert_eq!(playbook_rows(&w), rows);
 }
 

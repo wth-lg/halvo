@@ -33,6 +33,7 @@ pub fn run(n: u32) -> String {
 pub struct AgentSide {
     pub store: MemoryStore,
     pub fault: bool,
+    pub gone: Vec<WorkflowId>,
 }
 
 impl RowRead for AgentSide {
@@ -63,6 +64,9 @@ impl Host for AgentSide {
     }
 
     fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
+        if self.gone.contains(id) {
+            return None;
+        }
         self.store.workflow(id)
     }
 }
@@ -81,6 +85,7 @@ impl TestHost {
             agent: AgentSide {
                 store: MemoryStore::new(),
                 fault: false,
+                gone: Vec::new(),
             },
             learn: Vec::new(),
             day: DAY,

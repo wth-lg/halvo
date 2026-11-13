@@ -35,10 +35,21 @@ impl LearnHandlers {
         }
         let call = CoordinatorCall::parse(body).ok();
         let now = host.agent_now();
-        let reply = halvo_agent_store::coordinator(host.agent_host(), now, body)?;
+        let reply = halvo_agent_store::coordinator(host.agent_host(), now, body);
+        if let Some(CoordinatorCall::EndRun(b)) = &call {
+            let of_agent = self.facts.get(&b.run).is_some_and(|f| f.agent == b.agent)
+                || self.starts.get(&b.run).is_some_and(|s| s.agent == b.agent);
+            if of_agent {
+                self.drop_run(&b.run);
+            }
+        }
+        let reply = reply?;
         match (&call, &reply) {
             (Some(CoordinatorCall::StartRun(b)), CoordinatorReply::Accepted(_)) => {
-                started(host, b)?;
+                self.sweep(host)?;
+                if started(host, b)? {
+                    self.remember_start(&b.run, &b.agent, b.mode);
+                }
             }
             (Some(CoordinatorCall::CreateAgent(b)), CoordinatorReply::Rev(_)) => {
                 created(host, b)?;
@@ -109,10 +120,11 @@ impl LearnHandlers {
     }
 }
 
-fn started(host: &mut dyn LearnHost, b: &StartRun) -> Result<(), ErrorName> {
+/// Stores the run's `learn_run` rev 1 and answers whether this call stored it.
+fn started(host: &mut dyn LearnHost, b: &StartRun) -> Result<bool, ErrorName> {
     let runs = rows::runs(host.rows())?;
     if rows::newest_run(&runs, b.run.as_str()).is_some() {
-        return Ok(());
+        return Ok(false);
     }
     let row = LearnRun {
         workflow: b.workflow.clone(),
@@ -122,7 +134,8 @@ fn started(host: &mut dyn LearnHost, b: &StartRun) -> Result<(), ErrorName> {
         mode: b.mode,
         status: RunStatus::Started,
     };
-    host.commit(vec![rows::run_record(&row)?])
+    host.commit(vec![rows::run_record(&row)?])?;
+    Ok(true)
 }
 
 fn created(host: &mut dyn LearnHost, b: &CreateAgent) -> Result<(), ErrorName> {
