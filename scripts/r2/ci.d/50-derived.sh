@@ -147,6 +147,7 @@ esac
 #= tests/privacy.rs the_ciphertext_check_finds_no_planted_marker_in_the_raw_file_bytes
 #= tests/privacy.rs a_second_process_is_refused_also_with_the_lock_file_unlinked
 #= tests/privacy.rs an_open_is_refused_while_another_holds_the_writer_lock_and_the_database_is_free
+#= tests/cases.rs own_origin_refused
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
