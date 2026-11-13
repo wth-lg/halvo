@@ -91,6 +91,18 @@ pub trait Core: Send + Sync {
     /// The hook of the window `main` destroyed, which answers as `hidden` does.
     fn destroyed(&self);
 
+    /// The hook of the app's start and of each pass of the status poller: one tick of the
+    /// coordinator (I5.9), whose first tick recovers the life (I5.8).
+    fn tick(&self);
+
+    /// The hook before the capture run's quit function sends its pause (I5.7, I5.9, ruling
+    /// RD-8): the first step of the coordinator's quit, then a wait in which no move of the
+    /// coordinator is held open, until no run is live, at most until `cancel_grace_s` after the
+    /// stop of each live run, counted from its stop for a run that was stopped before the quit,
+    /// and at most `budget`, the time that the system gives the quit at a logout or a shutdown;
+    /// then the second step.
+    fn quit(&self, budget: Option<Duration>);
+
     /// The native dialog's report that the item is on screen (I4.2).
     fn on_screen(&self, item: &ItemId);
 
@@ -146,6 +158,8 @@ pub struct Agents(pub Arc<dyn Core>);
 
 type Cfg<P> = <P as Owner>::Config;
 
+const LOOK: Duration = Duration::from_millis(100);
+
 /// The coordinator of the app over its ports `P`, the bell of its page and tray, and the waits
 /// of the waiting call.
 pub struct Hub<P: Owner> {
@@ -156,6 +170,7 @@ pub struct Hub<P: Owner> {
     present: Box<dyn Present>,
     open: Arc<Mutex<Vec<ItemId>>>,
     me: Weak<Hub<P>>,
+    grace: Duration,
 }
 
 impl<P> Hub<P>
@@ -192,6 +207,7 @@ where
             present,
             open: Arc::new(Mutex::new(Vec::new())),
             me: me.clone(),
+            grace: Duration::from_secs(limits.cancel_grace_s),
         })
     }
 
@@ -332,6 +348,28 @@ where
 
     fn destroyed(&self) {
         self.bell.close();
+    }
+
+    fn tick(&self) {
+        self.coord.tick();
+    }
+
+    fn quit(&self, budget: Option<Duration>) {
+        let start = Instant::now();
+        let wait = self.coord.quit_stop();
+        let grace = self.coord.ports().now().map_or(self.grace, |now| {
+            Duration::from_millis(wait.until.saturating_sub(now))
+        });
+        let end = start + budget.map_or(grace, |b| b.min(grace));
+        let mut seen = self.bell.mark();
+        while self.coord.live() > 0 {
+            let now = Instant::now();
+            if now >= end {
+                break;
+            }
+            seen = self.bell.wait(seen, end.min(now + LOOK));
+        }
+        self.coord.quit_kill();
     }
 
     fn on_screen(&self, item: &ItemId) {
