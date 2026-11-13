@@ -207,7 +207,7 @@ count_workers() {
 }
 
 read_config() {
-  awk -v want="$3" -v faults_wanted="$4" '
+  awk -v want="$3" '
     BEGIN {
       split("CONSTANT CONSTANTS INIT NEXT SPECIFICATION INVARIANT INVARIANTS PROPERTY PROPERTIES SYMMETRY VIEW CONSTRAINT CONSTRAINTS ACTION_CONSTRAINT ACTION_CONSTRAINTS CHECK_DEADLOCK POSTCONDITION ALIAS", list, " ")
       for (i in list) key[list[i]] = 1
@@ -236,7 +236,6 @@ read_config() {
           continue
         }
         if (w == "Fault") {
-          faults++
           if (word[i + 1] == "=" && word[i + 2] ~ /^"[a-z_]+"$/) fault = word[i + 2]
           else bad++
           out = out " Fault = ?"
@@ -248,7 +247,7 @@ read_config() {
       if (out != "") print substr(out, 2) >norm
     }
     END {
-      if (faults + 0 != faults_wanted || count + 0 != wanted) bad++
+      if (count + 0 != wanted) bad++
       printf "%d %s %d\n", count, (fault == "" ? "-" : fault), bad
     }' "$1"
 }
@@ -256,9 +255,9 @@ read_config() {
 config_kept() {
   READ_CONFIG_NORM=$work/$2.norm
   export READ_CONFIG_NORM
-  read_config "$1" "$2" "$3" "$4" >"$work/$2.config" || return 1
+  read_config "$1" "$2" "$3" >"$work/$2.config" || return 1
   read -r count fault bad <"$work/$2.config" || return 1
-  [ "$bad" -eq 0 ] && cmp -s "$5" "$work/$2.norm"
+  [ "$bad" -eq 0 ] && cmp -s "$4" "$work/$2.norm"
 }
 
 run_tlc() {
@@ -289,7 +288,7 @@ spend() {
   violated=-
   if ! present Hold.tla Spend.tla Spend.cfg; then
     refuse model spend-files "Hold.tla, Spend.tla or Spend.cfg is not in the commit"
-  elif ! config_kept "$work/in/Spend.cfg" spend "$invariants" 1 "$work/config.want" || [ "$fault" != '"none"' ]; then
+  elif ! config_kept "$work/in/Spend.cfg" spend "$invariants" "$work/config.want" || [ "$fault" != '"none"' ]; then
     refuse model spend-config "Spend.cfg is not the configuration of T7.6 that the script holds, with S1 to S11 and Fault none"
   else
     mkdir "$work/spend" || setup_failed
@@ -326,7 +325,7 @@ module() {
 }
 
 replay_files() {
-  present Hold.tla Replay.tla Replay.cfg && config_kept "$work/in/Replay.cfg" replay "" 0 "$work/replay-config.want"
+  present Hold.tla Replay.tla Replay.cfg && config_kept "$work/in/Replay.cfg" replay "" "$work/replay-config.want"
 }
 
 told() {
@@ -432,7 +431,7 @@ control() {
   violated=-
   if ! present Hold.tla Spend.tla "$2"; then
     refuse control "control-$1-files" "Hold.tla, Spend.tla or $2 is not in the commit"
-  elif ! config_kept "$work/in/$2" "control-$1" "$3" 1 "$work/config.want" || [ "$fault" != "\"$4\"" ]; then
+  elif ! config_kept "$work/in/$2" "control-$1" "$3" "$work/config.want" || [ "$fault" != "\"$4\"" ]; then
     refuse control "control-$1-config" "$2 is not the configuration of T7.6 with Fault $4 and the one invariant $3"
   else
     mkdir "$work/control-$1" || setup_failed
@@ -931,6 +930,9 @@ $(java_version openjdk 21.0.4 2024-07-16)" && fx_run
     printf 'output = "formal/r6-spend/README.md"\nurl = "file:///dev/null"\n' >"$repo_fx/curl.cfg" && fx_dash && w_runs= && fx_fail hash pin && fx_run
   fx_case pin-version-option nested && fx_edit README.md "tlc url=$jar_url" 'tlc url=--version' && fx_dash && w_runs= && fx_fail hash pin && fx_run
   fx_case pin-other-bytes nested && fx_edit README.md "bytes=$jar_bytes" 'bytes=2274533' && fx_dash && w_runs= && fx_fail hash pin && fx_run
+  fx_case pin-line-indented nested && fx_edit README.md '
+tlc url=' '
+  tlc url=' && fx_dash && w_runs= && fx_fail hash pin && fx_run
   fx_case pin-line-absent nested && fx_edit README.md '
 tlc url=' '
 tlc-url=' && fx_dash && w_runs= && fx_fail hash pin && fx_run
@@ -947,6 +949,7 @@ tlc url=" && fx_dash && w_runs= && fx_fail hash pin && fx_run
   fx_case java-path-11 nested && f_java_home= && f_version=$(java_version openjdk 11.0.2 2019-01-15) && fx_dash && w_runs=curl && fx_fail java java && fx_run
   fx_case java-path-8 nested && f_java_home= && f_version=$(java_version java 1.8.0_292 '') && fx_dash && w_runs=curl && fx_fail java java && fx_run
   fx_case tmpdir-relative nested && f_tmpdir=formal && fx_alone && fx_fail setup '' && fx_run
+  fx_case tmpdir-relative-outside nested && f_tmpdir="../runs/$fname/tmp" && fx_alone && fx_fail setup '' && fx_run
   fx_case tmpdir-inside-checkout nested && f_tmpdir=$repo_fx/formal && fx_alone && fx_fail setup '' && fx_run
   fx_case repository-absent nested && f_repo=$fx/absent && fx_alone && fx_fail setup '' && fx_run
   fx_case usage-second-argument nested && fx_alone && fx_fail usage '' && fx_run --self-test x
@@ -1011,6 +1014,9 @@ INIT Init' ;;
     fx_want "$states_dash" 'cause=model rejected=0'
     fx_step spend
   done
+  fx_case spend-config-trailing-comment step && fx_edit Spend.cfg '    Hurry = TRUE
+' '    Hurry = TRUE \* the bound of SP-1
+' && w_runs=run:spend && fx_want 'formal states=1701266 invariants=11 violated=no' 'cause= rejected=0' && fx_step spend
   fx_case spend-file-absent step && f_missing=' Spend.cfg' && w_runs= && w_guard=spend-files && fx_want "$states_dash" 'cause=model rejected=0' && fx_step spend
   for edit in status-1 no-completion quoted-completion left-on-queue two-states-lines no-banner two-banners; do
     fx_case "spend-$edit" step || continue
