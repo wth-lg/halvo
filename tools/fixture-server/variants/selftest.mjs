@@ -256,8 +256,11 @@ async function startParent(input) {
 
 async function endParent(h) {
   if (h.parent.exitCode === null && h.parent.signalCode === null) {
-    h.parent.kill('SIGKILL');
-    await h.exit;
+    h.parent.stdin.end();
+    if ((await exitWithin(h.parent, GONE_MS)) === null) {
+      h.parent.kill('SIGKILL');
+      await h.exit;
+    }
   }
   if (h.pid !== null && alive(h.pid)) process.kill(h.pid, 'SIGKILL');
 }
