@@ -1088,6 +1088,21 @@ mod tests {
     }
 
     #[test]
+    fn e14_the_scripted_store_shows_obstructed_and_takes_a_delete_with_the_shown_id() {
+        let mut json = serde_json::to_value(sample_status(Platform::Macos).into_fields()).unwrap();
+        json["store"] = serde_json::Value::from("unavailable");
+        json["store_error"] = serde_json::Value::from("obstructed");
+        json["store_retry_in_s"] = serde_json::Value::from(1);
+        let obstructed: DaemonStatus = serde_json::from_value(json).unwrap();
+        let (client, _) = client(ScriptedDaemon::new(obstructed.clone()));
+        assert_eq!(client.status().unwrap(), obstructed);
+        assert!(matches!(
+            client.delete_all(Some(FIXTURE_STORE_ID)).unwrap(),
+            DeleteOutcome::Deleted(_)
+        ));
+    }
+
+    #[test]
     fn t18_c_a_deleted_reply_with_no_new_store_reaches_the_caller() {
         let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
         daemon.set_fresh_store(None);

@@ -2091,6 +2091,63 @@ mod tests {
         }
     }
 
+    /// The sample status as JSON, with `store`, `store_error` and `store_retry_in_s` set.
+    fn status_json_with_store(store: &str, error: &str, retry: u64) -> serde_json::Value {
+        let mut json = serde_json::to_value(sample_status(Platform::Macos).into_fields()).unwrap();
+        json["store"] = serde_json::Value::from(store);
+        json["store_error"] = serde_json::Value::from(error);
+        json["store_retry_in_s"] = serde_json::Value::from(retry);
+        json
+    }
+
+    #[test]
+    fn e14_obstructed_is_a_cause_of_store_unavailable_and_a_value_outside_the_list_is_refused() {
+        let status: DaemonStatus =
+            serde_json::from_value(status_json_with_store("unavailable", "obstructed", 5))
+                .expect("store=unavailable store_error=obstructed is taken");
+        let text = crate::ctl_text::status_text(&status);
+        assert!(
+            text.contains(&format!(
+                "\nstore=unavailable\nstore_id={FIXTURE_STORE_ID}\nstore_error=obstructed\nstore_retry_in_s=5\n"
+            )),
+            "{text}"
+        );
+        assert_eq!(
+            serde_json::to_value(&status).unwrap()["store_error"],
+            "obstructed"
+        );
+        for (store, error) in [
+            ("unavailable", "obstructe"),
+            ("unavailable", "Obstructed"),
+            ("open", "obstructed"),
+            ("sealed", "obstructed"),
+        ] {
+            assert!(
+                serde_json::from_value::<DaemonStatus>(status_json_with_store(store, error, 5))
+                    .is_err(),
+                "store={store} store_error={error}"
+            );
+        }
+    }
+
+    #[test]
+    fn e15_a_deleted_report_carries_not_followed_after_database_left_and_one_without_it_does_not_decode(
+    ) {
+        let with = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"not_followed":1,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#;
+        let Reply::Deleted(deleted) = decode_reply(with).expect("a report with not_followed")
+        else {
+            panic!("not a deleted reply");
+        };
+        assert!(
+            crate::ctl_text::deleted_text(&deleted)
+                .contains(" files_left=0 database_left=no not_followed=1 entries_removed=4 "),
+            "{}",
+            crate::ctl_text::deleted_text(&deleted)
+        );
+        let without = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#;
+        assert!(decode_reply(without).is_err());
+    }
+
     #[test]
     fn a1_capture_paused_beside_a_desired_state_that_is_not_paused_is_refused() {
         for platform in [Platform::Macos, Platform::Windows] {
