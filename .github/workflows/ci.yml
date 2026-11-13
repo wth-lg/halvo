@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,58 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 11-cap
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 11-cap
+      - name: U0.2b repeated rounds
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 25
         shell: bash
-        run: npm run tauri build
-      - name: Version
+        run: |
+          set +e
+          out=$(cargo test --locked -p halvo-cap --no-run 2>&1)
+          lib=$(printf '%s\n' "$out" | sed -n 's/.*Executable unittests src[\\/]lib.rs (\(.*\))$/\1/p' | tr '\\' '/')
+          it=$(printf '%s\n' "$out" | sed -n 's/.*Executable tests[\\/]model_lock.rs (\(.*\))$/\1/p' | tr '\\' '/')
+          echo "u02b-rounds binaries found: lib=$([ -n "$lib" ] && echo yes || echo no) model_lock=$([ -n "$it" ] && echo yes || echo no)"
+          [ -n "$lib" ] && [ -n "$it" ] || exit 1
+          log="$RUNNER_TEMP/u02b-round.txt"
+          passed=0
+          start=$(date +%s)
+          while [ "$passed" -lt 200 ]; do
+            "$lib" lock::tests:: >"$log" 2>&1 && "$it" >>"$log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              echo "u02b-rounds round $((passed + 1)) failed with exit $code; the test lines of that round:"
+              grep -E '^test |^test result|^failures' "$log"
+              break
+            fi
+            passed=$((passed + 1))
+          done
+          echo "u02b-rounds passed=$passed of 200 seconds=$(($(date +%s) - start))"
+          [ "$passed" -eq 200 ]
+      - name: U0.2b failing-first at the code before each part
+        if: ${{ !cancelled() }}
+        continue-on-error: true
         shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          lib=crates/halvo-cap/src/lock.rs
+          mark='^#.cfg(all(test, any(target_os = "macos", windows)))'
+          git fetch -q --no-tags origin b18f09954dd952b6edf116203ce3009a7a5d56c9 23e645ad28aa81f4557e1083f5b73b7718a677c4
+          echo "u02b-fetch exit=$?"
+          echo "u02b-before-part2: the tests of tests/model_lock.rs at the head over the lock.rs of b18f0995 (the variable)"
+          git show b18f09954dd952b6edf116203ce3009a7a5d56c9:$lib >"$lib"
+          cargo test --locked -p halvo-cap --no-fail-fast --test model_lock 2>&1 | grep -E '^test |model-lock end-to-end|^test result'
+          git checkout -- "$lib"
+          echo "u02b-before-part3: the part-3 tests of the head over the library of 23e645ad (an existing file opened for writing)"
+          git show 23e645ad28aa81f4557e1083f5b73b7718a677c4:$lib | sed "/$mark/,\$d" >"$RUNNER_TEMP/u02b-lock.rs"
+          sed -n "/$mark/,\$p" "$lib" >>"$RUNNER_TEMP/u02b-lock.rs"
+          cp "$RUNNER_TEMP/u02b-lock.rs" "$lib"
+          cargo test --locked -p halvo-cap --no-fail-fast --lib -- lock::tests::an_existing_lock_file_that_cannot_be_written_is_taken_and_held lock::tests::a_directory_that_cannot_be_written_gives_io_and_no_lock 2>&1 | grep -E '^test |^test result'
+          git checkout -- "$lib"
+          echo "u02b-after: tracked files that differ from HEAD: $(git status --porcelain --untracked-files=no | grep -c .)"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +166,58 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 11-cap
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 11-cap
+      - name: U0.2b repeated rounds
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 25
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: |
+          set +e
+          out=$(cargo test --locked -p halvo-cap --no-run 2>&1)
+          lib=$(printf '%s\n' "$out" | sed -n 's/.*Executable unittests src[\\/]lib.rs (\(.*\))$/\1/p' | tr '\\' '/')
+          it=$(printf '%s\n' "$out" | sed -n 's/.*Executable tests[\\/]model_lock.rs (\(.*\))$/\1/p' | tr '\\' '/')
+          echo "u02b-rounds binaries found: lib=$([ -n "$lib" ] && echo yes || echo no) model_lock=$([ -n "$it" ] && echo yes || echo no)"
+          [ -n "$lib" ] && [ -n "$it" ] || exit 1
+          log="$RUNNER_TEMP/u02b-round.txt"
+          passed=0
+          start=$(date +%s)
+          while [ "$passed" -lt 200 ]; do
+            "$lib" lock::tests:: >"$log" 2>&1 && "$it" >>"$log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              echo "u02b-rounds round $((passed + 1)) failed with exit $code; the test lines of that round:"
+              grep -E '^test |^test result|^failures' "$log"
+              break
+            fi
+            passed=$((passed + 1))
+          done
+          echo "u02b-rounds passed=$passed of 200 seconds=$(($(date +%s) - start))"
+          [ "$passed" -eq 200 ]
+      - name: U0.2b failing-first at the code before each part
+        if: ${{ !cancelled() }}
+        continue-on-error: true
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          lib=crates/halvo-cap/src/lock.rs
+          mark='^#.cfg(all(test, any(target_os = "macos", windows)))'
+          git fetch -q --no-tags origin b18f09954dd952b6edf116203ce3009a7a5d56c9 23e645ad28aa81f4557e1083f5b73b7718a677c4
+          echo "u02b-fetch exit=$?"
+          echo "u02b-before-part2: the tests of tests/model_lock.rs at the head over the lock.rs of b18f0995 (the variable)"
+          git show b18f09954dd952b6edf116203ce3009a7a5d56c9:$lib >"$lib"
+          cargo test --locked -p halvo-cap --no-fail-fast --test model_lock 2>&1 | grep -E '^test |model-lock end-to-end|^test result'
+          git checkout -- "$lib"
+          echo "u02b-before-part3: the part-3 tests of the head over the library of 23e645ad (an existing file opened for writing)"
+          git show 23e645ad28aa81f4557e1083f5b73b7718a677c4:$lib | sed "/$mark/,\$d" >"$RUNNER_TEMP/u02b-lock.rs"
+          sed -n "/$mark/,\$p" "$lib" >>"$RUNNER_TEMP/u02b-lock.rs"
+          cp "$RUNNER_TEMP/u02b-lock.rs" "$lib"
+          cargo test --locked -p halvo-cap --no-fail-fast --lib -- lock::tests::an_existing_lock_file_that_cannot_be_written_is_taken_and_held lock::tests::a_directory_that_cannot_be_written_gives_io_and_no_lock 2>&1 | grep -E '^test |^test result'
+          git checkout -- "$lib"
+          echo "u02b-after: tracked files that differ from HEAD: $(git status --porcelain --untracked-files=no | grep -c .)"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
